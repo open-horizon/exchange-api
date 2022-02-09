@@ -1,11 +1,18 @@
 package com.horizon.exchangeapi
 
+<<<<<<< HEAD
 import java.time._
 
 import com.horizon.exchangeapi._
 import com.horizon.exchangeapi.tables._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+=======
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
+import com.horizon.exchangeapi.tables.{ManagementPolicy, NodeRow, NodesTQ, OneProperty, OrgRow, OrgsTQ, RegService, ResourceChangesTQ, UserRow}
+import org.json4s.jackson.JsonMethods.parse
+import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable, string2JsonInput}
+>>>>>>> b2bb2e9 (Issue-556: Changed the DB schema for NMPs. Changed the syntax of table queries to be simpler.)
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite
@@ -27,6 +34,7 @@ import scala.collection.mutable.ListBuffer
 class ManagementPoliciesSuite extends AnyFunSuite {
 
   val localUrlRoot = "http://localhost:8080"
+<<<<<<< HEAD
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally = (urlRoot == localUrlRoot)
   val ACCEPT = ("Accept","application/json")
@@ -36,20 +44,32 @@ class ManagementPoliciesSuite extends AnyFunSuite {
   val orgid = "MgmtPolSuiteTests"
   val authpref=orgid+"/"
   val URL = urlRoot+"/v1/orgs/"+orgid
+=======
+  val urlRoot: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
+  val runningLocally: Boolean = (urlRoot == localUrlRoot)
+  val ACCEPT: (String, String) = ("Accept","application/json")
+  val ACCEPTTEXT: (String, String) = ("Accept","text/plain")
+  val CONTENT: (String, String) = ("Content-Type","application/json")
+  val CONTENTTEXT: (String, String) = ("Content-Type","text/plain")
+  val orgid = "MgmtPolSuite"
+  val authpref: String = orgid + "/"
+  val URL: String = urlRoot + "/v1/orgs/" + orgid
+>>>>>>> b2bb2e9 (Issue-556: Changed the DB schema for NMPs. Changed the syntax of table queries to be simpler.)
 
   val user = "mpuser"
-  val orguser = authpref+user
-  val pw = user+"pw"
-  val USERAUTH = ("Authorization","Basic "+ApiUtils.encode(orguser+":"+pw))
-  val rootuser = Role.superUser
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
-  val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
+  val orguser: String = authpref + user
+  val pw: String = user + "pw"
+  val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(orguser + ":" + pw))
+  val rootuser: String = Role.superUser
+  val rootpw: String = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
+  val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(rootuser + ":" + rootpw))
   val managementPolicy = "mymgmtpol"
-  val orgManagementPolicy = authpref+managementPolicy
+  val orgManagementPolicy: String = authpref + managementPolicy
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
-  val NOORGURL = urlRoot+"/v1"
+  val NOORGURL: String = urlRoot + "/v1"
   val orgsList = new ListBuffer[String]()
 
+<<<<<<< HEAD
   implicit val formats = DefaultFormats // Brings in default date formats etc.
 
   /** Delete all the test users */
@@ -59,6 +79,43 @@ class ManagementPoliciesSuite extends AnyFunSuite {
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
     }
+=======
+  implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
+  
+  private val AWAITDURATION: Duration = 15.seconds
+  
+  private val TESTORGANIZATION: OrgRow =
+    OrgRow(heartbeatIntervals = "",
+           description        = "",
+           label              = "",
+           lastUpdated        = ApiTime.nowUTC,
+           orgId              = "MgmtPolSuite",
+           orgType            = "",
+           tags               = None,
+           limits             = "")
+  
+  // Begin building testing harness.
+  override def beforeAll(): Unit = {
+    Await.ready(DBCONNECTION.getDb.run((OrgsTQ += TESTORGANIZATION)), AWAITDURATION)
+  }
+  
+  // Teardown testing harness and cleanup.
+  override def afterAll(): Unit = {
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "MgmtPolSuite").delete andThen
+                                       OrgsTQ.filter(_.orgid startsWith "MgmtPolSuite").delete), AWAITDURATION)
+    
+    DBCONNECTION.getDb.close()
+  }
+  
+  // Nodes that are dynamically needed, specific to the test case.
+  def fixtureNodes(testCode: Seq[NodeRow] => Any, testData: Seq[NodeRow]): Any = {
+    try {
+      Await.result(DBCONNECTION.getDb.run(NodesTQ ++= testData), AWAITDURATION)
+      testCode(testData)
+    }
+    finally
+      Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
+>>>>>>> b2bb2e9 (Issue-556: Changed the DB schema for NMPs. Changed the syntax of table queries to be simpler.)
   }
 
   //~~~~~ Clean up from previous run, and create orgs, users ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -83,8 +140,8 @@ class ManagementPoliciesSuite extends AnyFunSuite {
   }
 
   test("Add users for future tests") {
-    var userInput = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
-    var userResponse = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    var userInput: PostPutUsersRequest = PostPutUsersRequest(pw, admin = false, Option(false), user + "@hotmail.com")
+    var userResponse: HttpResponse[String] = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
   }
@@ -94,11 +151,18 @@ class ManagementPoliciesSuite extends AnyFunSuite {
   //PostPutManagementPolicyRequest(label: String, description: Option[String], properties: Option[List[OneProperty]], constraints: Option[List[String]], patterns: Option[List[String]], enabled: Boolean, agentUpgradePolicy: Option[AgentUpgradePolicy] )
 
   test("POST /orgs/"+orgid+"/managementpolicies/"+managementPolicy+" - add "+managementPolicy+" as user") {
-    val input = PostPutManagementPolicyRequest(managementPolicy, Some("desc"),
-      Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b")),
-      None, true, None
-    )
-    var response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val input: PostPutManagementPolicyRequest =
+      PostPutManagementPolicyRequest(agentUpgradePolicy = None,
+                                     constraints = Option(List("a == b")),
+                                     description = Option("desc"),
+                                     enabled = true,
+                                     label = managementPolicy,
+                                     patterns = None,
+                                     properties = Option(List(OneProperty("purpose", None, "location"))),
+                                     start = "now",
+                                     startWindow = 0)
+    
+    var response: HttpResponse[String] = Http(URL + "/managementpolicies/" + managementPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   
@@ -106,16 +170,23 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    val respObj = parse(response.body).extract[ApiResponse]
+    val respObj: ApiResponse = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("management policy '"+orgManagementPolicy+"' created"))
   }
 
   test("PUT /orgs/"+orgid+"/managementpolicies/"+managementPolicy+" - add "+managementPolicy+" as user") {
-    val input = PostPutManagementPolicyRequest(managementPolicy, Some("desc"),
-      Some(List(OneProperty("purpose",None,"location2"))), Some(List("a == c")),
-      None, true, None
-    )
-    var response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val input: PostPutManagementPolicyRequest =
+      PostPutManagementPolicyRequest(agentUpgradePolicy = None,
+      constraints = Option(List("a == c")),
+      description = Option("desc"),
+      enabled = true,
+      label = managementPolicy,
+      patterns = None,
+      properties = Option(List(OneProperty("purpose", None, "location2"))),
+      start = "now",
+      startWindow = 0)
+    
+    var response: HttpResponse[String] = Http(URL + "/managementpolicies/" + managementPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   
@@ -123,7 +194,7 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    val respObj = parse(response.body).extract[ApiResponse]
+    val respObj: ApiResponse = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("management policy updated"))
   }
 
@@ -134,11 +205,11 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetManagementPoliciesResponse]
+    val respObj: GetManagementPoliciesResponse = parse(response.body).extract[GetManagementPoliciesResponse]
     assert(respObj.managementPolicy.size === 1)
 
     assert(respObj.managementPolicy.contains(orgManagementPolicy))
-    var mp = respObj.managementPolicy(orgManagementPolicy)
+    var mp: ManagementPolicy = respObj.managementPolicy(orgManagementPolicy)
     assert(mp.label === managementPolicy)
     assert(mp.description === "desc")
     assert(mp.owner === rootuser)
@@ -152,11 +223,11 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetManagementPoliciesResponse]
+    val respObj: GetManagementPoliciesResponse = parse(response.body).extract[GetManagementPoliciesResponse]
     assert(respObj.managementPolicy.size === 1)
 
     assert(respObj.managementPolicy.contains(orgManagementPolicy))
-    var mp = respObj.managementPolicy(orgManagementPolicy)
+    var mp: ManagementPolicy = respObj.managementPolicy(orgManagementPolicy)
     assert(mp.label === managementPolicy)
     assert(mp.description === "desc")
     assert(mp.owner === rootuser)
@@ -164,6 +235,7 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     assert(mp.properties.head.value === "location2")
     assert(mp.constraints.head === "a == c")
   }
+<<<<<<< HEAD
 
   //~~~~~ Clean up ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -176,6 +248,41 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
+=======
+  
+  // Nodes should be able to see changes to Node Management Policies
+  test("GET /orgs/" + orgid + "/changes - As a node") {
+    val TESTNODE: Seq[NodeRow] =
+      Seq(NodeRow(id = "MgmtPolSuite/n1",
+                  orgid = "MgmtPolSuite",
+                  token = "$2a$04$BFX1t20Vd08CQvOisW8B0.JhXw63q0/NydkAwqa2OawPjQmUfJaQG", // MgmtPolSuite/n1:n1pw
+                  name = "",
+                  owner = "root/root",
+                  nodeType = "device",
+                  pattern = "",
+                  regServices = "[]",
+                  userInput = "",
+                  msgEndPoint = "",
+                  softwareVersions = "",
+                  lastHeartbeat = Option(ApiTime.nowUTC),
+                  publicKey = "key",
+                  arch = "",
+                  heartbeatIntervals = "",
+                  lastUpdated = ApiTime.nowUTC))
+    
+    fixtureNodes(
+      _ => {
+        val input: ResourceChangesRequest = ResourceChangesRequest(0, None, 100, Option(List("MgmtPolSuite")))
+        val response: HttpResponse[String] = Http(URL + "/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic "+ApiUtils.encode(TESTNODE.head.id + ":n1pw"))).asString
+        
+        info("code: " + response.code)
+        info("body: " + response.body)
+        
+        val change: ChangeEntry = parse(response.body).extract[ResourceChangesRespObject].changes.filter(c => c.resource === "mgmtpolicy" && c.orgId === "MgmtPolSuite").head
+        
+        assert(change.resourceChanges.nonEmpty)
+      }, TESTNODE)
+>>>>>>> b2bb2e9 (Issue-556: Changed the DB schema for NMPs. Changed the syntax of table queries to be simpler.)
   }
 
   test("Cleanup -- DELETE org changes") {

@@ -32,11 +32,19 @@ import com.horizon.exchangeapi.auth._
 //====== These are the input and output structures for /orgs/{orgid}/managementpolicy routes. Swagger and/or json seem to require they be outside the trait.
 
 /** Output format for GET /orgs/{orgid}/managementpolicies */
-final case class GetManagementPoliciesResponse(managementPolicy: Map[String,ManagementPolicy], lastIndex: Int)
+final case class GetManagementPoliciesResponse(managementPolicy: Map[String, ManagementPolicy], lastIndex: Int)
 final case class GetManagementPolicyAttributeResponse(attribute: String, value: String)
 
 /** Input format for POST/PUT /orgs/{orgid}/managementpolicies/<mgmt-pol-id> */
-final case class PostPutManagementPolicyRequest(label: String, description: Option[String], properties: Option[List[OneProperty]], constraints: Option[List[String]], patterns: Option[List[String]], enabled: Boolean, agentUpgradePolicy: Option[AgentUpgradePolicy] )  {
+final case class PostPutManagementPolicyRequest(label: String,
+                                                description: Option[String],
+                                                properties: Option[List[OneProperty]],
+                                                constraints: Option[List[String]],
+                                                patterns: Option[List[String]],
+                                                enabled: Boolean,
+                                                start: String = "now",
+                                                startWindow: Long = 0,
+                                                agentUpgradePolicy: Option[AgentUpgradePolicy])  {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -46,11 +54,39 @@ final case class PostPutManagementPolicyRequest(label: String, description: Opti
 
   // Note: write() handles correctly the case where the optional fields are None.
   def getDbInsert(managementPolicy: String, orgid: String, owner: String): DBIO[_] = {
-    ManagementPolicyRow(managementPolicy, orgid, owner, label, description.getOrElse(label), write(properties), write(constraints), write(patterns), enabled, write(agentUpgradePolicy), ApiTime.nowUTC, ApiTime.nowUTC).insert
+    ManagementPolicyRow(allowDowngrade = if(agentUpgradePolicy.nonEmpty) agentUpgradePolicy.get.allowDowngrade else false,
+                        constraints = write(constraints),
+                        created = ApiTime.nowUTC,
+                        description = description.getOrElse(label),
+                        enabled = enabled,
+                        label = label,
+                        lastUpdated = ApiTime.nowUTC,
+                        managementPolicy = managementPolicy,
+                        manifest = if(agentUpgradePolicy.nonEmpty) agentUpgradePolicy.get.manifest else "",
+                        orgid = orgid,
+                        owner = owner,
+                        patterns = write(patterns),
+                        properties = write(properties),
+                        start = start,
+                        startWindow = if(startWindow < 0) 0 else startWindow).insert
   }
 
   def getDbUpdate(managementPolicy: String, orgid: String, owner: String): DBIO[_] = {
-    ManagementPolicyRow(managementPolicy, orgid, owner, label, description.getOrElse(label), write(properties), write(constraints), write(patterns), enabled, write(agentUpgradePolicy), ApiTime.nowUTC, "").update
+    ManagementPolicyRow(allowDowngrade = if(agentUpgradePolicy.nonEmpty) agentUpgradePolicy.get.allowDowngrade else false,
+                        constraints = write(constraints),
+                        created = ApiTime.nowUTC,
+                        description = description.getOrElse(label),
+                        enabled = enabled,
+                        label = label,
+                        lastUpdated = ApiTime.nowUTC,
+                        managementPolicy = managementPolicy,
+                        manifest = if(agentUpgradePolicy.nonEmpty) agentUpgradePolicy.get.manifest else "",
+                        orgid = orgid,
+                        owner = owner,
+                        patterns = write(patterns),
+                        properties = write(properties),
+                        start = start,
+                        startWindow = if(startWindow < 0) 0 else startWindow).update
   }
 }
 

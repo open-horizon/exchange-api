@@ -573,7 +573,7 @@ object IbmCloudAuth {
 
   private def fetchUser(org: String, userInfo: IamUserInfo) = {
     logger.debug("Fetching user: org=" + org + ", " + userInfo)
-    UsersTQ.rows
+    UsersTQ
       .filter(u => u.orgid === org && u.username === s"$org/${userInfo.user}")
       //.take(1)  // not sure what the purpose of this was
       .result
@@ -592,7 +592,7 @@ object IbmCloudAuth {
         userInfo.user,
         ApiTime.nowUTC,
         s"$org/${userInfo.user}")
-      (UsersTQ.rows += user).asTry.map(count => count.map(_ => user))
+      (UsersTQ += user).asTry.map(count => count.map(_ => user))
     } else {
       logger.debug("ibmcloudmodule not creating user")
       null

@@ -77,16 +77,16 @@ class TestAgbotGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   
   
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ.rows ++= TESTORGANIZATIONS) andThen
-                                       (UsersTQ.rows ++= TESTUSERS) andThen
-                                       (AgbotsTQ.rows += TESTAGBOT) andThen
-                                       (AgbotMsgsTQ.rows ++= TESTAGBOTMESSAGES) andThen
-                                       (NodesTQ.rows ++= TESTNODES)), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
+                                       (UsersTQ ++= TESTUSERS) andThen
+                                       (AgbotsTQ += TESTAGBOT) andThen
+                                       (AgbotMsgsTQ ++= TESTAGBOTMESSAGES) andThen
+                                       (NodesTQ ++= TESTNODES)), AWAITDURATION)
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestAgbotGetMsgRoute").delete andThen
-                                       OrgsTQ.rows.filter(_.orgid startsWith "TestAgbotGetMsgRoute").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestAgbotGetMsgRoute").delete andThen
+                                       OrgsTQ.filter(_.orgid startsWith "TestAgbotGetMsgRoute").delete), AWAITDURATION)
   
     DBCONNECTION.getDb.close()
   }
@@ -101,7 +101,7 @@ class TestAgbotGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   
   test("GET /orgs/" + "TestAgbotGetMsgRoute" + "/agbots/" + "a1" + "/msgs/{msgid} -- Message") {
     val TESTAGBOTMESSAGEID: Int =
-      Await.result(DBCONNECTION.getDb.run(AgbotMsgsTQ.rows
+      Await.result(DBCONNECTION.getDb.run(AgbotMsgsTQ
                                                      .filter(_.agbotId === TESTAGBOTMESSAGES(0).agbotId)
                                                      .filter(_.nodeId === TESTAGBOTMESSAGES(0).nodeId)
                                                      .filter(_.message === TESTAGBOTMESSAGES(0).message)

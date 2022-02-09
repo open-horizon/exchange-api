@@ -96,11 +96,11 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
     import com.horizon.exchangeapi.tables.ExchangePostgresProfile.plainAPI._
     val lastUpdated: String = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this org
-    orgType match { case Some(ot) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.orgType, d.lastUpdated)).update((orgId, ot, lastUpdated)), "orgType"); case _ => ; }
-    label match { case Some(lab) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.label, d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
-    description match { case Some(desc) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.description, d.lastUpdated)).update((orgId, desc, lastUpdated)), "description"); case _ => ; }
-    heartbeatIntervals match { case Some(hbIntervals) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.heartbeatIntervals, d.lastUpdated)).update((orgId, write(hbIntervals), lastUpdated)), "heartbeatIntervals"); case _ => ; }
-    tags match { case Some(ts) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.tags, d.lastUpdated)).update((orgId, Some(ApiUtils.asJValue(ts)), lastUpdated)), "tags"); case _ => ; }
+    orgType match { case Some(ot) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.orgType, d.lastUpdated)).update((orgId, ot, lastUpdated)), "orgType"); case _ => ; }
+    label match { case Some(lab) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.label, d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
+    description match { case Some(desc) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.description, d.lastUpdated)).update((orgId, desc, lastUpdated)), "description"); case _ => ; }
+    heartbeatIntervals match { case Some(hbIntervals) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.heartbeatIntervals, d.lastUpdated)).update((orgId, write(hbIntervals), lastUpdated)), "heartbeatIntervals"); case _ => ; }
+    tags match { case Some(ts) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.tags, d.lastUpdated)).update((orgId, Some(ApiUtils.asJValue(ts)), lastUpdated)), "tags"); case _ => ; }
 //    tags match {
 //      case Some(ts) =>
 //        val (deletes, updates) = ts.partition {
@@ -118,7 +118,7 @@ final case class PatchOrgRequest(orgType: Option[String], label: Option[String],
 //        return (DBIO.sequence(allChanges).map(counts => counts.sum), "tags")
 //      case _ =>
 //    }
-    limits match { case Some(lim) => return ((for { d <- OrgsTQ.rows if d.orgid === orgId } yield (d.orgid, d.limits, d.lastUpdated)).update((orgId, write(lim), lastUpdated)), "limits"); case _ => ; }
+    limits match { case Some(lim) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.limits, d.lastUpdated)).update((orgId, write(lim), lastUpdated)), "limits"); case _ => ; }
     (null, null)
   }
 }
@@ -255,7 +255,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       validate(orgType.isEmpty || orgType.get == "IBM", ExchMsg.translate("org.get.orgtype")) {
         complete({ // this is an anonymous function that returns Future[(StatusCode, GetOrgsResponse)]
           logger.debug(s"GET /orgs identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
-          var q = OrgsTQ.rows.subquery
+          var q = OrgsTQ.subquery
           // If multiple filters are specified they are ANDed together by adding the next filter to the previous filter by using q.filter
           orgType match {
             case Some(oType) => if (oType.contains("%")) q = q.filter(_.orgType like oType) else q = q.filter(_.orgType === oType);
@@ -744,14 +744,14 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"Doing POST /orgs/$orgid/search/nodes/error")
     exchAuth(TNode(OrgAndId(orgid,"#").toString),Access.READ) { ident =>
       complete({
-        var queryParam = NodesTQ.rows.filter(_.orgid === orgid)
+        var queryParam = NodesTQ.filter(_.orgid === orgid)
         val userId: String = orgid + "/" + ident.getIdentity
         ident match {
           case _: IUser => if(!(ident.isSuperUser || ident.isAdmin)) queryParam = queryParam.filter(_.owner === userId)
           case _ => ;
         }
         val q = for {
-          (n, _) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]") join queryParam on (_.nodeId === _.id)
+          (n, _) <- NodeErrorTQ.filter(_.errors =!= "").filter(_.errors =!= "[]") join queryParam on (_.nodeId === _.id)
         } yield n.nodeId
 
         db.run(q.result).map({ list =>
@@ -780,14 +780,14 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"Doing GET /orgs/$orgid/search/nodes/error/all")
     exchAuth(TNode(OrgAndId(orgid,"#").toString),Access.READ) { ident =>
       complete({
-        var queryParam = NodesTQ.rows.filter(_.orgid === orgid)
+        var queryParam = NodesTQ.filter(_.orgid === orgid)
         val userId: String = orgid + "/" + ident.getIdentity
         ident match {
           case _: IUser => if(!(ident.isSuperUser || ident.isAdmin)) queryParam = queryParam.filter(_.owner === userId)
           case _ => ;
         }
         val q = for {
-          (ne, _) <- NodeErrorTQ.rows.filter(_.errors =!= "").filter(_.errors =!= "[]") join queryParam on (_.nodeId === _.id)
+          (ne, _) <- NodeErrorTQ.filter(_.errors =!= "").filter(_.errors =!= "[]") join queryParam on (_.nodeId === _.id)
         } yield (ne.nodeId, ne.errors, ne.lastUpdated)
 
         db.run(q.result).map({ list =>
@@ -884,7 +884,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           val service: String = reqBody.serviceURL + "_" + reqBody.serviceVersion + "_" + reqBody.serviceArch
           logger.debug("POST /orgs/"+orgid+"/search/nodes/service criteria: "+reqBody.toString)
           val orgService: String = "%|" + reqBody.orgid + "/" + service + "|%"
-          var qFilter = NodesTQ.rows.filter(_.orgid === orgid)
+          var qFilter = NodesTQ.filter(_.orgid === orgid)
           ident match {
             case _: IUser =>
               // if the caller is a normal user then we need to only return node the caller owns
@@ -892,7 +892,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case _ => ; // nodes can't call this route and agbots don't need an additional filter
           }
           val q = for {
-            (n, _) <- qFilter join (NodeStatusTQ.rows.filter(_.runningServices like orgService)) on (_.id === _.nodeId)
+            (n, _) <- qFilter join (NodeStatusTQ.filter(_.runningServices like orgService)) on (_.id === _.nodeId)
           } yield (n.id, n.lastHeartbeat)
 
           db.run(q.result).map({ list =>
@@ -993,7 +993,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           */
           val lastTime: String = if (reqBody.lastTime != "") reqBody.lastTime else ApiTime.beginningUTC
           val q = for {
-            (n, a) <- NodesTQ.rows.filter(_.orgid === orgid).filter(_.pattern === "").filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ.rows on (_.id === _.nodeId)
+            (n, a) <- NodesTQ.filter(_.orgid === orgid).filter(_.pattern === "").filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ on (_.id === _.nodeId)
           } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
 
           db.run(q.result).map({ list =>
@@ -1104,13 +1104,13 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           val maxRecordsCap: Int = ExchConfig.getInt("api.resourceChanges.maxRecordsCap")
           val maxRecords: Int = if (reqBody.maxRecords > maxRecordsCap) maxRecordsCap else reqBody.maxRecords
           // Create a query to get the last changeid currently in the table
-          val qMaxChangeId = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
+          val qMaxChangeId = ResourceChangesTQ.sortBy(_.changeId.desc).take(1).map(_.changeId)
           val orgList : List[String] = if (reqBody.orgList.isDefined && reqBody.orgList.getOrElse(List()).contains(orgId)) reqBody.orgList.getOrElse(List("")) else reqBody.orgList.getOrElse(List("")) ++ List(orgId)
           val orgSet : Set[String] = orgList.toSet
           var maxChangeId = 0L
           val reqBodyTime : java.sql.Timestamp = java.sql.Timestamp.from(ZonedDateTime.parse(reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)).toInstant)
           // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
-          var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.rows.filter(_.lastUpdated >= reqBodyTime) else ResourceChangesTQ.rows.filter(_.changeId >= reqBody.changeId)
+          var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.filter(_.lastUpdated >= reqBodyTime) else ResourceChangesTQ.filter(_.changeId >= reqBody.changeId)
 
           ident match {
             case _: INode =>
@@ -1193,7 +1193,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug("Doing GET /changes/maxchangeid")
     exchAuth(TAction(), Access.MAXCHANGEID) { _ =>
       complete({
-        val q = ResourceChangesTQ.rows.sortBy(_.changeId.desc).take(1).map(_.changeId)
+        val q = ResourceChangesTQ.sortBy(_.changeId.desc).take(1).map(_.changeId)
         logger.debug(s"GET /changes/maxchangeid db query: ${q.result.statements}")
 
         db.run(q.result).map({ changeIds =>
@@ -1281,7 +1281,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         val accountsList: ListBuffer[String] = ListBuffer[String]()
         for (account <- reqBody) {accountsList += account.id}
         // filter on the orgs for orgs with those account ids
-        val q = OrgsTQ.rows.filter(_.tags.map(tag => tag +>> "cloud_id") inSet accountsList.toSet)
+        val q = OrgsTQ.filter(_.tags.map(tag => tag +>> "cloud_id") inSet accountsList.toSet)
         db.run(q.result).map({ list =>
           logger.debug("POST /myorgs result size: " + list.size)
           val orgs: Map[String, Org] = list.map(a => a.orgId -> a.toOrg).toMap
@@ -1355,7 +1355,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         if (owner != "") {
           // the user invoked this rest method, so look for an agbot owned by this user with this agr id
           val agbotAgreementJoin = for {
-            (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
+            (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
             if agbot.owner === owner && agr.map(_.agrId) === reqBody.agreementId
           } yield (agbot, agr)
           db.run(agbotAgreementJoin.result).map({ list =>
@@ -1370,7 +1370,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         } else {
           // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
           val agbotAgreementJoin = for {
-            (agbot, agr) <- AgbotsTQ.rows joinLeft AgbotAgreementsTQ.rows on (_.id === _.agbotId)
+            (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
             if agbot.id === creds.id || agr.map(_.agrId) === reqBody.agreementId
           } yield (agbot, agr)
           db.run(agbotAgreementJoin.result).map({ list =>

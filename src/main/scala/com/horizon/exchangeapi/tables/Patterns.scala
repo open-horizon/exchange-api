@@ -36,10 +36,10 @@ final case class PatternRow(pattern: String, orgid: String, owner: String, label
   }
 
   // update returns a DB action to update this row
-  def update: DBIO[_] = (for { m <- PatternsTQ.rows if m.pattern === pattern } yield m).update(this)
+  def update: DBIO[_] = (for { m <- PatternsTQ if m.pattern === pattern } yield m).update(this)
 
   // insert returns a DB action to insert this row
-  def insert: DBIO[_] = PatternsTQ.rows += this
+  def insert: DBIO[_] = PatternsTQ += this
 }
 
 /** Mapping of the patterns db table to a scala class */
@@ -57,14 +57,13 @@ class Patterns(tag: Tag) extends Table[PatternRow](tag, "patterns") {
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
   def * = (pattern, orgid, owner, label, description, public, services, userInput,secretBinding, agreementProtocols, lastUpdated).<>(PatternRow.tupled, PatternRow.unapply)
-  def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 // Instance to access the patterns table
-object PatternsTQ {
+object PatternsTQ  extends TableQuery(new Patterns(_)){
   protected implicit val jsonFormats: Formats = DefaultFormats
-  val rows = TableQuery[Patterns]
 
   // Build a list of db actions to verify that the referenced services exist
   def validateServiceIds(services: List[PServices], userInput: List[OneUserInputService]): (DBIO[Vector[Int]], Vector[ServiceRef2]) = {
@@ -97,23 +96,23 @@ object PatternsTQ {
     (DBIO.sequence(actions.toVector), svcRefs.toVector)      // convert the list of actions to a DBIO sequence
   }
 
-  def getAllPatterns(orgid: String): Query[Patterns, PatternRow, Seq] = rows.filter(_.orgid === orgid)
-  def getPattern(pattern: String): Query[Patterns, PatternRow, Seq] = if (pattern.contains("%")) rows.filter(_.pattern like pattern) else rows.filter(_.pattern === pattern)
-  def getOwner(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.owner)
-  def getNumOwned(owner: String): Rep[Int] = rows.filter(_.owner === owner).length
-  def getLabel(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.label)
-  def getDescription(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.description)
-  def getPublic(pattern: String): Query[Rep[Boolean], Boolean, Seq] = rows.filter(_.pattern === pattern).map(_.public)
-  def getServices(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.services)
+  def getAllPatterns(orgid: String): Query[Patterns, PatternRow, Seq] = this.filter(_.orgid === orgid)
+  def getPattern(pattern: String): Query[Patterns, PatternRow, Seq] = if (pattern.contains("%")) this.filter(_.pattern like pattern) else this.filter(_.pattern === pattern)
+  def getOwner(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.owner)
+  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
+  def getLabel(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.label)
+  def getDescription(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.description)
+  def getPublic(pattern: String): Query[Rep[Boolean], Boolean, Seq] = this.filter(_.pattern === pattern).map(_.public)
+  def getServices(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.services)
   def getServicesFromString(services: String): List[PServices] = if (services == "") List[PServices]() else read[List[PServices]](services)
-  def getUserInput(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.userInput)
-  def getSecretBindings(pattern: String): Query[Rep[String],String, Seq] = rows.filter(_.pattern === pattern).map(_.secretBinding)
-  def getAgreementProtocols(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.agreementProtocols)
-  def getLastUpdated(pattern: String): Query[Rep[String], String, Seq] = rows.filter(_.pattern === pattern).map(_.lastUpdated)
+  def getUserInput(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.userInput)
+  def getSecretBindings(pattern: String): Query[Rep[String],String, Seq] = this.filter(_.pattern === pattern).map(_.secretBinding)
+  def getAgreementProtocols(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.agreementProtocols)
+  def getLastUpdated(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.lastUpdated)
 
   /** Returns a query for the specified pattern attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(pattern: String, attrName: String): Query[_,_,Seq] = {
-    val filter = rows.filter(_.pattern === pattern)
+    val filter = this.filter(_.pattern === pattern)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
     attrName match {
       case "owner" => filter.map(_.owner)
@@ -138,7 +137,7 @@ object PatternsTQ {
 final case class PatternKeyRow(keyId: String, patternId: String, key: String, lastUpdated: String) {
   def toPatternKey: PatternKey = PatternKey(key, lastUpdated)
 
-  def upsert: DBIO[_] = PatternKeysTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = PatternKeysTQ.insertOrUpdate(this)
 }
 
 class PatternKeys(tag: Tag) extends Table[PatternKeyRow](tag, "patternkeys") {
@@ -148,14 +147,12 @@ class PatternKeys(tag: Tag) extends Table[PatternKeyRow](tag, "patternkeys") {
   def lastUpdated = column[String]("lastupdated")
   def * = (keyId, patternId, key, lastUpdated).<>(PatternKeyRow.tupled, PatternKeyRow.unapply)
   def primKey = primaryKey("pk_ptk", (keyId, patternId))
-  def pattern = foreignKey("pattern_fk", patternId, PatternsTQ.rows)(_.pattern, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def pattern = foreignKey("pattern_fk", patternId, PatternsTQ)(_.pattern, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
-object PatternKeysTQ {
-  val rows = TableQuery[PatternKeys]
-
-  def getKeys(patternId: String): Query[PatternKeys, PatternKeyRow, Seq] = rows.filter(_.patternId === patternId)
-  def getKey(patternId: String, keyId: String): Query[PatternKeys, PatternKeyRow, Seq] = rows.filter(r => {r.patternId === patternId && r.keyId === keyId} )
+object PatternKeysTQ extends TableQuery(new PatternKeys(_)) {
+  def getKeys(patternId: String): Query[PatternKeys, PatternKeyRow, Seq] = this.filter(_.patternId === patternId)
+  def getKey(patternId: String, keyId: String): Query[PatternKeys, PatternKeyRow, Seq] = this.filter(r => {r.patternId === patternId && r.keyId === keyId} )
 }
 
 final case class PatternKey(key: String, lastUpdated: String)

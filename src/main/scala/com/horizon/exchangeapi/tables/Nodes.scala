@@ -418,6 +418,7 @@ class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow]) {
 }
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 //Node Errors
 // We are using the type Any instead of this case class so anax and the UI can change the fields w/o our code having to change
 //case class ErrorLogEvent(record_id: String, message: String, event_code: String, hidden: Boolean)
@@ -456,6 +457,12 @@ final case class NMPStatus(var node: String, var policy: String, var scheduledSt
   //def copy = new NMPStatus(node, policy, scheduledStartTime, actualStartTime, endTime, certificateVersion, configurationVersion, softwareVersion, updated, errorMessage, status)
   //(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
 >>>>>>> 0063488 (GET and DELETE routes for mgmtpolicystatus. Accompanying test suite)
+=======
+
+class NMPStatus(var node: String, var policy: String, var scheduledStartTime: String, var actualStartTime: String, var endTime: String, var certificateVersion: String, var configurationVersion: String, var softwareVersion: String, var updated: String, var errorMessage: String, var status: String){
+  def copy = new NMPStatus(node, policy, scheduledStartTime, actualStartTime, endTime, certificateVersion, configurationVersion, softwareVersion, updated, errorMessage, status)
+  //(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+>>>>>>> 5b04533 (.tq removal)
 }
 
 final case class NodeMgmtPolStatusRow(actualStartTime: String,
@@ -472,7 +479,11 @@ final case class NodeMgmtPolStatusRow(actualStartTime: String,
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodeMgmtPolStatus: NMPStatus = {
+<<<<<<< HEAD
     NMPStatus(node, policy, scheduledStartTime, actualStartTime, endTime, certificateVersion, configurationVersion, softwareVersion, updated, errorMessage, status)//(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+=======
+    new NMPStatus(node, policy, scheduledStartTime, actualStartTime, endTime, certificateVersion, configurationVersion, softwareVersion, updated, errorMessage, status)//(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+>>>>>>> 5b04533 (.tq removal)
   }
 
   def upsert: DBIO[_] = NodeMgmtPolStatuses.insertOrUpdate(this)
@@ -504,6 +515,7 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
     updated).<>(NodeMgmtPolStatusRow.tupled, NodeMgmtPolStatusRow.unapply)
   def pkNodeMgmtPolStatus = primaryKey("pk_management_policy_status_node", (node, policy))
 <<<<<<< HEAD
+<<<<<<< HEAD
   
   def fkNode = foreignKey("fk_node", node, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def fkManagementPolicy = foreignKey("fk_management_policy", policy, ManagementPoliciesTQ.rows)(_.managementPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
@@ -512,6 +524,11 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
   def fkNode = foreignKey("fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def fkManagementPolicy = foreignKey("fk_management_policy", policy, ManagementPoliciesTQ)(_.managementPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 >>>>>>> 0063488 (GET and DELETE routes for mgmtpolicystatus. Accompanying test suite)
+=======
+
+  def fkNode = foreignKey("fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkManagementPolicy = foreignKey("fk_management_policy", policy, ManagementPoliciesTQ)(_.managementPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+>>>>>>> 5b04533 (.tq removal)
 }
 
 object NodeMgmtPolStatuses extends TableQuery(new NodeMgmtPolStatus(_)) {
@@ -576,6 +593,7 @@ object NodeMsgsTQ  extends TableQuery(new NodeMsgs(_)){
 
 final case class NodeMsg(msgId: Int, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String)
 
+<<<<<<< HEAD
 <<<<<<< HEAD
 // Node Policy
 final case class PropertiesAndConstraints(properties: Option[List[OneProperty]], constraints: Option[List[String]])
@@ -650,6 +668,8 @@ final case class NodeStatus(connectivity: Map[String,Boolean], services: List[On
 
 =======
 >>>>>>> 0063488 (GET and DELETE routes for mgmtpolicystatus. Accompanying test suite)
+=======
+>>>>>>> 5b04533 (.tq removal)
 /** 1 generic property that is used in the node search criteria */
 final case class Prop(name: String, value: String, propType: String, op: String) {
   //def toPropRow(nodeId: String, msUrl: String) = PropRow(nodeId+"|"+msUrl+"|"+name, nodeId+"|"+msUrl, name, value, propType, op)

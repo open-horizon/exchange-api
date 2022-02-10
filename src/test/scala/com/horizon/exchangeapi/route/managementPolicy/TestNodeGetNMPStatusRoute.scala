@@ -208,6 +208,7 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
   }
 
 
+<<<<<<< HEAD
   test("DELETE /orgs/TestNodeGetNMPStatusRoute/nodes/n1/managementStatus - as root") {
 
     fixtureNMP(
@@ -233,3 +234,5 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
 }
 
 
+=======
+>>>>>>> 5b04533 (.tq removal)

@@ -2777,7 +2777,6 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the node resource (not of the services). If not specified, the entire node resource (including services) will be returned")),
-      //new Parameter(name = "nmpid", in = ParameterIn.PATH, description = "ID of the node management policy."),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(
@@ -2785,30 +2784,25 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             examples = Array(
               new ExampleObject(
                 value = """{
-  "connectivity": {
-    "string": true
-  },
-  "services": [
+  "nmpID": [
     {
-      "agreementId": "78d7912aafb6c11b7a776f77d958519a6dc718b9bd3da36a1442ebb18fe9da30",
-      "serviceUrl":"mydomain.com.location",
-      "orgid":"ling.com",
-      "version":"1.2",
-      "arch":"amd64",
-      "containerStatus": [
-        {
-          "name": "/dc23c045eb64e1637d027c4b0236512e89b2fddd3f06290c7b2354421d9d8e0d-location",
-          "image": "summit.hovitos.engineering/x86/location:v1.2",
-          "created": 1506086099,
-          "state": "running"
-        }
-      ],
-      "operatorStatus": {},
-      "configState": "active"
-    }
-  ]
-}
-"""
+       "agentUpgradePolicyStatus": {
+            "scheduledTime":  "<RFC3339 timestamp>", // the scheduled time to start the upgrade
+            "startTime":  "<RFC3339 timestamp>", // the actual time the upgrade process started.
+            "endTime":  "<RFC3339 timestamp>", // the time the upgrade process ended.
+            "upgradedVersions": {
+                "softwareVersion": "",
+                "certVersion": "",
+                "configVersion": ""
+            },
+            "status":  "",               // the status for the upgrade process. It can be success, failed, in progress etc.
+            "errorMessage": "",   // the error message if the upgrade process failed.
+        },
+     },
+  ],
+  ...
+  "lastUpdated": ""
+}"""
               )
             ),
             mediaType = "application/json",

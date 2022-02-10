@@ -43,9 +43,11 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
       constraints = "",
       patterns = "",
       enabled = true,
-      agentUpgradePolicy = """{"atLeastVersion": "current", "start": "now", "duration": 0}""",
       lastUpdated = ApiTime.nowUTC,
-      created = ApiTime.nowUTC), // replace boolean and data types with actual values like true false etc
+      created = ApiTime.nowUTC,
+      allowDowngrade = true,
+      manifest = "",
+      start = ""), // replace boolean and data types with actual values like true false etc
       ManagementPolicyRow(
         managementPolicy = "TestNodeGetNMPStatusRoute/nmp2", //nmpid
         orgid = "TestNodeGetNMPStatusRoute",
@@ -56,9 +58,11 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
         constraints = "",
         patterns = "",
         enabled = true,
-        agentUpgradePolicy = """{"atLeastVersion": "current", "start": "now", "duration": 0}""",
         lastUpdated = ApiTime.nowUTC,
-        created = ApiTime.nowUTC)) //
+        created = ApiTime.nowUTC,
+        allowDowngrade = true,
+        manifest = "",
+        start = "")) //
 
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch = "amd64",
@@ -82,8 +86,8 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   // Begin building testing harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ.rows += TESTORGANIZATION) andThen
-      (NodesTQ.rows ++= TESTNODES)// andThen
+    Await.ready(DBCONNECTION.getDb.run((OrgsTQ += TESTORGANIZATION) andThen
+      (NodesTQ ++= TESTNODES)// andThen
       //(ManagementPoliciesTQ.rows ++= TESTNODEMGMTPOLICY)
       //(AgbotsTQ.rows += TESTAGBOT) andThen
       //(ServicesTQ.rows ++= TESTSERVICES)
@@ -92,8 +96,8 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestNodeGetNMPStatusRoute").delete andThen
-      OrgsTQ.rows.filter(_.orgid startsWith "TestNodeGetNMPStatusRoute").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodeGetNMPStatusRoute").delete andThen
+      OrgsTQ.filter(_.orgid startsWith "TestNodeGetNMPStatusRoute").delete), AWAITDURATION)
 
     DBCONNECTION.getDb.close()
   }
@@ -101,20 +105,20 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
   // Management Policies that are dynamically needed, specific to the test case.
   def fixtureNMP(testCode: Seq[ManagementPolicyRow] => Any, testData: Seq[ManagementPolicyRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ.rows ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ.rows.filter(_.managementPolicy inSet testData.map(_.managementPolicy)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ.filter(_.managementPolicy inSet testData.map(_.managementPolicy)).delete), AWAITDURATION)
   }
 
   def statusNMP(testCode: Seq[NodeMgmtPolStatusRow] => Any, testData: Seq[NodeMgmtPolStatusRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.rows ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.rows.filter(_.policy inSet testData.map(_.policy)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.filter(_.policy inSet testData.map(_.policy)).delete), AWAITDURATION)
   }
 
 
@@ -260,28 +264,3 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
 }
 
 
-
-//Seq(NodeMgmtPolStatusRow(
-//actualStartTime = ApiTime.nowUTC,
-//certificateVersion = "",
-//configurationVersion = "",
-//endTime = "",
-//errorMessage = "nmp1 description test",
-//node = "n1",
-//policy = "nmp1",
-//scheduledStartTime = ApiTime.nowUTC,
-//softwareVersion = "",
-//status = "Success",
-//updated = ApiTime.nowUTC), // replace boolean and data types with actual values like true false etc
-//NodeMgmtPolStatusRow(
-//actualStartTime = ApiTime.nowUTC,
-//certificateVersion = "",
-//configurationVersion = "",
-//endTime = "",
-//errorMessage = "nmp2 description test",
-//node = "n1",
-//policy = "nmp2",
-//scheduledStartTime = ApiTime.nowUTC,
-//softwareVersion = "",
-//status = "Success",
-//updated = ApiTime.nowUTC)) //

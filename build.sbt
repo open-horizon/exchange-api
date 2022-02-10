@@ -88,7 +88,7 @@ lazy val root = (project in file("."))
           "junit" % "junit" % "[4.13.1,)" % "test"
         ), 
         scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
-        
+        javacOptions ++= Seq("-source", "11", "-target", "11", "-Xlint"),
         // Used when running test suites with HTTPS.
         // Requires path to your PKCS #12 cryptographic store and its password.
         // fork := true,

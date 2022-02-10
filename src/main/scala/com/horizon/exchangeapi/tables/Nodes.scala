@@ -66,7 +66,7 @@ class Node(var token: String, var name: String, var owner: String, var nodeType:
   def copy = new Node(token, name, owner, nodeType, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated)
 }
 
-final case class NodeRow(id: String, 
+final case class NodeRow(id: String,
                          orgid: String, 
                          token: String, 
                          name: String, 
@@ -332,6 +332,10 @@ object NodeErrorTQ {
 
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
+class NMPStatus(var errorMessage: String, var node: String, var policy: String, var status: String,  var endTime: String, var actualStartTime: String, var scheduledStartTime: String,  var updated: String, var certificateVersion: String, var configurationVersion: String, var softwareVersion: String){
+  def copy = new NMPStatus(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+}
+
 final case class NodeMgmtPolStatusRow(actualStartTime: String,
                                       certificateVersion: String,
                                       configurationVersion: String,
@@ -342,7 +346,15 @@ final case class NodeMgmtPolStatusRow(actualStartTime: String,
                                       scheduledStartTime: String,
                                       softwareVersion: String,
                                       status: String,
-                                      updated: String)
+                                      updated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def toNodeMgmtPolStatus: NMPStatus = {
+    new NMPStatus(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+  }
+
+  def upsert: DBIO[_] = NodeMgmtPolStatuses.rows.insertOrUpdate(this)
+}
 
 class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "management_policy_status_node") {
   def actualStartTime = column[String]("time_start_actual")
@@ -357,7 +369,17 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
   def status = column[String]("status")
   def updated = column[String]("updated")
   
-  def * = (errorMessage, node, policy, status, endTime, actualStartTime, scheduledStartTime, updated, certificateVersion, configurationVersion, softwareVersion).<>(NodeMgmtPolStatusRow.tupled, NodeMgmtPolStatusRow.unapply)
+  def * = (actualStartTime,
+    certificateVersion,
+    configurationVersion,
+    endTime,
+    errorMessage,
+    node,
+    policy,
+    scheduledStartTime,
+    softwareVersion,
+    status,
+    updated).<>(NodeMgmtPolStatusRow.tupled, NodeMgmtPolStatusRow.unapply)
   def pkNodeMgmtPolStatus = primaryKey("pk_management_policy_status_node", (node, policy))
   
   def fkNode = foreignKey("fk_node", node, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
@@ -365,6 +387,8 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
 }
 
 object NodeMgmtPolStatuses extends TableQuery(new NodeMgmtPolStatus(_)) {
+
+  val rows = TableQuery[NodeMgmtPolStatus]
   def getActualStartTime(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.actualStartTime))
   def getCertificateVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.certificateVersion))
   def getConfigurationVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.configurationVersion))
@@ -375,6 +399,7 @@ object NodeMgmtPolStatuses extends TableQuery(new NodeMgmtPolStatus(_)) {
   def getSoftwareVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.softwareVersion))
   def getStatus(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.status))
   def getUpdated(node: String, policy: String) = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.updated))
+  def getAllNMPStatus(node: String): Query[NodeMgmtPolStatus, NodeMgmtPolStatusRow, Seq] = this.filter(s => {s.node === node})
 }
 
 /** The nodemsgs table holds the msgs sent to nodes by agbots */

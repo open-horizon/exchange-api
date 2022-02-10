@@ -35,10 +35,10 @@ final case class ServiceRow(service: String, orgid: String, owner: String, label
   }
 
   // update returns a DB action to update this row
-  def update: DBIO[_] = (for { m <- ServicesTQ.rows if m.service === service } yield m).update(this)
+  def update: DBIO[_] = (for { m <- ServicesTQ if m.service === service } yield m).update(this)
 
   // insert returns a DB action to insert this row
-  def insert: DBIO[_] = ServicesTQ.rows += this
+  def insert: DBIO[_] = ServicesTQ += this
 }
 
 /** Mapping of the services db table to a scala class */
@@ -65,14 +65,12 @@ class Services(tag: Tag) extends Table[ServiceRow](tag, "services") {
   def lastUpdated = column[String]("lastupdated")
   // this describes what you get back when you return rows from a query
   def * = (service, orgid, owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, imageStore, lastUpdated).<>(ServiceRow.tupled, ServiceRow.unapply)
-  def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 // Instance to access the services table
-object ServicesTQ {
-  val rows = TableQuery[Services]
-
+object ServicesTQ extends TableQuery(new Services(_)) {
   def formId(orgid: String, url: String, version: String, arch: String): String = {
     // Remove the https:// from the beginning of serviceUrl and replace troublesome chars with a dash. It has already been checked as a valid URL in validateWithMsg().
     val serviceUrl2: String = """^[A-Za-z0-9+.-]*?://""".r.replaceFirstIn(url, "")
@@ -80,33 +78,33 @@ object ServicesTQ {
     OrgAndId(orgid, serviceUrl3 + "_" + version + "_" + arch).toString
   }
 
-  def getAllServices(orgid: String): Query[Services, ServiceRow, Seq] = rows.filter(_.orgid === orgid)
-  def getDevicServices(orgid: String): Query[Services, ServiceRow, Seq] = rows.filter(r => {r.orgid === orgid && r.deployment =!= ""})
-  def getClusterServices(orgid: String): Query[Services, ServiceRow, Seq] = rows.filter(r => {r.orgid === orgid && r.clusterDeployment =!= ""})
-  def getService(service: String): Query[Services, ServiceRow, Seq] = if (service.contains("%")) rows.filter(_.service like service) else rows.filter(_.service === service)
-  def getOwner(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.owner)
-  def getNumOwned(owner: String): Rep[Int] = rows.filter(_.owner === owner).length
-  def getLabel(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.label)
-  def getDescription(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.description)
-  def getPublic(service: String): Query[Rep[Boolean], Boolean, Seq] = rows.filter(_.service === service).map(_.public)
-  def getDocumentation(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.documentation)
-  def getUrl(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.url)
-  def getVersion(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.version)
-  def getArch(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.arch)
-  def getSharable(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.sharable)
-  def getMatchHardware(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.matchHardware)
-  def getRequiredServices(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.requiredServices)
-  def getUserInput(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.userInput)
-  def getDeployment(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.deployment)
-  def getDeploymentSignature(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.deploymentSignature)
-  def getClusterDeployment(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.clusterDeployment)
-  def getClusterDeploymentSignature(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.clusterDeploymentSignature)
-  def getImageStore(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.imageStore)
-  def getLastUpdated(service: String): Query[Rep[String], String, Seq] = rows.filter(_.service === service).map(_.lastUpdated)
+  def getAllServices(orgid: String): Query[Services, ServiceRow, Seq] = this.filter(_.orgid === orgid)
+  def getDevicServices(orgid: String): Query[Services, ServiceRow, Seq] = this.filter(r => {r.orgid === orgid && r.deployment =!= ""})
+  def getClusterServices(orgid: String): Query[Services, ServiceRow, Seq] = this.filter(r => {r.orgid === orgid && r.clusterDeployment =!= ""})
+  def getService(service: String): Query[Services, ServiceRow, Seq] = if (service.contains("%")) this.filter(_.service like service) else this.filter(_.service === service)
+  def getOwner(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.owner)
+  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
+  def getLabel(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.label)
+  def getDescription(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.description)
+  def getPublic(service: String): Query[Rep[Boolean], Boolean, Seq] = this.filter(_.service === service).map(_.public)
+  def getDocumentation(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.documentation)
+  def getUrl(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.url)
+  def getVersion(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.version)
+  def getArch(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.arch)
+  def getSharable(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.sharable)
+  def getMatchHardware(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.matchHardware)
+  def getRequiredServices(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.requiredServices)
+  def getUserInput(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.userInput)
+  def getDeployment(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.deployment)
+  def getDeploymentSignature(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.deploymentSignature)
+  def getClusterDeployment(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.clusterDeployment)
+  def getClusterDeploymentSignature(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.clusterDeploymentSignature)
+  def getImageStore(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.imageStore)
+  def getLastUpdated(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.lastUpdated)
 
   /** Returns a query for the specified service attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(service: String, attrName: String): Query[_,_,Seq] = {
-    val filter = rows.filter(_.service === service)
+    val filter = this.filter(_.service === service)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
     attrName match {
       case "owner" => filter.map(_.owner)
@@ -137,7 +135,9 @@ object ServicesTQ {
 
 
 // Policy is a sub-resource of service
-final case class OneProperty(name: String, `type`: Option[String], value: Any)
+final case class OneProperty(name: String, `type`: Option[String], value: Any) {
+  override def clone() = new OneProperty(name, `type`, value)
+}
 
 final case class ServicePolicyRow(serviceId: String, label: String, description: String, properties: String, constraints: String, lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
@@ -148,7 +148,7 @@ final case class ServicePolicyRow(serviceId: String, label: String, description:
     ServicePolicy(label, description, prop, con, lastUpdated)
   }
 
-  def upsert: DBIO[_] = ServicePolicyTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = ServicePolicyTQ.insertOrUpdate(this)
 }
 
 class ServicePolicies(tag: Tag) extends Table[ServicePolicyRow](tag, "servicepolicies") {
@@ -159,12 +159,11 @@ class ServicePolicies(tag: Tag) extends Table[ServicePolicyRow](tag, "servicepol
   def constraints = column[String]("constraints")
   def lastUpdated = column[String]("lastUpdated")
   def * = (serviceId, label, description, properties, constraints, lastUpdated).<>(ServicePolicyRow.tupled, ServicePolicyRow.unapply)
-  def service = foreignKey("service_fk", serviceId, ServicesTQ.rows)(_.service, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def service = foreignKey("service_fk", serviceId, ServicesTQ)(_.service, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
-object ServicePolicyTQ {
-  val rows = TableQuery[ServicePolicies]
-  def getServicePolicy(serviceId: String): Query[ServicePolicies, ServicePolicyRow, Seq] = rows.filter(_.serviceId === serviceId)
+object ServicePolicyTQ extends TableQuery(new ServicePolicies(_)) {
+  def getServicePolicy(serviceId: String): Query[ServicePolicies, ServicePolicyRow, Seq] = this.filter(_.serviceId === serviceId)
 }
 
 final case class ServicePolicy(label: String, description: String, properties: List[OneProperty], constraints: List[String], lastUpdated: String)
@@ -174,7 +173,7 @@ final case class ServicePolicy(label: String, description: String, properties: L
 final case class ServiceKeyRow(keyId: String, serviceId: String, key: String, lastUpdated: String) {
   def toServiceKey: ServiceKey = ServiceKey(key, lastUpdated)
 
-  def upsert: DBIO[_] = ServiceKeysTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = ServiceKeysTQ.insertOrUpdate(this)
 }
 
 class ServiceKeys(tag: Tag) extends Table[ServiceKeyRow](tag, "servicekeys") {
@@ -184,14 +183,12 @@ class ServiceKeys(tag: Tag) extends Table[ServiceKeyRow](tag, "servicekeys") {
   def lastUpdated = column[String]("lastupdated")
   def * = (keyId, serviceId, key, lastUpdated).<>(ServiceKeyRow.tupled, ServiceKeyRow.unapply)
   def primKey = primaryKey("pk_svck", (keyId, serviceId))
-  def service = foreignKey("service_fk", serviceId, ServicesTQ.rows)(_.service, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def service = foreignKey("service_fk", serviceId, ServicesTQ)(_.service, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
-object ServiceKeysTQ {
-  val rows = TableQuery[ServiceKeys]
-
-  def getKeys(serviceId: String): Query[ServiceKeys, ServiceKeyRow, Seq] = rows.filter(_.serviceId === serviceId)
-  def getKey(serviceId: String, keyId: String): Query[ServiceKeys, ServiceKeyRow, Seq] = rows.filter(r => {r.serviceId === serviceId && r.keyId === keyId} )
+object ServiceKeysTQ extends TableQuery(new ServiceKeys(_)) {
+  def getKeys(serviceId: String): Query[ServiceKeys, ServiceKeyRow, Seq] = this.filter(_.serviceId === serviceId)
+  def getKey(serviceId: String, keyId: String): Query[ServiceKeys, ServiceKeyRow, Seq] = this.filter(r => {r.serviceId === serviceId && r.keyId === keyId} )
 }
 
 final case class ServiceKey(key: String, lastUpdated: String)
@@ -202,7 +199,7 @@ final case class ServiceDockAuthRow(dockAuthId: Int, serviceId: String, registry
   def toServiceDockAuth: ServiceDockAuth = ServiceDockAuth(dockAuthId, registry, username, token, lastUpdated)
 
   // The returning operator is necessary on insert to have it return the id auto-generated, instead of the number of rows inserted
-  def insert: DBIO[_] = (ServiceDockAuthsTQ.rows returning ServiceDockAuthsTQ.rows.map(_.dockAuthId)) += this
+  def insert: DBIO[_] = (ServiceDockAuthsTQ returning ServiceDockAuthsTQ.map(_.dockAuthId)) += this
   def update: DBIO[_] = ServiceDockAuthsTQ.getDockAuth(serviceId, dockAuthId).update(this)
 }
 
@@ -215,16 +212,14 @@ class ServiceDockAuths(tag: Tag) extends Table[ServiceDockAuthRow](tag, "service
   def lastUpdated = column[String]("lastupdated")
   def * = (dockAuthId, serviceId, registry, username, token, lastUpdated).<>(ServiceDockAuthRow.tupled, ServiceDockAuthRow.unapply)
   //def primKey = primaryKey("pk_svck", (dockAuthId, serviceId))    // <- the auto-created id is already unique
-  def service = foreignKey("service_fk", serviceId, ServicesTQ.rows)(_.service, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def service = foreignKey("service_fk", serviceId, ServicesTQ)(_.service, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
-object ServiceDockAuthsTQ {
-  val rows = TableQuery[ServiceDockAuths]
-
-  def getDockAuths(serviceId: String): Query[ServiceDockAuths, ServiceDockAuthRow, Seq] = rows.filter(_.serviceId === serviceId)
-  def getDockAuth(serviceId: String, dockAuthId: Int): Query[ServiceDockAuths, ServiceDockAuthRow, Seq] = rows.filter(r => {r.serviceId === serviceId && r.dockAuthId === dockAuthId} )
-  def getDupDockAuth(serviceId: String, registry: String, username: String, token: String): Query[ServiceDockAuths, ServiceDockAuthRow, Seq] = rows.filter(r => {r.serviceId === serviceId && r.registry === registry && r.username === username && r.token === token} )
-  def getLastUpdatedAction(serviceId: String, dockAuthId: Int): FixedSqlAction[Int, NoStream, Effect.Write] = rows.filter(r => {r.serviceId === serviceId && r.dockAuthId === dockAuthId} ).map(_.lastUpdated).update(ApiTime.nowUTC)
+object ServiceDockAuthsTQ extends TableQuery(new ServiceDockAuths(_)) {
+  def getDockAuths(serviceId: String): Query[ServiceDockAuths, ServiceDockAuthRow, Seq] = this.filter(_.serviceId === serviceId)
+  def getDockAuth(serviceId: String, dockAuthId: Int): Query[ServiceDockAuths, ServiceDockAuthRow, Seq] = this.filter(r => {r.serviceId === serviceId && r.dockAuthId === dockAuthId} )
+  def getDupDockAuth(serviceId: String, registry: String, username: String, token: String): Query[ServiceDockAuths, ServiceDockAuthRow, Seq] = this.filter(r => {r.serviceId === serviceId && r.registry === registry && r.username === username && r.token === token} )
+  def getLastUpdatedAction(serviceId: String, dockAuthId: Int): FixedSqlAction[Int, NoStream, Effect.Write] = this.filter(r => {r.serviceId === serviceId && r.dockAuthId === dockAuthId} ).map(_.lastUpdated).update(ApiTime.nowUTC)
 }
 
 final case class ServiceDockAuth(dockAuthId: Int, registry: String, username: String, token: String, lastUpdated: String)

@@ -77,16 +77,16 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   
   
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ.rows ++= TESTORGANIZATIONS) andThen
-                                       (UsersTQ.rows ++= TESTUSERS) andThen
-                                       (AgbotsTQ.rows += TESTAGBOT) andThen
-                                       (NodesTQ.rows ++= TESTNODES) andThen
-                                       (NodeMsgsTQ.rows ++= TESTNODEMESSAGES)), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
+                                       (UsersTQ ++= TESTUSERS) andThen
+                                       (AgbotsTQ += TESTAGBOT) andThen
+                                       (NodesTQ ++= TESTNODES) andThen
+                                       (NodeMsgsTQ ++= TESTNODEMESSAGES)), AWAITDURATION)
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestNodeGetMsgRoute").delete andThen
-                                       OrgsTQ.rows.filter(_.orgid startsWith "TestNodeGetMsgRoute").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodeGetMsgRoute").delete andThen
+                                       OrgsTQ.filter(_.orgid startsWith "TestNodeGetMsgRoute").delete), AWAITDURATION)
     
     DBCONNECTION.getDb.close()
   }
@@ -101,7 +101,7 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   
   test("GET /orgs/" + "TestNodeGetMsgRoute" + "/nodes/" + "n1" + "/msgs/{msgid} -- Message") {
     val TESTNODEMESSAGEID: Int =
-      Await.result(DBCONNECTION.getDb.run(NodeMsgsTQ.rows
+      Await.result(DBCONNECTION.getDb.run(NodeMsgsTQ
                                                     .filter(_.agbotId === TESTNODEMESSAGES(0).agbotId)
                                                     .filter(_.agbotPubKey === TESTNODEMESSAGES(0).agbotPubKey)
                                                     .filter(_.nodeId === TESTNODEMESSAGES(0).nodeId)

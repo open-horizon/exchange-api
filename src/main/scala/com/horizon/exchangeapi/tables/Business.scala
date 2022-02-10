@@ -34,10 +34,10 @@ final case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner:
 
   // update returns a DB action to update this row
   //todo: we should not update the 'created' field, but we also don't want to list out all of the other fields, because it is error prone
-  def update: DBIO[_] = (for { m <- BusinessPoliciesTQ.rows if m.businessPolicy === businessPolicy } yield (m.businessPolicy,m.orgid,m.owner,m.label,m.description,m.service,m.userInput,m.secretBinding,m.properties,m.constraints,m.lastUpdated)).update((businessPolicy,orgid,owner,label,description,service,userInput,secretBinding,properties,constraints,lastUpdated))
+  def update: DBIO[_] = (for { m <- BusinessPoliciesTQ if m.businessPolicy === businessPolicy } yield (m.businessPolicy,m.orgid,m.owner,m.label,m.description,m.service,m.userInput,m.secretBinding,m.properties,m.constraints,m.lastUpdated)).update((businessPolicy,orgid,owner,label,description,service,userInput,secretBinding,properties,constraints,lastUpdated))
 
   // insert returns a DB action to insert this row
-  def insert: DBIO[_] = BusinessPoliciesTQ.rows += this
+  def insert: DBIO[_] = BusinessPoliciesTQ += this
 }
 
 /** Mapping of the businesspolicies db table to a scala class */
@@ -56,14 +56,13 @@ class BusinessPolicies(tag: Tag) extends Table[BusinessPolicyRow](tag, "business
   def created = column[String]("created")
   // this describes what you get back when you return rows from a query
   def * = (businessPolicy, orgid, owner, label, description, service, userInput,secretBinding, properties, constraints, lastUpdated, created).<>(BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
-  def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 // Instance to access the businesspolicies table
-object BusinessPoliciesTQ {
+object BusinessPoliciesTQ extends TableQuery(new BusinessPolicies(_)) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  val rows = TableQuery[BusinessPolicies]
 
   // Build a list of db actions to verify that the referenced services exist
   def validateServiceIds(service: BService, userInput: List[OneUserInputService]): (DBIO[Vector[Int]], Vector[ServiceRef2]) = {
@@ -93,21 +92,21 @@ object BusinessPoliciesTQ {
     (DBIO.sequence(actions.toVector), svcRefs.toVector)      // convert the list of actions to a DBIO sequence
   }
 
-  def getAllBusinessPolicies(orgid: String): Query[BusinessPolicies, BusinessPolicyRow, Seq] = rows.filter(_.orgid === orgid)
-  def getBusinessPolicy(businessPolicy: String): Query[BusinessPolicies, BusinessPolicyRow, Seq] = if (businessPolicy.contains("%")) rows.filter(_.businessPolicy like businessPolicy) else rows.filter(_.businessPolicy === businessPolicy)
-  def getOwner(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.owner)
-  def getNumOwned(owner: String): Rep[Int] = rows.filter(_.owner === owner).length
-  def getLabel(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.label)
-  def getDescription(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.description)
-  def getService(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.service)
+  def getAllBusinessPolicies(orgid: String): Query[BusinessPolicies, BusinessPolicyRow, Seq] = this.filter(_.orgid === orgid)
+  def getBusinessPolicy(businessPolicy: String): Query[BusinessPolicies, BusinessPolicyRow, Seq] = if (businessPolicy.contains("%")) this.filter(_.businessPolicy like businessPolicy) else this.filter(_.businessPolicy === businessPolicy)
+  def getOwner(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.owner)
+  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
+  def getLabel(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.label)
+  def getDescription(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.description)
+  def getService(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.service)
   def getServiceFromString(service: String): BService = read[BService](service)
-  def getUserInput(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.userInput)
-  def getSecretBindings(businessPolicy: String): Query[Rep[String],String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.secretBinding)
-  def getLastUpdated(businessPolicy: String): Query[Rep[String], String, Seq] = rows.filter(_.businessPolicy === businessPolicy).map(_.lastUpdated)
+  def getUserInput(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.userInput)
+  def getSecretBindings(businessPolicy: String): Query[Rep[String],String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.secretBinding)
+  def getLastUpdated(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.lastUpdated)
 
   /** Returns a query for the specified businessPolicy attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(businessPolicy: String, attrName: String): Query[_,_,Seq] = {
-    val filter = rows.filter(_.businessPolicy === businessPolicy)
+    val filter = this.filter(_.businessPolicy === businessPolicy)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
     attrName match {
       case "owner" => filter.map(_.owner)
@@ -140,24 +139,22 @@ class SearchOffsetPolicy(tag: Tag) extends Table[SearchOffsetPolicyAttributes](t
   def session = column[Option[String]]("session", O.Default(None))
   
   def pkSearchOffsetsPolicy = primaryKey("pk_searchoffsetpolicy", (agbot, policy))
-  def fkAgbot = foreignKey("fk_agbot", agbot, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def fkPolicy = foreignKey("fk_policy", policy, BusinessPoliciesTQ.rows)(_.businessPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkAgbot = foreignKey("fk_agbot", agbot, AgbotsTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkPolicy = foreignKey("fk_policy", policy, BusinessPoliciesTQ)(_.businessPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   
   def * = (agbot, offset, policy, session).mapTo[SearchOffsetPolicyAttributes]
 }
 
-object SearchOffsetPolicyTQ {
-  val offsets = TableQuery[SearchOffsetPolicy]
-  
+object SearchOffsetPolicyTQ  extends TableQuery(new SearchOffsetPolicy(_)){
   def dropAllOffsets(): FixedSqlAction[Int, NoStream, Effect.Write] =
-    offsets.delete
+    this.delete
   
   def getOffsetSession(agbot: String, policy: String): Query[(Rep[Option[String]], Rep[Option[String]]), (Option[String], Option[String]), Seq] =
-    offsets
+    this
       .filter(_.agbot === agbot)
       .filter(_.policy === policy)
       .map(offset => (offset.offset, offset.session))
       
   def setOffsetSession(agbot: String, offset: Option[String], policy: String, session: Option[String]): FixedSqlAction[Int, NoStream, Effect.Write] =
-    offsets.insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy, session))
+    this.insertOrUpdate(SearchOffsetPolicyAttributes(agbot, offset, policy, session))
 }

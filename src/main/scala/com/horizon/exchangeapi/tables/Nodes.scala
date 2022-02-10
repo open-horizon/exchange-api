@@ -98,20 +98,20 @@ final case class NodeRow(id: String,
 
   def upsert: DBIO[_] = {
     //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
-    if (Role.isSuperUser(owner)) NodesTQ.rows.map(d => (d.id, d.orgid, d.token, d.name, d.nodeType, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).insertOrUpdate((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated))
-    else NodesTQ.rows.insertOrUpdate(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
+    if (Role.isSuperUser(owner)) NodesTQ.map(d => (d.id, d.orgid, d.token, d.name, d.nodeType, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).insertOrUpdate((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated))
+    else NodesTQ.insertOrUpdate(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
   }
 
   def update: DBIO[_] = {
     //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
     if (owner == "") (
         for { 
-          d <- NodesTQ.rows if d.id === id 
+          d <- NodesTQ if d.id === id
         } yield (d.id,d.orgid,d.token,d.name,d.nodeType,d.pattern,d.regServices,d.userInput,
             d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated))
             .update((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, 
                 lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated))
-    else (for { d <- NodesTQ.rows if d.id === id } yield d).update(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
+    else (for { d <- NodesTQ if d.id === id } yield d).update(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
   }
 }
 
@@ -137,18 +137,16 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
 
   // this describes what you get back when you return rows from a query
   def * = (id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated).<>(NodeRow.tupled, NodeRow.unapply)
-  def user = foreignKey("user_fk", owner, UsersTQ.rows)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ.rows)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  //def patKey = foreignKey("pattern_fk", pattern, PatternsTQ.rows)(_.pattern, onUpdate=ForeignKeyAction.Cascade)     // <- we can't make this a foreign key because it is optional
+  def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  //def patKey = foreignKey("pattern_fk", pattern, PatternsTQ)(_.pattern, onUpdate=ForeignKeyAction.Cascade)     // <- we can't make this a foreign key because it is optional
 }
 
 // Instance to access the nodes table
 // object nodes extends TableQuery(new Nodes(_)) {
 //   def listUserNodes(username: String) = this.filter(_.owner === username)
 // }
-object NodesTQ {
-  val rows = TableQuery[Nodes]
-
+object NodesTQ  extends TableQuery(new Nodes(_)){
   // Build a list of db actions to verify that the referenced services exist
   // Note: this currently doesn't check the registeredServices because only the agent creates that, and its content might be changing
   def validateServiceIds(userInput: List[OneUserInputService]): (DBIO[Vector[Int]], Vector[ServiceRef2]) = {
@@ -171,33 +169,33 @@ object NodesTQ {
     (DBIO.sequence(actions.toVector), svcRefs.toVector)      // convert the list of actions to a DBIO sequence
   }
 
-  def getAllNodes(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(_.orgid === orgid)
-  def getAllNodesId(orgid: String): Query[Rep[String], String, Seq] = rows.filter(_.orgid === orgid).map(_.id)
-  def getNodeTypeNodes(orgid: String, nodeType: String): Query[Nodes, NodeRow, Seq] = rows.filter(r => {r.orgid === orgid && r.nodeType === nodeType})
-  def getNonPatternNodes(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(r => {r.orgid === orgid && r.pattern === ""})
-  def getRegisteredNodesInOrg(orgid: String): Query[Nodes, NodeRow, Seq] = rows.filter(node => {node.orgid === orgid && node.publicKey =!= ""})
-  def getNode(id: String): Query[Nodes, NodeRow, Seq] = rows.filter(_.id === id)
-  def getToken(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.token)
-  def getOwner(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.owner)
-  def getRegisteredServices(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.regServices)
-  def getUserInput(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.userInput)
-  def getNodeType(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.nodeType)
-  def getPattern(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.pattern)
-  def getNumOwned(owner: String): Rep[Int] = rows.filter(_.owner === owner).length
-  def getLastHeartbeat(id: String): Query[Rep[Option[String]], Option[String], Seq] = rows.filter(_.id === id).map(_.lastHeartbeat)
-  def getPublicKey(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.publicKey)
-  def getArch(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.arch)
-  def getHeartbeatIntervals(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.heartbeatIntervals)
-  def getLastUpdated(id: String): Query[Rep[String], String, Seq] = rows.filter(_.id === id).map(_.lastUpdated)
-  def getNodeUsingPolicy(id: String): Query[(Rep[String], Rep[String]), (String, String), Seq] = rows.filter(_.id === id).map(x => (x.pattern, x.publicKey))
+  def getAllNodes(orgid: String): Query[Nodes, NodeRow, Seq] = this.filter(_.orgid === orgid)
+  def getAllNodesId(orgid: String): Query[Rep[String], String, Seq] = this.filter(_.orgid === orgid).map(_.id)
+  def getNodeTypeNodes(orgid: String, nodeType: String): Query[Nodes, NodeRow, Seq] = this.filter(r => {r.orgid === orgid && r.nodeType === nodeType})
+  def getNonPatternNodes(orgid: String): Query[Nodes, NodeRow, Seq] = this.filter(r => {r.orgid === orgid && r.pattern === ""})
+  def getRegisteredNodesInOrg(orgid: String): Query[Nodes, NodeRow, Seq] = this.filter(node => {node.orgid === orgid && node.publicKey =!= ""})
+  def getNode(id: String): Query[Nodes, NodeRow, Seq] = this.filter(_.id === id)
+  def getToken(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.token)
+  def getOwner(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.owner)
+  def getRegisteredServices(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.regServices)
+  def getUserInput(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.userInput)
+  def getNodeType(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.nodeType)
+  def getPattern(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.pattern)
+  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
+  def getLastHeartbeat(id: String): Query[Rep[Option[String]], Option[String], Seq] = this.filter(_.id === id).map(_.lastHeartbeat)
+  def getPublicKey(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.publicKey)
+  def getArch(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.arch)
+  def getHeartbeatIntervals(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.heartbeatIntervals)
+  def getLastUpdated(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.lastUpdated)
+  def getNodeUsingPolicy(id: String): Query[(Rep[String], Rep[String]), (String, String), Seq] = this.filter(_.id === id).map(x => (x.pattern, x.publicKey))
 
-  def setLastHeartbeat(id: String, lastHeartbeat: String): FixedSqlAction[Int, NoStream, Effect.Write] = rows.filter(_.id === id).map(_.lastHeartbeat).update(Some(lastHeartbeat))
-  def setLastUpdated(id: String, lastUpdated: String): FixedSqlAction[Int, NoStream, Effect.Write] = rows.filter(_.id === id).map(_.lastUpdated).update(lastUpdated)
+  def setLastHeartbeat(id: String, lastHeartbeat: String): FixedSqlAction[Int, NoStream, Effect.Write] = this.filter(_.id === id).map(_.lastHeartbeat).update(Some(lastHeartbeat))
+  def setLastUpdated(id: String, lastUpdated: String): FixedSqlAction[Int, NoStream, Effect.Write] = this.filter(_.id === id).map(_.lastUpdated).update(lastUpdated)
 
 
   /** Returns a query for the specified node attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(id: String, attrName: String): Query[_,_,Seq] = {
-    val filter = rows.filter(_.id === id)
+    val filter = this.filter(_.id === id)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
     attrName match {
       case "token" => filter.map(_.token)
@@ -246,7 +244,7 @@ final case class NodeStatusRow(nodeId: String, connectivity: String, services: S
     NodeStatus(con, svc, runningServices, lastUpdated)
   }
 
-  def upsert: DBIO[_] = NodeStatusTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = NodeStatusTQ.insertOrUpdate(this)
 }
 
 class NodeStatuses(tag: Tag) extends Table[NodeStatusRow](tag, "nodestatus") {
@@ -256,12 +254,11 @@ class NodeStatuses(tag: Tag) extends Table[NodeStatusRow](tag, "nodestatus") {
   def runningServices = column[String]("runningservices")
   def lastUpdated = column[String]("lastUpdated")
   def * = (nodeId, connectivity, services, runningServices, lastUpdated).<>(NodeStatusRow.tupled, NodeStatusRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
-object NodeStatusTQ {
-  val rows = TableQuery[NodeStatuses]
-  def getNodeStatus(nodeId: String): Query[NodeStatuses, NodeStatusRow, Seq] = rows.filter(_.nodeId === nodeId)
+object NodeStatusTQ  extends TableQuery(new NodeStatuses(_)){
+  def getNodeStatus(nodeId: String): Query[NodeStatuses, NodeStatusRow, Seq] = this.filter(_.nodeId === nodeId)
 }
 
 final case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], runningServices: String, lastUpdated: String)
@@ -278,7 +275,7 @@ final case class NodeErrorRow(nodeId: String, errors: String, lastUpdated: Strin
     NodeError(err, lastUpdated)
   }
 
-  def upsert: DBIO[_] = NodeErrorTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = NodeErrorTQ.insertOrUpdate(this)
 }
 
 class NodeErrors(tag: Tag) extends Table[NodeErrorRow](tag, "nodeerror") {
@@ -286,12 +283,11 @@ class NodeErrors(tag: Tag) extends Table[NodeErrorRow](tag, "nodeerror") {
   def errors = column[String]("errors")
   def lastUpdated = column[String]("lastUpdated")
   def * = (nodeId, errors, lastUpdated).<>(NodeErrorRow.tupled, NodeErrorRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
-object NodeErrorTQ {
-  val rows = TableQuery[NodeErrors]
-  def getNodeError(nodeId: String): Query[NodeErrors, NodeErrorRow, Seq] = rows.filter(_.nodeId === nodeId)
+object NodeErrorTQ  extends TableQuery(new NodeErrors(_)){
+  def getNodeError(nodeId: String): Query[NodeErrors, NodeErrorRow, Seq] = this.filter(_.nodeId === nodeId)
 }
 
 final case class NodeError(errors: List[Any], lastUpdated: String)
@@ -311,7 +307,7 @@ final case class NodePolicyRow(nodeId: String, label: String, description: Strin
     NodePolicy(label, description, prop, con, dep, mgmt, nodePolicyVersion, lastUpdated)
   }
 
-  def upsert: DBIO[_] = NodePolicyTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = NodePolicyTQ.insertOrUpdate(this)
 }
 
 class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
@@ -325,12 +321,11 @@ class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
   def nodePolicyVersion = column[String]("nodepolicyversion")
   def lastUpdated = column[String]("lastUpdated")
   def * = (nodeId, label, description, properties, constraints, deployment, management, nodePolicyVersion, lastUpdated).<>(NodePolicyRow.tupled, NodePolicyRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
-object NodePolicyTQ {
-  val rows = TableQuery[NodePolicies]
-  def getNodePolicy(nodeId: String): Query[NodePolicies, NodePolicyRow, Seq] = rows.filter(_.nodeId === nodeId)
+object NodePolicyTQ  extends TableQuery(new NodePolicies(_)){
+  def getNodePolicy(nodeId: String): Query[NodePolicies, NodePolicyRow, Seq] = this.filter(_.nodeId === nodeId)
 }
 
 final case class NodePolicy(label: String, description: String, properties: List[OneProperty], constraints: List[String], deployment: PropertiesAndConstraints, management: PropertiesAndConstraints, nodePolicyVersion: String, lastUpdated: String)
@@ -351,7 +346,7 @@ final case class NodeAgreementRow(agId: String, nodeId: String, services: String
     NodeAgreement(getServices, getNAgrService, state, lastUpdated)
   }
 
-  def upsert: DBIO[_] = NodeAgreementsTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = NodeAgreementsTQ.insertOrUpdate(this)
 }
 
 class NodeAgreements(tag: Tag) extends Table[NodeAgreementRow](tag, "nodeagreements") {
@@ -364,16 +359,14 @@ class NodeAgreements(tag: Tag) extends Table[NodeAgreementRow](tag, "nodeagreeme
   def state = column[String]("state")
   def lastUpdated = column[String]("lastUpdated")
   def * = (agId, nodeId, services, agrSvcOrgid, agrSvcPattern, agrSvcUrl, state, lastUpdated).<>(NodeAgreementRow.tupled, NodeAgreementRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
-object NodeAgreementsTQ {
-  val rows = TableQuery[NodeAgreements]
-
-  def getAgreements(nodeId: String): Query[NodeAgreements, NodeAgreementRow, Seq] = rows.filter(_.nodeId === nodeId)
-  def getAgreement(nodeId: String, agId: String): Query[NodeAgreements, NodeAgreementRow, Seq] = rows.filter(r => {r.nodeId === nodeId && r.agId === agId} )
-  def getNumOwned(nodeId: String): Rep[Int] = rows.filter(_.nodeId === nodeId).length
-  def getAgreementsWithState(orgid: String): Query[NodeAgreements, NodeAgreementRow, Seq] = rows.filter(a => {(a.nodeId like orgid + "/%") && a.state =!= ""} )
+object NodeAgreementsTQ  extends TableQuery(new NodeAgreements(_)){
+  def getAgreements(nodeId: String): Query[NodeAgreements, NodeAgreementRow, Seq] = this.filter(_.nodeId === nodeId)
+  def getAgreement(nodeId: String, agId: String): Query[NodeAgreements, NodeAgreementRow, Seq] = this.filter(r => {r.nodeId === nodeId && r.agId === agId} )
+  def getNumOwned(nodeId: String): Rep[Int] = this.filter(_.nodeId === nodeId).length
+  def getAgreementsWithState(orgid: String): Query[NodeAgreements, NodeAgreementRow, Seq] = this.filter(a => {(a.nodeId like orgid + "/%") && a.state =!= ""} )
 }
 
 final case class NodeAgreement(services: List[NAService], agrService: NAgrService, state: String, lastUpdated: String)
@@ -411,8 +404,8 @@ class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow]) {
 final case class NodeMsgRow(msgId: Int, nodeId: String, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String) {
   def toNodeMsg: NodeMsg = NodeMsg(msgId, agbotId, agbotPubKey, message, timeSent, timeExpires)
 
-  def insert: DBIO[_] = ((NodeMsgsTQ.rows returning NodeMsgsTQ.rows.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
-  def upsert: DBIO[_] = NodeMsgsTQ.rows.insertOrUpdate(this)    // do not think we need this
+  def insert: DBIO[_] = ((NodeMsgsTQ returning NodeMsgsTQ.map(_.msgId)) += this)  // inserts the row and returns the msgId of the new row
+  def upsert: DBIO[_] = NodeMsgsTQ.insertOrUpdate(this)    // do not think we need this
 }
 
 class NodeMsgs(tag: Tag) extends Table[NodeMsgRow](tag, "nodemsgs") {
@@ -424,18 +417,16 @@ class NodeMsgs(tag: Tag) extends Table[NodeMsgRow](tag, "nodemsgs") {
   def timeSent = column[String]("timesent")
   def timeExpires = column[String]("timeexpires")
   def * = (msgId, nodeId, agbotId, agbotPubKey, message, timeSent, timeExpires).<>(NodeMsgRow.tupled, NodeMsgRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
-object NodeMsgsTQ {
-  val rows = TableQuery[NodeMsgs]
-
-  def getMsgs(nodeId: String): Query[NodeMsgs, NodeMsgRow, Seq] = rows.filter(_.nodeId === nodeId)  // this is that nodes msg mailbox
-  def getMsg(nodeId: String, msgId: Int): Query[NodeMsgs, NodeMsgRow, Seq] = rows.filter(r => {r.nodeId === nodeId && r.msgId === msgId} )
-  def getMsgsExpired = rows.filter(_.timeExpires < ApiTime.nowUTC)
-  def getNumOwned(nodeId: String): Rep[Int] = rows.filter(_.nodeId === nodeId).length
-  def getNodeMsgsInOrg(orgid: String): Query[NodeMsgs, NodeMsgRow, Seq] = rows.filter(a => {(a.nodeId like orgid + "/%")} )
+object NodeMsgsTQ  extends TableQuery(new NodeMsgs(_)){
+  def getMsgs(nodeId: String): Query[NodeMsgs, NodeMsgRow, Seq] = this.filter(_.nodeId === nodeId)  // this is that nodes msg mailbox
+  def getMsg(nodeId: String, msgId: Int): Query[NodeMsgs, NodeMsgRow, Seq] = this.filter(r => {r.nodeId === nodeId && r.msgId === msgId} )
+  def getMsgsExpired = this.filter(_.timeExpires < ApiTime.nowUTC)
+  def getNumOwned(nodeId: String): Rep[Int] = this.filter(_.nodeId === nodeId).length
+  def getNodeMsgsInOrg(orgid: String): Query[NodeMsgs, NodeMsgRow, Seq] = this.filter(a => {(a.nodeId like orgid + "/%")} )
 }
 
 final case class NodeMsg(msgId: Int, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String)

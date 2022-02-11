@@ -129,6 +129,7 @@ object ResChangeResource extends Enumeration {
   val NODEMSGS: ResChangeResource.Value = Value("nodemsgs")
   val POLICY: ResChangeResource.Value = Value("policy")
   val MGMTPOLICY: ResChangeResource.Value = Value("mgmtpolicy")
+  val MGMTPOLICYSTATUS: ResChangeResource.Value = Value("management_policy_status_node")
   val PATTERN: ResChangeResource.Value = Value("pattern")
   val PATTERNKEYS: ResChangeResource.Value = Value("patternkeys")
   val SERVICE: ResChangeResource.Value = Value("service")

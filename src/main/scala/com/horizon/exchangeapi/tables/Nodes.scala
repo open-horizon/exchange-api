@@ -417,6 +417,7 @@ class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow]) {
   }
 }
 
+<<<<<<< HEAD
 //Node Errors
 // We are using the type Any instead of this case class so anax and the UI can change the fields w/o our code having to change
 //case class ErrorLogEvent(record_id: String, message: String, event_code: String, hidden: Boolean)
@@ -449,6 +450,12 @@ final case class NodeError(errors: List[Any], lastUpdated: String)
 
 class NMPStatus(var errorMessage: String, var node: String, var policy: String, var status: String,  var endTime: String, var actualStartTime: String, var scheduledStartTime: String,  var updated: String, var certificateVersion: String, var configurationVersion: String, var softwareVersion: String){
   def copy = new NMPStatus(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+=======
+
+final case class NMPStatus(var node: String, var policy: String, var scheduledStartTime: String, var actualStartTime: String, var endTime: String, var certificateVersion: String, var configurationVersion: String, var softwareVersion: String, var updated: String, var errorMessage: String, var status: String){
+  //def copy = new NMPStatus(node, policy, scheduledStartTime, actualStartTime, endTime, certificateVersion, configurationVersion, softwareVersion, updated, errorMessage, status)
+  //(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+>>>>>>> 0063488 (GET and DELETE routes for mgmtpolicystatus. Accompanying test suite)
 }
 
 final case class NodeMgmtPolStatusRow(actualStartTime: String,
@@ -465,10 +472,10 @@ final case class NodeMgmtPolStatusRow(actualStartTime: String,
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNodeMgmtPolStatus: NMPStatus = {
-    new NMPStatus(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+    NMPStatus(node, policy, scheduledStartTime, actualStartTime, endTime, certificateVersion, configurationVersion, softwareVersion, updated, errorMessage, status)//(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
   }
 
-  def upsert: DBIO[_] = NodeMgmtPolStatuses.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = NodeMgmtPolStatuses.insertOrUpdate(this)
 }
 
 class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "management_policy_status_node") {
@@ -496,14 +503,18 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
     status,
     updated).<>(NodeMgmtPolStatusRow.tupled, NodeMgmtPolStatusRow.unapply)
   def pkNodeMgmtPolStatus = primaryKey("pk_management_policy_status_node", (node, policy))
+<<<<<<< HEAD
   
   def fkNode = foreignKey("fk_node", node, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def fkManagementPolicy = foreignKey("fk_management_policy", policy, ManagementPoliciesTQ.rows)(_.managementPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+=======
+
+  def fkNode = foreignKey("fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkManagementPolicy = foreignKey("fk_management_policy", policy, ManagementPoliciesTQ)(_.managementPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+>>>>>>> 0063488 (GET and DELETE routes for mgmtpolicystatus. Accompanying test suite)
 }
 
 object NodeMgmtPolStatuses extends TableQuery(new NodeMgmtPolStatus(_)) {
-
-  val rows = TableQuery[NodeMgmtPolStatus]
   def getActualStartTime(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.actualStartTime))
   def getCertificateVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.certificateVersion))
   def getConfigurationVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.configurationVersion))
@@ -514,7 +525,7 @@ object NodeMgmtPolStatuses extends TableQuery(new NodeMgmtPolStatus(_)) {
   def getSoftwareVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.softwareVersion))
   def getStatus(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.status))
   def getUpdated(node: String, policy: String) = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.updated))
-  def getAllNMPStatus(node: String): Query[NodeMgmtPolStatus, NodeMgmtPolStatusRow, Seq] = this.filter(s => {s.node === node})
+  def getNodeMgmtPolStatuses(node: String): Query[NodeMgmtPolStatus, NodeMgmtPolStatusRow, Seq] = this.filter(s => {s.node === node})
 }
 
 /** The nodemsgs table holds the msgs sent to nodes by agbots */
@@ -565,6 +576,7 @@ object NodeMsgsTQ  extends TableQuery(new NodeMsgs(_)){
 
 final case class NodeMsg(msgId: Int, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String)
 
+<<<<<<< HEAD
 // Node Policy
 final case class PropertiesAndConstraints(properties: Option[List[OneProperty]], constraints: Option[List[String]])
 
@@ -636,6 +648,8 @@ object NodeStatusTQ {
 
 final case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], runningServices: String, lastUpdated: String)
 
+=======
+>>>>>>> 0063488 (GET and DELETE routes for mgmtpolicystatus. Accompanying test suite)
 /** 1 generic property that is used in the node search criteria */
 final case class Prop(name: String, value: String, propType: String, op: String) {
   //def toPropRow(nodeId: String, msUrl: String) = PropRow(nodeId+"|"+msUrl+"|"+name, nodeId+"|"+msUrl, name, value, propType, op)

@@ -43,9 +43,11 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
       constraints = "",
       patterns = "",
       enabled = true,
-      agentUpgradePolicy = """{"atLeastVersion": "current", "start": "now", "duration": 0}""",
       lastUpdated = ApiTime.nowUTC,
-      created = ApiTime.nowUTC), // replace boolean and data types with actual values like true false etc
+      created = ApiTime.nowUTC,
+      allowDowngrade = true,
+      manifest = "",
+      start = ""), // replace boolean and data types with actual values like true false etc
       ManagementPolicyRow(
         managementPolicy = "TestNodeGetNMPStatusRoute/nmp2", //nmpid
         orgid = "TestNodeGetNMPStatusRoute",
@@ -56,9 +58,11 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
         constraints = "",
         patterns = "",
         enabled = true,
-        agentUpgradePolicy = """{"atLeastVersion": "current", "start": "now", "duration": 0}""",
         lastUpdated = ApiTime.nowUTC,
-        created = ApiTime.nowUTC)) //
+        created = ApiTime.nowUTC,
+        allowDowngrade = true,
+        manifest = "",
+        start = "")) //
 
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch = "amd64",
@@ -78,12 +82,36 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
       token = "", // TestNodeGetNMPStatusRoute/n1:n1pw
       userInput = """[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"horizon.sdr","serviceArch":"amd64","serviceVersionRange":"[0.0.0,INFINITY)","inputs":[{"name":"UI_STRING","value":"mystr - updated"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}]"""))
 
-
+  private val NMPstatus: Seq[NodeMgmtPolStatusRow] =
+    Seq(NodeMgmtPolStatusRow(
+      errorMessage = "nmp1 description test",
+      node = "TestNodeGetNMPStatusRoute/n1",
+      policy = "TestNodeGetNMPStatusRoute/nmp1",
+      status = "Success",
+      endTime = "",
+      actualStartTime = ApiTime.nowUTC,
+      scheduledStartTime = ApiTime.nowUTC,
+      updated = ApiTime.nowUTC,
+      certificateVersion = "",
+      configurationVersion = "",
+      softwareVersion = ""), // replace boolean and data types with actual values like true false etc
+      NodeMgmtPolStatusRow(
+        errorMessage = "nmp2 description test",
+        node = "TestNodeGetNMPStatusRoute/n1",
+        policy = "TestNodeGetNMPStatusRoute/nmp2",
+        status = "Fail",
+        endTime = "",
+        actualStartTime = ApiTime.nowUTC,
+        scheduledStartTime = ApiTime.nowUTC,
+        updated = ApiTime.nowUTC,
+        certificateVersion = "",
+        configurationVersion = "",
+        softwareVersion = "")) //
 
   // Begin building testing harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ.rows += TESTORGANIZATION) andThen
-      (NodesTQ.rows ++= TESTNODES)// andThen
+    Await.ready(DBCONNECTION.getDb.run((OrgsTQ += TESTORGANIZATION) andThen
+      (NodesTQ ++= TESTNODES)// andThen
       //(ManagementPoliciesTQ.rows ++= TESTNODEMGMTPOLICY)
       //(AgbotsTQ.rows += TESTAGBOT) andThen
       //(ServicesTQ.rows ++= TESTSERVICES)
@@ -92,8 +120,8 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.rows.filter(_.orgId startsWith "TestNodeGetNMPStatusRoute").delete andThen
-      OrgsTQ.rows.filter(_.orgid startsWith "TestNodeGetNMPStatusRoute").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodeGetNMPStatusRoute").delete andThen
+      OrgsTQ.filter(_.orgid startsWith "TestNodeGetNMPStatusRoute").delete), AWAITDURATION)
 
     DBCONNECTION.getDb.close()
   }
@@ -101,20 +129,20 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
   // Management Policies that are dynamically needed, specific to the test case.
   def fixtureNMP(testCode: Seq[ManagementPolicyRow] => Any, testData: Seq[ManagementPolicyRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ.rows ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ.rows.filter(_.managementPolicy inSet testData.map(_.managementPolicy)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ.filter(_.managementPolicy inSet testData.map(_.managementPolicy)).delete), AWAITDURATION)
   }
 
   def statusNMP(testCode: Seq[NodeMgmtPolStatusRow] => Any, testData: Seq[NodeMgmtPolStatusRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.rows ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.rows.filter(_.policy inSet testData.map(_.policy)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.filter(_.policy inSet testData.map(_.policy)).delete), AWAITDURATION)
   }
 
 
@@ -125,33 +153,7 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
   }
 
 
-
   test("GET /orgs/TestNodeGetNMPStatusRoute/nodes/n1/managementStatus - as root") {
-    val NMPstatus: Seq[NodeMgmtPolStatusRow] =
-      Seq(NodeMgmtPolStatusRow(
-        errorMessage = "nmp1 description test",
-        node = "TestNodeGetNMPStatusRoute/n1",
-        policy = "TestNodeGetNMPStatusRoute/nmp1",
-        status = "Success",
-        endTime = "",
-        actualStartTime = ApiTime.nowUTC,
-        scheduledStartTime = ApiTime.nowUTC,
-        updated = ApiTime.nowUTC,
-        certificateVersion = "",
-        configurationVersion = "",
-        softwareVersion = ""), // replace boolean and data types with actual values like true false etc
-        NodeMgmtPolStatusRow(
-          errorMessage = "nmp2 description test",
-          node = "TestNodeGetNMPStatusRoute/n1",
-          policy = "TestNodeGetNMPStatusRoute/nmp2",
-          status = "Fail",
-          endTime = "",
-          actualStartTime = ApiTime.nowUTC,
-          scheduledStartTime = ApiTime.nowUTC,
-          updated = ApiTime.nowUTC,
-          certificateVersion = "",
-          configurationVersion = "",
-          softwareVersion = "")) //
 
     fixtureNMP(
       _ => {
@@ -165,38 +167,12 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("GET /orgs/TestNodeGetNMPStatusRoute/nodes/n1/managementStatus/nmp2 - as root") {
-    val NMPstatus: Seq[NodeMgmtPolStatusRow] =
-      Seq(NodeMgmtPolStatusRow(
-        errorMessage = "nmp1 description test",
-        node = "TestNodeGetNMPStatusRoute/n1",
-        policy = "TestNodeGetNMPStatusRoute/nmp1",
-        status = "Success",
-        endTime = "",
-        actualStartTime = ApiTime.nowUTC,
-        scheduledStartTime = ApiTime.nowUTC,
-        updated = ApiTime.nowUTC,
-        certificateVersion = "",
-        configurationVersion = "",
-        softwareVersion = ""), // replace boolean and data types with actual values like true false etc
-        NodeMgmtPolStatusRow(
-          errorMessage = "nmp2 description test",
-          node = "TestNodeGetNMPStatusRoute/n1",
-          policy = "TestNodeGetNMPStatusRoute/nmp2",
-          status = "Fail",
-          endTime = "",
-          actualStartTime = ApiTime.nowUTC,
-          scheduledStartTime = ApiTime.nowUTC,
-          updated = ApiTime.nowUTC,
-          certificateVersion = "",
-          configurationVersion = "",
-          softwareVersion = "")) ////
-
 
     fixtureNMP(
       _ => {
         statusNMP(
           _ => {
-            val response = Http(URL + "/nodes/n1/managementStatus/nmp1").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+            val response = Http(URL + "/nodes/n1/managementStatus/nmp2").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
             info("code: " + response.code + ", response.body: " + response.body)
             assert(response.code === HttpCode.OK.intValue)
           }, NMPstatus)
@@ -210,78 +186,50 @@ class TestNodeGetNMPStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
         val response = Http(URL+"/managementpolicies").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
         info("code: "+response.code+", response.body: "+response.body)
         assert(response.code === HttpCode.OK.intValue)
-        val getResp = parse(response.body)
-        assert(getResp != "")//getResp.agentUpgradePolicy.duration === 0)
       }, TESTNODEMGMTPOLICY)
   }
 
-//  test("DELETE /orgs/TestNodeGetNMPStatusRoute/nodes/n1/managementStatus/nmp2 - as root") {
-//    val TestNMP: Seq[ManagementPolicyRow] =
-//      Seq(ManagementPolicyRow(
-//        managementPolicy = "nmp1", //nmpid
-//        orgid = "TestNodeGetNMPStatusRoute",
-//        owner = "root/root",
-//        label = "",
-//        description = "nmpid1 description test",
-//        properties = "",
-//        constraints = "",
-//        patterns = "",
-//        enabled = true,
-//        agentUpgradePolicy = """{"atLeastVersion": "current", "start": "now", "duration": 0}""",
-//        lastUpdated = ApiTime.nowUTC,
-//        created = ApiTime.nowUTC), // replace boolean and data types with actual values like true false etc
-//        ManagementPolicyRow(
-//          managementPolicy = "nmp2", //nmpid
-//          orgid = "TestNodeGetNMPStatusRoute",
-//          owner = "root/root",
-//          label = "",
-//          description = "nmpid2 description test",
-//          properties = "",
-//          constraints = "",
-//          patterns = "",
-//          enabled = true,
-//          agentUpgradePolicy = """{"atLeastVersion": "current", "start": "now", "duration": 0}""",
-//          lastUpdated = ApiTime.nowUTC,
-//          created = ApiTime.nowUTC)) //
-//
-//
-//    fixtureNMP(
-//      _ => {
-//        val response = Http(URL+"/nodes/n1/managementStatus/nmp2").method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-//        info("code: "+response.code+", response.body: "+response.body)
-//        assert(response.code === HttpCode.DELETED.intValue)
-//      }, TestNMP)
-//  }
+  test("DELETE /orgs/TestNodeGetNMPStatusRoute/nodes/n1/managementStatus/nmp2 - as root") {
+
+    fixtureNMP(
+      _ => {
+        statusNMP(
+          _ => {
+            val response = Http(URL + "/nodes/n1/managementStatus/nmp2").method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+            info("code: " + response.code + ", response.body: " + response.body)
+            assert(response.code === HttpCode.DELETED.intValue)
+
+            val assurance = Http(URL + "/nodes/n1/managementStatus/nmp2").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+            info("code: " + assurance.code + ", response.body: " + assurance.body)
+            assert(assurance.code === HttpCode.NOT_FOUND.intValue)
+
+          }, NMPstatus)
+      }, TESTNODEMGMTPOLICY)
+  }
 
 
-  ignore("GET /orgs/TestNodeGetNMPStatusRoute/nodes/n1/testmanagementStatus - as root") {
-    assert(true)
+  test("DELETE /orgs/TestNodeGetNMPStatusRoute/nodes/n1/managementStatus - as root") {
+
+    fixtureNMP(
+      _ => {
+        statusNMP(
+          _ => {
+
+            val assurance = Http(URL + "/nodes/n1/managementStatus").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+            info("GETTING ALL NMP STATUSES - code: " + assurance.code + ", response.body: " + assurance.body)
+            assert(assurance.code === HttpCode.OK.intValue)
+
+            val response = Http(URL + "/nodes/n1/managementStatus").method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+            info("DELETING ALL NMP STATUSES - code: " + response.code + ", response.body: " + response.body)
+            assert(response.code === HttpCode.DELETED.intValue)
+
+            val notfound = Http(URL + "/nodes/n1/managementStatus").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+            info("GETTING ALL NMP STATUSES (none should be there) - code: " + assurance.code + ", response.body: " + notfound.body)
+            assert(notfound.code === HttpCode.NOT_FOUND.intValue)
+
+          }, NMPstatus)
+      }, TESTNODEMGMTPOLICY)
   }
 }
 
 
-
-//Seq(NodeMgmtPolStatusRow(
-//actualStartTime = ApiTime.nowUTC,
-//certificateVersion = "",
-//configurationVersion = "",
-//endTime = "",
-//errorMessage = "nmp1 description test",
-//node = "n1",
-//policy = "nmp1",
-//scheduledStartTime = ApiTime.nowUTC,
-//softwareVersion = "",
-//status = "Success",
-//updated = ApiTime.nowUTC), // replace boolean and data types with actual values like true false etc
-//NodeMgmtPolStatusRow(
-//actualStartTime = ApiTime.nowUTC,
-//certificateVersion = "",
-//configurationVersion = "",
-//endTime = "",
-//errorMessage = "nmp2 description test",
-//node = "n1",
-//policy = "nmp2",
-//scheduledStartTime = ApiTime.nowUTC,
-//softwareVersion = "",
-//status = "Success",
-//updated = ApiTime.nowUTC)) //

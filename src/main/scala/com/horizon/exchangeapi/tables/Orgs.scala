@@ -114,28 +114,30 @@ import com.horizon.exchangeapi.tables.ResChangeCategory._
 
 object ResChangeResource extends Enumeration {
   type ResChangeResource = Value
-  val ORG: ResChangeResource.Value = Value("org")
   val AGBOT: ResChangeResource.Value = Value("agbot")
-  val AGBOTPATTERNS: ResChangeResource.Value = Value("agbotpatterns")
-  val AGBOTBUSINESSPOLS: ResChangeResource.Value = Value("agbotbusinesspols")
   val AGBOTAGREEMENTS: ResChangeResource.Value = Value("agbotagreements")
+  val AGBOTBUSINESSPOLS: ResChangeResource.Value = Value("agbotbusinesspols")
   val AGBOTMSGS: ResChangeResource.Value = Value("agbotmsgs")
+  val AGBOTPATTERNS: ResChangeResource.Value = Value("agbotpatterns")
   val NODE: ResChangeResource.Value = Value("node")
-  val NODESERVICES_CONFIGSTATE: ResChangeResource.Value = Value("services_configstate")
-  val NODEERRORS: ResChangeResource.Value = Value("nodeerrors")
-  val NODESTATUS: ResChangeResource.Value = Value("nodestatus")
-  val NODEPOLICIES: ResChangeResource.Value = Value("nodepolicies")
   val NODEAGREEMENTS: ResChangeResource.Value = Value("nodeagreements")
+  val NODEERRORS: ResChangeResource.Value = Value("nodeerrors")
+  val NODEMGMTPOLSTATUS: ResChangeResource.Value = Value("nodemgmtpolstatus")
   val NODEMSGS: ResChangeResource.Value = Value("nodemsgs")
-  val POLICY: ResChangeResource.Value = Value("policy")
+  val NODEPOLICIES: ResChangeResource.Value = Value("nodepolicies")
+  val NODESERVICES_CONFIGSTATE: ResChangeResource.Value = Value("services_configstate")
+  val NODESTATUS: ResChangeResource.Value = Value("nodestatus")
+  val ORG: ResChangeResource.Value = Value("org")
+  
   val MGMTPOLICY: ResChangeResource.Value = Value("mgmtpolicy")
-  val MGMTPOLICYSTATUS: ResChangeResource.Value = Value("management_policy_status_node")
   val PATTERN: ResChangeResource.Value = Value("pattern")
   val PATTERNKEYS: ResChangeResource.Value = Value("patternkeys")
+  val POLICY: ResChangeResource.Value = Value("policy")
+  
   val SERVICE: ResChangeResource.Value = Value("service")
-  val SERVICEPOLICIES: ResChangeResource.Value = Value("servicepolicies")
-  val SERVICEKEYS: ResChangeResource.Value = Value("servicekeys")
   val SERVICEDOCKAUTHS: ResChangeResource.Value = Value("servicedockauths")
+  val SERVICEKEYS: ResChangeResource.Value = Value("servicekeys")
+  val SERVICEPOLICIES: ResChangeResource.Value = Value("servicepolicies")
 }
 import com.horizon.exchangeapi.tables.ResChangeResource._
 

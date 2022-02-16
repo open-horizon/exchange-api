@@ -160,7 +160,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "management policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "management-policy")
   def mgmtPolsGetRoute: Route = (path("orgs" / Segment / "managementpolicies") & get & parameter("idfilter".?, "owner".?, "label".?, "description".?)) { (orgid, idfilter, owner, label, description) =>
     exchAuth(TManagementPolicy(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       complete({
@@ -181,13 +181,13 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
   } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/managementpolicies/{nmpid} ================================ */
+  /* ====== GET /orgs/{orgid}/managementpolicies/{mgmtpolicy} ================================ */
   @GET
   @Path("{nmpid}")
   @Operation(summary = "Returns a node management policy", description = "Returns the management policy with the specified id. Can be run by any user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "nmpid", in = ParameterIn.PATH, description = "Node management policy name."),
+      new Parameter(name = "mgmtpolicy", in = ParameterIn.PATH, description = "Node management policy name."),
       new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire management policy resource will be returned.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -236,7 +236,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "management policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "management-policy")
   def mgmtPolGetRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & get & parameter("attribute".?)) { (orgid, nmpid, attribute) =>
     val compositeId: String = OrgAndId(orgid, nmpid).toString
     exchAuth(TManagementPolicy(compositeId), Access.READ) { _ =>
@@ -266,7 +266,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
   } // end of exchAuth
   }
 
-  // =========== POST /orgs/{orgid}/managementpolicies/{nmpid} ===============================
+  // =========== POST /orgs/{orgid}/managementpolicies/{mgmtpolicy} ===============================
   @POST
   @Path("{nmpid}")
   @Operation(
@@ -279,7 +279,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
         description = "Organization id."
       ),
       new Parameter(
-        name = "nmpid",
+        name = "mgmtpolicy",
         in = ParameterIn.PATH,
         description = "Management Policy name."
       )
@@ -345,7 +345,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "management policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "management-policy")
   def mgmtPolPostRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & post & entity(as[PostPutManagementPolicyRequest])) { (orgid, nmpid, reqBody) =>
     val compositeId: String = OrgAndId(orgid, nmpid).toString
     exchAuth(TManagementPolicy(compositeId), Access.CREATE) { ident =>
@@ -387,7 +387,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     } // end of exchAuth
   }
 
-  // =========== PUT /orgs/{orgid}/managementpolicies/{policy} ===============================
+  // =========== PUT /orgs/{orgid}/managementpolicies/{mgmtpolicy} ===============================
   @PUT
   @Path("{nmpid}")
   @Operation(
@@ -400,7 +400,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
         description = "Organization id."
       ),
       new Parameter(
-        name = "nmpid",
+        name = "mgmtpolicy",
         in = ParameterIn.PATH,
         description = "Management Policy name."
       )
@@ -466,7 +466,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "management policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "management-policy")
   def mgmtPolPutRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & put & entity(as[PostPutManagementPolicyRequest])) { (orgid, nmpid, reqBody) =>
     val compositeId: String = OrgAndId(orgid, nmpid).toString
     exchAuth(TManagementPolicy(compositeId), Access.WRITE) { ident =>
@@ -498,19 +498,19 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/managementpolicies/{nmpid} ===============================
+  // =========== DELETE /orgs/{orgid}/managementpolicies/{mgmtpolicy} ===============================
   @DELETE
   @Path("{nmpid}")
   @Operation(summary = "Deletes a management policy", description = "Deletes a management policy. Can only be run by the owning user.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "nmpid", in = ParameterIn.PATH, description = "Management Policy name.")),
+      new Parameter(name = "mgmtpolicy", in = ParameterIn.PATH, description = "Management Policy name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "management policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "management-policy")
   def mgmtPolDeleteRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & delete) { (orgid, nmpid) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/managementpolicies/$nmpid")
     val compositeId: String = OrgAndId(orgid, nmpid).toString

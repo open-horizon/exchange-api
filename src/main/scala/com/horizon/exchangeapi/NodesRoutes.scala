@@ -5,6 +5,7 @@ import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
+import akka.http.scaladsl.model.headers.CacheDirectives.public
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth._
@@ -26,8 +27,8 @@ import scala.collection.immutable._
 import scala.util._
 import scala.util.control.Breaks._
 import scala.util.matching.Regex
-
 import org.json4s.{DefaultFormats, Formats}
+
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 
 
@@ -372,6 +373,16 @@ final case class PostNodesMsgsRequest(message: String, ttl: Int) {
 /** Response for GET /orgs/{orgid}/nodes/{id}/msgs */
 final case class GetNodeMsgsResponse(messages: List[NodeMsg], lastIndex: Int)
 
+final case class UpgradedVersions(softwareVersion: String,
+                                  certVersion: String,
+                                  configVersion: String)
+final case class NodeMangementPolicyStatus(scheduledTime: String,
+                                           startTime: String,
+                                           endTime: String,
+                                           upgradedVersions: UpgradedVersions,
+                                           status: String,
+                                           errorMessage: String)
+final case class PutNodeMgmtPolStatusRequest(agentUpgradePolicyStatus: NodeMangementPolicyStatus)
 
 /** Implementation for all of the /orgs/{orgid}/nodes routes */
 @Path("/v1/orgs/{orgid}")
@@ -391,22 +402,22 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                            nodeDeleteStatusRoute ~
                            nodeGetAgreementRoute ~
                            nodeGetAgreementsRoute ~
+                           nodeGetAllMgmtPolStatus ~
                            nodeGetErrorsRoute ~
                            nodeGetMsgRoute ~
                            nodeGetMsgsRoute ~
                            nodeGetPolicyRoute ~
                            nodeGetRoute ~
                            nodeGetStatusRoute ~
-                           nodeGetNMPStatusesRoute ~
-                           nodeGetNMPStatusRoute ~
-                           nodeDeleteNMPStatusRoute ~
-                           nodeDeleteAllNMPStatusRoute ~
+                           nodeGetPutMgmtPolStatus ~
+                           nodeDeleteMgmtPolStatus ~
                            nodeHeartbeatRoute ~
                            nodePatchRoute ~
                            nodePostConfigStateRoute ~
                            nodePostMsgRoute ~
                            nodePutAgreementRoute ~
                            nodePutErrorsRoute ~
+                           nodePutMgmtPolStatus ~
                            nodePutPolicyRoute ~
                            nodePutStatusRoute ~
                            nodePutRoute ~
@@ -709,7 +720,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   "arch": "arm",
   "registeredServices": [
     {
-      "url": "IBM/github.com.open-horizon.examples.cpu", 
+      "url": "IBM/github.com.open-horizon.examples.cpu",
       "numAgreements": 1,
       "policy": "{}",
       "properties": [
@@ -748,7 +759,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
 """
             )
           ),
-          mediaType = "application/json", 
+          mediaType = "application/json",
           schema = new Schema(implementation = classOf[PutNodesRequest])
         )
       ),
@@ -756,26 +767,26 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     ),
     responses = Array(
       new responses.ApiResponse(
-        responseCode = "201", 
-        description = "resource add/updated - response body:", 
+        responseCode = "201",
+        description = "resource add/updated - response body:",
         content = Array(
           new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse]))
         )
       ),
       new responses.ApiResponse(
-        responseCode = "400", 
+        responseCode = "400",
         description = "bad input"
       ),
       new responses.ApiResponse(
-        responseCode = "401", 
+        responseCode = "401",
         description = "invalid credentials"
       ),
       new responses.ApiResponse(
-        responseCode = "403", 
+        responseCode = "403",
         description = "access denied"
       ),
       new responses.ApiResponse(
-        responseCode = "404", 
+        responseCode = "404",
         description = "not found"
       )
     )
@@ -873,20 +884,20 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             case Failure(t) => DBIO.failed(t).asTry
           })
           .flatMap({
-            case Success(lastHeartbeat) => 
+            case Success(lastHeartbeat) =>
               lastHeartbeat.size match {
                   case 0 => val lastHB = if (noHB) None else Some(ApiTime.nowUTC)
                     hashedPw = Password.fastHash(reqBody.token)
                     (if (owner == "")
                         // It seems like this case is an error (node doesn't exist yet, and client is not a user). The update will fail, but probably not with an error that will really explain what they did wrong.
                         reqBody.getDbUpdate(compositeId, orgid, owner, hashedPw, lastHB)
-                      else 
+                      else
                         reqBody.getDbUpsert(compositeId, orgid, owner, hashedPw, lastHB)).transactionally.asTry
                   case 1 => val lastHB = if (noHB) lastHeartbeat.head else Some(ApiTime.nowUTC)
                     hashedPw = Password.fastHash(reqBody.token)
-                    (if (owner == "") 
+                    (if (owner == "")
                         reqBody.getDbUpdate(compositeId, orgid, owner, hashedPw, lastHB)
-                      else 
+                      else
                         reqBody.getDbUpsert(compositeId, orgid, owner, hashedPw, lastHB)).transactionally.asTry
                   case _ => DBIO.failed(new DBProcessingError(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", compositeId, "Unexpected result"))).asTry
                 }
@@ -1979,7 +1990,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               value = """{
   "services": [
     {
-     "orgid": "myorg", 
+     "orgid": "myorg",
      "url": "mydomain.com.rtlsdr"
     }
   ],
@@ -2262,7 +2273,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + orgid + "/nodes/" + id + "/msgs write row result: " + v)
             msgNum = v.toString
-            ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODEMSGS, ResChangeOperation.CREATED).insert.asTry
+            ResourceChange(0L, orgid, id, ResChangeCategory.NODE, public = false, ResChangeResource.NODEMSGS, ResChangeOperation.CREATED).insert.asTry
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
@@ -2772,7 +2783,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
 
   /* ====== GET /orgs/{orgid}/nodes/{id}/managementStatus ================================ */
   @GET
-  @Path("/v1/orgs/{orgid}/nodes/{id}/managementStatus")
+  @Path("nodes/{id}/managementStatus")
   @Operation(summary = "Returns status for nodeid", description = "Returns the management status of the node (edge device) with the specified id. Can be run by that node, a user, or an agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -2814,26 +2825,29 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/managementStatus")
-  def nodeGetNMPStatusesRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus") & get) { (orgid, id) =>
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management-policy")
+  def nodeGetAllMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus") & get) { (orgid, id) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { ident =>
       complete({
         var q = NodeMgmtPolStatuses.getNodeMgmtPolStatuses(orgid + "/" + id)
         db.run(q.result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/managementStatus result size: "+list.size)
-          val nmpStatuses: Map[String, NMPStatus] = list.map(e => e.policy -> e.toNodeMgmtPolStatus).toMap //mapping management policy object to string
-          val code: StatusCode with Serializable = if (nmpStatuses.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val nmpStatuses: Map[String, NMPStatus] = list.map(e => e.policy -> e.toNodeMgmtPolStatus).toMap
+          val code: StatusCode with Serializable =
+            if(nmpStatuses.nonEmpty)
+              StatusCodes.OK
+            else
+              StatusCodes.NotFound
           (code, GetNMPStatusResponse(nmpStatuses, 0))
         })
       }) // end of complete
     } // end of validate
   } // end of exchAuth
-
-
-  /* ====== GET /orgs/{orgid}/nodes/{id}/managementStatus/{nmpID} ================================ */
+  
+  /* ====== GET /orgs/{orgid}/nodes/{id}/managementStatus/{mgmtpolicy} ================================ */
   @GET
-  @Path("/v1/orgs/{orgid}/nodes/{id}/managementStatus/{nmpID}")
+  @Path("nodes/{id}/managementStatus/{mgmtpolicy}")
   @Operation(summary = "Returns status for nodeid", description = "Returns the management status of the node (edge device) with the specified id. Can be run by that node, a user, or an agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
@@ -2876,108 +2890,208 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/managementStatus")
-  def nodeGetNMPStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & get) { (orgid, id, nmpId) =>
-    logger.debug(s"Doing GET /orgs/$orgid/nodes/$id/managementStatus/$nmpId")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management-policy")
+  def nodeGetPutMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & get) { (orgid, id, mgmtpolicy) =>
+    logger.debug(s"Doing GET /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy")
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
-        db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(compositeId, orgid + "/" + nmpId).result).map({ list =>
-          logger.debug(s"GET /orgs/$orgid/nodes/$id/managementStatus/$nmpId status result size: ${list.size}")
-          val nmpStatuses: Map[String, NMPStatus] = list.map(e => e.policy -> e.toNodeMgmtPolStatus).toMap //mapping management policy object to string
-          val code: StatusCode with Serializable = if (nmpStatuses.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+        db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(compositeId, orgid + "/" + mgmtpolicy).result).map({ list =>
+          logger.debug(s"GET /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy status result size: ${list.size}")
+          
+          val nmpStatuses: Map[String, NMPStatus] = list.map(e => e.policy -> e.toNodeMgmtPolStatus).toMap
+          val code: StatusCode with Serializable =
+            if(nmpStatuses.nonEmpty)
+              StatusCodes.OK
+            else
+              StatusCodes.NotFound
           (code, GetNMPStatusResponse(nmpStatuses, 0))
         })
       }) // end of complete
     } // end of validate
   } // end of exchAuth
-
-  // =========== DELETE /orgs/{orgid}/nodes/{id}/managementStatus/{nmpID} ===============================
-  @DELETE
-  @Path("/v1/orgs/{orgid}/nodes/{id}/managementStatus/{nmpID}")
-  @Operation(summary = "Deletes a node management policy status", description = "Deletes a node management policy status, Can be run by the owning user or the node.",
+  
+  // =========== PUT /orgs/{orgid}/nodes/{id}/managementStatus/{mgmtpolicy} ===============================
+  @PUT
+  @Path("nodes/{id}/managementStatus/{mgmtpolicy}")
+  @Operation(
+    summary = "Adds/updates the status of the Management Policy running on the Node.",
+    description = "Adds or updates the run time status of a Management Policy running on a Node. This is called by the Agreement Bot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
-      new Parameter(name = "nmpid", in = ParameterIn.PATH, description = "ID of the node management policy.")),
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization identifier"
+      ),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "Node identifier"
+      ),
+      new Parameter(
+        name = "mgmtpolicy",
+        in = ParameterIn.PATH,
+        description = "Management Policy identifier"
+      )
+    ),
+    requestBody = new RequestBody(
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value = """{
+  "agentUpgradePolicyStatus": {
+    "scheduledTime": "<RFC3339 timestamp>",
+    "startTime": "<RFC3339 timestamp>",
+    "endTime": "<RFC3339 timestamp>",
+    "upgradedVersions": {
+      "softwareVersion": "1.1.1",
+      "certVersion": "2.2.2",
+      "configVersion": "3.3.3"
+    },
+    "status":  "success|failed|in progress",
+    "errorMessage": "Upgrade process failed"
+  }
+}
+                      """
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PutNodeMgmtPolStatusRequest])
+        )
+      ),
+      required = true
+    ),
+    responses = Array(
+      new responses.ApiResponse(
+        responseCode = "201",
+        description = "response body",
+        content = Array(
+          new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse]))
+        )
+      ),
+      new responses.ApiResponse(
+        responseCode = "401",
+        description = "invalid credentials"
+      ),
+      new responses.ApiResponse(
+        responseCode = "403",
+        description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
+      )
+    )
+  )
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management-policy")
+  def nodePutMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & put & entity(as[PutNodeMgmtPolStatusRequest])) { (orgid, id, mgmtpolicy, reqBody) =>
+    val compositeId: String = OrgAndId(orgid, id).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      //validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          db.run(
+            NodeMgmtPolStatuses
+              .insertOrUpdate(
+                NodeMgmtPolStatusRow(actualStartTime = reqBody.agentUpgradePolicyStatus.startTime,
+                                     certificateVersion = reqBody.agentUpgradePolicyStatus.upgradedVersions.certVersion,
+                                     configurationVersion = reqBody.agentUpgradePolicyStatus.upgradedVersions.configVersion,
+                                     endTime = reqBody.agentUpgradePolicyStatus.endTime,
+                                     errorMessage = reqBody.agentUpgradePolicyStatus.errorMessage,
+                                     node = compositeId,
+                                     policy = s"$orgid/$mgmtpolicy",
+                                     scheduledStartTime = reqBody.agentUpgradePolicyStatus.scheduledTime,
+                                     softwareVersion = reqBody.agentUpgradePolicyStatus.upgradedVersions.softwareVersion,
+                                     status = reqBody.agentUpgradePolicyStatus.status,
+                                     updated = ApiTime.nowUTC)
+              )
+              .andThen(
+                ResourceChange(category = ResChangeCategory.NODE,
+                               changeId = 0L,
+                               id = id,
+                               operation = ResChangeOperation.CREATEDMODIFIED,
+                               orgId = orgid,
+                               public = false,
+                               resource = ResChangeResource.NODEMGMTPOLSTATUS)
+                  .insert)
+              .transactionally.asTry.map({
+                case Success(v) =>
+                  logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/managementPolicy/" + mgmtpolicy + " result: " + v)
+                  logger.debug("PUT /orgs/" + orgid + "/nodes/" + id + "/managementPolicy/" + mgmtpolicy + " updating resource status table: " + v)
+                  
+                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.managementpolicy.status.added.or.updated", orgid + "/" + mgmtpolicy, compositeId)))
+                case Failure(t: org.postgresql.util.PSQLException) =>
+                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t))
+                    (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", orgid + "/" + mgmtpolicy, compositeId, t.getMessage)))
+                  else
+                    ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", orgid + "/" + mgmtpolicy, compositeId, t.toString))
+                case Failure(t) =>
+                  if (t.getMessage.startsWith("Access Denied:"))
+                    (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", orgid + "/" + mgmtpolicy, compositeId, t.getMessage)))
+                  else
+                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", orgid + "/" + mgmtpolicy, compositeId, t.toString)))
+              })
+          )
+        }) // end of complete
+      // } // end of validateWithMsg
+    } // end of exchAuth
+  }
+  
+  // =========== DELETE /orgs/{orgid}/nodes/{id}/managementStatus/{mgmtpolicy} ===============================
+  @DELETE
+  @Path("nodes/{id}/managementStatus/{mgmtpolicy}")
+  @Operation(
+    summary = "Deletes the status of the Management Policy running on the Node",
+    description = "Deletes the run time status of a Management Policy running on a Node. This is called by the Agreement Bot.",
+    parameters = Array(
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization identifier."),
+      new Parameter(
+        name = "id",
+        in = ParameterIn.PATH,
+        description = "Node identifier"),
+      new Parameter(
+        name = "mgmtpolicy",
+        in = ParameterIn.PATH,
+        description = "Management Policy identifier")),
   responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/managementStatus")
-  def nodeDeleteNMPStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & delete) { (orgid, id, nmpId) =>
-    logger.debug(s"Doing DELETE /orgs/$orgid/nodes/$id/managementStatus/$nmpId")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management-policy")
+  def nodeDeleteMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & delete) { (orgid, id, mgmtpolicy) =>
+    logger.debug(s"Doing DELETE /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy")
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
         // remove does *not* throw an exception if the key does not exist
-        db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(compositeId, orgid + "/" + nmpId).delete.transactionally.asTry.flatMap({
+        db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(compositeId, orgid + "/" + mgmtpolicy).delete.transactionally.asTry.flatMap({
           case Success(v) =>
-            if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              logger.debug(s"DELETE /orgs/$orgid/nodes/$id/managementStatus/$nmpId result: $v")
-              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.MGMTPOLICYSTATUS, ResChangeOperation.DELETED).insert.asTry
-            } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.status.not.found", orgid + "/" + nmpId, compositeId))).asTry
+            if(v > 0) { // there were no db errors, but determine if it actually found it or not
+              logger.debug(s"DELETE /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy result: $v")
+              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.NODEMGMTPOLSTATUS, ResChangeOperation.DELETED).insert.asTry
             }
+            else
+              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.managementpolicy.status.not.found", orgid + "/" + mgmtpolicy, compositeId))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
-            logger.debug(s"DELETE /orgs/$orgid/nodes/$id/managementStatus/$nmpId updated in changes table: $v")
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("management.policy.status.deleted")))
+            logger.debug(s"DELETE /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy updated in changes table: $v")
+            
+            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.managementpolicy.status.deleted", orgid + "/" + mgmtpolicy, compositeId)))
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
-            if (t.getMessage.contains("couldn't find mgmtpolicystatus")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.status.not.found", compositeId)))
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("management.policy.status.not.deleted", compositeId, t.toString))
+            if(t.getMessage.contains("couldn't find NODEMGMTPOLSTATUS")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.managementpolicy.status.not.found", orgid + "/" + mgmtpolicy, compositeId)))
+            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.managementpolicy.status.not.deleted", orgid + "/" + mgmtpolicy, compositeId, t.toString))
           case Failure(t) =>
-            if (t.getMessage.contains("couldn't find mgmtpolicystatus")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.status.not.found", compositeId)))
-            else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("management.policy.status.not.deleted", compositeId, t.toString)))
-        })
-      }) // end of complete
-    } // end of exchAuth
-  }
-
-  // =========== DELETE /orgs/{orgid}/nodes/{id}/managementStatus ===============================
-  @DELETE
-  @Path("/v1/orgs/{orgid}/nodes/{id}/managementStatus")
-  @Operation(summary = "Deletes all node management policy statuses", description = "Deletes a node management policy status, Can be run by the owning user or the node.",
-    parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
-    responses = Array(
-      new responses.ApiResponse(responseCode = "204", description = "deleted"),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/managementStatus")
-  def nodeDeleteAllNMPStatusRoute: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus") & delete) { (orgid, id) =>
-    logger.debug(s"Doing DELETE /orgs/$orgid/nodes/$id/managementStatus")
-    val compositeId: String = OrgAndId(orgid, id).toString
-    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
-      complete({
-        // remove does *not* throw an exception if the key does not exist
-        db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatuses(compositeId).delete.transactionally.asTry.flatMap({
-          case Success(v) =>
-            if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              logger.debug(s"DELETE /orgs/$orgid/nodes/$id/managementStatus result: $v")
-              ResourceChange(0L, orgid, id, ResChangeCategory.NODE, false, ResChangeResource.MGMTPOLICYSTATUS, ResChangeOperation.DELETED).insert.asTry
-            } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.status.not.found", compositeId))).asTry
-            }
-          case Failure(t) => DBIO.failed(t).asTry
-        })).map({
-          case Success(v) =>
-            logger.debug(s"DELETE /orgs/$orgid/nodes/$id/managementStatus updated in changes table: $v")
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("management.policy.status.deleted")))
-          case Failure(t: DBProcessingError) =>
-            t.toComplete
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            if (t.getMessage.contains("couldn't find mgmtpolicystatus")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.status.not.found", compositeId)))
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("management.policy.status.not.deleted", compositeId, t.toString))
-          case Failure(t) =>
-            if (t.getMessage.contains("couldn't find mgmtpolicystatus")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.status.not.found", compositeId)))
-            else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("management.policy.status.not.deleted", compositeId, t.toString)))
+            if(t.getMessage.contains("couldn't find NODEMGMTPOLSTATUS"))
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.managementpolicy.status.not.found", orgid + "/" + mgmtpolicy, compositeId)))
+            else
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.managementpolicy.status.not.deleted", orgid + "/" + mgmtpolicy, compositeId, t.toString)))
         })
       }) // end of complete
     } // end of exchAuth

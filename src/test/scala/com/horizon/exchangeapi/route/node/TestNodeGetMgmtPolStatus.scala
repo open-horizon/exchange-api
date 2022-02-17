@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.node
 
 import com.horizon.exchangeapi.tables.{ManagementPoliciesTQ, ManagementPolicyRow, NMPStatus, NodeMgmtPolStatusRow, NodeMgmtPolStatuses, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetNMPStatusResponse, HttpCode, Role, TestDBConnection}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetAgbotMsgsResponse, GetNMPStatusResponse, HttpCode, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.scalatest.BeforeAndAfterAll
@@ -13,21 +13,25 @@ import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
 
-class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
+class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT: (String, String) = ("Content-Type", "application/json")
   private val CONTENT: (String, String) = ACCEPT
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
-  private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/" + "TestNodeGetAllMgmtPolStatus"
+  private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/" + "TestNodeGetMgmtPolStatus"
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats = DefaultFormats // Brings in default date formats etc.
+  val managementPolicy1 = "pol1"
+  val managementPolicy2 = "pol2"
+  //val orgManagementPolicy: String = authpref + managementPolicy
+
 
   private val TESTORGANIZATION: OrgRow =
     OrgRow(heartbeatIntervals = "",
       description = "",
       label = "",
       lastUpdated = ApiTime.nowUTC,
-      orgId = "TestNodeGetAllMgmtPolStatus",
+      orgId = "TestNodeGetMgmtPolStatus",
       orgType = "",
       tags = None,
       limits = "")
@@ -40,9 +44,9 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
       label = "",
       lastUpdated = ApiTime.nowUTC,
       manifest = "",
-      managementPolicy = "TestNodeGetAllMgmtPolStatus/pol1",
-      orgid = "TestNodeGetAllMgmtPolStatus",
-      owner = "TestNodeGetAllMgmtPolStatus/u1",
+      managementPolicy = "TestNodeGetMgmtPolStatus/pol1",
+      orgid = "TestNodeGetMgmtPolStatus",
+      owner = "TestNodeGetMgmtPolStatus/u1",
       patterns = "",
       properties = "",
       start = ""),
@@ -54,35 +58,35 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
         label = "",
         lastUpdated = ApiTime.nowUTC,
         manifest = "",
-        managementPolicy = "TestNodeGetAllMgmtPolStatus/pol2",
-        orgid = "TestNodeGetAllMgmtPolStatus",
-        owner = "TestNodeGetAllMgmtPolStatus/u1",
+        managementPolicy = "TestNodeGetMgmtPolStatus/pol2",
+        orgid = "TestNodeGetMgmtPolStatus",
+        owner = "TestNodeGetMgmtPolStatus/u1",
         patterns = "",
         properties = "",
         start = ""))
 
   private val TESTNODE: NodeRow =
     NodeRow(arch = "amd64",
-      id = "TestNodeGetAllMgmtPolStatus/n1",
+      id = "TestNodeGetMgmtPolStatus/n1",
       heartbeatIntervals = """{"minInterval":6,"maxInterval":15,"intervalAdjustment":2}""",
       lastHeartbeat = Some(ApiTime.nowUTC),
       lastUpdated = ApiTime.nowUTC,
       msgEndPoint = "messageEndpoint",
       name = "rpin1-normal",
       nodeType = "device",
-      orgid = "TestNodeGetAllMgmtPolStatus",
-      owner = "TestNodeGetAllMgmtPolStatus/u1",
-      pattern = "TestNodeGetAllMgmtPolStatus/p1",
+      orgid = "TestNodeGetMgmtPolStatus",
+      owner = "TestNodeGetMgmtPolStatus/u1",
+      pattern = "TestNodeGetMgmtPolStatus/p1",
       publicKey = "key",
       regServices = """[{"url":"NodesSuiteTests/horizon.sdr","numAgreements":1,"configState":"active","policy":"{json policy for n1 sdr}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"memory","value":"300","propType":"int","op":">="},{"name":"version","value":"1.0.0","propType":"version","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"dataVerification","value":"true","propType":"boolean","op":"="}]},{"url":"NodesSuiteTests/horizon.netspeed","numAgreements":1,"configState":"active","policy":"{json policy for n1 netspeed}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"version","value":"1.0.0","propType":"version","op":"in"}]}]""",
       softwareVersions = """{"horizon":"3.2.1"}""",
-      token = "", // TestNodeGetAllMgmtPolStatus/n1:n1pw
+      token = "", // TestNodeGetMgmtPolStatus/n1:n1pw
       userInput = """[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"horizon.sdr","serviceArch":"amd64","serviceVersionRange":"[0.0.0,INFINITY)","inputs":[{"name":"UI_STRING","value":"mystr - updated"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}]""")
 
   private val TESTNODEMGMTPOLSTATUSES: Seq[NodeMgmtPolStatusRow] =
     Seq(NodeMgmtPolStatusRow(errorMessage = "pol1 description test",
-      node = "TestNodeGetAllMgmtPolStatus/n1",
-      policy = "TestNodeGetAllMgmtPolStatus/pol1",
+      node = "TestNodeGetMgmtPolStatus/n1",
+      policy = "TestNodeGetMgmtPolStatus/pol1",
       status = "Success",
       endTime = "",
       actualStartTime = ApiTime.nowUTC,
@@ -92,8 +96,8 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
       configurationVersion = "",
       softwareVersion = ""),
       NodeMgmtPolStatusRow(errorMessage = "pol2 description test",
-        node = "TestNodeGetAllMgmtPolStatus/n1",
-        policy = "TestNodeGetAllMgmtPolStatus/pol2",
+        node = "TestNodeGetMgmtPolStatus/n1",
+        policy = "TestNodeGetMgmtPolStatus/pol2",
         status = "Fail",
         endTime = "",
         actualStartTime = ApiTime.nowUTC,
@@ -107,11 +111,11 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
     UserRow(admin = false,
       hubAdmin = false,
       email = "",
-      hashedPw = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i", // TestNodeGetAllMgmtPolStatus/u1:u1pw
+      hashedPw = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i", // TestNodeGetMgmtPolStatus/u1:u1pw
       lastUpdated = ApiTime.nowUTC,
-      orgid = "TestNodeGetAllMgmtPolStatus",
+      orgid = "TestNodeGetMgmtPolStatus",
       updatedBy = "",
-      username = "TestNodeGetAllMgmtPolStatus/u1")
+      username = "TestNodeGetMgmtPolStatus/u1")
 
 
 
@@ -126,8 +130,8 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
 
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodeGetAllMgmtPolStatus").delete andThen
-      OrgsTQ.filter(_.orgid startsWith "TestNodeGetAllMgmtPolStatus").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodeGetMgmtPolStatus").delete andThen
+      OrgsTQ.filter(_.orgid startsWith "TestNodeGetMgmtPolStatus").delete), AWAITDURATION)
 
     DBCONNECTION.getDb.close()
   }
@@ -142,7 +146,6 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
       Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ.filter(_.managementPolicy inSet testData.map(_.managementPolicy)).delete), AWAITDURATION)
   }
 
-  // Management Policy Statuses that are dynamically needed, specific to the test case.
   def fixtureNodeMgmtPolStatus(testCode: Seq[NodeMgmtPolStatusRow] => Any, testData: Seq[NodeMgmtPolStatusRow]): Any = {
     try {
       Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses ++= testData), AWAITDURATION)
@@ -152,22 +155,45 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
       Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.filter(_.policy inSet testData.map(_.policy)).delete), AWAITDURATION)
   }
 
-
-  test("GET /orgs/TestNodeGetAllMgmtPolStatus/nodes/n1/managementStatus - Default") {
+  test("GET /orgs/TestNodeGetMgmtPolStatus/nodes/n1/managementStatus/pol1 - as root") {
     fixtureNodeMgmtPol(
       _ => {
         fixtureNodeMgmtPolStatus(
           _ => {
-            val response = Http(URL + "/nodes/n1/managementStatus").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+            val response = Http(URL + "/nodes/n1/managementStatus/" + managementPolicy1).method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
             info("code: " + response.code + ", response.body: " + response.body)
             assert(response.code === HttpCode.OK.intValue)
             val resp: GetNMPStatusResponse = parse(response.body).extract[GetNMPStatusResponse]
-            assert(resp.policy.size == 2)
+            assert(resp.policy.size == 1)
+            assert(resp.policy.contains("TestNodeGetMgmtPolStatus/" + managementPolicy1))
+            var mp: NMPStatus = resp.policy("TestNodeGetMgmtPolStatus/" + managementPolicy1)
+            assert(mp.node === "TestNodeGetMgmtPolStatus/n1")
+            assert(mp.policy === "TestNodeGetMgmtPolStatus/" + managementPolicy1)
+            assert(mp.status === "Success")
 
           }, TESTNODEMGMTPOLSTATUSES)
       }, TESTMANAGEMENTPOLICY)
   }
 
 
+  test("GET /orgs/TestNodeGetMgmtPolStatus/nodes/n1/managementStatus/pol2 - as root") {
+    fixtureNodeMgmtPol(
+      _ => {
+        fixtureNodeMgmtPolStatus(
+          _ => {
+            val response = Http(URL + "/nodes/n1/managementStatus/" + managementPolicy2).method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+            info("code: " + response.code + ", response.body: " + response.body)
+            assert(response.code === HttpCode.OK.intValue)
+            val resp: GetNMPStatusResponse = parse(response.body).extract[GetNMPStatusResponse]
+            assert(resp.policy.size == 1)
+            assert(resp.policy.contains("TestNodeGetMgmtPolStatus/" + managementPolicy2))
+            var mp: NMPStatus = resp.policy("TestNodeGetMgmtPolStatus/" + managementPolicy2)
+            assert(mp.node === "TestNodeGetMgmtPolStatus/n1")
+            assert(mp.policy === "TestNodeGetMgmtPolStatus/" + managementPolicy2)
+            assert(mp.status === "Fail")
+
+          }, TESTNODEMGMTPOLSTATUSES)
+      }, TESTMANAGEMENTPOLICY)
+  }
 
 }

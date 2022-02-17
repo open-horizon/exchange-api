@@ -302,8 +302,14 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 =======
+=======
+## Changes in 2.95.0
+- Issue 557: Added node management status APIs
+
+>>>>>>> 245d38b (issue 557: nodemgmtstatus routes)
 ## Changes in 2.94.0
 - Issue 556: Updated the DB/Http schemas for Node Management Policies and routes.
 - Simplified Table Query syntax in the application's source.

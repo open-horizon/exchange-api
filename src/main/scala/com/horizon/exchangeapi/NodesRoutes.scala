@@ -421,7 +421,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                            nodePutPolicyRoute ~
                            nodePutStatusRoute ~
                            nodePutRoute ~
-                           nodesGetDetails
+                           nodesGetDetails ~
+                           nodesGetRoute
 
   
   // ====== GET /orgs/{orgid}/nodes ================================

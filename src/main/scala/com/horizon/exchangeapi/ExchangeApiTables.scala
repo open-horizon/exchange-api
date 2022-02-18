@@ -17,30 +17,30 @@ object ExchangeApiTables {
   // Create all of the current version's tables - used in /admin/initdb
   val initDB = DBIO.seq(
     (
-      SchemaTQ.rows.schema
-      ++ OrgsTQ.rows.schema
-      ++ UsersTQ.rows.schema
-      ++ ResourceChangesTQ.rows.schema
-      ++ NodesTQ.rows.schema
-      ++ NodeAgreementsTQ.rows.schema
-      ++ NodeStatusTQ.rows.schema
-      ++ NodeErrorTQ.rows.schema
-      ++ NodePolicyTQ.rows.schema
-      ++ AgbotsTQ.rows.schema
-      ++ AgbotAgreementsTQ.rows.schema
-      ++ AgbotPatternsTQ.rows.schema
-      ++ AgbotBusinessPolsTQ.rows.schema
-      ++ NodeMsgsTQ.rows.schema
-      ++ AgbotMsgsTQ.rows.schema
-      ++ ServicesTQ.rows.schema
-      ++ ServiceKeysTQ.rows.schema
-      ++ ServiceDockAuthsTQ.rows.schema
-      ++ ServicePolicyTQ.rows.schema
-      ++ PatternsTQ.rows.schema
-      ++ PatternKeysTQ.rows.schema
-      ++ BusinessPoliciesTQ.rows.schema
-      ++ SearchOffsetPolicyTQ.offsets.schema
-      ++ ManagementPoliciesTQ.rows.schema
+      SchemaTQ.schema
+      ++ OrgsTQ.schema
+      ++ UsersTQ.schema
+      ++ ResourceChangesTQ.schema
+      ++ NodesTQ.schema
+      ++ NodeAgreementsTQ.schema
+      ++ NodeStatusTQ.schema
+      ++ NodeErrorTQ.schema
+      ++ NodePolicyTQ.schema
+      ++ AgbotsTQ.schema
+      ++ AgbotAgreementsTQ.schema
+      ++ AgbotPatternsTQ.schema
+      ++ AgbotBusinessPolsTQ.schema
+      ++ NodeMsgsTQ.schema
+      ++ AgbotMsgsTQ.schema
+      ++ ServicesTQ.schema
+      ++ ServiceKeysTQ.schema
+      ++ ServiceDockAuthsTQ.schema
+      ++ ServicePolicyTQ.schema
+      ++ PatternsTQ.schema
+      ++ PatternKeysTQ.schema
+      ++ BusinessPoliciesTQ.schema
+      ++ SearchOffsetPolicyTQ.schema
+      ++ ManagementPoliciesTQ.schema
       ++ NodeMgmtPolStatuses.schema
     ).create,
     SchemaTQ.getSetVersionAction)

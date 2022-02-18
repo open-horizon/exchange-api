@@ -135,7 +135,7 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def heartbeatIntervals = column[String]("heartbeatintervals")
   def lastUpdated = column[String]("lastupdated")
 
-  // this describes what you get back when you return rows from a query
+  // this describes what you get back when you return this.from a query
   def * = (id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated).<>(NodeRow.tupled, NodeRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
@@ -230,107 +230,6 @@ object NodesTQ  extends TableQuery(new Nodes(_)){
   */
 }
 
-
-// Status is a sub-resource of node
-final case class ContainerStatus(name: String, image: String, created: Int, state: String)
-final case class OneService(agreementId: String, serviceUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus], operatorStatus: Option[Any], configState: Option[String])
-
-final case class NodeStatusRow(nodeId: String, connectivity: String, services: String, runningServices: String, lastUpdated: String) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
-
-  def toNodeStatus: NodeStatus = {
-    val con: Map[String, Boolean] = if (connectivity != "") read[Map[String,Boolean]](connectivity) else Map[String,Boolean]()
-    val svc: List[OneService] = if (services != "") read[List[OneService]](services) else List[OneService]()
-    NodeStatus(con, svc, runningServices, lastUpdated)
-  }
-
-  def upsert: DBIO[_] = NodeStatusTQ.insertOrUpdate(this)
-}
-
-class NodeStatuses(tag: Tag) extends Table[NodeStatusRow](tag, "nodestatus") {
-  def nodeId = column[String]("nodeid", O.PrimaryKey)
-  def connectivity = column[String]("connectivity")
-  def services = column[String]("services")
-  def runningServices = column[String]("runningservices")
-  def lastUpdated = column[String]("lastUpdated")
-  def * = (nodeId, connectivity, services, runningServices, lastUpdated).<>(NodeStatusRow.tupled, NodeStatusRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
-}
-
-object NodeStatusTQ  extends TableQuery(new NodeStatuses(_)){
-  def getNodeStatus(nodeId: String): Query[NodeStatuses, NodeStatusRow, Seq] = this.filter(_.nodeId === nodeId)
-}
-
-final case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], runningServices: String, lastUpdated: String)
-
-//Node Errors
-// We are using the type Any instead of this case class so anax and the UI can change the fields w/o our code having to change
-//case class ErrorLogEvent(record_id: String, message: String, event_code: String, hidden: Boolean)
-
-final case class NodeErrorRow(nodeId: String, errors: String, lastUpdated: String) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
-
-  def toNodeError: NodeError = {
-    val err: List[Any] = if (errors != "") read[List[Any]](errors) else List[Any]()
-    NodeError(err, lastUpdated)
-  }
-
-  def upsert: DBIO[_] = NodeErrorTQ.insertOrUpdate(this)
-}
-
-class NodeErrors(tag: Tag) extends Table[NodeErrorRow](tag, "nodeerror") {
-  def nodeId = column[String]("nodeid", O.PrimaryKey)
-  def errors = column[String]("errors")
-  def lastUpdated = column[String]("lastUpdated")
-  def * = (nodeId, errors, lastUpdated).<>(NodeErrorRow.tupled, NodeErrorRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
-}
-
-object NodeErrorTQ  extends TableQuery(new NodeErrors(_)){
-  def getNodeError(nodeId: String): Query[NodeErrors, NodeErrorRow, Seq] = this.filter(_.nodeId === nodeId)
-}
-
-final case class NodeError(errors: List[Any], lastUpdated: String)
-
-
-// Node Policy
-final case class PropertiesAndConstraints(properties: Option[List[OneProperty]], constraints: Option[List[String]])
-
-final case class NodePolicyRow(nodeId: String, label: String, description: String, properties: String, constraints: String, deployment: String, management: String, nodePolicyVersion: String, lastUpdated: String) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
-
-  def toNodePolicy: NodePolicy = {
-    val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
-    val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
-    val dep: PropertiesAndConstraints = if (deployment != "") read[PropertiesAndConstraints](deployment) else PropertiesAndConstraints(None, None)
-    val mgmt: PropertiesAndConstraints = if (management != "") read[PropertiesAndConstraints](management) else PropertiesAndConstraints(None, None)
-    NodePolicy(label, description, prop, con, dep, mgmt, nodePolicyVersion, lastUpdated)
-  }
-
-  def upsert: DBIO[_] = NodePolicyTQ.insertOrUpdate(this)
-}
-
-class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
-  def nodeId = column[String]("nodeid", O.PrimaryKey)
-  def label = column[String]("label")
-  def description = column[String]("description")
-  def properties = column[String]("properties")
-  def constraints = column[String]("constraints")
-  def deployment = column[String]("deployment")
-  def management = column[String]("management")
-  def nodePolicyVersion = column[String]("nodepolicyversion")
-  def lastUpdated = column[String]("lastUpdated")
-  def * = (nodeId, label, description, properties, constraints, deployment, management, nodePolicyVersion, lastUpdated).<>(NodePolicyRow.tupled, NodePolicyRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
-}
-
-object NodePolicyTQ  extends TableQuery(new NodePolicies(_)){
-  def getNodePolicy(nodeId: String): Query[NodePolicies, NodePolicyRow, Seq] = this.filter(_.nodeId === nodeId)
-}
-
-final case class NodePolicy(label: String, description: String, properties: List[OneProperty], constraints: List[String], deployment: PropertiesAndConstraints, management: PropertiesAndConstraints, nodePolicyVersion: String, lastUpdated: String)
-
-
 // Agreement is a sub-resource of node
 final case class NAService(orgid: String, url: String)
 final case class NAgrService(orgid: String, pattern: String, url: String)
@@ -399,6 +298,104 @@ class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow]) {
   }
 }
 
+//Node Errors
+// We are using the type Any instead of this case class so anax and the UI can change the fields w/o our code having to change
+//case class ErrorLogEvent(record_id: String, message: String, event_code: String, hidden: Boolean)
+
+final case class NodeErrorRow(nodeId: String, errors: String, lastUpdated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  
+  def toNodeError: NodeError = {
+    val err: List[Any] = if (errors != "") read[List[Any]](errors) else List[Any]()
+    NodeError(err, lastUpdated)
+  }
+  
+  def upsert: DBIO[_] = NodeErrorTQ.insertOrUpdate(this)
+}
+
+class NodeErrors(tag: Tag) extends Table[NodeErrorRow](tag, "nodeerror") {
+  def nodeId = column[String]("nodeid", O.PrimaryKey)
+  def errors = column[String]("errors")
+  def lastUpdated = column[String]("lastUpdated")
+  def * = (nodeId, errors, lastUpdated).<>(NodeErrorRow.tupled, NodeErrorRow.unapply)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+}
+
+object NodeErrorTQ extends TableQuery(new NodeErrors(_)) {
+  def getNodeError(nodeId: String): Query[NodeErrors, NodeErrorRow, Seq] = this.filter(_.nodeId === nodeId)
+}
+
+final case class NodeError(errors: List[Any], lastUpdated: String)
+
+class NMPStatus(var errorMessage: String, var node: String, var policy: String, var status: String,  var endTime: String, var actualStartTime: String, var scheduledStartTime: String,  var updated: String, var certificateVersion: String, var configurationVersion: String, var softwareVersion: String){
+  def copy = new NMPStatus(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+}
+
+final case class NodeMgmtPolStatusRow(actualStartTime: String,
+                                      certificateVersion: String,
+                                      configurationVersion: String,
+                                      endTime: String,
+                                      errorMessage: String,
+                                      node: String,
+                                      policy: String,
+                                      scheduledStartTime: String,
+                                      softwareVersion: String,
+                                      status: String,
+                                      updated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def toNodeMgmtPolStatus: NMPStatus = {
+    new NMPStatus(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+  }
+
+  def upsert: DBIO[_] = NodeMgmtPolStatuses.rows.insertOrUpdate(this)
+}
+
+class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "management_policy_status_node") {
+  def actualStartTime = column[String]("time_start_actual")
+  def certificateVersion = column[String]("version_certificate")
+  def configurationVersion = column[String]("version_configuration")
+  def endTime = column[String]("time_end")
+  def errorMessage = column[String]("error_message")
+  def node = column[String]("node")
+  def policy = column[String]("policy")
+  def scheduledStartTime = column[String]("time_start_scheduled")
+  def softwareVersion = column[String]("version_software")
+  def status = column[String]("status")
+  def updated = column[String]("updated")
+  
+  def * = (actualStartTime,
+    certificateVersion,
+    configurationVersion,
+    endTime,
+    errorMessage,
+    node,
+    policy,
+    scheduledStartTime,
+    softwareVersion,
+    status,
+    updated).<>(NodeMgmtPolStatusRow.tupled, NodeMgmtPolStatusRow.unapply)
+  def pkNodeMgmtPolStatus = primaryKey("pk_management_policy_status_node", (node, policy))
+  
+  def fkNode = foreignKey("fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkManagementPolicy = foreignKey("fk_management_policy", policy, ManagementPoliciesTQ)(_.managementPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object NodeMgmtPolStatuses extends TableQuery(new NodeMgmtPolStatus(_)) {
+
+  val rows = TableQuery[NodeMgmtPolStatus]
+  def getActualStartTime(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.actualStartTime))
+  def getCertificateVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.certificateVersion))
+  def getConfigurationVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.configurationVersion))
+  def getEndTime(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.endTime))
+  def getErrorMessage(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.errorMessage))
+  def getNodeMgmtPolStatus(node: String, policy: String): Query[NodeMgmtPolStatus, NodeMgmtPolStatusRow, Seq] = this.filter(s => {s.node === node && s.policy === policy})
+  def getScheduledStartTime(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.scheduledStartTime))
+  def getSoftwareVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.softwareVersion))
+  def getStatus(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.status))
+  def getUpdated(node: String, policy: String) = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.updated))
+  def getAllNMPStatus(node: String): Query[NodeMgmtPolStatus, NodeMgmtPolStatusRow, Seq] = this.filter(s => {s.node === node})
+}
 
 /** The nodemsgs table holds the msgs sent to nodes by agbots */
 final case class NodeMsgRow(msgId: Int, nodeId: String, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String) {
@@ -430,6 +427,75 @@ object NodeMsgsTQ  extends TableQuery(new NodeMsgs(_)){
 }
 
 final case class NodeMsg(msgId: Int, agbotId: String, agbotPubKey: String, message: String, timeSent: String, timeExpires: String)
+
+// Node Policy
+final case class PropertiesAndConstraints(properties: Option[List[OneProperty]], constraints: Option[List[String]])
+
+final case class NodePolicyRow(nodeId: String, label: String, description: String, properties: String, constraints: String, deployment: String, management: String, nodePolicyVersion: String, lastUpdated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  
+  def toNodePolicy: NodePolicy = {
+    val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
+    val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
+    val dep: PropertiesAndConstraints = if (deployment != "") read[PropertiesAndConstraints](deployment) else PropertiesAndConstraints(None, None)
+    val mgmt: PropertiesAndConstraints = if (management != "") read[PropertiesAndConstraints](management) else PropertiesAndConstraints(None, None)
+    NodePolicy(label, description, prop, con, dep, mgmt, nodePolicyVersion, lastUpdated)
+  }
+  
+  def upsert: DBIO[_] = NodePolicyTQ.insertOrUpdate(this)
+}
+
+class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
+  def nodeId = column[String]("nodeid", O.PrimaryKey)
+  def label = column[String]("label")
+  def description = column[String]("description")
+  def properties = column[String]("properties")
+  def constraints = column[String]("constraints")
+  def deployment = column[String]("deployment")
+  def management = column[String]("management")
+  def nodePolicyVersion = column[String]("nodepolicyversion")
+  def lastUpdated = column[String]("lastUpdated")
+  def * = (nodeId, label, description, properties, constraints, deployment, management, nodePolicyVersion, lastUpdated).<>(NodePolicyRow.tupled, NodePolicyRow.unapply)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+}
+
+object NodePolicyTQ extends TableQuery(new NodePolicies(_)) {
+  def getNodePolicy(nodeId: String): Query[NodePolicies, NodePolicyRow, Seq] = this.filter(_.nodeId === nodeId)
+}
+
+final case class NodePolicy(label: String, description: String, properties: List[OneProperty], constraints: List[String], deployment: PropertiesAndConstraints, management: PropertiesAndConstraints, nodePolicyVersion: String, lastUpdated: String)
+
+// Node Status is a sub-resource of Node
+final case class ContainerStatus(name: String, image: String, created: Int, state: String)
+final case class OneService(agreementId: String, serviceUrl: String, orgid: String, version: String, arch: String, containerStatus: List[ContainerStatus], operatorStatus: Option[Any], configState: Option[String])
+
+final case class NodeStatusRow(nodeId: String, connectivity: String, services: String, runningServices: String, lastUpdated: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+
+  def toNodeStatus: NodeStatus = {
+    val con: Map[String, Boolean] = if (connectivity != "") read[Map[String,Boolean]](connectivity) else Map[String,Boolean]()
+    val svc: List[OneService] = if (services != "") read[List[OneService]](services) else List[OneService]()
+    NodeStatus(con, svc, runningServices, lastUpdated)
+  }
+
+  def upsert: DBIO[_] = NodeStatusTQ.insertOrUpdate(this)
+}
+
+class NodeStatuses(tag: Tag) extends Table[NodeStatusRow](tag, "nodestatus") {
+  def nodeId = column[String]("nodeid", O.PrimaryKey)
+  def connectivity = column[String]("connectivity")
+  def services = column[String]("services")
+  def runningServices = column[String]("runningservices")
+  def lastUpdated = column[String]("lastUpdated")
+  def * = (nodeId, connectivity, services, runningServices, lastUpdated).<>(NodeStatusRow.tupled, NodeStatusRow.unapply)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+}
+
+object NodeStatusTQ extends TableQuery(new NodeStatuses(_)) {
+  def getNodeStatus(nodeId: String): Query[NodeStatuses, NodeStatusRow, Seq] = this.filter(_.nodeId === nodeId)
+}
+
+final case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], runningServices: String, lastUpdated: String)
 
 /** 1 generic property that is used in the node search criteria */
 final case class Prop(name: String, value: String, propType: String, op: String) {

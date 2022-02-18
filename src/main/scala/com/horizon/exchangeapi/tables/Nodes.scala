@@ -135,7 +135,7 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def heartbeatIntervals = column[String]("heartbeatintervals")
   def lastUpdated = column[String]("lastupdated")
 
-  // this describes what you get back when you return rows from a query
+  // this describes what you get back when you return this.from a query
   def * = (id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated).<>(NodeRow.tupled, NodeRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
@@ -310,7 +310,7 @@ final case class NodeErrorRow(nodeId: String, errors: String, lastUpdated: Strin
     NodeError(err, lastUpdated)
   }
   
-  def upsert: DBIO[_] = NodeErrorTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = NodeErrorTQ.insertOrUpdate(this)
 }
 
 class NodeErrors(tag: Tag) extends Table[NodeErrorRow](tag, "nodeerror") {
@@ -318,12 +318,11 @@ class NodeErrors(tag: Tag) extends Table[NodeErrorRow](tag, "nodeerror") {
   def errors = column[String]("errors")
   def lastUpdated = column[String]("lastUpdated")
   def * = (nodeId, errors, lastUpdated).<>(NodeErrorRow.tupled, NodeErrorRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
-object NodeErrorTQ {
-  val rows = TableQuery[NodeErrors]
-  def getNodeError(nodeId: String): Query[NodeErrors, NodeErrorRow, Seq] = rows.filter(_.nodeId === nodeId)
+object NodeErrorTQ extends TableQuery(new NodeErrors(_)) {
+  def getNodeError(nodeId: String): Query[NodeErrors, NodeErrorRow, Seq] = this.filter(_.nodeId === nodeId)
 }
 
 final case class NodeError(errors: List[Any], lastUpdated: String)
@@ -378,8 +377,8 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
     updated).<>(NodeMgmtPolStatusRow.tupled, NodeMgmtPolStatusRow.unapply)
   def pkNodeMgmtPolStatus = primaryKey("pk_management_policy_status_node", (node, policy))
   
-  def fkNode = foreignKey("fk_node", node, NodesTQ.rows)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def fkManagementPolicy = foreignKey("fk_management_policy", policy, ManagementPoliciesTQ.rows)(_.managementPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkNode = foreignKey("fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkManagementPolicy = foreignKey("fk_management_policy", policy, ManagementPoliciesTQ)(_.managementPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 object NodeMgmtPolStatuses extends TableQuery(new NodeMgmtPolStatus(_)) {
@@ -443,7 +442,7 @@ final case class NodePolicyRow(nodeId: String, label: String, description: Strin
     NodePolicy(label, description, prop, con, dep, mgmt, nodePolicyVersion, lastUpdated)
   }
   
-  def upsert: DBIO[_] = NodePolicyTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = NodePolicyTQ.insertOrUpdate(this)
 }
 
 class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
@@ -457,12 +456,11 @@ class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
   def nodePolicyVersion = column[String]("nodepolicyversion")
   def lastUpdated = column[String]("lastUpdated")
   def * = (nodeId, label, description, properties, constraints, deployment, management, nodePolicyVersion, lastUpdated).<>(NodePolicyRow.tupled, NodePolicyRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
-object NodePolicyTQ {
-  val rows = TableQuery[NodePolicies]
-  def getNodePolicy(nodeId: String): Query[NodePolicies, NodePolicyRow, Seq] = rows.filter(_.nodeId === nodeId)
+object NodePolicyTQ extends TableQuery(new NodePolicies(_)) {
+  def getNodePolicy(nodeId: String): Query[NodePolicies, NodePolicyRow, Seq] = this.filter(_.nodeId === nodeId)
 }
 
 final case class NodePolicy(label: String, description: String, properties: List[OneProperty], constraints: List[String], deployment: PropertiesAndConstraints, management: PropertiesAndConstraints, nodePolicyVersion: String, lastUpdated: String)
@@ -480,7 +478,7 @@ final case class NodeStatusRow(nodeId: String, connectivity: String, services: S
     NodeStatus(con, svc, runningServices, lastUpdated)
   }
 
-  def upsert: DBIO[_] = NodeStatusTQ.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = NodeStatusTQ.insertOrUpdate(this)
 }
 
 class NodeStatuses(tag: Tag) extends Table[NodeStatusRow](tag, "nodestatus") {
@@ -490,12 +488,11 @@ class NodeStatuses(tag: Tag) extends Table[NodeStatusRow](tag, "nodestatus") {
   def runningServices = column[String]("runningservices")
   def lastUpdated = column[String]("lastUpdated")
   def * = (nodeId, connectivity, services, runningServices, lastUpdated).<>(NodeStatusRow.tupled, NodeStatusRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ.rows)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
 }
 
-object NodeStatusTQ {
-  val rows = TableQuery[NodeStatuses]
-  def getNodeStatus(nodeId: String): Query[NodeStatuses, NodeStatusRow, Seq] = rows.filter(_.nodeId === nodeId)
+object NodeStatusTQ extends TableQuery(new NodeStatuses(_)) {
+  def getNodeStatus(nodeId: String): Query[NodeStatuses, NodeStatusRow, Seq] = this.filter(_.nodeId === nodeId)
 }
 
 final case class NodeStatus(connectivity: Map[String,Boolean], services: List[OneService], runningServices: String, lastUpdated: String)

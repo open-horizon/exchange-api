@@ -1,26 +1,22 @@
 package com.horizon.exchangeapi
 
-<<<<<<< HEAD
-import java.time._
-
-import com.horizon.exchangeapi._
-import com.horizon.exchangeapi.tables._
-import org.json4s._
-import org.json4s.jackson.JsonMethods._
-=======
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import com.horizon.exchangeapi.tables.{ManagementPolicy, NodeRow, NodesTQ, OneProperty, OrgRow, OrgsTQ, RegService, ResourceChangesTQ, UserRow}
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable, string2JsonInput}
->>>>>>> b2bb2e9 (Issue-556: Changed the DB schema for NMPs. Changed the syntax of table queries to be simpler.)
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
-import scalaj.http._
+import scalaj.http.{Http, HttpResponse}
+import slick.jdbc.PostgresProfile.api._
 
-import scala.collection.immutable._
+import scala.collection.immutable
+import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
+import scala.concurrent.Await
+import scala.concurrent.duration._
 
 /**
  * Tests for the /managementpolicies routes. To run
@@ -31,20 +27,9 @@ import scala.collection.mutable.ListBuffer
  * clear and detailed tutorial of FunSuite: http://doc.scalatest.org/1.9.1/index.html#org.scalatest.FunSuite
  */
 @RunWith(classOf[JUnitRunner])
-class ManagementPoliciesSuite extends AnyFunSuite {
+class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
 
   val localUrlRoot = "http://localhost:8080"
-<<<<<<< HEAD
-  val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
-  val runningLocally = (urlRoot == localUrlRoot)
-  val ACCEPT = ("Accept","application/json")
-  val ACCEPTTEXT = ("Accept","text/plain")
-  val CONTENT = ("Content-Type","application/json")
-  val CONTENTTEXT = ("Content-Type","text/plain")
-  val orgid = "MgmtPolSuiteTests"
-  val authpref=orgid+"/"
-  val URL = urlRoot+"/v1/orgs/"+orgid
-=======
   val urlRoot: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally: Boolean = (urlRoot == localUrlRoot)
   val ACCEPT: (String, String) = ("Accept","application/json")
@@ -54,7 +39,6 @@ class ManagementPoliciesSuite extends AnyFunSuite {
   val orgid = "MgmtPolSuite"
   val authpref: String = orgid + "/"
   val URL: String = urlRoot + "/v1/orgs/" + orgid
->>>>>>> b2bb2e9 (Issue-556: Changed the DB schema for NMPs. Changed the syntax of table queries to be simpler.)
 
   val user = "mpuser"
   val orguser: String = authpref + user
@@ -68,18 +52,8 @@ class ManagementPoliciesSuite extends AnyFunSuite {
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
   val NOORGURL: String = urlRoot + "/v1"
   val orgsList = new ListBuffer[String]()
+  private val DBCONNECTION: TestDBConnection = new TestDBConnection
 
-<<<<<<< HEAD
-  implicit val formats = DefaultFormats // Brings in default date formats etc.
-
-  /** Delete all the test users */
-  def deleteAllUsers() = {
-    for (i <- List(user)) {
-      val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-      info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
-    }
-=======
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
   private val AWAITDURATION: Duration = 15.seconds
@@ -115,30 +89,9 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     }
     finally
       Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
->>>>>>> b2bb2e9 (Issue-556: Changed the DB schema for NMPs. Changed the syntax of table queries to be simpler.)
   }
-
+  
   //~~~~~ Clean up from previous run, and create orgs, users ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-  test("POST /orgs/"+orgid+" - create org") {
-    // Try deleting it 1st, in case it is left over from previous test
-    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
-
-    var input = PostPutOrgRequest(None, "My Org", "desc", None, None, None)
-    response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    orgsList+=orgid
-  }
-
-  /** Delete all the test users, in case they exist from a previous run. Do not need to delete the mgmt policies, because they are deleted when the user is deleted. */
-  test("Begin - DELETE all test users") {
-    if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
-    deleteAllUsers()
-  }
-
   test("Add users for future tests") {
     var userInput: PostPutUsersRequest = PostPutUsersRequest(pw, admin = false, Option(false), user + "@hotmail.com")
     var userResponse: HttpResponse[String] = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -147,9 +100,9 @@ class ManagementPoliciesSuite extends AnyFunSuite {
   }
 
   //~~~~~ Create and update management policies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+  
   //PostPutManagementPolicyRequest(label: String, description: Option[String], properties: Option[List[OneProperty]], constraints: Option[List[String]], patterns: Option[List[String]], enabled: Boolean, agentUpgradePolicy: Option[AgentUpgradePolicy] )
-
+  
   test("POST /orgs/"+orgid+"/managementpolicies/"+managementPolicy+" - add "+managementPolicy+" as user") {
     val input: PostPutManagementPolicyRequest =
       PostPutManagementPolicyRequest(agentUpgradePolicy = None,
@@ -164,6 +117,7 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     
     var response: HttpResponse[String] = Http(URL + "/managementpolicies/" + managementPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
+    // Only Organization Admins and Hub Admins are able to write Node Management Policies
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   
     response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -173,7 +127,7 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     val respObj: ApiResponse = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("management policy '"+orgManagementPolicy+"' created"))
   }
-
+  
   test("PUT /orgs/"+orgid+"/managementpolicies/"+managementPolicy+" - add "+managementPolicy+" as user") {
     val input: PostPutManagementPolicyRequest =
       PostPutManagementPolicyRequest(agentUpgradePolicy = None,
@@ -188,6 +142,7 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     
     var response: HttpResponse[String] = Http(URL + "/managementpolicies/" + managementPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
+    // Only Organization Admins and Hub Admins are able to write Node Management Policies
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   
     response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -197,9 +152,9 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     val respObj: ApiResponse = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("management policy updated"))
   }
-
+  
   //~~~~~ Get (verify) management policies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+  
   test("GET /orgs/"+orgid+"/managementpolicies") {
     val response: HttpResponse[String] = Http(URL+"/managementpolicies").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -217,7 +172,7 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     assert(mp.properties.head.value === "location2")
     assert(mp.constraints.head === "a == c")
   }
-
+  
   test("GET /orgs/"+orgid+"/managementpolicies"+managementPolicy) {
     val response: HttpResponse[String] = Http(URL+"/managementpolicies/"+managementPolicy).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -235,20 +190,6 @@ class ManagementPoliciesSuite extends AnyFunSuite {
     assert(mp.properties.head.value === "location2")
     assert(mp.constraints.head === "a == c")
   }
-<<<<<<< HEAD
-
-  //~~~~~ Clean up ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-  test("Cleanup - DELETE all test users, which will delete all management policies") {
-    deleteAllUsers()
-  }
-
-  /** Delete the orgs we used for this test */
-  test("DELETE orgs") {
-    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
-=======
   
   // Nodes should be able to see changes to Node Management Policies
   test("GET /orgs/" + orgid + "/changes - As a node") {
@@ -282,16 +223,5 @@ class ManagementPoliciesSuite extends AnyFunSuite {
         
         assert(change.resourceChanges.nonEmpty)
       }, TESTNODE)
->>>>>>> b2bb2e9 (Issue-556: Changed the DB schema for NMPs. Changed the syntax of table queries to be simpler.)
   }
-
-  test("Cleanup -- DELETE org changes") {
-    for (org <- orgsList){
-      val input = DeleteOrgChangesRequest(List())
-      val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
-    }
-  }
-
 }

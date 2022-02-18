@@ -17,33 +17,6 @@ object ExchangeApiTables {
   // Create all of the current version's tables - used in /admin/initdb
   val initDB = DBIO.seq(
     (
-<<<<<<< HEAD
-      SchemaTQ.rows.schema
-      ++ OrgsTQ.rows.schema
-      ++ UsersTQ.rows.schema
-      ++ ResourceChangesTQ.rows.schema
-      ++ NodesTQ.rows.schema
-      ++ NodeAgreementsTQ.rows.schema
-      ++ NodeStatusTQ.rows.schema
-      ++ NodeErrorTQ.rows.schema
-      ++ NodePolicyTQ.rows.schema
-      ++ AgbotsTQ.rows.schema
-      ++ AgbotAgreementsTQ.rows.schema
-      ++ AgbotPatternsTQ.rows.schema
-      ++ AgbotBusinessPolsTQ.rows.schema
-      ++ NodeMsgsTQ.rows.schema
-      ++ AgbotMsgsTQ.rows.schema
-      ++ ServicesTQ.rows.schema
-      ++ ServiceKeysTQ.rows.schema
-      ++ ServiceDockAuthsTQ.rows.schema
-      ++ ServicePolicyTQ.rows.schema
-      ++ PatternsTQ.rows.schema
-      ++ PatternKeysTQ.rows.schema
-      ++ BusinessPoliciesTQ.rows.schema
-      ++ SearchOffsetPolicyTQ.offsets.schema
-      ++ ManagementPoliciesTQ.rows.schema
-      ++ NodeMgmtPolStatuses.schema
-=======
       SchemaTQ.schema
       ++ OrgsTQ.schema
       ++ UsersTQ.schema
@@ -68,7 +41,6 @@ object ExchangeApiTables {
       ++ BusinessPoliciesTQ.schema
       ++ SearchOffsetPolicyTQ.schema
       ++ ManagementPoliciesTQ.schema
->>>>>>> b2bb2e9 (Issue-556: Changed the DB schema for NMPs. Changed the syntax of table queries to be simpler.)
     ).create,
     SchemaTQ.getSetVersionAction)
 

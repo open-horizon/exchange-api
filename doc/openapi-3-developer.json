@@ -8,19 +8,7 @@
       "name" : "Apache License Version 2.0",
       "url" : "https://www.apache.org/licenses/LICENSE-2.0"
     },
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-    "version" : "2.91.0"
-=======
-    "version" : "2.93.0"
->>>>>>> 2722eef (Issue 560: Organization Administrators can now read all nodes organization wide from orgs/{orgid}/search/nodes/service)
-=======
-    "version" : "2.94.0"
->>>>>>> 1a64800 (Issue-556: Updated version and changelog.)
-=======
     "version" : "2.95.0"
->>>>>>> 245d38b (issue 557: nodemgmtstatus routes)
   },
   "externalDocs" : {
     "description" : "Open-horizon ExchangeAPI",

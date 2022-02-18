@@ -196,12 +196,11 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
             examples = Array(
               new ExampleObject(
                 value ="""{
+  "managementPolicy": {
+    "orgid/mymgmtpol": {
       "owner": "string",
       "label": "string",
       "description": "string",
-      "constraints": [
-        "a == b"
-      ],
       "properties": [
         {
           "name": "string",
@@ -209,18 +208,24 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
           "value": "string"
         }
       ],
+      "constraints": [
+        "a == b"
+      ],
       "patterns": [
         "pat1"
       ],
       "enabled": true,
-      "start": "now",
-      "duration": 0
       "agentUpgradePolicy": {
-        "manifest": "<org/manifestId>",
-        "allowDowngrade", false
+        "atLeastVersion": "current",
+        "start": "now",
+        "duration": 0
       },
       "lastUpdated": "string",
+      "created": "string"
     }
+  },
+  "lastIndex": 0
+}
 """
               )
             ),
@@ -252,7 +257,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
           case None =>  // Return the whole management policy resource
             db.run(ManagementPoliciesTQ.getManagementPolicy(compositeId).result).map({ list =>
               logger.debug("GET /orgs/" + orgid + "/managementpolicies result size: " + list.size)
-              val managementPolicies: Map[String, ManagementPolicy] = list.map(e => e.managementPolicy -> e.toManagementPolicy).toMap //mapping management policy object to string 
+              val managementPolicies: Map[String, ManagementPolicy] = list.map(e => e.managementPolicy -> e.toManagementPolicy).toMap //mapping management policy object to string
               val code: StatusCode with Serializable = if (managementPolicies.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
               (code, GetManagementPoliciesResponse(managementPolicies, 0))
             })
@@ -382,11 +387,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     } // end of exchAuth
   }
 
-<<<<<<< HEAD
-  // =========== POST /orgs/{orgid}/managementpolicies/{nmpid} ===============================
-=======
   // =========== PUT /orgs/{orgid}/managementpolicies/{mgmtpolicy} ===============================
->>>>>>> 0087a99 (Issue 557: Added PUT route for Node Management Policy Statuses.)
   @PUT
   @Path("{mgmtpolicy}")
   @Operation(
@@ -541,4 +542,5 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
       }) // end of complete
     } // end of exchAuth
   }
+
 }

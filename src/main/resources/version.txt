@@ -1,13 +1,1 @@
-<<<<<<< HEAD
-<<<<<<< HEAD
-<<<<<<< HEAD
-2.91.0
-=======
-2.93.0
->>>>>>> 2722eef (Issue 560: Organization Administrators can now read all nodes organization wide from orgs/{orgid}/search/nodes/service)
-=======
-2.94.0
->>>>>>> 1a64800 (Issue-556: Updated version and changelog.)
-=======
 2.95.0
->>>>>>> 245d38b (issue 557: nodemgmtstatus routes)

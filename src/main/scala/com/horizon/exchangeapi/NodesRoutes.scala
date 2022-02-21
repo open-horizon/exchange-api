@@ -2854,7 +2854,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the node resource (not of the services). If not specified, the entire node resource (including services) will be returned"),
-      new Parameter(name = "nmpid", in = ParameterIn.PATH, description = "ID of the node management policy.")),
+      new Parameter(name = "mgmtpolicy", in = ParameterIn.PATH, description = "ID of the node management policy.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(

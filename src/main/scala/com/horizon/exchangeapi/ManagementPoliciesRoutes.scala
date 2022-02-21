@@ -181,13 +181,13 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
   } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/managementpolicies{policy} ================================ */
+  /* ====== GET /orgs/{orgid}/managementpolicies/{mgmtpolicy} ================================ */
   @GET
-  @Path("{policy}")
+  @Path("{mgmtpolicy}")
   @Operation(summary = "Returns a node management policy", description = "Returns the management policy with the specified id. Can be run by any user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Management policy name."),
+      new Parameter(name = "mgmtpolicy", in = ParameterIn.PATH, description = "Node management policy name."),
       new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire management policy resource will be returned.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -196,11 +196,12 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
             examples = Array(
               new ExampleObject(
                 value ="""{
-  "managementPolicy": {
-    "orgid/mymgmtpol": {
       "owner": "string",
       "label": "string",
       "description": "string",
+      "constraints": [
+        "a == b"
+      ],
       "properties": [
         {
           "name": "string",
@@ -208,24 +209,18 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
           "value": "string"
         }
       ],
-      "constraints": [
-        "a == b"
-      ],
       "patterns": [
         "pat1"
       ],
       "enabled": true,
+      "start": "now",
+      "duration": 0
       "agentUpgradePolicy": {
-        "atLeastVersion": "current",
-        "start": "now",
-        "duration": 0
+        "manifest": "<org/manifestId>",
+        "allowDowngrade", false
       },
       "lastUpdated": "string",
-      "created": "string"
     }
-  },
-  "lastIndex": 0
-}
 """
               )
             ),
@@ -237,8 +232,8 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "management policy")
-  def mgmtPolGetRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & get & parameter("attribute".?)) { (orgid, policy, attribute) =>
-    val compositeId: String = OrgAndId(orgid, policy).toString
+  def mgmtPolGetRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & get & parameter("attribute".?)) { (orgid, mgmtpolicy, attribute) =>
+    val compositeId: String = OrgAndId(orgid, mgmtpolicy).toString
     exchAuth(TManagementPolicy(compositeId), Access.READ) { _ =>
       complete({
         attribute match {
@@ -246,7 +241,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
             val q = ManagementPoliciesTQ.getAttribute(compositeId, attribute) // get the proper db query for this attribute
             if (q == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.wrong.attribute", attribute)))
             else db.run(q.result).map({ list =>
-              logger.debug("GET /orgs/" + orgid + "/managementpolicies/" + policy + " attribute result: " + list.toString)
+              logger.debug("GET /orgs/" + orgid + "/managementpolicies/" + mgmtpolicy + " attribute result: " + list.toString)
               if (list.nonEmpty) {
                 (HttpCode.OK, GetManagementPolicyAttributeResponse(attribute, list.head.toString))
               } else {
@@ -257,7 +252,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
           case None =>  // Return the whole management policy resource
             db.run(ManagementPoliciesTQ.getManagementPolicy(compositeId).result).map({ list =>
               logger.debug("GET /orgs/" + orgid + "/managementpolicies result size: " + list.size)
-              val managementPolicies: Map[String, ManagementPolicy] = list.map(e => e.managementPolicy -> e.toManagementPolicy).toMap
+              val managementPolicies: Map[String, ManagementPolicy] = list.map(e => e.managementPolicy -> e.toManagementPolicy).toMap //mapping management policy object to string 
               val code: StatusCode with Serializable = if (managementPolicies.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
               (code, GetManagementPoliciesResponse(managementPolicies, 0))
             })
@@ -266,9 +261,9 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
   } // end of exchAuth
   }
 
-  // =========== POST /orgs/{orgid}/managementpolicies/{policy} ===============================
+  // =========== POST /orgs/{orgid}/managementpolicies/{mgmtpolicy} ===============================
   @POST
-  @Path("{policy}")
+  @Path("{mgmtpolicy}")
   @Operation(
     summary = "Adds a node management policy",
     description = "Creates a node management policy resource. A node management policy controls the updating of the edge node agents. This can only be called by a user.",
@@ -279,7 +274,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
         description = "Organization id."
       ),
       new Parameter(
-        name = "policy",
+        name = "mgmtpolicy",
         in = ParameterIn.PATH,
         description = "Management Policy name."
       )
@@ -346,15 +341,15 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "management policy")
-  def mgmtPolPostRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & post & entity(as[PostPutManagementPolicyRequest])) { (orgid, policy, reqBody) =>
-    val compositeId: String = OrgAndId(orgid, policy).toString
+  def mgmtPolPostRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & post & entity(as[PostPutManagementPolicyRequest])) { (orgid, mgmtpolicy, reqBody) =>
+    val compositeId: String = OrgAndId(orgid, mgmtpolicy).toString
     exchAuth(TManagementPolicy(compositeId), Access.CREATE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }
           db.run(ManagementPoliciesTQ.getNumOwned(owner).result.asTry.flatMap({
             case Success(num) =>
-              logger.debug("POST /orgs/" + orgid + "/managementpolicies" + policy + " num owned by " + owner + ": " + num)
+              logger.debug("POST /orgs/" + orgid + "/managementpolicies" + mgmtpolicy + " num owned by " + owner + ": " + num)
               val numOwned: Int = num
               val maxManagementPolicies: Int = ExchConfig.getInt("api.limits.maxManagementPolicies")
               if (maxManagementPolicies == 0 || numOwned <= maxManagementPolicies) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
@@ -365,12 +360,12 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
           }).flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
-              logger.debug("POST /orgs/" + orgid + "/managementpolicies/" + policy + " result: " + v)
-              ResourceChange(0L, orgid, policy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.CREATED).insert.asTry
+              logger.debug("POST /orgs/" + orgid + "/managementpolicies/" + mgmtpolicy + " result: " + v)
+              ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.CREATED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
-              logger.debug("POST /orgs/" + orgid + "/managementpolicies/" + policy + " updated in changes table: " + v)
+              logger.debug("POST /orgs/" + orgid + "/managementpolicies/" + mgmtpolicy + " updated in changes table: " + v)
               if (owner != "") AuthCache.putManagementPolicyOwner(compositeId, owner) // currently only users are allowed to update management policy resources, so owner should never be blank
               AuthCache.putManagementPolicyIsPublic(compositeId, isPublic = false)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("mgmtpol.created", compositeId)))
@@ -389,7 +384,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
 
   // =========== PUT /orgs/{orgid}/managementpolicies/{policy} ===============================
   @PUT
-  @Path("{policy}")
+  @Path("{mgmtpolicy}")
   @Operation(
     summary = "Updates a node management policy",
     description = "Updates a node management policy resource. A node management policy controls the updating of the edge node agents. This can only be called by a user.",
@@ -400,7 +395,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
         description = "Organization id."
       ),
       new Parameter(
-        name = "policy",
+        name = "mgmtpolicy",
         in = ParameterIn.PATH,
         description = "Management Policy name."
       )
@@ -467,8 +462,8 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "management policy")
-  def mgmtPolPutRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & put & entity(as[PostPutManagementPolicyRequest])) { (orgid, policy, reqBody) =>
-    val compositeId: String = OrgAndId(orgid, policy).toString
+  def mgmtPolPutRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & put & entity(as[PostPutManagementPolicyRequest])) { (orgid, mgmtpolicy, reqBody) =>
+    val compositeId: String = OrgAndId(orgid, mgmtpolicy).toString
     exchAuth(TManagementPolicy(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
@@ -476,12 +471,12 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
           db.run(reqBody.getDbUpdate(compositeId, orgid, owner).asTry.flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
-              logger.debug("PUT /orgs/" + orgid + "/managementpolicies/" + policy + " result: " + v)
-              ResourceChange(0L, orgid, policy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.MODIFIED).insert.asTry
+              logger.debug("PUT /orgs/" + orgid + "/managementpolicies/" + mgmtpolicy + " result: " + v)
+              ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.MODIFIED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
-              logger.debug("PUT /orgs/" + orgid + "/managementpolicies/" + policy + " updated in changes table: " + v)
+              logger.debug("PUT /orgs/" + orgid + "/managementpolicies/" + mgmtpolicy + " updated in changes table: " + v)
               if (owner != "") AuthCache.putManagementPolicyOwner(compositeId, owner) // currently only users are allowed to update management policy resources, so owner should never be blank
               AuthCache.putManagementPolicyIsPublic(compositeId, isPublic = false)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("mgmtpol.updated", compositeId)))
@@ -498,39 +493,39 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/managementpolicies/{policy} ===============================
+  // =========== DELETE /orgs/{orgid}/managementpolicies/{mgmtpolicy} ===============================
   @DELETE
-  @Path("{policy}")
+  @Path("{mgmtpolicy}")
   @Operation(summary = "Deletes a management policy", description = "Deletes a management policy. Can only be run by the owning user.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Management Policy name.")),
+      new Parameter(name = "mgmtpolicy", in = ParameterIn.PATH, description = "Management Policy name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "management policy")
-  def mgmtPolDeleteRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & delete) { (orgid, policy) =>
-    logger.debug(s"Doing DELETE /orgs/$orgid/managementpolicies/$policy")
-    val compositeId: String = OrgAndId(orgid, policy).toString
+  def mgmtPolDeleteRoute: Route = (path("orgs" / Segment / "managementpolicies" / Segment) & delete) { (orgid, mgmtpolicy) =>
+    logger.debug(s"Doing DELETE /orgs/$orgid/managementpolicies/$mgmtpolicy")
+    val compositeId: String = OrgAndId(orgid, mgmtpolicy).toString
     exchAuth(TManagementPolicy(compositeId), Access.WRITE) { _ =>
       complete({
         db.run(ManagementPoliciesTQ.getManagementPolicy(compositeId).delete.transactionally.asTry.flatMap({
           case Success(v) =>
             // Add the resource to the resourcechanges table
-            logger.debug("DELETE /orgs/" + orgid + "/managementpolicies/" + policy + " result: " + v)
+            logger.debug("DELETE /orgs/" + orgid + "/managementpolicies/" + mgmtpolicy + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removeManagementPolicyOwner(compositeId)
               AuthCache.removeManagementPolicyIsPublic(compositeId)
-              ResourceChange(0L, orgid, policy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.not.found", compositeId))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
-            logger.debug("DELETE /orgs/" + orgid + "/managementpolicies/" + policy + " updated in changes table: " + v)
+            logger.debug("DELETE /orgs/" + orgid + "/managementpolicies/" + mgmtpolicy + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("management.policy.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
@@ -542,5 +537,4 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
       }) // end of complete
     } // end of exchAuth
   }
-
 }

@@ -183,7 +183,7 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
         sqlu"alter table businesspolicies add column secretbinding character varying not null default ''"
       )
       case 42 => DBIO.seq(ManagementPoliciesTQ.schema.create)    // v2.89.0
-      case 43 => DBIO.seq(   // version 2.57.0
+      case 43 => DBIO.seq(    // version 2.57.0
         sqlu"alter table nodepolicies add column deployment character varying not null default ''",
         sqlu"alter table nodepolicies add column management character varying not null default ''",
         sqlu"alter table nodepolicies add column nodepolicyversion character varying not null default ''"
@@ -196,11 +196,18 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
         sqlu"ALTER TABLE managementpolicies ADD COLUMN IF NOT EXISTS startwindow BIGINT NOT NULL DEFAULT 0"
       )
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
+      case 45 => DBIO.seq(NodeMgmtPolStatuses.schema.create)    // v2.95.0
+      case 46 => DBIO.seq(    // v2.96.0
+        AgentCertificateVersionsTQ.schema.create,
+        AgentConfigurationVersionsTQ.schema.create,
+        AgentSoftwareVersionsTQ.schema.create,
+        AgentVersionsChangedTQ.schema.create
+      )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
 
-  val latestSchemaVersion = 44    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion = 46    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription = "adding deployment, management, nodepolicyversion columns to nodepolicies table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

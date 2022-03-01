@@ -68,6 +68,7 @@ object ExchangeApiConstants {
  * Main akka server for the Exchange REST API.
  */
 object ExchangeApiApp extends App
+  with AgentConfigurationManagementRoutes
   with AdminRoutes
   with AgbotsRoutes
   with BusinessRoutes
@@ -207,6 +208,7 @@ object ExchangeApiApp extends App
                                   RawHeader("X-XSS-Protection", "1; mode=block")) {
           handleExceptions(myExceptionHandler) {
             handleRejections(myRejectionHandler) {
+              agentConfigurationManagementRoutes ~
               adminRoutes ~
               agbotsRoutes ~
               businessRoutes ~

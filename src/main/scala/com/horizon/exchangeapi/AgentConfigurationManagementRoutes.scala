@@ -16,6 +16,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import java.sql.Timestamp
+import java.time.ZoneId
 import scala.util.{Failure, Success}
 
 /** Implementation for all of the /orgs/{org}/AgentFileVersion routes */
@@ -59,7 +60,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
                   (HttpCode.OK, AgentVersionsResponse(agentCertVersions = result._1,
                                                       agentConfigVersions = result._3,
                                                       agentSoftwareVersions = result._4,
-                                                      lastUpdated = result._2.head))
+                                                      lastUpdated = result._2.head.toLocalDateTime.atZone(ZoneId.of("UTC")).toString))
                 else
                   (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
               case Failure(t: org.postgresql.util.PSQLException) =>

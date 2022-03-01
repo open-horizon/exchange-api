@@ -23,7 +23,7 @@ final case class AgentVersionsRequest(agentCertVersions: Seq[String],
 final case class AgentVersionsResponse(agentCertVersions: Seq[String],
                                        agentConfigVersions: Seq[String],
                                        agentSoftwareVersions: Seq[String],
-                                       lastUpdated: java.sql.Timestamp) extends AgentVersions
+                                       lastUpdated: String) extends AgentVersions
 
 
 class AgentCertificateVersions(tag: Tag) extends Table[(String, String)](tag, "agent_version_certificate") {

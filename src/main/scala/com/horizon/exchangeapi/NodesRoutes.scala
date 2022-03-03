@@ -40,9 +40,6 @@ final case class GetNodeAttributeResponse(attribute: String, value: String)
 
 final case class GetNMPStatusResponse(agentUpgradePolicyStatus: Map[String,NMPStatus], lastIndex: Int)
 
-
-
-
 object GetNodesUtils {
   def getNodesProblem(nodetype: Option[String]): Option[String] = {
     if (nodetype.isDefined && !NodeType.containsString(nodetype.get.toLowerCase)) return Some(ExchMsg.translate("invalid.node.type2", NodeType.valuesAsString))

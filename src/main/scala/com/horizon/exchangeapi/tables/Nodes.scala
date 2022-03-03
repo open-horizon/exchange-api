@@ -327,14 +327,13 @@ object NodeErrorTQ extends TableQuery(new NodeErrors(_)) {
 
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
-class NMPStatus(var scheduledTime: String, var startTime: String, var endTime: String, var upgradedVersions: UpgradedVersions, var status: String, var errorMessage: String){
-
-  def copy = new NMPStatus(scheduledTime, startTime, endTime, upgradedVersions, status, errorMessage)
-}
-
 final case class UpgradedVersions(softwareVersion: String,
                                   certVersion: String,
                                   configVersion: String)
+
+class NMPStatus(var scheduledTime: String, var startTime: String, var endTime: String, var upgradedVersions: UpgradedVersions, var status: String, var errorMessage: String){
+  def copy = new NMPStatus(scheduledTime, startTime, endTime, upgradedVersions, status, errorMessage)
+}
 
 final case class NodeMgmtPolStatusRow(actualStartTime: String,
                                       certificateVersion: String,

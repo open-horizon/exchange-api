@@ -240,7 +240,7 @@ final case class NodeAgreementRow(agId: String, nodeId: String, services: String
   // Translates the MS string into a data structure
   def getServices: List[NAService] = if (services != "") read[List[NAService]](services) else List[NAService]()
   def getNAgrService: NAgrService = NAgrService(agrSvcOrgid, agrSvcPattern, agrSvcUrl)
-
+  
   def toNodeAgreement: NodeAgreement = {
     NodeAgreement(getServices, getNAgrService, state, lastUpdated)
   }
@@ -273,10 +273,10 @@ final case class NodeAgreement(services: List[NAService], agrService: NAgrServic
 /** Builds a hash of the current number of agreements for each node and service in the org, so we can check them quickly */
 class AgreementsHash(dbNodesAgreements: Seq[NodeAgreementRow]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
-
+  
   // The 1st level key of this hash is the node id, the 2nd level key is the service url, the leaf value is current number of agreements
   var agHash = new MutableHashMap[String,MutableHashMap[String,Int]]()
-
+  
   for (a <- dbNodesAgreements) {
     val svcs: Seq[NAService] = a.getServices
     agHash.get(a.nodeId) match {
@@ -370,7 +370,7 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
   def softwareVersion = column[String]("version_software")
   def status = column[String]("status")
   def updated = column[String]("updated")
-
+  
   def * = (actualStartTime,
     certificateVersion,
     configurationVersion,
@@ -383,7 +383,7 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
     status,
     updated).<>(NodeMgmtPolStatusRow.tupled, NodeMgmtPolStatusRow.unapply)
   def pkNodeMgmtPolStatus = primaryKey("pk_management_policy_status_node", (node, policy))
-
+  
   def fkNode = foreignKey("fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def fkManagementPolicy = foreignKey("fk_management_policy", policy, ManagementPoliciesTQ)(_.managementPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }

@@ -100,7 +100,7 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
         policy = "TestNodeGetMgmtPolStatus/pol2",
         status = "Fail",
         endTime = "",
-        actualStartTime = ApiTime.nowUTC,
+        actualStartTime = "",
         scheduledStartTime = ApiTime.nowUTC,
         updated = ApiTime.nowUTC,
         certificateVersion = "",
@@ -164,11 +164,9 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
             info("code: " + response.code + ", response.body: " + response.body)
             assert(response.code === HttpCode.OK.intValue)
             val resp: GetNMPStatusResponse = parse(response.body).extract[GetNMPStatusResponse]
-            assert(resp.policy.size == 1)
-            assert(resp.policy.contains("TestNodeGetMgmtPolStatus/" + managementPolicy1))
-            var mp: NMPStatus = resp.policy("TestNodeGetMgmtPolStatus/" + managementPolicy1)
-            assert(mp.node === "TestNodeGetMgmtPolStatus/n1")
-            assert(mp.policy === "TestNodeGetMgmtPolStatus/" + managementPolicy1)
+            assert(resp.agentUpgradePolicyStatus.size == 1)
+            assert(resp.agentUpgradePolicyStatus.contains("TestNodeGetMgmtPolStatus/" + managementPolicy1))
+            var mp: NMPStatus = resp.agentUpgradePolicyStatus("TestNodeGetMgmtPolStatus/" + managementPolicy1)
             assert(mp.status === "Success")
 
           }, TESTNODEMGMTPOLSTATUSES)
@@ -185,11 +183,9 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
             info("code: " + response.code + ", response.body: " + response.body)
             assert(response.code === HttpCode.OK.intValue)
             val resp: GetNMPStatusResponse = parse(response.body).extract[GetNMPStatusResponse]
-            assert(resp.policy.size == 1)
-            assert(resp.policy.contains("TestNodeGetMgmtPolStatus/" + managementPolicy2))
-            var mp: NMPStatus = resp.policy("TestNodeGetMgmtPolStatus/" + managementPolicy2)
-            assert(mp.node === "TestNodeGetMgmtPolStatus/n1")
-            assert(mp.policy === "TestNodeGetMgmtPolStatus/" + managementPolicy2)
+            assert(resp.agentUpgradePolicyStatus.size == 1)
+            assert(resp.agentUpgradePolicyStatus.contains("TestNodeGetMgmtPolStatus/" + managementPolicy2))
+            var mp: NMPStatus = resp.agentUpgradePolicyStatus("TestNodeGetMgmtPolStatus/" + managementPolicy2)
             assert(mp.status === "Fail")
 
           }, TESTNODEMGMTPOLSTATUSES)

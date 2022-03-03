@@ -38,7 +38,10 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 final case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
 final case class GetNodeAttributeResponse(attribute: String, value: String)
 
-final case class GetNMPStatusResponse(policy: Map[String,NMPStatus], lastIndex: Int)
+final case class GetNMPStatusResponse(agentUpgradePolicyStatus: Map[String,NMPStatus], lastIndex: Int)
+
+
+
 
 object GetNodesUtils {
   def getNodesProblem(nodetype: Option[String]): Option[String] = {

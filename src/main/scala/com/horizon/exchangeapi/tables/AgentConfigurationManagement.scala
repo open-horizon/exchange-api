@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.tables
 
-import com.horizon.exchangeapi.{Version, VersionRange}
+import com.horizon.exchangeapi.{ApiTime, Version, VersionRange}
 import org.json4s._
 import org.json4s.jackson.Serialization.read
 import slick.dbio.Effect

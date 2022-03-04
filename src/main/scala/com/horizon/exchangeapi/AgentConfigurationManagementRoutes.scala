@@ -72,7 +72,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
     } // end of exchAuth
   }
   
-  def putAgentConfigMgmt: Route = (path("orgs" / Segment / "AgentFileVersion") & put& entity(as[AgentVersionsRequest])) { (orgId, reqBody) =>
+  def putAgentConfigMgmt: Route = (path("orgs" / Segment / "AgentFileVersion") & put & entity(as[AgentVersionsRequest])) { (orgId, reqBody) =>
       exchAuth(TOrg("IBM"), Access.WRITE_AGENT_CONFIG_MGMT) { _ =>
         complete({
           val a: Seq[String] = reqBody.agentCertVersions
@@ -83,7 +83,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
               db.run(
                 (AgentCertificateVersionsTQ.delete) andThen (AgentConfigurationVersionsTQ.delete) andThen (AgentSoftwareVersionsTQ.delete)
                   andThen (
-              AgentConfigurationVersionsTQ ++= a.map(v => {(v, orgId)}))
+              AgentCertificateVersionsTQ ++= a.map(v => {(v, orgId)}))
                   andThen (
               AgentConfigurationVersionsTQ ++= b.map(v => {(v, orgId)}))
                   andThen (
@@ -92,7 +92,6 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
               AgentVersionsChangedTQ
                     .insertOrUpdate(ApiTime.nowUTCTimestamp, orgId))
                   andThen (
-
                   ResourceChange(category = ResChangeCategory.ORG,
                     changeId = 0L,
                     id = orgId,
@@ -106,7 +105,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
                     logger.debug("PUT /orgs/" + orgId + "/AgentFileVersion result: " + v)
                     logger.debug("PUT /orgs/" + orgId + "/AgentFileVersion updating resource status table: " + v)
 
-                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", orgId)))
+                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", "AgentFileVersion" ,orgId)))
                   case Failure(t: org.postgresql.util.PSQLException) =>
                     if (ExchangePosgtresErrorHandling.isAccessDeniedError(t))
                       (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.updated", orgId, t.getMessage)))

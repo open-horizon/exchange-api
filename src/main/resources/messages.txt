@@ -373,3 +373,6 @@ node.managementpolicy.status.deleted=deleted status of management policy ''{0}''
 node.managementpolicy.status.not.deleted=management policy ''{0}'' status for node ''{1}'' not deleted: {2}
 node.managementpolicy.status.not.found=status of management policy ''{0}'' for node ''{1}'' not found
 node.managementpolicy.status.not.inserted.or.updated=management policy ''{0}'' status for node ''{1}'' not inserted or updated: {2}
+agent.file.versions.deleted=all agent file versions have been deleted
+agent.file.versions.deleted.not=agent file versions not deleted
+agent.file.versions.deleted.not.message=agent file versions not deleted: {0}

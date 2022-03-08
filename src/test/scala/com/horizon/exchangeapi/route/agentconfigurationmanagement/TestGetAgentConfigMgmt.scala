@@ -199,7 +199,6 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- IBM Agbot") {
-    assert(true)
     val TESTAGBOTS: Seq[AgbotRow] =
       Seq(AgbotRow(id            = "IBM/TestGetAgentConfigMgmt-a1",
                    lastHeartbeat = ApiTime.nowUTC,

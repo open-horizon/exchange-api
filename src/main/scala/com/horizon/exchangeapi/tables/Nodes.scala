@@ -327,9 +327,14 @@ object NodeErrorTQ extends TableQuery(new NodeErrors(_)) {
 
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
-class NMPStatus(var errorMessage: String, var node: String, var policy: String, var status: String,  var endTime: String, var actualStartTime: String, var scheduledStartTime: String,  var updated: String, var certificateVersion: String, var configurationVersion: String, var softwareVersion: String){
-  def copy = new NMPStatus(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+final case class UpgradedVersions(softwareVersion: String,
+                                  certVersion: String,
+                                  configVersion: String)
+
+class NMPStatus(var scheduledTime: String, var startTime: String, var endTime: String, var upgradedVersions: UpgradedVersions, var status: String, var errorMessage: String){
+  def copy = new NMPStatus(scheduledTime, startTime, endTime, upgradedVersions, status, errorMessage)
 }
+
 
 final case class NodeMgmtPolStatusRow(actualStartTime: String,
                                       certificateVersion: String,
@@ -344,8 +349,10 @@ final case class NodeMgmtPolStatusRow(actualStartTime: String,
                                       updated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
+  def upgradedVersions: UpgradedVersions = UpgradedVersions(certificateVersion, configurationVersion, softwareVersion)
+
   def toNodeMgmtPolStatus: NMPStatus = {
-    new NMPStatus(errorMessage, node, policy, status,  endTime, actualStartTime, scheduledStartTime,  updated, certificateVersion, configurationVersion, softwareVersion)
+    new NMPStatus(scheduledStartTime, actualStartTime, endTime, upgradedVersions, status, errorMessage)
   }
 
   def upsert: DBIO[_] = NodeMgmtPolStatuses.rows.insertOrUpdate(this)

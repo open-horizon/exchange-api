@@ -11,7 +11,7 @@ import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth.DBProcessingError
-import com.horizon.exchangeapi.tables.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsResponse, NodeAgreementsTQ, NodeMsgsTQ, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ, SchemaTQ, UsersTQ}
+import com.horizon.exchangeapi.tables.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsResponse, AgentVersionsRequest, ResourceChange, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ, SchemaTQ, UsersTQ}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
@@ -218,6 +218,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
                       (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
                 })
               )
+            case _ => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", orgId)))
           }
         }) // end of complete
         // } // end of validateWithMsg

@@ -9,8 +9,6 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc.PostgresProfile.api._
-
-import java.time.ZoneId
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -126,7 +124,92 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll {
       Await.result(DBCONNECTION.getDb.run(AgentVersionsChangedTQ.delete), AWAITDURATION)
   }
 
-  test("POST /orgs/randomOrg/AgentFileVersion -- 400 Bad Request - Random OrgId") {
+  test("PUT /orgs/IBM/AgentFileVersion - 201 Created") {
+
+    val TESTCERT: Seq[String] =
+      Seq("1.1.1")
+    val TESTCONFIG: Seq[String] =
+      Seq("2.2.2")
+    val TESTSOFT: Seq[String] =
+      Seq("3.4.3")
+    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
+      Seq((ApiTime.nowTimestamp, "IBM"))
+
+    val requestBody: AgentVersionsRequest =
+      AgentVersionsRequest(
+        agentCertVersions = TESTCERT,
+        agentConfigVersions = TESTCONFIG,
+        agentSoftwareVersions = TESTSOFT)
+
+    val request: HttpResponse[String] = Http(URL + "IBM/AgentFileVersion").put(write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + request.code)
+    info("body: " + request.body)
+    assert(request.code === HttpCode.PUT_OK.intValue)
+    val versions: AgentVersionsRequest = parse(request.body).extract[AgentVersionsRequest]
+    val certificates: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
+    val changed: Seq[(java.sql.Timestamp, String)] = Await.result(DBCONNECTION.getDb.run(AgentVersionsChangedTQ.result), AWAITDURATION)
+    val configurations: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
+    val software: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ.result), AWAITDURATION)
+
+    assert(certificates.nonEmpty)
+    assert(changed.length === 1)
+    assert(configurations.nonEmpty)
+    assert(software.nonEmpty)
+
+    assert(certificates.head._1  === TESTCERT(0))
+    assert(certificates.head._2  === "IBM")
+
+    assert(configurations.head._1  === TESTCONFIG(0))
+    assert(configurations.head._2  === "IBM")
+
+    assert(software.head._1  === "IBM")
+    assert(software.head._2  === TESTSOFT(0))
+
+  }
+
+
+  test("PUT /orgs/IBM/AgentFileVersion - 201 Updated") {
+
+    val TESTCERT: Seq[String] =
+      Seq("3.1.1", "IBM")
+    val TESTCONFIG: Seq[String] =
+      Seq("6.2.2", "IBM")
+    val TESTSOFT: Seq[String] =
+      Seq("IBM", "9.3.3")
+    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
+      Seq((ApiTime.nowTimestamp, "IBM"))
+
+    val requestBody: AgentVersionsRequest =
+      AgentVersionsRequest(
+        agentCertVersions = TESTCERT,
+        agentConfigVersions = TESTCONFIG,
+        agentSoftwareVersions = TESTSOFT)
+
+    val request: HttpResponse[String] = Http(URL + "IBM/AgentFileVersion").put(write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + request.code)
+    info("body: " + request.body)
+    assert(request.code === HttpCode.PUT_OK.intValue)
+
+    val certificates: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
+    val changed: Seq[(java.sql.Timestamp, String)] = Await.result(DBCONNECTION.getDb.run(AgentVersionsChangedTQ.result), AWAITDURATION)
+    val configurations: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
+    val software: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ.result), AWAITDURATION)
+
+    assert(certificates.nonEmpty)
+    assert(changed.length === 1)
+    assert(configurations.nonEmpty)
+    assert(software.nonEmpty)
+
+    assert(certificates.head._1  === TESTCERT(0))
+    assert(certificates.head._2  === TESTCERT(1))
+
+    assert(configurations.head._1  === TESTCONFIG(0))
+    assert(configurations.head._2  === TESTCONFIG(1))
+
+    assert(software.head._1  === TESTSOFT(0))
+  }
+
+  test("PUT /orgs/randomOrg/AgentFileVersion - 400 Bad Input - Bad Org ") {
 
     val TESTCERT: Seq[String] =
       Seq("1.1.1", "IBM")
@@ -143,50 +226,48 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll {
         agentConfigVersions = TESTCONFIG,
         agentSoftwareVersions = TESTSOFT)
 
-    val response: HttpResponse[String] = Http(URL + "randomOrg/AgentFileVersion").postData(write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: " + response.code)
-    info("body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val request: HttpResponse[String] = Http(URL + "randomOrg/AgentFileVersion").put(write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: " + request.code)
+    info("body: " + request.body)
+    assert(request.code === HttpCode.BAD_INPUT.intValue)
+
   }
 
+  test("PUT /v1/orgs/IBM/AgentFileVersion -- 403 Unauthorized Access - IBM User") {
 
-  test("GET /v1/orgs/IBM/AgentFileVersion -- Default") {
-    val TESTCERT: Seq[(String, String)] =
-      Seq(("1.1.1", "IBM"))
-    val TESTCONFIG: Seq[(String, String)] =
-      Seq(("2.2.2", "IBM"))
-    val TESTSOFT: Seq[(String, String)] =
-      Seq(("IBM", "3.3.3"))
+    val TESTCERT: Seq[String] =
+      Seq("1.1.1", "IBM")
+    val TESTCONFIG: Seq[String] =
+      Seq("2.2.2", "IBM")
+    val TESTSOFT: Seq[String] =
+      Seq("IBM", "3.3.3")
+
+    val requestBody: AgentVersionsRequest =
+      AgentVersionsRequest(
+        agentCertVersions = TESTCERT,
+        agentConfigVersions = TESTCONFIG,
+        agentSoftwareVersions = TESTSOFT)
+
     val TESTCHG: Seq[(java.sql.Timestamp, String)] =
       Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTUSERS: Seq[UserRow] =
+      Seq(UserRow(admin       = false,
+        email       = "",
+        hashedPw    = "$2a$10$0nyuleCFffuFumOrDHnvOOpP8scH2kFfG0YDp8TcyVBhYKK7dCzPG",  // IBM/TestDeleteAgentConfigMgmt-u1:TestDeleteAgentConfigMgmt-u1pw
+        hubAdmin    = false,
+        lastUpdated = ApiTime.nowUTC,
+        orgid       = "IBM",
+        updatedBy   = "",
+        username    = "IBM/TestDeleteAgentConfigMgmt-u1"))
 
-    fixtureAgentCertVersions(
-      _ => {
-        fixtureAgentConfigVersions(
-          _ => {
-            fixtureAgentSoftVersions(
-              _ => {
-                fixtureVersionsChanged(
-                  _ => {
-                    val response: HttpResponse[String] = Http(URL + "IBM/AgentFileVersion").headers(ACCEPT).headers(ROOTAUTH).asString
-                    info("code: " + response.code)
-                    info("body: " + response.body)
-
-                    assert(response.code === HttpCode.OK.intValue)
-
-                    val versions: AgentVersionsResponse = parse(response.body).extract[AgentVersionsResponse]
-
-                    assert(versions.agentCertVersions.length     === 1)
-                    assert(versions.agentConfigVersions.length   === 1)
-                    assert(versions.agentSoftwareVersions.length === 1)
-
-                    assert(versions.agentCertVersions(0)     === TESTCERT(0)._1)
-                    assert(versions.agentConfigVersions(0)   === TESTCONFIG(0)._1)
-                    assert(versions.agentSoftwareVersions(0) === TESTSOFT(0)._2)
-                    assert(versions.lastUpdated              === TESTCHG(0)._1.toLocalDateTime.atZone(ZoneId.of("UTC")).toString)
-                  }, TESTCHG)
-              }, TESTSOFT)
-          }, TESTCONFIG)
-      }, TESTCERT)
+    fixtureUsers(
+      _ =>{
+            val request: HttpResponse[String] = Http(URL + "IBM/AgentFileVersion").put(write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("IBM/TestDeleteAgentConfigMgmt-u1:TestDeleteAgentConfigMgmt-u1pw"))).asString
+            info("code: " + request.code)
+            info("body: " + request.body)
+            assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+      }, TESTUSERS)
   }
+
+
 }

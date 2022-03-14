@@ -100,7 +100,7 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
         policy = "TestNodeGetMgmtPolStatus/pol2",
         status = "Fail",
         endTime = "",
-        actualStartTime = "",
+        actualStartTime = ApiTime.nowUTC,
         scheduledStartTime = ApiTime.nowUTC,
         updated = ApiTime.nowUTC,
         certificateVersion = "",

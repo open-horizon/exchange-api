@@ -5,7 +5,7 @@ import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetAgbotMsgsResponse, HttpCod
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{BeforeAndAfterAll, DoNotDiscover, Suite}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc.PostgresProfile.api._
@@ -14,7 +14,8 @@ import java.time.ZoneId
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
-class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll {
+@DoNotDiscover
+class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Suite {
   private val ACCEPT = ("Accept","application/json")
   private val CONTENT = ("Content-Type","application/json")
   private val AWAITDURATION: Duration = 15.seconds

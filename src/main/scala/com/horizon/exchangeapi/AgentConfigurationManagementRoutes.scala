@@ -5,18 +5,19 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.Route
 import slick.jdbc.PostgresProfile.api._
 
-import javax.ws.rs.{DELETE, GET, Path}
+import javax.ws.rs.{DELETE, GET, PUT, Path}
 import scala.concurrent.ExecutionContext
 import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth.DBProcessingError
-import com.horizon.exchangeapi.tables.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsResponse, AgentVersionsRequest, ResourceChange, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ, SchemaTQ, UsersTQ}
+import com.horizon.exchangeapi.tables.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsRequest, AgentVersionsResponse, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ, SchemaTQ, UsersTQ}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.parameters.RequestBody
 
 import java.sql.Timestamp
 import java.time.ZoneId
@@ -39,8 +40,8 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
   
   @DELETE
   @Path("")
-  @Operation(summary = "Deletes all agent file versions",
-             description = "Deletes all agent certificate, configuration, and software file versions. Run by agreement bot",
+  @Operation(summary = "Delete all agent file versions",
+             description = "Delete all agent certificate, configuration, and software file versions. Run by agreement bot",
              parameters = Array(new Parameter(name = "orgid",
                                               in = ParameterIn.PATH,
                                               description = "Organization id.")),
@@ -172,6 +173,47 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
     } // end of exchAuth
   }
   
+  @PUT
+  @Path("")
+  @Operation(summary = "Put all agent file versions",
+             description = "Put all agent certificate, configuration, and software file versions. Run by agreement bot",
+             parameters = Array(new Parameter(description = "Organization identifier",
+               in = ParameterIn.PATH,
+               name = "orgid")),
+             requestBody = new RequestBody(
+               content = Array(
+                 new Content(
+                   examples = Array(
+                     new ExampleObject(
+                       value = """{
+  "agentSoftwareVersions": ["2.30.0", "2.25.4", "1.4.5-123"],
+  "agentConfigVersions": ["0.0.4", "0.0.3"],
+  "agentCertVersions": ["0.0.15"]
+}
+                       """
+                     )
+                   ),
+                   mediaType = "application/json",
+                   schema = new Schema(implementation = classOf[PutAgbotsRequest])
+                 )
+               ),
+               required = true
+             ),
+             responses =
+               Array(
+                 new responses.ApiResponse(responseCode = "201",
+                                           description = "response body",
+                                           content =
+                                             Array(
+                                               new Content(mediaType = "application/json",
+                                                           schema = new Schema(implementation = classOf[ApiResponse])
+                                               )
+                                             )
+                 ),
+                 new responses.ApiResponse(responseCode = "400", description = "bad input"),
+                 new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+                 new responses.ApiResponse(responseCode = "403", description = "access denied"),
+                 new responses.ApiResponse(responseCode = "404", description = "not found")))
   def putAgentConfigMgmt: Route = (path("orgs" / Segment / "AgentFileVersion") & put & entity(as[AgentVersionsRequest])) { (orgId, reqBody) =>
       exchAuth(TOrg("IBM"), Access.WRITE_AGENT_CONFIG_MGMT) { _ =>
         complete({

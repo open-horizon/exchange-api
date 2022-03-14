@@ -13,7 +13,7 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
-//@DoNotDiscover
+@DoNotDiscover
 class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with BeforeAndAfterEach with Suite {
   private val ACCEPT = ("Accept", "application/json")
   private val CONTENT = ("Content-Type", "application/json")

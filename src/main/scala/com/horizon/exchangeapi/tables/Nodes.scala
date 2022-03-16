@@ -331,8 +331,10 @@ final case class UpgradedVersions(softwareVersion: String,
                                   certVersion: String,
                                   configVersion: String)
 
-class NMPStatus(var scheduledTime: String, var startTime: String, var endTime: String, var upgradedVersions: UpgradedVersions, var status: String, var errorMessage: String){
-  def copy = new NMPStatus(scheduledTime, startTime, endTime, upgradedVersions, status, errorMessage)
+final case class policyStatus(scheduledTime: String, startTime: String, endTime: String, upgradedVersions: UpgradedVersions, status: String, errorMessage: String)
+
+class NMPStatus(var agentUpgradePolicyStatus: policyStatus, var lastUpdated: String){
+  def copy = new NMPStatus(agentUpgradePolicyStatus, lastUpdated)
 }
 
 
@@ -351,8 +353,10 @@ final case class NodeMgmtPolStatusRow(actualStartTime: String,
 
   def upgradedVersions: UpgradedVersions = UpgradedVersions(certificateVersion, configurationVersion, softwareVersion)
 
+  def agentUpgradePolicyStatus: policyStatus = policyStatus(scheduledStartTime, actualStartTime, endTime, upgradedVersions, status, errorMessage)
+
   def toNodeMgmtPolStatus: NMPStatus = {
-    new NMPStatus(scheduledStartTime, actualStartTime, endTime, upgradedVersions, status, errorMessage)
+    new NMPStatus(agentUpgradePolicyStatus, updated)
   }
 
   def upsert: DBIO[_] = NodeMgmtPolStatuses.rows.insertOrUpdate(this)

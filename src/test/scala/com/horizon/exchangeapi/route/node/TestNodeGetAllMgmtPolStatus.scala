@@ -162,7 +162,7 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
             info("code: " + response.code + ", response.body: " + response.body)
             assert(response.code === HttpCode.OK.intValue)
             val resp: GetNMPStatusResponse = parse(response.body).extract[GetNMPStatusResponse]
-            assert(resp.agentUpgradePolicyStatus.size == 2)
+            assert(resp.managementStatus.size == 2)
 
           }, TESTNODEMGMTPOLSTATUSES)
       }, TESTMANAGEMENTPOLICY)

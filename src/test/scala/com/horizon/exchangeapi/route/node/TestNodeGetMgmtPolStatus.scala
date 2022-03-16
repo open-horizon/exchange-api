@@ -164,10 +164,10 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
             info("code: " + response.code + ", response.body: " + response.body)
             assert(response.code === HttpCode.OK.intValue)
             val resp: GetNMPStatusResponse = parse(response.body).extract[GetNMPStatusResponse]
-            assert(resp.agentUpgradePolicyStatus.size == 1)
-            assert(resp.agentUpgradePolicyStatus.contains("TestNodeGetMgmtPolStatus/" + managementPolicy1))
-            var mp: NMPStatus = resp.agentUpgradePolicyStatus("TestNodeGetMgmtPolStatus/" + managementPolicy1)
-            assert(mp.status === "Success")
+            assert(resp.managementStatus.size == 1)
+            assert(resp.managementStatus.contains("TestNodeGetMgmtPolStatus/" + managementPolicy1))
+            var mp: NMPStatus = resp.managementStatus("TestNodeGetMgmtPolStatus/" + managementPolicy1)
+            assert(mp.agentUpgradePolicyStatus.status === "Success")
 
           }, TESTNODEMGMTPOLSTATUSES)
       }, TESTMANAGEMENTPOLICY)
@@ -183,10 +183,10 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
             info("code: " + response.code + ", response.body: " + response.body)
             assert(response.code === HttpCode.OK.intValue)
             val resp: GetNMPStatusResponse = parse(response.body).extract[GetNMPStatusResponse]
-            assert(resp.agentUpgradePolicyStatus.size == 1)
-            assert(resp.agentUpgradePolicyStatus.contains("TestNodeGetMgmtPolStatus/" + managementPolicy2))
-            var mp: NMPStatus = resp.agentUpgradePolicyStatus("TestNodeGetMgmtPolStatus/" + managementPolicy2)
-            assert(mp.status === "Fail")
+            assert(resp.managementStatus.size == 1)
+            assert(resp.managementStatus.contains("TestNodeGetMgmtPolStatus/" + managementPolicy2))
+            var mp: NMPStatus = resp.managementStatus("TestNodeGetMgmtPolStatus/" + managementPolicy2)
+            assert(mp.agentUpgradePolicyStatus.status === "Fail")
 
           }, TESTNODEMGMTPOLSTATUSES)
       }, TESTMANAGEMENTPOLICY)

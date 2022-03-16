@@ -37,8 +37,8 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 /** Output format for GET /orgs/{orgid}/nodes */
 final case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
 final case class GetNodeAttributeResponse(attribute: String, value: String)
+final case class GetNMPStatusResponse(managementStatus: Map[String,NMPStatus], lastIndex: Int)
 
-final case class GetNMPStatusResponse(agentUpgradePolicyStatus: Map[String,NMPStatus], lastIndex: Int)
 
 object GetNodesUtils {
   def getNodesProblem(nodetype: Option[String]): Option[String] = {
@@ -409,7 +409,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                            nodeGetPolicyRoute ~
                            nodeGetRoute ~
                            nodeGetStatusRoute ~
-                           nodeGetPutMgmtPolStatus ~
+                           nodeGetMgmtPolStatus ~
                            nodeDeleteMgmtPolStatus ~
                            nodeHeartbeatRoute ~
                            nodePatchRoute ~
@@ -2892,7 +2892,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management-policy")
-  def nodeGetPutMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & get) { (orgid, id, mgmtpolicy) =>
+  def nodeGetMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & get) { (orgid, id, mgmtpolicy) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy")
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>

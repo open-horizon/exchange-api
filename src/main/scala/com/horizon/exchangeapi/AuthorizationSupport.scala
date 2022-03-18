@@ -72,11 +72,13 @@ object Access extends Enumeration {
   val WRITE_OTHER_ORGS: exchangeapi.Access.Value = Value("WRITE_OTHER_ORGS")
   val CREATE_IN_OTHER_ORGS: exchangeapi.Access.Value = Value("CREATE_IN_OTHER_ORGS")
   val ADMIN: exchangeapi.Access.Value = Value("ADMIN")
+  val READ_AGENT_CONFIG_MGMT: exchangeapi.Access.Value = Value("READ_AGENT_CONFIG_MGMT")
+  val WRITE_AGENT_CONFIG_MGMT: exchangeapi.Access.Value = Value("WRITE_AGENT_CONFIG_MGMT")
   // Hub Admin Permissions
   val READ_MY_USERS: exchangeapi.Access.Value = Value("READ_MY_USERS")
   val WRITE_MY_USERS: exchangeapi.Access.Value = Value("WRITE_MY_USERS")
   val WRITE_ALL_ORGS: exchangeapi.Access.Value = Value("WRITE_ALL_ORGS")
-
+  
   val ALL_IN_ORG: exchangeapi.Access.Value = Value("ALL_IN_ORG") // for org admin
   val ALL: exchangeapi.Access.Value = Value("ALL")
   val NEVER_ALLOWED: exchangeapi.Access.Value = Value("NEVER_ALLOWED") // should not be put in any role below (including root)
@@ -598,6 +600,7 @@ case class IAgbot(creds: Creds) extends Identity {
         access match {
           case Access.READ => Access.READ_OTHER_ORGS
           case Access.WRITE => Access.WRITE_OTHER_ORGS
+          case Access.WRITE_AGENT_CONFIG_MGMT => Access.WRITE_OTHER_ORGS
           case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
           case _ => access
         }

@@ -335,7 +335,6 @@ class NMPStatus(var scheduledTime: String, var startTime: String, var endTime: S
   def copy = new NMPStatus(scheduledTime, startTime, endTime, upgradedVersions, status, errorMessage)
 }
 
-
 final case class NodeMgmtPolStatusRow(actualStartTime: String,
                                       certificateVersion: String,
                                       configurationVersion: String,

@@ -373,15 +373,15 @@ final case class PostNodesMsgsRequest(message: String, ttl: Int) {
 /** Response for GET /orgs/{orgid}/nodes/{id}/msgs */
 final case class GetNodeMsgsResponse(messages: List[NodeMsg], lastIndex: Int)
 
-final case class UpgradedVersions(softwareVersion: String,
-                                  certVersion: String,
-                                  configVersion: String)
+final case class UpgradedVersions(softwareVersion: Option[String],
+                                  certVersion: Option[String],
+                                  configVersion: Option[String])
 final case class NodeMangementPolicyStatus(scheduledTime: String,
-                                           startTime: String,
-                                           endTime: String,
-                                           upgradedVersions: UpgradedVersions,
-                                           status: String,
-                                           errorMessage: String)
+                                           startTime: Option[String],
+                                           endTime: Option[String],
+                                           upgradedVersions: Option[UpgradedVersions],
+                                           status: Option[String],
+                                           errorMessage: Option[String])
 final case class PutNodeMgmtPolStatusRequest(agentUpgradePolicyStatus: NodeMangementPolicyStatus)
 
 /** Implementation for all of the /orgs/{orgid}/nodes routes */
@@ -2995,14 +2995,26 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             NodeMgmtPolStatuses
               .insertOrUpdate(
                 NodeMgmtPolStatusRow(actualStartTime = reqBody.agentUpgradePolicyStatus.startTime,
-                                     certificateVersion = reqBody.agentUpgradePolicyStatus.upgradedVersions.certVersion,
-                                     configurationVersion = reqBody.agentUpgradePolicyStatus.upgradedVersions.configVersion,
+                                     certificateVersion =
+                                       if(reqBody.agentUpgradePolicyStatus.upgradedVersions.isDefined)
+                                         reqBody.agentUpgradePolicyStatus.upgradedVersions.get.certVersion
+                                       else
+                                         None,
+                                     configurationVersion =
+                                       if(reqBody.agentUpgradePolicyStatus.upgradedVersions.isDefined)
+                                         reqBody.agentUpgradePolicyStatus.upgradedVersions.get.configVersion
+                                       else
+                                         None,
                                      endTime = reqBody.agentUpgradePolicyStatus.endTime,
                                      errorMessage = reqBody.agentUpgradePolicyStatus.errorMessage,
                                      node = compositeId,
                                      policy = s"$orgid/$mgmtpolicy",
                                      scheduledStartTime = reqBody.agentUpgradePolicyStatus.scheduledTime,
-                                     softwareVersion = reqBody.agentUpgradePolicyStatus.upgradedVersions.softwareVersion,
+                                     softwareVersion =
+                                       if(reqBody.agentUpgradePolicyStatus.upgradedVersions.isDefined)
+                                         reqBody.agentUpgradePolicyStatus.upgradedVersions.get.softwareVersion
+                                       else
+                                         None,
                                      status = reqBody.agentUpgradePolicyStatus.status,
                                      updated = ApiTime.nowUTC)
               )

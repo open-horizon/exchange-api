@@ -28,31 +28,39 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestDeleteAgentConfigMgmt/a1",
-      lastHeartbeat = ApiTime.nowUTC,
-      msgEndPoint   = "",
-      name          = "",
-      orgid         = "TestDeleteAgentConfigMgmt",
-      owner         = "TestDeleteAgentConfigMgmt/u1",
-      publicKey     = "",
-      token         = "$2a$10$8wqQUYvY/9a.FtyTT6yE1u6tWKmRWTKsTAaGyfzTMhr4sXyTZO.Qq")  // TestDeleteAgentConfigMgmt/a1:a1tok
+             lastHeartbeat = ApiTime.nowUTC,
+             msgEndPoint   = "",
+             name          = "",
+             orgid         = "TestDeleteAgentConfigMgmt",
+             owner         = "TestDeleteAgentConfigMgmt/u1",
+             publicKey     = "",
+             token         = "$2a$10$8wqQUYvY/9a.FtyTT6yE1u6tWKmRWTKsTAaGyfzTMhr4sXyTZO.Qq")  // TestDeleteAgentConfigMgmt/a1:a1tok
   private val TESTORGANIZATIONS: Seq[OrgRow] =
     Seq(OrgRow(heartbeatIntervals = "",
-      description        = "",
-      label              = "",
-      lastUpdated        = ApiTime.nowUTC,
-      limits             = "",
-      orgId              = "TestDeleteAgentConfigMgmt",
-      orgType            = "",
-      tags               = None))
+               description        = "",
+               label              = "",
+               lastUpdated        = ApiTime.nowUTC,
+               limits             = "",
+               orgId              = "TestDeleteAgentConfigMgmt",
+               orgType            = "",
+               tags               = None))
   private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = false,
-      email       = "",
-      hashedPw    = "$2a$10$sF2iHLnB6vM9Ju/ricD5huT6EnuVjGUKVN/LtJpyAGOT7yaU/kcaW",  // TestDeleteAgentConfigMgmt/u1:a1pw
-      hubAdmin    = false,
-      lastUpdated = ApiTime.nowUTC,
-      orgid       = "TestDeleteAgentConfigMgmt",
-      updatedBy   = "",
-      username    = "TestDeleteAgentConfigMgmt/u1"))
+    Seq(UserRow(admin       = true,
+                email       = "",
+                hashedPw    = "$2a$10$2wH2EO.3XpyVMPkRHRsw/OQN/7m9Zu4tKtib4SH30vlVPiyamQrn.",  // TestDeleteAgentConfigMgmt/admin1:admin1pw
+                hubAdmin    = false,
+                lastUpdated = ApiTime.nowUTC,
+                orgid       = "TestDeleteAgentConfigMgmt",
+                updatedBy   = "",
+                username    = "TestDeleteAgentConfigMgmt/admin1"),
+        UserRow(admin       = false,
+                email       = "",
+                hashedPw    = "$2a$10$sF2iHLnB6vM9Ju/ricD5huT6EnuVjGUKVN/LtJpyAGOT7yaU/kcaW",  // TestDeleteAgentConfigMgmt/u1:a1pw
+                hubAdmin    = false,
+                lastUpdated = ApiTime.nowUTC,
+                orgid       = "TestDeleteAgentConfigMgmt",
+                updatedBy   = "",
+                username    = "TestDeleteAgentConfigMgmt/u1"))
   
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
@@ -62,8 +70,8 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteAgentConfigMgmt").delete andThen
-                                       OrgsTQ.filter(_.orgid startsWith "TestDeleteAgentConfigMgmt").delete), AWAITDURATION)
+    /*Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteAgentConfigMgmt").delete andThen
+                                       OrgsTQ.filter(_.orgid startsWith "TestDeleteAgentConfigMgmt").delete), AWAITDURATION)*/
     
     DBCONNECTION.getDb.close()
   }
@@ -129,17 +137,17 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   ignore("a") {
-    val response: HttpResponse[String] = Http(URL + "IBM").postData(write(PatchOrgRequest(None, None, Some("Patched My Org"), None, None, None))).method("patch").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode("TestDeleteAgentConfigMgmt/a1:a1tok"))).asString
-    info("code: " + response.code)
-    info("body: " + response.body)
+    //val response: HttpResponse[String] = Http(URL + "IBM").postData(write(PatchOrgRequest(None, None, Some("Patched My Org"), None, None, None))).method("patch").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode("TestDeleteAgentConfigMgmt/a1:a1tok"))).asString
+    //info("code: " + response.code)
+    //info("body: " + response.body)
   }
   
-  ignore("") {
-    Http(URL + "TestDeleteAgentConfigMgmt/users/u1").postData(write(PostPutUsersRequest("u1pw", admin = false, Some(false), ""))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    Http(URL + "IBM/users/TestDeleteAgentConfigMgmt-u1").postData(write(PostPutUsersRequest("TestDeleteAgentConfigMgmt-u1pw", admin = false, Some(false), ""))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("") {
+    Http(URL + "TestDeleteAgentConfigMgmt/users/admin1").postData(write(PostPutUsersRequest("admin1pw", admin = true, Some(false), ""))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    Http(URL + "IBM/users/TestDeleteAgentConfigMgmt-admin1").postData(write(PostPutUsersRequest("TestDeleteAgentConfigMgmt-admin1pw", admin = true, Some(false), ""))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     
-    Http(URL+"TestDeleteAgentConfigMgmt/agbots/a1").postData(write(PutAgbotsRequest("a1tok", "a1", None, "ABC"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    Http(URL+"IBM/agbots/TestDeleteAgentConfigMgmt-a1").postData(write(PutAgbotsRequest("TestDeleteAgentConfigMgmt-a1tok", "a1", None, "ABC"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    //Http(URL+"TestDeleteAgentConfigMgmt/agbots/a1").postData(write(PutAgbotsRequest("a1tok", "a1", None, "ABC"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    //Http(URL+"IBM/agbots/TestDeleteAgentConfigMgmt-a1").postData(write(PutAgbotsRequest("TestDeleteAgentConfigMgmt-a1tok", "a1", None, "ABC"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     
     
     assert(true)
@@ -203,7 +211,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
   
-  test("DELETE /v1/orgs/IBM/AgentFileVersion -- Default") {
+  test("DELETE /v1/orgs/IBM/AgentFileVersion -- 204 Deleted - Default") {
     val TESTCERT: Seq[(String, String)] =
       Seq(("1.1.1", "IBM"))
     val TESTCONFIG: Seq[(String, String)] =
@@ -255,7 +263,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
       }, TESTCERT)
   }
   
-  test("DELETE /v1/orgs/IBM/AgentFileVersion -- IBM Agbot") {
+  test("DELETE /v1/orgs/IBM/AgentFileVersion -- 204 Deleted - IBM Agbot") {
     val TESTAGBOTS: Seq[AgbotRow] =
       Seq(AgbotRow(id            = "IBM/TestDeleteAgentConfigMgmt-a1",
         lastHeartbeat = ApiTime.nowUTC,
@@ -302,5 +310,27 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
             assert(changed(0) !== TESTCHG(0)._1)
           }, TESTCHG)
       }, TESTAGBOTS)
+  }
+  
+  test("DELETE /v1/orgs/IBM/AgentFileVersion -- 204 Deleted - IBM Organization Admin") {
+    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
+      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTUSER: Seq[UserRow] =
+      Seq(UserRow(admin       = true,
+                  email       = "",
+                  hashedPw    = "$2a$10$2wH2EO.3XpyVMPkRHRsw/OQN/7m9Zu4tKtib4SH30vlVPiyamQrn.",  // TestDeleteAgentConfigMgmt/admin1:admin1pw
+                  hubAdmin    = false,
+                  lastUpdated = ApiTime.nowUTC,
+                  orgid       = "IBM",
+                  updatedBy   = "",
+                  username    = "IBM/TestDeleteAgentConfigMgmt-admin1"))
+    fixtureUsers(
+      _ => {
+        fixtureVersionsChanged(
+          _ => {
+          
+          }, TESTCHG)
+      }, TESTUSER)
+    
   }
 }

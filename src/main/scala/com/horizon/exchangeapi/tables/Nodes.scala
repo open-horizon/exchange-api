@@ -337,7 +337,6 @@ class NMPStatus(var agentUpgradePolicyStatus: policyStatus){
   def copy = new NMPStatus(agentUpgradePolicyStatus)
 }
 
-
 final case class NodeMgmtPolStatusRow(actualStartTime: String,
                                       certificateVersion: String,
                                       configurationVersion: String,

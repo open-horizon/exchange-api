@@ -18,7 +18,8 @@ object SwaggerDocService extends SwaggerHttpService {
   //override implicit val actorSystem: ActorSystem = system
   //override implicit val materializer: ActorMaterializer = ActorMaterializer()
   override def apiClasses = Set(
-      classOf[AdminRoutes], 
+      classOf[AgentConfigurationManagementRoutes],
+      classOf[AdminRoutes],
       classOf[AgbotsRoutes], 
       classOf[BusinessRoutes], 
       classOf[CatalogRoutes], 

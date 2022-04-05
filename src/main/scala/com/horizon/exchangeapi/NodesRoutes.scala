@@ -2797,25 +2797,41 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             examples = Array(
               new ExampleObject(
                 value = """{
-  "nmpID": [
-    {
-       "agentUpgradePolicyStatus": {
-            "scheduledTime":  "<RFC3339 timestamp>", // the scheduled time to start the upgrade
-            "startTime":  "<RFC3339 timestamp>", // the actual time the upgrade process started.
-            "endTime":  "<RFC3339 timestamp>", // the time the upgrade process ended.
+      "managementStatus": {
+        "mgmtpolicy1": {
+          "agentUpgradePolicyStatus": {
+            "scheduledTime": "<RFC3339 timestamp>",
+            "startTime": "<RFC3339 timestamp>",
+            "endTime": "<RFC3339 timestamp>",
             "upgradedVersions": {
-                "softwareVersion": "",
-                "certVersion": "",
-                "configVersion": ""
+              "softwareVersion": "1.1.1",
+              "certVersion": "2.2.2",
+              "configVersion": "3.3.3"
             },
-            "status":  "",               // the status for the upgrade process. It can be success, failed, in progress etc.
-            "errorMessage": "",   // the error message if the upgrade process failed.
-        },
-     },
-  ],
-  ...
-  "lastUpdated": ""
-}"""
+            "status":  "success|failed|in progress",
+            "errorMessage": "Upgrade process failed",
+            "lastUpdated": ""
+          }
+  },
+        "mgmtpolicy2": {
+          "agentUpgradePolicyStatus": {
+            "scheduledTime": "<RFC3339 timestamp>",
+            "startTime": "<RFC3339 timestamp>",
+            "endTime": "<RFC3339 timestamp>",
+            "upgradedVersions": {
+              "softwareVersion": "1.1.1",
+              "certVersion": "2.2.2",
+              "configVersion": "3.3.3"
+            },
+            "status":  "success|failed|in progress",
+            "errorMessage": "Upgrade process failed",
+            "lastUpdated": ""
+          }
+        }
+},
+    "lastIndex": "0"
+}
+                      """
               )
             ),
             mediaType = "application/json",
@@ -2861,25 +2877,26 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             examples = Array(
               new ExampleObject(
                 value ="""{
-  "nmpID": [
-    {
-       "agentUpgradePolicyStatus": {
-            "scheduledTime":  "<RFC3339 timestamp>", // the scheduled time to start the upgrade
-            "startTime":  "<RFC3339 timestamp>", // the actual time the upgrade process started.
-            "endTime":  "<RFC3339 timestamp>", // the time the upgrade process ended.
+      "managementStatus": {
+        "mgmtpolicy": {
+          "agentUpgradePolicyStatus": {
+            "scheduledTime": "<RFC3339 timestamp>",
+            "startTime": "<RFC3339 timestamp>",
+            "endTime": "<RFC3339 timestamp>",
             "upgradedVersions": {
-                "softwareVersion": "",
-                "certVersion": "",
-                "configVersion": ""
+              "softwareVersion": "1.1.1",
+              "certVersion": "2.2.2",
+              "configVersion": "3.3.3"
             },
-            "status":  "",               // the status for the upgrade process. It can be success, failed, in progress etc.
-            "errorMessage": "",   // the error message if the upgrade process failed.
-        },
-     },
-  ],
-  ...
-  "lastUpdated": ""
-}"""
+            "status":  "success|failed|in progress",
+            "errorMessage": "Upgrade process failed",
+            "lastUpdated": ""
+          }
+}
+},
+    "lastIndex": "0"
+}
+                      """
               )
             ),
             mediaType = "application/json",

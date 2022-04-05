@@ -37,7 +37,7 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 /** Output format for GET /orgs/{orgid}/nodes */
 final case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
 final case class GetNodeAttributeResponse(attribute: String, value: String)
-final case class GetNMPStatusResponse(managementStatus: Map[String,NMPStatus], lastIndex: Int)
+
 
 
 object GetNodesUtils {
@@ -2834,13 +2834,12 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         var q = NodeMgmtPolStatuses.getNodeMgmtPolStatuses(orgid + "/" + id)
         db.run(q.result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/managementStatus result size: "+list.size)
-          val nmpStatuses: Map[String, NMPStatus] = list.map(e => e.policy -> e.toNodeMgmtPolStatus).toMap
           val code: StatusCode with Serializable =
-            if(nmpStatuses.nonEmpty)
+            if(list.nonEmpty)
               StatusCodes.OK
             else
               StatusCodes.NotFound
-          (code, GetNMPStatusResponse(nmpStatuses, 0))
+          (code, GetNMPStatusResponse(list))
         })
       }) // end of complete
     } // end of validate
@@ -2899,14 +2898,12 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       complete({
         db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(compositeId, orgid + "/" + mgmtpolicy).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy status result size: ${list.size}")
-          
-          val nmpStatuses: Map[String, NMPStatus] = list.map(e => e.policy -> e.toNodeMgmtPolStatus).toMap
           val code: StatusCode with Serializable =
-            if(nmpStatuses.nonEmpty)
+            if(list.nonEmpty)
               StatusCodes.OK
             else
               StatusCodes.NotFound
-          (code, GetNMPStatusResponse(nmpStatuses, 0))
+          (code, GetNMPStatusResponse(list))
         })
       }) // end of complete
     } // end of validate

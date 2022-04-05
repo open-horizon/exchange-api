@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.node
 
-import com.horizon.exchangeapi.tables.{ManagementPoliciesTQ, ManagementPolicyRow, NMPStatus, NodeMgmtPolStatusRow, NodeMgmtPolStatuses, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetNMPStatusResponse, HttpCode, Role, TestDBConnection}
+import com.horizon.exchangeapi.tables.{ManagementPoliciesTQ, ManagementPolicyRow, GetNMPStatusResponse, NodeMgmtPolStatusRow, NodeMgmtPolStatuses, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.scalatest.BeforeAndAfterAll

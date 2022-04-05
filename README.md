@@ -300,6 +300,8 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.98.0
+- Issue 571: Response Body Changes For NMP Status GET routes
 
 ## Changes in 2.97.0
 - Issue 558: Added AgentFileVersion APIs

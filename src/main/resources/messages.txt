@@ -367,7 +367,6 @@ invalid.password=Tokens must be at least 15 characters in length and contain at 
 invalid.password.i18n=Tokens must be at least 15 characters in length and contain at least one digit
 services.configstate.org.not.specified=Org attribute not detailed for specific url or version in request body.
 services.configstate.url.not.specified=Version cannot be found if url attribute is not specified.
-status.added.or.updated=status added or update
 node.managementpolicy.status.added.or.updated=status added or updated for management policy ''{0}'' for node ''{1}''.
 node.managementpolicy.status.deleted=deleted status of management policy ''{0}'' for node ''{1}''
 node.managementpolicy.status.not.deleted=management policy ''{0}'' status for node ''{1}'' not deleted: {2}

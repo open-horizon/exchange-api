@@ -34,7 +34,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
              orgid         = "TestDeleteAgentConfigMgmt",
              owner         = "TestDeleteAgentConfigMgmt/u1",
              publicKey     = "",
-             token         = "$2a$10$8wqQUYvY/9a.FtyTT6yE1u6tWKmRWTKsTAaGyfzTMhr4sXyTZO.Qq")  // TestDeleteAgentConfigMgmt/a1:a1tok
+             token         = "$2a$10$dP1e0wIHWOK.VgzsE4cLEuqfiXik6Vz/VEjIMJvVP8BQEp8RFuZVW")  // TestDeleteAgentConfigMgmt/a1:a1tok
   private val TESTORGANIZATIONS: Seq[OrgRow] =
     Seq(OrgRow(heartbeatIntervals = "",
                description        = "",
@@ -47,7 +47,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   private val TESTUSERS: Seq[UserRow] =
     Seq(UserRow(admin       = true,
                 email       = "",
-                hashedPw    = "$2a$10$2wH2EO.3XpyVMPkRHRsw/OQN/7m9Zu4tKtib4SH30vlVPiyamQrn.",  // TestDeleteAgentConfigMgmt/admin1:admin1pw
+                hashedPw    = "$2a$10$354oGJqNCxaAGCqPUVKWi.Zh1Yq2Fb3DalAmzdxMYnOzLL8oScNyO",  // TestDeleteAgentConfigMgmt/admin1:admin1pw
                 hubAdmin    = false,
                 lastUpdated = ApiTime.nowUTC,
                 orgid       = "TestDeleteAgentConfigMgmt",
@@ -70,11 +70,12 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   override def afterAll(): Unit = {
-    /*Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteAgentConfigMgmt").delete andThen
-                                       OrgsTQ.filter(_.orgid startsWith "TestDeleteAgentConfigMgmt").delete), AWAITDURATION)*/
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteAgentConfigMgmt").delete andThen
+                                       OrgsTQ.filter(_.orgid startsWith "TestDeleteAgentConfigMgmt").delete), AWAITDURATION)
     
     DBCONNECTION.getDb.close()
   }
+  
   
   // Agreement Bots that are dynamically needed, specific to the test case.
   def fixtureAgbots(testCode: Seq[AgbotRow] => Any, testData: Seq[AgbotRow]): Any = {
@@ -136,22 +137,6 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
       Await.result(DBCONNECTION.getDb.run(AgentVersionsChangedTQ.delete), AWAITDURATION)
   }
   
-  ignore("a") {
-    //val response: HttpResponse[String] = Http(URL + "IBM").postData(write(PatchOrgRequest(None, None, Some("Patched My Org"), None, None, None))).method("patch").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode("TestDeleteAgentConfigMgmt/a1:a1tok"))).asString
-    //info("code: " + response.code)
-    //info("body: " + response.body)
-  }
-  
-  test("") {
-    Http(URL + "TestDeleteAgentConfigMgmt/users/admin1").postData(write(PostPutUsersRequest("admin1pw", admin = true, Some(false), ""))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    Http(URL + "IBM/users/TestDeleteAgentConfigMgmt-admin1").postData(write(PostPutUsersRequest("TestDeleteAgentConfigMgmt-admin1pw", admin = true, Some(false), ""))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    
-    //Http(URL+"TestDeleteAgentConfigMgmt/agbots/a1").postData(write(PutAgbotsRequest("a1tok", "a1", None, "ABC"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    //Http(URL+"IBM/agbots/TestDeleteAgentConfigMgmt-a1").postData(write(PutAgbotsRequest("TestDeleteAgentConfigMgmt-a1tok", "a1", None, "ABC"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    
-    
-    assert(true)
-  }
   
   test("DELETE /v1/orgs/somerandomorg/AgentFileVersion -- 400 Bad Input - Bad Org") {
     val response: HttpResponse[String] = Http(URL + "somerandomorg/AgentFileVersion").method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
@@ -195,8 +180,8 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
       }, TESTUSERS)
   }
   
-  test("DELETE /v1/orgs/IBM/AgentFileVersion -- 403 Unauthorized Access - TestDeleteAgentConfigMgmt Agbot") {
-    val response: HttpResponse[String] = Http(URL + "IBM/AgentFileVersion").method("delete").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("TestDeleteAgentConfigMgmt/a1:a1tok"))).asString
+  test("DELETE /v1/orgs/IBM/AgentFileVersion -- 403 Unauthorized Access - TestDeleteAgentConfigMgmt Organizational Admin") {
+    val response: HttpResponse[String] = Http(URL + "IBM/AgentFileVersion").method("delete").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("TestDeleteAgentConfigMgmt/admin1:admin1pw"))).asString
     info("code: " + response.code)
     info("body: " + response.body)
     
@@ -211,7 +196,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
   
-  test("DELETE /v1/orgs/IBM/AgentFileVersion -- 204 Deleted - Default") {
+  test("DELETE /v1/orgs/IBM/AgentFileVersion -- 204 Deleted - Root") {
     val TESTCERT: Seq[(String, String)] =
       Seq(("1.1.1", "IBM"))
     val TESTCONFIG: Seq[(String, String)] =
@@ -239,15 +224,16 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                     val changed: Seq[(java.sql.Timestamp, String)] = Await.result(DBCONNECTION.getDb.run(AgentVersionsChangedTQ.result), AWAITDURATION)
                     val configurations: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
                     val resource: Seq[ResourceChangeRow] =
-                      Await.result(DBCONNECTION.getDb.run(
-                        ResourceChangesTQ.filter(_.category === ResChangeCategory.ORG.toString)
-                                         .filter(_.id === "IBM")
-                                         .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-                                         .filter(_.orgId === "IBM")
-                                         .filter(_.resource === ResChangeCategory.ORG.toString)
-                                         .sortBy(_.changeId.desc)
-                                         .result
-                      ), AWAITDURATION)
+                      Await.result(
+                        DBCONNECTION.getDb.run(
+                          ResourceChangesTQ.filter(_.category === ResChangeCategory.ORG.toString)
+                                           .filter(_.id === "IBM")
+                                           .filter(_.operation === ResChangeOperation.MODIFIED.toString)
+                                           .filter(_.orgId === "IBM")
+                                           .filter(_.resource === ResChangeCategory.ORG.toString)
+                                           .sortBy(_.changeId.desc)
+                                           .result
+                        ), AWAITDURATION)
                     val software: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ.result), AWAITDURATION)
                     
                     assert(certificates.isEmpty)
@@ -318,7 +304,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
     val TESTUSER: Seq[UserRow] =
       Seq(UserRow(admin       = true,
                   email       = "",
-                  hashedPw    = "$2a$10$2wH2EO.3XpyVMPkRHRsw/OQN/7m9Zu4tKtib4SH30vlVPiyamQrn.",  // TestDeleteAgentConfigMgmt/admin1:admin1pw
+                  hashedPw    = "$2a$10$wIq/n8oI5hJ8vq36hS4Gy.UkBb0ZSrd8W68IVlozD13lMZwpzRz4.",  // TestDeleteAgentConfigMgmt/admin1:admin1pw
                   hubAdmin    = false,
                   lastUpdated = ApiTime.nowUTC,
                   orgid       = "IBM",
@@ -328,9 +314,26 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
       _ => {
         fixtureVersionsChanged(
           _ => {
-          
+            val response: HttpResponse[String] = Http(URL + "IBM/AgentFileVersion").method("delete").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("IBM/TestDeleteAgentConfigMgmt-admin1:TestDeleteAgentConfigMgmt-admin1pw"))).asString
+            info("code: " + response.code)
+            info("body: " + response.body)
+  
+            assert(response.code === HttpCode.DELETED.intValue)
           }, TESTCHG)
       }, TESTUSER)
+  }
+  
+  test("DELETE /v1/orgs/IBM/AgentFileVersion -- 204 Deleted - TestDeleteAgentConfigMgmt Agbot") {
+    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
+      Seq((ApiTime.nowTimestamp, "IBM"))
     
+    fixtureVersionsChanged(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + "IBM/AgentFileVersion").method("delete").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("TestDeleteAgentConfigMgmt/a1:a1tok"))).asString
+        info("code: " + response.code)
+        info("body: " + response.body)
+        
+        assert(response.code === HttpCode.DELETED.intValue)
+      }, TESTCHG)
   }
 }

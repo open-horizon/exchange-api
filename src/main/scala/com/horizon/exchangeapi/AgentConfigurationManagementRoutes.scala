@@ -38,6 +38,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
     getAgentConfigMgmt ~
     putAgentConfigMgmt
   
+  // =========== DELETE /orgs/{orgid}/AgentFileVersion ===============================
   @DELETE
   @Path("")
   @Operation(summary = "Delete all agent file versions",
@@ -111,6 +112,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
     } // end of exchAuth
   }
   
+  // =========== GET /orgs/{orgid}/AgentFileVersion ===============================
   @GET
   @Path("")
   @Operation(summary = "Get all agent file versions",
@@ -140,7 +142,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
                                new responses.ApiResponse(responseCode = "403", description = "access denied"),
                                new responses.ApiResponse(responseCode = "404", description = "not found")))
   def getAgentConfigMgmt: Route = (path("orgs" / Segment / "AgentFileVersion") & get) { (orgId) =>
-    exchAuth(TOrg("IBM"), Access.READ) { _ =>
+    exchAuth(TOrg("IBM"), Access.READ_AGENT_CONFIG_MGMT) { _ =>
       logger.debug(s"GET /orgs/$orgId/AgentFileVersion")
       complete({
         orgId match {
@@ -151,7 +153,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
                 certificate <- AgentCertificateVersionsTQ.getAgentCertificateVersions("IBM").sortBy(_.desc).result
                 changed <- AgentVersionsChangedTQ.getChanged("IBM").sortBy(_.desc).result
                 configuration <- AgentConfigurationVersionsTQ.getAgentConfigurationVersions("IBM").sortBy(_.desc).result
-                software <- AgentSoftwareVersionsTQ.getAgentSoftwareVersions("IBM").result
+                software <- AgentSoftwareVersionsTQ.getAgentSoftwareVersions("IBM").sortBy(_.desc).result
               } yield (certificate, changed, configuration, software)
             
             versions.transactionally.asTry}).map({
@@ -173,6 +175,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
     } // end of exchAuth
   }
   
+  // =========== PUT /orgs/{orgid}/AgentFileVersion ===============================
   @PUT
   @Path("")
   @Operation(summary = "Put all agent file versions",
@@ -237,7 +240,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
                   ResourceChange(category = ResChangeCategory.ORG,
                     changeId = 0L,
                     id = orgId,
-                    operation = ResChangeOperation.CREATEDMODIFIED,
+                    operation = ResChangeOperation.MODIFIED,
                     orgId = orgId,
                     public = false,
                     resource = ResChangeResource.ORG)

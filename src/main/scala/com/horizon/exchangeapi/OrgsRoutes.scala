@@ -849,7 +849,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
           ident match {
             case _: IUser =>
               // if the caller is a normal user then we need to only return node the caller owns
-              if(!ident.isSuperUser || !ident.isAdmin) qFilter = qFilter.filter(_.owner === ident.identityString)
+              if(!(ident.isSuperUser || ident.isAdmin)) qFilter = qFilter.filter(_.owner === ident.identityString)
             case _ => ; // nodes can't call this route and agbots don't need an additional filter
           }
           val q = for {

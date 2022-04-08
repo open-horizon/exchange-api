@@ -300,6 +300,24 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.87.1
+- This patch back ports some/all changes from the following Exchange versions:
+  - `2.90.2`
+  - `2.90.3`
+  - `2.90.4`
+  - `2.91.0`
+  - `2.92.0`
+  - `2.93.0`
+- The changes include the fixes to the following issues:
+  - Issue 547: Updated Sbt to version `1.5.6`.
+  - Issue 549: Updated Sbt to version `1.5.7`.
+  - Issue 549: Updated Sbt to version `1.6.0`.
+  - Updated Sbt to version `1.6.1`.
+  - Issue 560: Organization Administrators can now read all nodes organization wide from `orgs/{orgid}/search/nodes/service`
+  - Locked `akka-http-jackson` to version `1.37.0`.
+  - Locked Slick to version `3.3.3`.
+  - Locked Slick-PG to version `0.19.3`.
+
 ## Changes in 2.87.0
 - Translation updates
 

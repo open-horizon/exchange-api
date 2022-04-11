@@ -9,6 +9,8 @@ import slick.jdbc.PostgresProfile.api.{DBIO, ForeignKeyAction, Query, Table, Tab
 import slick.lifted.Rep
 import slick.sql.FixedSqlAction
 
+import scala.collection.immutable.Map
+
 
 /** We define this trait because services in the DB and in the search criteria need the same methods, but have slightly different constructor args */
 trait RegServiceTrait {
@@ -331,9 +333,34 @@ final case class UpgradedVersions(softwareVersion: String,
                                   certVersion: String,
                                   configVersion: String)
 
-class NMPStatus(var scheduledTime: String, var startTime: String, var endTime: String, var upgradedVersions: UpgradedVersions, var status: String, var errorMessage: String){
-  def copy = new NMPStatus(scheduledTime, startTime, endTime, upgradedVersions, status, errorMessage)
+final case class PolicyStatus(scheduledTime: String, startTime: String, endTime: String, upgradedVersions: UpgradedVersions, status: String, errorMessage: String, lastUpdated: String)
+
+case class NMPStatus(var agentUpgradePolicyStatus: PolicyStatus){
+  def copy = new NMPStatus(agentUpgradePolicyStatus)
 }
+
+final case class GetNMPStatusResponse(managementStatus: Map[String,NMPStatus], lastIndex: Int)
+
+object GetNMPStatusResponse{
+
+  def apply(managementStatus: Seq[NodeMgmtPolStatusRow], lastIndex: Int = 0):
+  GetNMPStatusResponse = {
+    new GetNMPStatusResponse(managementStatus = managementStatus.map(e => e.policy ->
+      NMPStatus(agentUpgradePolicyStatus =
+        PolicyStatus(scheduledTime = e.scheduledStartTime, startTime = e.actualStartTime, endTime = e.endTime,
+        upgradedVersions = UpgradedVersions(softwareVersion = e.softwareVersion, certVersion = e.certificateVersion, configVersion = e.configurationVersion),
+        status = e.status, errorMessage = e.errorMessage, lastUpdated = e.updated))).toMap
+    , lastIndex = lastIndex
+    )
+  }
+
+  def unapply(response: GetNMPStatusResponse): Option[(Map[String,NMPStatus], Int)] = {
+    // returns the constructor input of the case class.
+    Option(response.managementStatus, response.lastIndex)
+  }
+
+}
+
 
 final case class NodeMgmtPolStatusRow(actualStartTime: String,
                                       certificateVersion: String,
@@ -348,13 +375,7 @@ final case class NodeMgmtPolStatusRow(actualStartTime: String,
                                       updated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def upgradedVersions: UpgradedVersions = UpgradedVersions(certificateVersion, configurationVersion, softwareVersion)
-
-  def toNodeMgmtPolStatus: NMPStatus = {
-    new NMPStatus(scheduledStartTime, actualStartTime, endTime, upgradedVersions, status, errorMessage)
-  }
-
-  def upsert: DBIO[_] = NodeMgmtPolStatuses.rows.insertOrUpdate(this)
+  def upsert: DBIO[_] = NodeMgmtPolStatuses.insertOrUpdate(this)
 }
 
 class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "management_policy_status_node") {
@@ -389,7 +410,6 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
 
 object NodeMgmtPolStatuses extends TableQuery(new NodeMgmtPolStatus(_)) {
 
-  val rows = TableQuery[NodeMgmtPolStatus]
   def getActualStartTime(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.actualStartTime))
   def getCertificateVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.certificateVersion))
   def getConfigurationVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.configurationVersion))

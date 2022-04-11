@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.node
 
-import com.horizon.exchangeapi.tables.{ManagementPoliciesTQ, ManagementPolicyRow, NMPStatus, NodeMgmtPolStatusRow, NodeMgmtPolStatuses, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetNMPStatusResponse, HttpCode, Role, TestDBConnection}
+import com.horizon.exchangeapi.tables.{ManagementPoliciesTQ, ManagementPolicyRow, GetNMPStatusResponse, NodeMgmtPolStatusRow, NodeMgmtPolStatuses, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.scalatest.BeforeAndAfterAll
@@ -162,7 +162,7 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
             info("code: " + response.code + ", response.body: " + response.body)
             assert(response.code === HttpCode.OK.intValue)
             val resp: GetNMPStatusResponse = parse(response.body).extract[GetNMPStatusResponse]
-            assert(resp.agentUpgradePolicyStatus.size == 2)
+            assert(resp.managementStatus.size == 2)
 
           }, TESTNODEMGMTPOLSTATUSES)
       }, TESTMANAGEMENTPOLICY)

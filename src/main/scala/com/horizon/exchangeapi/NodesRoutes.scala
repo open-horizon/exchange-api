@@ -38,7 +38,7 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 final case class GetNodesResponse(nodes: Map[String,Node], lastIndex: Int)
 final case class GetNodeAttributeResponse(attribute: String, value: String)
 
-final case class GetNMPStatusResponse(agentUpgradePolicyStatus: Map[String,NMPStatus], lastIndex: Int)
+
 
 object GetNodesUtils {
   def getNodesProblem(nodetype: Option[String]): Option[String] = {
@@ -409,7 +409,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                            nodeGetPolicyRoute ~
                            nodeGetRoute ~
                            nodeGetStatusRoute ~
-                           nodeGetPutMgmtPolStatus ~
+                           nodeGetMgmtPolStatus ~
                            nodeDeleteMgmtPolStatus ~
                            nodeHeartbeatRoute ~
                            nodePatchRoute ~
@@ -2797,25 +2797,41 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             examples = Array(
               new ExampleObject(
                 value = """{
-  "nmpID": [
-    {
-       "agentUpgradePolicyStatus": {
-            "scheduledTime":  "<RFC3339 timestamp>", // the scheduled time to start the upgrade
-            "startTime":  "<RFC3339 timestamp>", // the actual time the upgrade process started.
-            "endTime":  "<RFC3339 timestamp>", // the time the upgrade process ended.
+      "managementStatus": {
+        "mgmtpolicy1": {
+          "agentUpgradePolicyStatus": {
+            "scheduledTime": "<RFC3339 timestamp>",
+            "startTime": "<RFC3339 timestamp>",
+            "endTime": "<RFC3339 timestamp>",
             "upgradedVersions": {
-                "softwareVersion": "",
-                "certVersion": "",
-                "configVersion": ""
+              "softwareVersion": "1.1.1",
+              "certVersion": "2.2.2",
+              "configVersion": "3.3.3"
             },
-            "status":  "",               // the status for the upgrade process. It can be success, failed, in progress etc.
-            "errorMessage": "",   // the error message if the upgrade process failed.
-        },
-     },
-  ],
-  ...
-  "lastUpdated": ""
-}"""
+            "status":  "success|failed|in progress",
+            "errorMessage": "Upgrade process failed",
+            "lastUpdated": ""
+          }
+  },
+        "mgmtpolicy2": {
+          "agentUpgradePolicyStatus": {
+            "scheduledTime": "<RFC3339 timestamp>",
+            "startTime": "<RFC3339 timestamp>",
+            "endTime": "<RFC3339 timestamp>",
+            "upgradedVersions": {
+              "softwareVersion": "1.1.1",
+              "certVersion": "2.2.2",
+              "configVersion": "3.3.3"
+            },
+            "status":  "success|failed|in progress",
+            "errorMessage": "Upgrade process failed",
+            "lastUpdated": ""
+          }
+        }
+},
+    "lastIndex": "0"
+}
+                      """
               )
             ),
             mediaType = "application/json",
@@ -2834,13 +2850,12 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         var q = NodeMgmtPolStatuses.getNodeMgmtPolStatuses(orgid + "/" + id)
         db.run(q.result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/managementStatus result size: "+list.size)
-          val nmpStatuses: Map[String, NMPStatus] = list.map(e => e.policy -> e.toNodeMgmtPolStatus).toMap
           val code: StatusCode with Serializable =
-            if(nmpStatuses.nonEmpty)
+            if(list.nonEmpty)
               StatusCodes.OK
             else
               StatusCodes.NotFound
-          (code, GetNMPStatusResponse(nmpStatuses, 0))
+          (code, GetNMPStatusResponse(list))
         })
       }) // end of complete
     } // end of validate
@@ -2862,25 +2877,26 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             examples = Array(
               new ExampleObject(
                 value ="""{
-  "nmpID": [
-    {
-       "agentUpgradePolicyStatus": {
-            "scheduledTime":  "<RFC3339 timestamp>", // the scheduled time to start the upgrade
-            "startTime":  "<RFC3339 timestamp>", // the actual time the upgrade process started.
-            "endTime":  "<RFC3339 timestamp>", // the time the upgrade process ended.
+      "managementStatus": {
+        "mgmtpolicy": {
+          "agentUpgradePolicyStatus": {
+            "scheduledTime": "<RFC3339 timestamp>",
+            "startTime": "<RFC3339 timestamp>",
+            "endTime": "<RFC3339 timestamp>",
             "upgradedVersions": {
-                "softwareVersion": "",
-                "certVersion": "",
-                "configVersion": ""
+              "softwareVersion": "1.1.1",
+              "certVersion": "2.2.2",
+              "configVersion": "3.3.3"
             },
-            "status":  "",               // the status for the upgrade process. It can be success, failed, in progress etc.
-            "errorMessage": "",   // the error message if the upgrade process failed.
-        },
-     },
-  ],
-  ...
-  "lastUpdated": ""
-}"""
+            "status":  "success|failed|in progress",
+            "errorMessage": "Upgrade process failed",
+            "lastUpdated": ""
+          }
+}
+},
+    "lastIndex": "0"
+}
+                      """
               )
             ),
             mediaType = "application/json",
@@ -2892,21 +2908,19 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management-policy")
-  def nodeGetPutMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & get) { (orgid, id, mgmtpolicy) =>
+  def nodeGetMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & get) { (orgid, id, mgmtpolicy) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy")
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { _ =>
       complete({
         db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(compositeId, orgid + "/" + mgmtpolicy).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy status result size: ${list.size}")
-          
-          val nmpStatuses: Map[String, NMPStatus] = list.map(e => e.policy -> e.toNodeMgmtPolStatus).toMap
           val code: StatusCode with Serializable =
-            if(nmpStatuses.nonEmpty)
+            if(list.nonEmpty)
               StatusCodes.OK
             else
               StatusCodes.NotFound
-          (code, GetNMPStatusResponse(nmpStatuses, 0))
+          (code, GetNMPStatusResponse(list))
         })
       }) // end of complete
     } // end of validate

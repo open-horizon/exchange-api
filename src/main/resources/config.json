@@ -4,11 +4,15 @@
 {
   "api": {
     "acls": {
-      "AdminUser": ["ALL_IN_ORG"],
+      "AdminUser": [
+        "ALL_IN_ORG",
+        "WRITE_AGENT_CONFIG_MGMT"
+      ],
       "Agbot": [
         "DATA_HEARTBEAT_MY_AGBOTS",
         "MAXCHANGEID",
         "READ_MYSELF",
+        "READ_AGENT_CONFIG_MGMT",
         "READ_ALL_AGBOTS",
         "READ_ALL_NODES",
         "READ_ALL_SERVICES",
@@ -28,6 +32,7 @@
         "CREATE_USER",
         "DELETE_ORG",
         "ORGSTATUS",
+        "READ_AGENT_CONFIG_MGMT",
         "READ_ALL_AGBOTS",
         "READ_IBM_ORGS",
         "READ_MY_ORG",
@@ -46,6 +51,7 @@
       ],
       "Node": [
         "MAXCHANGEID",
+        "READ_AGENT_CONFIG_MGMT",
         "READ_ALL_AGBOTS",
         "READ_ALL_BUSINESS",
         "READ_ALL_MANAGEMENT_POLICY",
@@ -64,6 +70,7 @@
         "CREATE_PATTERNS",
         "CREATE_SERVICES",
         "DATA_HEARTBEAT_MY_AGBOTS",
+        "READ_AGENT_CONFIG_MGMT",
         "READ_ALL_AGBOTS",
         "READ_ALL_BUSINESS",
         "READ_ALL_MANAGEMENT_POLICY",

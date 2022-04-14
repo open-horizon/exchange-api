@@ -333,7 +333,13 @@ final case class UpgradedVersions(softwareVersion: String,
                                   certVersion: String,
                                   configVersion: String)
 
-final case class PolicyStatus(scheduledTime: String, startTime: String, endTime: String, upgradedVersions: UpgradedVersions, status: String, errorMessage: String, lastUpdated: String)
+final case class PolicyStatus(scheduledTime: String,
+                              startTime: String,
+                              endTime: String,
+                              upgradedVersions: UpgradedVersions,
+                              status: String,
+                              errorMessage: String,
+                              lastUpdated: String)
 
 case class NMPStatus(var agentUpgradePolicyStatus: PolicyStatus){
   def copy = new NMPStatus(agentUpgradePolicyStatus)
@@ -342,23 +348,28 @@ case class NMPStatus(var agentUpgradePolicyStatus: PolicyStatus){
 final case class GetNMPStatusResponse(managementStatus: Map[String,NMPStatus], lastIndex: Int)
 
 object GetNMPStatusResponse{
-
-  def apply(managementStatus: Seq[NodeMgmtPolStatusRow], lastIndex: Int = 0):
-  GetNMPStatusResponse = {
-    new GetNMPStatusResponse(managementStatus = managementStatus.map(e => e.policy ->
-      NMPStatus(agentUpgradePolicyStatus =
-        PolicyStatus(scheduledTime = e.scheduledStartTime, startTime = e.actualStartTime, endTime = e.endTime,
-        upgradedVersions = UpgradedVersions(softwareVersion = e.softwareVersion, certVersion = e.certificateVersion, configVersion = e.configurationVersion),
-        status = e.status, errorMessage = e.errorMessage, lastUpdated = e.updated))).toMap
-    , lastIndex = lastIndex
-    )
+  def apply(managementStatus: Seq[NodeMgmtPolStatusRow], lastIndex: Int = 0): GetNMPStatusResponse = {
+    new GetNMPStatusResponse(
+      managementStatus =
+        managementStatus.map(
+          e => e.policy -> NMPStatus(agentUpgradePolicyStatus =
+                                       PolicyStatus(scheduledTime = e.scheduledStartTime,
+                                                    startTime = e.actualStartTime.getOrElse(""),
+                                                    endTime = e.endTime.getOrElse(""),
+                                                    upgradedVersions =
+                                                      UpgradedVersions(softwareVersion = e.softwareVersion.getOrElse(""),
+                                                                       certVersion = e.certificateVersion.getOrElse(""),
+                                                                       configVersion = e.configurationVersion.getOrElse("")),
+                                                    status = e.status.getOrElse(""),
+                                                    errorMessage = e.errorMessage.getOrElse(""),
+                                                    lastUpdated = e.updated))
+        ).toMap,
+      lastIndex = lastIndex)
   }
 
   def unapply(response: GetNMPStatusResponse): Option[(Map[String,NMPStatus], Int)] = {
-    // returns the constructor input of the case class.
-    Option(response.managementStatus, response.lastIndex)
+    Option((response.managementStatus, response.lastIndex))
   }
-
 }
 
 

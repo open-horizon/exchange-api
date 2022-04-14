@@ -2847,7 +2847,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { ident =>
       complete({
-        var q = NodeMgmtPolStatuses.getNodeMgmtPolStatuses(orgid + "/" + id)
+        var q = NodeMgmtPolStatuses.getNodeMgmtPolStatuses(orgid + "/" + id).sortBy(_.policy.asc.nullsFirst)
         db.run(q.result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/managementStatus result size: "+list.size)
           val code: StatusCode with Serializable =

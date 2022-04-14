@@ -429,6 +429,7 @@ case class IUser(creds: Creds) extends Identity {
         access match {
           case Access.READ => Access.READ_OTHER_ORGS
           case Access.WRITE => Access.WRITE_OTHER_ORGS
+          case Access.WRITE_AGENT_CONFIG_MGMT => Access.WRITE_OTHER_ORGS
           case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
           case _ => access
         }
@@ -600,7 +601,6 @@ case class IAgbot(creds: Creds) extends Identity {
         access match {
           case Access.READ => Access.READ_OTHER_ORGS
           case Access.WRITE => Access.WRITE_OTHER_ORGS
-          case Access.WRITE_AGENT_CONFIG_MGMT => Access.WRITE_OTHER_ORGS
           case Access.CREATE => Access.CREATE_IN_OTHER_ORGS
           case _ => access
         }

@@ -47,7 +47,7 @@ lazy val root = (project in file("."))
           "com.typesafe.akka" %% "akka-http-xml"        % "[10.2.4]",
           // "com.typesafe.akka" %% "akka-stream"          % "[2.6.14,)",
           // "com.typesafe.akka" %% "akka-http-spray-json" % "[10.2.1,)",
-          "de.heikoseeberger" %% "akka-http-jackson" % "[1.35.3,)",  // version 1.35.3 pulls in akka 2.6.10 and akkahttp 10.2.2
+          "de.heikoseeberger" %% "akka-http-jackson" % "[1.37.0]",  // version 1.35.3 pulls in akka 2.6.10 and akkahttp 10.2.2
           // "com.typesafe.akka" %% "akka-http-jackson" % "[10.2.1,)", //<- can not find any recent documentation on how to use this
           
           "org.json4s" %% "json4s-native" % "3.6.6",  // Version 3.7.0-M3 is incompatible.
@@ -62,10 +62,10 @@ lazy val root = (project in file("."))
           "io.swagger.core.v3" % "swagger-models" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-models
           "io.swagger.core.v3" % "swagger-jaxrs2" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-jaxrs2
   
-          "com.typesafe.slick" %% "slick" % "[3.3.3,)",
-          "com.typesafe.slick" %% "slick-hikaricp" % "[3.3.3,)",
-          "com.github.tminglei" %% "slick-pg" % "[0.19.3,)",
-          "com.github.tminglei" %% "slick-pg_json4s" % "[0.19.3,)",
+          "com.typesafe.slick" %% "slick" % "[3.3.3]",
+          "com.typesafe.slick" %% "slick-hikaricp" % "[3.3.3]",
+          "com.github.tminglei" %% "slick-pg" % "[0.19.3]",
+          "com.github.tminglei" %% "slick-pg_json4s" % "[0.19.3]",
           "org.postgresql" % "postgresql" % "42.2.19",  // Version number must be manually specified to prevent Maven from selecting a jre6/7 version of this dependency.
           //"com.zaxxer" % "HikariCP" % "[3.4.5,)",
           "org.slf4j" % "slf4j-simple" % "[1.7.30]", // Needed by scalacache, slick, and swagger.

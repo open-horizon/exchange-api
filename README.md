@@ -300,6 +300,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.100.0
+- Issue 572: All request body values are optional except for `scheduledTime`.
+- Updated internationalization.
+
 ## Changes in 2.99.0
 - Issue 574: Any Agbot can perform destructive requests. All role types can read.
 

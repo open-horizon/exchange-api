@@ -5,6 +5,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.mutable.ListBuffer
 import akka.event.LoggingAdapter
+import akka.http.scaladsl.model.headers.CacheDirectives.public
 import slick.jdbc
 
 
@@ -203,11 +204,20 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
         AgentSoftwareVersionsTQ.schema.create,
         AgentVersionsChangedTQ.schema.create
       )
+      case 47 => DBIO.seq(    // v2..0
+        sqlu"ALTER TABLE management_policy_status_node ALTER COLUMN time_start_actual DROP NOT NULL",
+        sqlu"ALTER TABLE management_policy_status_node ALTER COLUMN version_certificate DROP NOT NULL",
+        sqlu"ALTER TABLE management_policy_status_node ALTER COLUMN version_configuration DROP NOT NULL",
+        sqlu"ALTER TABLE management_policy_status_node ALTER COLUMN time_end DROP NOT NULL",
+        sqlu"ALTER TABLE management_policy_status_node ALTER COLUMN error_message DROP NOT NULL",
+        sqlu"ALTER TABLE management_policy_status_node ALTER COLUMN version_software DROP NOT NULL",
+        sqlu"ALTER TABLE management_policy_status_node ALTER COLUMN status DROP NOT NULL"
+    )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
 
-  val latestSchemaVersion = 46    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion = 47    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription = "adding deployment, management, nodepolicyversion columns to nodepolicies table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

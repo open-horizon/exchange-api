@@ -333,7 +333,13 @@ final case class UpgradedVersions(softwareVersion: String,
                                   certVersion: String,
                                   configVersion: String)
 
-final case class PolicyStatus(scheduledTime: String, startTime: String, endTime: String, upgradedVersions: UpgradedVersions, status: String, errorMessage: String, lastUpdated: String)
+final case class PolicyStatus(scheduledTime: String,
+                              startTime: String,
+                              endTime: String,
+                              upgradedVersions: UpgradedVersions,
+                              status: String,
+                              errorMessage: String,
+                              lastUpdated: String)
 
 case class NMPStatus(var agentUpgradePolicyStatus: PolicyStatus){
   def copy = new NMPStatus(agentUpgradePolicyStatus)
@@ -342,36 +348,41 @@ case class NMPStatus(var agentUpgradePolicyStatus: PolicyStatus){
 final case class GetNMPStatusResponse(managementStatus: Map[String,NMPStatus], lastIndex: Int)
 
 object GetNMPStatusResponse{
-
-  def apply(managementStatus: Seq[NodeMgmtPolStatusRow], lastIndex: Int = 0):
-  GetNMPStatusResponse = {
-    new GetNMPStatusResponse(managementStatus = managementStatus.map(e => e.policy ->
-      NMPStatus(agentUpgradePolicyStatus =
-        PolicyStatus(scheduledTime = e.scheduledStartTime, startTime = e.actualStartTime, endTime = e.endTime,
-        upgradedVersions = UpgradedVersions(softwareVersion = e.softwareVersion, certVersion = e.certificateVersion, configVersion = e.configurationVersion),
-        status = e.status, errorMessage = e.errorMessage, lastUpdated = e.updated))).toMap
-    , lastIndex = lastIndex
-    )
+  def apply(managementStatus: Seq[NodeMgmtPolStatusRow], lastIndex: Int = 0): GetNMPStatusResponse = {
+    new GetNMPStatusResponse(
+      managementStatus =
+        managementStatus.map(
+          e => e.policy -> NMPStatus(agentUpgradePolicyStatus =
+                                       PolicyStatus(scheduledTime = e.scheduledStartTime,
+                                                    startTime = e.actualStartTime.getOrElse(""),
+                                                    endTime = e.endTime.getOrElse(""),
+                                                    upgradedVersions =
+                                                      UpgradedVersions(softwareVersion = e.softwareVersion.getOrElse(""),
+                                                                       certVersion = e.certificateVersion.getOrElse(""),
+                                                                       configVersion = e.configurationVersion.getOrElse("")),
+                                                    status = e.status.getOrElse(""),
+                                                    errorMessage = e.errorMessage.getOrElse(""),
+                                                    lastUpdated = e.updated))
+        ).toMap,
+      lastIndex = lastIndex)
   }
 
   def unapply(response: GetNMPStatusResponse): Option[(Map[String,NMPStatus], Int)] = {
-    // returns the constructor input of the case class.
-    Option(response.managementStatus, response.lastIndex)
+    Option((response.managementStatus, response.lastIndex))
   }
-
 }
 
 
-final case class NodeMgmtPolStatusRow(actualStartTime: String,
-                                      certificateVersion: String,
-                                      configurationVersion: String,
-                                      endTime: String,
-                                      errorMessage: String,
+final case class NodeMgmtPolStatusRow(actualStartTime: Option[String],
+                                      certificateVersion: Option[String],
+                                      configurationVersion: Option[String],
+                                      endTime: Option[String],
+                                      errorMessage: Option[String],
                                       node: String,
                                       policy: String,
                                       scheduledStartTime: String,
-                                      softwareVersion: String,
-                                      status: String,
+                                      softwareVersion: Option[String],
+                                      status: Option[String],
                                       updated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
@@ -379,29 +390,29 @@ final case class NodeMgmtPolStatusRow(actualStartTime: String,
 }
 
 class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "management_policy_status_node") {
-  def actualStartTime = column[String]("time_start_actual")
-  def certificateVersion = column[String]("version_certificate")
-  def configurationVersion = column[String]("version_configuration")
-  def endTime = column[String]("time_end")
-  def errorMessage = column[String]("error_message")
+  def actualStartTime = column[Option[String]]("time_start_actual")
+  def certificateVersion = column[Option[String]]("version_certificate")
+  def configurationVersion = column[Option[String]]("version_configuration")
+  def endTime = column[Option[String]]("time_end")
+  def errorMessage = column[Option[String]]("error_message")
   def node = column[String]("node")
   def policy = column[String]("policy")
   def scheduledStartTime = column[String]("time_start_scheduled")
-  def softwareVersion = column[String]("version_software")
-  def status = column[String]("status")
+  def softwareVersion = column[Option[String]]("version_software")
+  def status = column[Option[String]]("status")
   def updated = column[String]("updated")
   
   def * = (actualStartTime,
-    certificateVersion,
-    configurationVersion,
-    endTime,
-    errorMessage,
-    node,
-    policy,
-    scheduledStartTime,
-    softwareVersion,
-    status,
-    updated).<>(NodeMgmtPolStatusRow.tupled, NodeMgmtPolStatusRow.unapply)
+           certificateVersion,
+           configurationVersion,
+           endTime,
+           errorMessage,
+           node,
+           policy,
+           scheduledStartTime,
+           softwareVersion,
+           status,
+           updated).<>(NodeMgmtPolStatusRow.tupled, NodeMgmtPolStatusRow.unapply)
   def pkNodeMgmtPolStatus = primaryKey("pk_management_policy_status_node", (node, policy))
   
   def fkNode = foreignKey("fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
@@ -409,17 +420,17 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
 }
 
 object NodeMgmtPolStatuses extends TableQuery(new NodeMgmtPolStatus(_)) {
-
-  def getActualStartTime(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.actualStartTime))
-  def getCertificateVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.certificateVersion))
-  def getConfigurationVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.configurationVersion))
-  def getEndTime(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.endTime))
-  def getErrorMessage(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.errorMessage))
+  
+  def getActualStartTime(node: String, policy: String): Query[Rep[Option[String]], Option[String], Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.actualStartTime))
+  def getCertificateVersion(node: String, policy: String): Query[Rep[Option[String]], Option[String], Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.certificateVersion))
+  def getConfigurationVersion(node: String, policy: String): Query[Rep[Option[String]], Option[String], Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.configurationVersion))
+  def getEndTime(node: String, policy: String): Query[Rep[Option[String]], Option[String], Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.endTime))
+  def getErrorMessage(node: String, policy: String): Query[Rep[Option[String]], Option[String], Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.errorMessage))
   def getNodeMgmtPolStatus(node: String, policy: String): Query[NodeMgmtPolStatus, NodeMgmtPolStatusRow, Seq] = this.filter(s => {s.node === node && s.policy === policy})
   def getNodeMgmtPolStatuses(node: String): Query[NodeMgmtPolStatus, NodeMgmtPolStatusRow, Seq] = this.filter(s => {s.node === node})
   def getScheduledStartTime(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.scheduledStartTime))
-  def getSoftwareVersion(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.softwareVersion))
-  def getStatus(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.status))
+  def getSoftwareVersion(node: String, policy: String): Query[Rep[Option[String]], Option[String], Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.softwareVersion))
+  def getStatus(node: String, policy: String): Query[Rep[Option[String]], Option[String], Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.status))
   def getUpdated(node: String, policy: String): Query[Rep[String], String, Seq] = this.filter(_.node === node).filter(_.policy === policy).map(status => (status.updated))
 }
 

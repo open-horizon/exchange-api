@@ -204,7 +204,7 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
         AgentSoftwareVersionsTQ.schema.create,
         AgentVersionsChangedTQ.schema.create
       )
-      case 47 => DBIO.seq(    // v2..0
+      case 47 => DBIO.seq(    // v2.100.0
         sqlu"ALTER TABLE management_policy_status_node ALTER COLUMN time_start_actual DROP NOT NULL",
         sqlu"ALTER TABLE management_policy_status_node ALTER COLUMN version_certificate DROP NOT NULL",
         sqlu"ALTER TABLE management_policy_status_node ALTER COLUMN version_configuration DROP NOT NULL",
@@ -217,9 +217,9 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
         sqlu"ALTER TABLE agent_version_certificate ADD COLUMN IF NOT EXISTS priority bigint NULL;",
         sqlu"ALTER TABLE agent_version_configuration ADD COLUMN IF NOT EXISTS priority bigint NULL;",
         sqlu"ALTER TABLE agent_version_software ADD COLUMN IF NOT EXISTS priority bigint NULL;",
-        sqlu"CREATE UNIQUE INDEX IF NOT EXISTS idx_avcert_priority ON public.agent_version_certificate (organization, priority);",
-        sqlu"CREATE UNIQUE INDEX IF NOT EXISTS idx_avconfig_priority ON public.agent_version_configuration (organization, priority);",
-        sqlu"""CREATE UNIQUE INDEX IF NOT EXISTS idx_avsoft_priority ON public.agent_version_software ("version", priority);"""
+        sqlu"CREATE UNIQUE INDEX IF NOT EXISTS idx_avcert_priority ON agent_version_certificate (organization, priority);",
+        sqlu"CREATE UNIQUE INDEX IF NOT EXISTS idx_avconfig_priority ON agent_version_configuration (organization, priority);",
+        sqlu"""CREATE UNIQUE INDEX IF NOT EXISTS idx_avsoft_priority ON agent_version_software ("version", priority);"""
     )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }

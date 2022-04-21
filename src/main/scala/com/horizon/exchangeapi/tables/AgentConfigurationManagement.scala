@@ -34,7 +34,7 @@ class AgentCertificateVersions(tag: Tag) extends Table[(String, String, Option[L
   def * = (certificateVersion, organization, priority)
   def pkAgentVerCert = primaryKey("pk_agent_version_certificate", (organization, certificateVersion))
   def fkOrg = foreignKey("fk_organization", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def idxPriority = index("idx_priority", (organization, priority), unique = true)
+  def idxPriority = index("idx_avcert_priority", (organization, priority), unique = true)
 }
 
 object AgentCertificateVersionsTQ extends TableQuery(new AgentCertificateVersions(_)) {
@@ -50,7 +50,7 @@ class AgentConfigurationVersions(tag: Tag) extends Table[(String, String, Option
   def * = (configurationVersion, organization, priority)
   def pkAgentVerConfig = primaryKey("pk_agent_version_configuration", (organization, configurationVersion))
   def fkOrg = foreignKey("fk_organization", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def idxPriority = index("idx_priority", (organization, priority), unique = true)
+  def idxPriority = index("idx_avconfig_priority", (organization, priority), unique = true)
 }
 
 object AgentConfigurationVersionsTQ extends TableQuery(new AgentConfigurationVersions(_)) {
@@ -66,7 +66,7 @@ class AgentSoftwareVersions(tag: Tag) extends Table[(String, String, Option[Long
   def * = (organization, softwareVersion, priority)
   def pkAgentVerSoft = primaryKey("pk_agent_version_software", (organization, softwareVersion))
   def fkOrg = foreignKey("fk_organization", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def idxPriority = index("idx_priority", (organization, priority), unique = true)
+  def idxPriority = index("idx_avsoft_priority", (organization, priority), unique = true)
 }
 
 object AgentSoftwareVersionsTQ extends TableQuery(new AgentSoftwareVersions(_)) {

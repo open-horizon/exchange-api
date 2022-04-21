@@ -1,8 +1,8 @@
 package com.horizon.exchangeapi.route.agentconfigurationmanagement
 
-import com.horizon.exchangeapi.tables.{AgbotMsgRow, AgbotMsgsTQ, AgbotRow, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsRequest, AgentVersionsResponse, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResourceChangeRow, ResourceChangesTQ, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetAgbotMsgsResponse, HttpCode, PostPutUsersRequest, PutAgbotsRequest, Role, TestDBConnection}
-import org.json4s.DefaultFormats
+import com.horizon.exchangeapi.tables.{AgbotMsgRow, AgbotMsgsTQ, AgbotRow, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsRequest, AgentVersionsResponse, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, ChangeEntry, GetAgbotMsgsResponse, HttpCode, PostPutUsersRequest, PutAgbotsRequest, ResourceChangesRequest, ResourceChangesRespObject, Role, TestDBConnection}
+import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, DoNotDiscover, Suite}
@@ -15,15 +15,15 @@ import scala.concurrent.duration.{Duration, DurationInt}
 
 @DoNotDiscover
 class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with BeforeAndAfterEach with Suite {
-  private val ACCEPT = ("Accept", "application/json")
-  private val CONTENT = ("Content-Type", "application/json")
+  private val ACCEPT: (String, String) = ("Accept", "application/json")
+  private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
   // private val ORGID = "TestPutAgentConfigMgmt"
-  private val ROOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
-  private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   
-  private implicit val formats = DefaultFormats
+  private implicit val formats: Formats = DefaultFormats.withLong
   
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id = "TestPutAgentConfigMgmt/a1",
@@ -69,7 +69,9 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPutAgentConfigMgmt").delete andThen
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(change => {(change.orgId startsWith "TestPutAgentConfigMgmt") ||
+                                                                           (change.orgId === "IBM" &&
+                                                                            change.resource === "agentfileversion")}).delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestPutAgentConfigMgmt").delete), AWAITDURATION)
 
     DBCONNECTION.getDb.close()
@@ -240,7 +242,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                            .filter(_.id === "IBM")
                            .filter(_.operation === ResChangeOperation.MODIFIED.toString)
                            .filter(_.orgId === "IBM")
-                           .filter(_.resource === ResChangeCategory.ORG.toString)
+                           .filter(_.resource === ResChangeResource.AGENTFILEVERSION.toString)
                            .sortBy(_.changeId.desc)
                            .result
         ), AWAITDURATION)
@@ -272,6 +274,19 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     assert(software(1)._1  === "IBM")
     assert(software(1)._2  === TESTSOFT(1))
     assert(software(1)._3.getOrElse(-1)  === 1)
+    
+    val request2: HttpResponse[String] = Http(URL + "TestPutAgentConfigMgmt/changes").postData(write(ResourceChangesRequest(changeId = 0, lastUpdated = None, maxRecords = 1000, orgList = None))).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("TestPutAgentConfigMgmt/u1:u1pw"))).asString
+    info("code: " + request2.code)
+    info("body: " + request2.body)
+    
+    assert(request2.code === HttpCode.POST_OK.intValue)
+    
+    val versionChanges: List[ChangeEntry] = parse(request2.body).extract[ResourceChangesRespObject].changes.filter(change => {change.orgId === "IBM" && change.resource === "agentfileversion"})
+    
+    assert(versionChanges.head.id === "IBM")
+    assert(versionChanges.head.operation === "modified")
+    assert(versionChanges.head.orgId === "IBM")
+    assert(versionChanges.head.resource === "agentfileversion")
   }
   
   test("PUT /v1/orgs/IBM/AgentFileVersion -- 201 Updated - Root") {
@@ -305,7 +320,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                            .filter(_.id === "IBM")
                            .filter(_.operation === ResChangeOperation.MODIFIED.toString)
                            .filter(_.orgId === "IBM")
-                           .filter(_.resource === ResChangeCategory.ORG.toString)
+                           .filter(_.resource === ResChangeResource.AGENTFILEVERSION.toString)
                            .sortBy(_.changeId.desc)
                            .result
         ), AWAITDURATION)

@@ -300,6 +300,10 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.101.0
+- Issue 581: Array order for versions maintained in the Exchange's DB and returned correctly when retrieved using a GET.
+- Issue 582: Nodes, Agbots, Users, and Admin can now read resource changes for AgentFileVersions.
+
 ## Changes in 2.100.0
 - Issue 572: All request body values are optional except for `scheduledTime`.
 - Updated internationalization.

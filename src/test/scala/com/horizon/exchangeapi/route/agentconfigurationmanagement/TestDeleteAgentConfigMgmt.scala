@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.agentconfigurationmanagement
 
-import com.horizon.exchangeapi.tables.{AgbotMsgRow, AgbotMsgsTQ, AgbotRow, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsResponse, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResourceChangeRow, ResourceChangesTQ, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetAgbotMsgsResponse, HttpCode, PatchOrgRequest, PostPutUsersRequest, PutAgbotsRequest, Role, TestDBConnection}
+import com.horizon.exchangeapi.tables.{AgbotMsgRow, AgbotMsgsTQ, AgbotRow, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsResponse, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, ChangeEntry, GetAgbotMsgsResponse, HttpCode, PatchOrgRequest, PostPutUsersRequest, PutAgbotsRequest, ResourceChangesRequest, ResourceChangesRespObject, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
@@ -71,7 +71,9 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteAgentConfigMgmt").delete andThen
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(change => {(change.orgId startsWith "TestPutAgentConfigMgmt") ||
+                                                                           (change.orgId === "IBM" &&
+                                                                            change.resource === "agentfileversion")}).delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestDeleteAgentConfigMgmt").delete), AWAITDURATION)
     
     DBCONNECTION.getDb.close()
@@ -231,7 +233,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                                            .filter(_.id === "IBM")
                                            .filter(_.operation === ResChangeOperation.MODIFIED.toString)
                                            .filter(_.orgId === "IBM")
-                                           .filter(_.resource === ResChangeCategory.ORG.toString)
+                                           .filter(_.resource === ResChangeResource.AGENTFILEVERSION.toString)
                                            .sortBy(_.changeId.desc)
                                            .result
                         ), AWAITDURATION)
@@ -244,6 +246,19 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                     assert(software.isEmpty)
                     
                     assert(changed(0) !== TESTCHG(0)._1)
+  
+                    val request2: HttpResponse[String] = Http(URL + "TestDeleteAgentConfigMgmt/changes").postData(write(ResourceChangesRequest(changeId = 0, lastUpdated = None, maxRecords = 1000, orgList = None))).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("TestDeleteAgentConfigMgmt/u1:u1pw"))).asString
+                    info("code: " + request2.code)
+                    info("body: " + request2.body)
+  
+                    assert(request2.code === HttpCode.POST_OK.intValue)
+  
+                    val versionChanges: List[ChangeEntry] = parse(request2.body).extract[ResourceChangesRespObject].changes.filter(change => {change.orgId === "IBM" && change.resource === "agentfileversion"})
+  
+                    assert(versionChanges.head.id === "IBM")
+                    assert(versionChanges.head.operation === "modified")
+                    assert(versionChanges.head.orgId === "IBM")
+                    assert(versionChanges.head.resource === "agentfileversion")
                   }, TESTCHG)
               }, TESTSOFT)
           }, TESTCONFIG)
@@ -282,7 +297,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                                  .filter(_.id === "IBM")
                                  .filter(_.operation === ResChangeOperation.MODIFIED.toString)
                                  .filter(_.orgId === "IBM")
-                                 .filter(_.resource === ResChangeCategory.ORG.toString)
+                                 .filter(_.resource === ResChangeResource.AGENTFILEVERSION.toString)
                                  .sortBy(_.changeId.desc)
                                  .result
               ), AWAITDURATION)

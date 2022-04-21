@@ -88,7 +88,9 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   override def afterAll(): Unit = {
-   Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestGetAgentConfigMgmt").delete andThen
+   Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(change => {(change.orgId startsWith "TestPutAgentConfigMgmt") ||
+                                                                          (change.orgId === "IBM" &&
+                                                                           change.resource === "agentfileversion")}).delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestGetAgentConfigMgmt").delete), AWAITDURATION)
     
     DBCONNECTION.getDb.close()

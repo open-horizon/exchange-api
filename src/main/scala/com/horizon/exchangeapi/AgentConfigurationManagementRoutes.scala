@@ -76,8 +76,8 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
                                                                      lastUpdated = timestamp,
                                                                      operation = ResChangeOperation.MODIFIED.toString,
                                                                      orgId = "IBM",
-                                                                     public = "false",
-                                                                     resource = ResChangeResource.ORG.toString)
+                                                                     public = "true",
+                                                                     resource = ResChangeResource.AGENTFILEVERSION.toString)
                   software <- AgentSoftwareVersionsTQ.delete
                 } yield (certificate, changed, configuration, resource, software)
               
@@ -234,8 +234,8 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
                                      id = orgId,
                                      operation = ResChangeOperation.MODIFIED,
                                      orgId = orgId,
-                                     public = false,
-                                     resource = ResChangeResource.ORG).insert)
+                                     public = true,
+                                     resource = ResChangeResource.AGENTFILEVERSION).insert)
                   .transactionally.asTry.map({
                   case Success(v) =>
                     logger.debug("PUT /orgs/" + orgId + "/AgentFileVersion result: " + v)

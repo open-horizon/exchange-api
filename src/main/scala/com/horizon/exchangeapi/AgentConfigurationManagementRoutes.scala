@@ -76,8 +76,8 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
                                                                      lastUpdated = timestamp,
                                                                      operation = ResChangeOperation.MODIFIED.toString,
                                                                      orgId = "IBM",
-                                                                     public = "false",
-                                                                     resource = ResChangeResource.ORG.toString)
+                                                                     public = "true",
+                                                                     resource = ResChangeResource.AGENTFILEVERSION.toString)
                   software <- AgentSoftwareVersionsTQ.delete
                 } yield (certificate, changed, configuration, resource, software)
               
@@ -150,10 +150,10 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
             db.run({
               val versions: DBIOAction[(Seq[String], Seq[Timestamp], Seq[String], Seq[String]), NoStream, Effect.Read] =
                 for {
-                certificate <- AgentCertificateVersionsTQ.getAgentCertificateVersions("IBM").sortBy(_.desc).result
+                certificate <- AgentCertificateVersionsTQ.sortBy(_.priority.asc.nullsLast).filter(_.organization === "IBM").map(_.certificateVersion).result
                 changed <- AgentVersionsChangedTQ.getChanged("IBM").sortBy(_.desc).result
-                configuration <- AgentConfigurationVersionsTQ.getAgentConfigurationVersions("IBM").sortBy(_.desc).result
-                software <- AgentSoftwareVersionsTQ.getAgentSoftwareVersions("IBM").sortBy(_.desc).result
+                configuration <- AgentConfigurationVersionsTQ.sortBy(_.priority.asc.nullsLast).filter(_.organization === "IBM").map(_.configurationVersion).result
+                software <- AgentSoftwareVersionsTQ.sortBy(_.priority.asc.nullsLast).filter(_.organization === "IBM").map(_.softwareVersion).result
               } yield (certificate, changed, configuration, software)
             
             versions.transactionally.asTry}).map({
@@ -220,31 +220,22 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
   def putAgentConfigMgmt: Route = (path("orgs" / Segment / "AgentFileVersion") & put & entity(as[AgentVersionsRequest])) { (orgId, reqBody) =>
       exchAuth(TOrg("IBM"), Access.WRITE_AGENT_CONFIG_MGMT) { _ =>
         complete({
-          val a: Seq[String] = reqBody.agentCertVersions
-          val b: Seq[String] = reqBody.agentConfigVersions
-          val c: Seq[String] = reqBody.agentSoftwareVersions
           orgId match {
             case "IBM" =>
-              db.run(
-                (AgentCertificateVersionsTQ.delete) andThen (AgentConfigurationVersionsTQ.delete) andThen (AgentSoftwareVersionsTQ.delete)
-                  andThen (
-              AgentCertificateVersionsTQ ++= a.map(v => {(v, orgId)}))
-                  andThen (
-              AgentConfigurationVersionsTQ ++= b.map(v => {(v, orgId)}))
-                  andThen (
-              AgentSoftwareVersionsTQ ++= c.map(v => {(orgId, v)}))
-                  andThen (
-              AgentVersionsChangedTQ
-                    .insertOrUpdate(ApiTime.nowUTCTimestamp, orgId))
-                  andThen (
-                  ResourceChange(category = ResChangeCategory.ORG,
-                    changeId = 0L,
-                    id = orgId,
-                    operation = ResChangeOperation.MODIFIED,
-                    orgId = orgId,
-                    public = false,
-                    resource = ResChangeResource.ORG)
-                    .insert)
+              db.run((AgentCertificateVersionsTQ.delete) andThen
+                     (AgentConfigurationVersionsTQ.delete) andThen
+                     (AgentSoftwareVersionsTQ.delete) andThen
+                     (AgentCertificateVersionsTQ ++= reqBody.agentCertVersions.zipWithIndex.map(certificates => {(certificates._1, orgId, Option(certificates._2.toLong))})) andThen
+                     (AgentConfigurationVersionsTQ ++= reqBody.agentConfigVersions.zipWithIndex.map(configurations => {(configurations._1, orgId, Option(configurations._2.toLong))})) andThen
+                     (AgentSoftwareVersionsTQ ++= reqBody.agentSoftwareVersions.zipWithIndex.map(software => {(orgId, software._1, Option(software._2.toLong))})) andThen
+                     (AgentVersionsChangedTQ.insertOrUpdate((ApiTime.nowUTCTimestamp, orgId))) andThen
+                     (ResourceChange(category = ResChangeCategory.ORG,
+                                     changeId = 0L,
+                                     id = orgId,
+                                     operation = ResChangeOperation.MODIFIED,
+                                     orgId = orgId,
+                                     public = true,
+                                     resource = ResChangeResource.AGENTFILEVERSION).insert)
                   .transactionally.asTry.map({
                   case Success(v) =>
                     logger.debug("PUT /orgs/" + orgId + "/AgentFileVersion result: " + v)

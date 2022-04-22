@@ -1,15 +1,14 @@
 package com.horizon.exchangeapi.tables
 
 import java.sql.Timestamp
-
 import org.json4s._
 import org.json4s.jackson.Serialization.read
 import org.json4s.jackson.Serialization.write
 import slick.dbio.Effect
 import slick.sql.FixedSqlAction
-
-import com.horizon.exchangeapi.{ApiUtils,ApiTime}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils}
 import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
+import com.horizon.exchangeapi.tables.ResChangeCategory.Value
 
 
 /** Contains the object representations of the DB tables related to orgs. */
@@ -102,12 +101,12 @@ final case class Org(orgType: String, label: String, description: String, lastUp
 /** Contains the object representations of the DB tables related to resource changes. */
 object ResChangeCategory extends Enumeration {
   type ResChangeCategory = Value
-  val ORG: ResChangeCategory.Value = Value("org")
   val AGBOT: ResChangeCategory.Value = Value("agbot")
-  val NODE: ResChangeCategory.Value = Value("node")
-  val POLICY: ResChangeCategory.Value = Value("policy")
   val MGMTPOLICY: ResChangeCategory.Value = Value("mgmtpolicy")
+  val NODE: ResChangeCategory.Value = Value("node")
+  val ORG: ResChangeCategory.Value = Value("org")
   val PATTERN: ResChangeCategory.Value = Value("pattern")
+  val POLICY: ResChangeCategory.Value = Value("policy")
   val SERVICE: ResChangeCategory.Value = Value("service")
 }
 import com.horizon.exchangeapi.tables.ResChangeCategory._
@@ -119,6 +118,7 @@ object ResChangeResource extends Enumeration {
   val AGBOTBUSINESSPOLS: ResChangeResource.Value = Value("agbotbusinesspols")
   val AGBOTMSGS: ResChangeResource.Value = Value("agbotmsgs")
   val AGBOTPATTERNS: ResChangeResource.Value = Value("agbotpatterns")
+  val AGENTFILEVERSION: ResChangeResource.Value = Value("agentfileversion")
   val NODE: ResChangeResource.Value = Value("node")
   val NODEAGREEMENTS: ResChangeResource.Value = Value("nodeagreements")
   val NODEERRORS: ResChangeResource.Value = Value("nodeerrors")

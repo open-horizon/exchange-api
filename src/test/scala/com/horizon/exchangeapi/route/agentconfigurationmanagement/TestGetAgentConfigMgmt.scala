@@ -17,15 +17,15 @@ import scala.concurrent.duration.{Duration, DurationInt}
 
 @DoNotDiscover
 class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Suite {
-  private val ACCEPT = ("Accept","application/json")
-  private val CONTENT = ("Content-Type","application/json")
+  private val ACCEPT: (String, String) = ("Accept","application/json")
+  private val CONTENT: (String, String) = ("Content-Type","application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
   // private val ORGID = "TestGetAgentConfigMgmt"
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
-  private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
   
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestGetAgentConfigMgmt/a1",
@@ -88,7 +88,9 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   override def afterAll(): Unit = {
-   Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestGetAgentConfigMgmt").delete andThen
+   Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(change => {(change.orgId startsWith "TestPutAgentConfigMgmt") ||
+                                                                          (change.orgId === "IBM" &&
+                                                                           change.resource === "agentfileversion")}).delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestGetAgentConfigMgmt").delete), AWAITDURATION)
     
     DBCONNECTION.getDb.close()
@@ -106,7 +108,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   // Agent Certificate Versions that are dynamically needed, specific to the test case.
-  def fixtureAgentCertVersions(testCode: Seq[(String, String)] => Any, testData: Seq[(String, String)]): Any = {
+  def fixtureAgentCertVersions(testCode: Seq[(String, String, Option[Long])] => Any, testData: Seq[(String, String, Option[Long])]): Any = {
     try{
       Await.result(DBCONNECTION.getDb.run(AgentCertificateVersionsTQ ++= testData), AWAITDURATION)
       testCode(testData)
@@ -116,7 +118,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   // Agent Configuration Versions that are dynamically needed, specific to the test case.
-  def fixtureAgentConfigVersions(testCode: Seq[(String, String)] => Any, testData: Seq[(String, String)]): Any = {
+  def fixtureAgentConfigVersions(testCode: Seq[(String, String, Option[Long])] => Any, testData: Seq[(String, String, Option[Long])]): Any = {
     try{
       Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ ++= testData), AWAITDURATION)
       testCode(testData)
@@ -126,7 +128,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   // Agent Software Versions that are dynamically needed, specific to the test case.
-  def fixtureAgentSoftVersions(testCode: Seq[(String, String)] => Any, testData: Seq[(String, String)]): Any = {
+  def fixtureAgentSoftVersions(testCode: Seq[(String, String, Option[Long])] => Any, testData: Seq[(String, String, Option[Long])]): Any = {
     try{
       Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ ++= testData), AWAITDURATION)
       testCode(testData)
@@ -183,12 +185,15 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - Root") {
-    val TESTCERT: Seq[(String, String)] =
-     Seq(("1.1.1", "IBM"), ("some other version", "IBM"))
-    val TESTCONFIG: Seq[(String, String)] =
-      Seq(("second", "IBM"), ("some other version", "IBM"))
-    val TESTSOFT: Seq[(String, String)] =
-      Seq(("IBM", "3.3.3-a"), ("IBM", "some other version"))
+    val TESTCERT: Seq[(String, String, Option[Long])] =
+     Seq(("1.1.1", "IBM", Option(1L)),
+         ("some other version", "IBM", Option(0L)))
+    val TESTCONFIG: Seq[(String, String, Option[Long])] =
+      Seq(("second", "IBM", None),
+          ("some other version", "IBM", Option(1L)))
+    val TESTSOFT: Seq[(String, String, Option[Long])] =
+      Seq(("IBM", "3.3.3-a", Option(10L)),
+          ("IBM", "some other version", Option(4L)))
     val TESTCHG: Seq[(java.sql.Timestamp, String)] =
       Seq((ApiTime.nowTimestamp, "IBM"))
   

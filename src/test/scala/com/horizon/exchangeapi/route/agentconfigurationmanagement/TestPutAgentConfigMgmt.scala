@@ -1,8 +1,8 @@
 package com.horizon.exchangeapi.route.agentconfigurationmanagement
 
-import com.horizon.exchangeapi.tables.{AgbotMsgRow, AgbotMsgsTQ, AgbotRow, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsRequest, AgentVersionsResponse, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResourceChangeRow, ResourceChangesTQ, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetAgbotMsgsResponse, HttpCode, PostPutUsersRequest, PutAgbotsRequest, Role, TestDBConnection}
-import org.json4s.DefaultFormats
+import com.horizon.exchangeapi.tables.{AgbotMsgRow, AgbotMsgsTQ, AgbotRow, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsRequest, AgentVersionsResponse, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, ChangeEntry, GetAgbotMsgsResponse, HttpCode, PostPutUsersRequest, PutAgbotsRequest, ResourceChangesRequest, ResourceChangesRespObject, Role, TestDBConnection}
+import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, DoNotDiscover, Suite}
@@ -15,15 +15,15 @@ import scala.concurrent.duration.{Duration, DurationInt}
 
 @DoNotDiscover
 class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with BeforeAndAfterEach with Suite {
-  private val ACCEPT = ("Accept", "application/json")
-  private val CONTENT = ("Content-Type", "application/json")
+  private val ACCEPT: (String, String) = ("Accept", "application/json")
+  private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
   // private val ORGID = "TestPutAgentConfigMgmt"
-  private val ROOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
-  private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   
-  private implicit val formats = DefaultFormats
+  private implicit val formats: Formats = DefaultFormats.withLong
   
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id = "TestPutAgentConfigMgmt/a1",
@@ -69,7 +69,9 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPutAgentConfigMgmt").delete andThen
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(change => {(change.orgId startsWith "TestPutAgentConfigMgmt") ||
+                                                                           (change.orgId === "IBM" &&
+                                                                            change.resource === "agentfileversion")}).delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestPutAgentConfigMgmt").delete), AWAITDURATION)
 
     DBCONNECTION.getDb.close()
@@ -94,7 +96,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
   }
   
   // Agent Certificate Versions that are dynamically needed, specific to the test case.
-  def fixtureAgentCertVersions(testCode: Seq[(String, String)] => Any, testData: Seq[(String, String)]): Any = {
+  def fixtureAgentCertVersions(testCode: Seq[(String, String, Option[Long])] => Any, testData: Seq[(String, String, Option[Long])]): Any = {
     try {
       Await.result(DBCONNECTION.getDb.run(AgentCertificateVersionsTQ ++= testData), AWAITDURATION)
       testCode(testData)
@@ -104,7 +106,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
   }
   
   // Agent Configuration Versions that are dynamically needed, specific to the test case.
-  def fixtureAgentConfigVersions(testCode: Seq[(String, String)] => Any, testData: Seq[(String, String)]): Any = {
+  def fixtureAgentConfigVersions(testCode: Seq[(String, String, Option[Long])] => Any, testData: Seq[(String, String, Option[Long])]): Any = {
     try {
       Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ ++= testData), AWAITDURATION)
       testCode(testData)
@@ -114,7 +116,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
   }
   
   // Agent Software Versions that are dynamically needed, specific to the test case.
-  def fixtureAgentSoftVersions(testCode: Seq[(String, String)] => Any, testData: Seq[(String, String)]): Any = {
+  def fixtureAgentSoftVersions(testCode: Seq[(String, String, Option[Long])] => Any, testData: Seq[(String, String, Option[Long])]): Any = {
     try {
       Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ ++= testData), AWAITDURATION)
       testCode(testData)
@@ -213,9 +215,9 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
   }
   
   test("PUT /v1/orgs/IBM/AgentFileVersion -- 201 Created - Root") {
-    val TESTCERT: Seq[String] = Seq("1.1.1")
-    val TESTCONFIG: Seq[String] = Seq("2.2.2")
-    val TESTSOFT: Seq[String] = Seq("3.4.3")
+    val TESTCERT: Seq[String] = Seq("1.1.1.1", "1.1.1")
+    val TESTCONFIG: Seq[String] = Seq("2.2.2.2", "2.2.2")
+    val TESTSOFT: Seq[String] = Seq("3.3.3.3", "3.3.3")
 
     val requestBody: AgentVersionsRequest =
       AgentVersionsRequest(agentCertVersions = TESTCERT,
@@ -230,9 +232,9 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     
     val versions: AgentVersionsRequest = parse(request.body).extract[AgentVersionsRequest]
     
-    val certificates: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
+    val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.getDb.run(AgentCertificateVersionsTQ.sortBy(_.priority.asc.nullsLast).result), AWAITDURATION)
     val changed: Seq[(java.sql.Timestamp, String)] = Await.result(DBCONNECTION.getDb.run(AgentVersionsChangedTQ.result), AWAITDURATION)
-    val configurations: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
+    val configurations: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ.sortBy(_.priority.asc.nullsLast).result), AWAITDURATION)
     val resource: Seq[ResourceChangeRow] =
       Await.result(
         DBCONNECTION.getDb.run(
@@ -240,32 +242,57 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                            .filter(_.id === "IBM")
                            .filter(_.operation === ResChangeOperation.MODIFIED.toString)
                            .filter(_.orgId === "IBM")
-                           .filter(_.resource === ResChangeCategory.ORG.toString)
+                           .filter(_.resource === ResChangeResource.AGENTFILEVERSION.toString)
                            .sortBy(_.changeId.desc)
                            .result
         ), AWAITDURATION)
-    val software: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ.result), AWAITDURATION)
+    val software: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ.sortBy(_.priority.asc.nullsLast).result), AWAITDURATION)
     
-    assert(certificates.length === 1)
+    assert(certificates.length === 2)
     assert(changed.length === 1)
-    assert(configurations.length === 1)
+    assert(configurations.length === 2)
     assert(resource.nonEmpty)
-    assert(software.length === 1)
+    assert(software.length === 2)
     
     assert(certificates.head._1  === TESTCERT(0))
     assert(certificates.head._2  === "IBM")
+    assert(certificates.head._3.getOrElse(-1)  === 0)
+    assert(certificates(1)._1  === TESTCERT(1))
+    assert(certificates(1)._2  === "IBM")
+    assert(certificates(1)._3.getOrElse(-1)  === 1)
     
     assert(configurations.head._1  === TESTCONFIG(0))
     assert(configurations.head._2  === "IBM")
+    assert(configurations.head._3.getOrElse(-1)  === 0)
+    assert(configurations(1)._1  === TESTCONFIG(1))
+    assert(configurations(1)._2  === "IBM")
+    assert(configurations(1)._3.getOrElse(-1)  === 1)
     
     assert(software.head._1  === "IBM")
     assert(software.head._2  === TESTSOFT(0))
+    assert(certificates.head._3.getOrElse(-1)  === 0)
+    assert(software(1)._1  === "IBM")
+    assert(software(1)._2  === TESTSOFT(1))
+    assert(software(1)._3.getOrElse(-1)  === 1)
+    
+    val request2: HttpResponse[String] = Http(URL + "TestPutAgentConfigMgmt/changes").postData(write(ResourceChangesRequest(changeId = 0, lastUpdated = None, maxRecords = 1000, orgList = None))).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("TestPutAgentConfigMgmt/u1:u1pw"))).asString
+    info("code: " + request2.code)
+    info("body: " + request2.body)
+    
+    assert(request2.code === HttpCode.POST_OK.intValue)
+    
+    val versionChanges: List[ChangeEntry] = parse(request2.body).extract[ResourceChangesRespObject].changes.filter(change => {change.orgId === "IBM" && change.resource === "agentfileversion"})
+    
+    assert(versionChanges.head.id === "IBM")
+    assert(versionChanges.head.operation === "modified")
+    assert(versionChanges.head.orgId === "IBM")
+    assert(versionChanges.head.resource === "agentfileversion")
   }
   
   test("PUT /v1/orgs/IBM/AgentFileVersion -- 201 Updated - Root") {
-    Await.ready(DBCONNECTION.getDb.run((AgentCertificateVersionsTQ += ("1.0.0", "IBM")) andThen
-                                       (AgentConfigurationVersionsTQ += ("1.0.1", "IBM")) andThen
-                                       (AgentSoftwareVersionsTQ += ("IBM", "1.1.0")) andThen
+    Await.ready(DBCONNECTION.getDb.run((AgentCertificateVersionsTQ += ("1.0.0", "IBM", None)) andThen
+                                       (AgentConfigurationVersionsTQ += ("1.0.1", "IBM", None)) andThen
+                                       (AgentSoftwareVersionsTQ += ("IBM", "1.1.0", None)) andThen
                                        (AgentVersionsChangedTQ += (ApiTime.nowUTCTimestamp, "IBM"))), AWAITDURATION)
     
     val TESTCERT: Seq[String] = Seq("3.1.1")
@@ -283,9 +310,9 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     
     assert(request.code === HttpCode.PUT_OK.intValue)
     
-    val certificates: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
+    val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.getDb.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
     val changed: Seq[(java.sql.Timestamp, String)] = Await.result(DBCONNECTION.getDb.run(AgentVersionsChangedTQ.result), AWAITDURATION)
-    val configurations: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
+    val configurations: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
     val resource: Seq[ResourceChangeRow] =
       Await.result(
         DBCONNECTION.getDb.run(
@@ -293,11 +320,11 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                            .filter(_.id === "IBM")
                            .filter(_.operation === ResChangeOperation.MODIFIED.toString)
                            .filter(_.orgId === "IBM")
-                           .filter(_.resource === ResChangeCategory.ORG.toString)
+                           .filter(_.resource === ResChangeResource.AGENTFILEVERSION.toString)
                            .sortBy(_.changeId.desc)
                            .result
         ), AWAITDURATION)
-    val software: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ.result), AWAITDURATION)
+    val software: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ.result), AWAITDURATION)
     
     assert(certificates.length === 1)
     assert(changed.length === 1)
@@ -344,10 +371,10 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
   
         val versions: AgentVersionsRequest = parse(request.body).extract[AgentVersionsRequest]
   
-        val certificates: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
+        val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.getDb.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
         val changed: Seq[(java.sql.Timestamp, String)] = Await.result(DBCONNECTION.getDb.run(AgentVersionsChangedTQ.result), AWAITDURATION)
-        val configurations: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
-        val software: Seq[(String, String)] = Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ.result), AWAITDURATION)
+        val configurations: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.getDb.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
+        val software: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.getDb.run(AgentSoftwareVersionsTQ.result), AWAITDURATION)
   
         assert(certificates.length === 1)
         assert(changed.length === 1)

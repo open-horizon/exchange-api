@@ -28,7 +28,7 @@ import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `must-revali
 import akka.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.{ExceptionHandler, Route}
-import akka.stream.ActorMaterializer
+import akka.stream.{ActorMaterializer, Materializer}
 import com.horizon.exchangeapi.tables.{AgbotMsgsTQ, NodeMsgsTQ, ResourceChangesTQ}
 import org.json4s._
 import slick.jdbc.TransactionIsolation.Serializable
@@ -100,7 +100,6 @@ object ExchangeApiApp extends App
   }
   //val actorConfig = ConfigFactory.parseString("akka.loglevel=" + ExchConfig.getLogLevel)
   implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)  // includes the loglevel
-  implicit val materializer: ActorMaterializer = ActorMaterializer()
   implicit val executionContext: ExecutionContext = system.dispatcher
   ExchangeApi.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit
 
@@ -309,7 +308,7 @@ object ExchangeApiApp extends App
   val Cleanup = "cleanup";
   class ChangesCleanupActor(timerInterval: Int = ExchConfig.getInt("api.resourceChanges.cleanupInterval")) extends Actor with Timers{
     override def preStart(): Unit = {
-      timers.startPeriodicTimer(interval = timerInterval.seconds, key = "trimResourceChanges", msg = Cleanup)
+      timers.startTimerAtFixedRate(interval = timerInterval.seconds, key = "trimResourceChanges", msg = Cleanup)
       logger.info("Scheduling change record cleanup every "+ timerInterval.seconds + " seconds")
       super.preStart()
     }
@@ -339,7 +338,7 @@ object ExchangeApiApp extends App
   class MsgsCleanupActor(timerInterval: Int = ExchConfig.getInt("api.defaults.msgs.expired_msgs_removal_interval")) extends Actor with Timers {
     override def preStart(): Unit = {
       timers.startSingleTimer(key = "removeExpiredMsgsOnStart", msg = CleanupExpiredMessages, timeout = 0.seconds)
-      timers.startPeriodicTimer(interval = timerInterval.seconds, key = "removeExpiredMsgs", msg = CleanupExpiredMessages)
+      timers.startTimerAtFixedRate(interval = timerInterval.seconds, key = "removeExpiredMsgs", msg = CleanupExpiredMessages)
       logger.info("Scheduling Agreement Bot message and Node message cleanup every "+ timerInterval.seconds + " seconds")
       super.preStart()
     }

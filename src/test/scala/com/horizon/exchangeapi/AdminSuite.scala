@@ -9,7 +9,7 @@ import scala.collection.mutable.ListBuffer
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jvalue2extractable
 import org.json4s.native.Serialization.write
-import org.json4s.string2JsonInput
+import org.json4s.convertToJsonInput
 import org.junit.runner.RunWith
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite

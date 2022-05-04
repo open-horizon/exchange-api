@@ -96,6 +96,12 @@
       ]
     },
     "akka": {
+      "akka.http.server.backlog": "100",
+      "akka.http.server.bind-timeout": "1s",
+      "akka.http.server.idle-timeout": "60s",
+      "akka.http.server.linger-timeout": "1m",
+      "akka.http.server.max-connections": "1024",
+      "akka.http.server.pipelining-limit": "1",
       "akka.http.server.request-timeout": "45s",
       "akka.http.server.server-header": ""        // Removes the Server header from response.
       // add additional entries like: "akka.http.server.max-connections": 512

@@ -33,7 +33,7 @@ lazy val root = (project in file("."))
         organization                  := "com.horizon",
         release                       := versionFunc(),
         resolvers                     += Classpaths.typesafeReleases,
-        scalaVersion                  := "2.13.5",
+        scalaVersion                  := "2.13.8",
         summary                       := "'Open Horizon exchange-api image'",
         vendor                        := "'Open Horizon'",
         version                       := versionFunc(),
@@ -43,19 +43,19 @@ lazy val root = (project in file("."))
 
         // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
         libraryDependencies ++= Seq(
-          "com.typesafe.akka" %% "akka-http"            % "[10.2.4]",
-          "com.typesafe.akka" %% "akka-http-xml"        % "[10.2.4]",
+          "com.typesafe.akka" %% "akka-http"            % "[10.2.7]",
+          "com.typesafe.akka" %% "akka-http-xml"        % "[10.2.7]",
           // "com.typesafe.akka" %% "akka-stream"          % "[2.6.14,)",
           // "com.typesafe.akka" %% "akka-http-spray-json" % "[10.2.1,)",
-          "de.heikoseeberger" %% "akka-http-jackson" % "[1.37.0]",  // version 1.35.3 pulls in akka 2.6.10 and akkahttp 10.2.2
+          "de.heikoseeberger" %% "akka-http-jackson" % "[1.39.2]",  // version 1.35.3 pulls in akka 2.6.10 and akkahttp 10.2.2
           // "com.typesafe.akka" %% "akka-http-jackson" % "[10.2.1,)", //<- can not find any recent documentation on how to use this
           
-          "org.json4s" %% "json4s-native" % "3.6.6",  // Version 3.7.0-M3 is incompatible.
-          "org.json4s" %% "json4s-jackson" % "3.6.6",  // Version 3.7.0-M3 is incompatible.
+          "org.json4s" %% "json4s-native" % "4.0.5",  // Version 3.7.0-M3 is incompatible.
+          "org.json4s" %% "json4s-jackson" % "4.0.5",  // Version 3.7.0-M3 is incompatible.
   
           "javax.ws.rs" % "javax.ws.rs-api" % "[2.1.1,)",  // this is from 8/2014. Version 2.1.1 from 9/2018 gets an error loading
           //"org.glassfish.jersey.core" % "jersey-common" % "1.2.1",  // required at runtime by javax.ws.rs-api
-          "com.github.swagger-akka-http" %% "swagger-akka-http" % "[2.4.2]",  // Version 2.5.0 now requires v10.2.6 Akka modules.
+          "com.github.swagger-akka-http" %% "swagger-akka-http" % "[2.5.2]",  // Version 2.5.0 now requires v10.2.6 Akka modules.
           "com.github.swagger-akka-http" %% "swagger-scala-module" % "[1.0.6,)",
           "io.swagger.core.v3" % "swagger-core" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-core
           "io.swagger.core.v3" % "swagger-annotations" % "[2.1.5,)", // Version 2.1.3 causes incompatability error with Jackson Databind -- https://mvnrepository.com/artifact/io.swagger.core.v3/swagger-annotations
@@ -64,11 +64,11 @@ lazy val root = (project in file("."))
   
           "com.typesafe.slick" %% "slick" % "[3.3.3]",
           "com.typesafe.slick" %% "slick-hikaricp" % "[3.3.3]",
-          "com.github.tminglei" %% "slick-pg" % "[0.19.3]",
-          "com.github.tminglei" %% "slick-pg_json4s" % "[0.19.3]",
-          "org.postgresql" % "postgresql" % "42.2.19",  // Version number must be manually specified to prevent Maven from selecting a jre6/7 version of this dependency.
+          "com.github.tminglei" %% "slick-pg" % "[0.20.3]",
+          "com.github.tminglei" %% "slick-pg_json4s" % "[0.20.3]",
+          "org.postgresql" % "postgresql" % "[42.3.4,)",  // Version number must be manually specified to prevent Maven from selecting a jre6/7 version of this dependency.
           //"com.zaxxer" % "HikariCP" % "[3.4.5,)",
-          "org.slf4j" % "slf4j-simple" % "[1.7.30]", // Needed by scalacache, slick, and swagger.
+          "org.slf4j" % "slf4j-simple" % "[1.7.36]", // Needed by scalacache, slick, and swagger.
           //"ch.qos.logback" % "logback-classic" % "1.3.0-alpha5",
           "com.mchange" % "c3p0" % "[0.9.5.5,)",
           "org.scalaj" %% "scalaj-http" % "[2.4.2,)",
@@ -78,9 +78,9 @@ lazy val root = (project in file("."))
           "com.github.cb372" %% "scalacache-guava" % "[0.28.0,)",
           "com.osinka.i18n" %% "scala-i18n" % "[1.0.3,)",
   
-          "com.typesafe.akka" %% "akka-http-testkit"    % "[10.2.4]"     % Test,
-          "com.typesafe.akka" %% "akka-testkit"         % "[2.6.14]"     % Test,
-          "com.typesafe.akka" %% "akka-stream-testkit"  % "[2.6.14]"     % Test,
+          "com.typesafe.akka" %% "akka-http-testkit"    % "[10.2.7]"     % Test,
+          "com.typesafe.akka" %% "akka-testkit"         % "[2.6.16]"     % Test,
+          "com.typesafe.akka" %% "akka-stream-testkit"  % "[2.6.16]"     % Test,
   
           "org.scalatest" %% "scalatest" % "[3.3.0-SNAP2,)" % "test",
           "org.scalatestplus" %% "junit-4-12" % "[3.3.0.0-SNAP2,)" % "test",

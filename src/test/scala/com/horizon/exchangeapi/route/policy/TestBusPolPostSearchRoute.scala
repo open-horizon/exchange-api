@@ -3,7 +3,7 @@ package com.horizon.exchangeapi.route.policy
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, BusinessPolicyNodeResponse, HttpCode, PostBusinessPolicySearchRequest, PostBusinessPolicySearchResponse, Role, TestDBConnection}
 import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, BusinessPoliciesTQ, BusinessPolicyRow, NodeAgreementRow, NodeAgreementsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ, ServiceRow, ServicesTQ, UserRow, UsersTQ}
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable, string2JsonInput}
+import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable}
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}

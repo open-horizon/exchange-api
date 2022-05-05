@@ -92,7 +92,7 @@ final case class NodeRow(id: String,
     val swv: Map[String, String] = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
     val rsvc: List[RegService] = if (regServices != "") read[List[RegService]](regServices) else List[RegService]()
     // Default new configState attr if it doesnt exist. This ends up being called by GET nodes, GET nodes/id, and POST search/nodes
-    val rsvc2: List[RegService] = rsvc.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties, rs.version.orElse(Some(""))))
+    val rsvc2: List[RegService] = rsvc.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version.orElse(Some(""))))
     val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val hbInterval: NodeHeartbeatIntervals = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
     new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat.orNull, publicKey, arch, hbInterval, lastUpdated)
@@ -191,7 +191,7 @@ object NodesTQ  extends TableQuery(new Nodes(_)){
   def getLastUpdated(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.lastUpdated)
   def getNodeUsingPolicy(id: String): Query[(Rep[String], Rep[String]), (String, String), Seq] = this.filter(_.id === id).map(x => (x.pattern, x.publicKey))
 
-  def setLastHeartbeat(id: String, lastHeartbeat: String): FixedSqlAction[Int, NoStream, Effect.Write] = this.filter(_.id === id).map(_.lastHeartbeat).update(Some(lastHeartbeat))
+  def setLastHeartbeat(id: String, lastHeartbeat: String): FixedSqlAction[Int, NoStream, Effect.Write] = this.filter(_.id === id).map(_.lastHeartbeat).update(Option(lastHeartbeat))
   def setLastUpdated(id: String, lastUpdated: String): FixedSqlAction[Int, NoStream, Effect.Write] = this.filter(_.id === id).map(_.lastUpdated).update(lastUpdated)
 
 

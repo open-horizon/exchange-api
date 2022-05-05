@@ -3,7 +3,7 @@ package com.horizon.exchangeapi
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import com.horizon.exchangeapi.tables.{ManagementPolicy, NodeRow, NodesTQ, OneProperty, OrgRow, OrgsTQ, RegService, ResourceChangesTQ, UserRow}
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable, string2JsonInput}
+import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable, convertToJsonInput}
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
 import org.scalatest.BeforeAndAfterAll

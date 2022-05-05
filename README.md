@@ -300,6 +300,31 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.101.1
+- Dependency updates.
+    - akka-http  10.2.4 -> 10.2.7
+    - akka-http-jackson 1.37.0 -> 1.39.2
+    - akka-http-xml 10.2.4 -> 10.2.7
+    - akka-http-testkit 10.2.4 -> 10.2.7
+    - akka-stream-testkit 2.6.14 -> 2.6.16
+    - akka-testkit 2.6.14 -> 2.6.16
+    - json4s-native 3.6.6 -> 4.0.5
+    - json4s-jackson 3.6.6 -> 4.0.5
+    - postgresql 42.2.19 -> 42.3.4
+    - scala 2.13.5 -> 2.13.8
+    - slf4j-simple 1.7.30 -> 1.7.36
+    - slick-pg 0.19.3 -> 0.20.3
+    - slick-pg_json4s 0.19.3 -> 0.20.3
+    - swagger-akka-http 2.4.2 -> 2.5.2
+    - swagger-ui 3.47.1 -> 4.10.3
+- New configuration file attributes have been added.
+    - akka.http.server.backlog
+    - akka.http.server.bind-timeout
+    - akka.http.server.idle-timeout
+    - akka.http.server.linger-timeout
+    - akka.http.server.max-connections
+    - akka.http.server.pipelining-limit
+
 ## Changes in 2.101.0
 - Issue 581: Array order for versions maintained in the Exchange's DB and returned correctly when retrieved using a GET.
 - Issue 582: Nodes, Agbots, Users, and Admin can now read resource changes for AgentFileVersions.

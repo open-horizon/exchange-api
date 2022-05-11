@@ -155,11 +155,11 @@ buspol.attribute.updated=se ha actualizado el atributo ''{0}'' de la política d
 business.policy.deleted=política de negocio suprimida
 business.policy.not.deleted=no se ha suprimido la política de negocio ''{0}'': {1}
 
-mgmtpol.created=la política de gestión '{0}' se ha creado
+mgmtpol.created=la política de gestión "{0}" se ha creado
 mgmtpol.not.created=la política de gestión ''{0}'' no se ha creado: {1}
-mgmtpol.already.exists=la política de gestión '{0}' ya existe: {1}
+mgmtpol.already.exists=la política de gestión "{0}" ya existe: {1}
 mgmtpol.updated=la política de gestión se ha actualizado
-mgmtpol.constraints.or.patterns=no puede especificar restricciones y patrones
+mgmtpol.constraints.or.patterns=no puede especificar a la vez restricciones y patrones
 management.policy.not.found=la política de gestión ''{0}'' no se ha encontrado
 mgmtpol.not.updated=la política de gestión ''{0}'' no se ha actualizado: {1}
 no.valid.mgmtpol.attribute.specified=no se ha especificado ningún atributo de política de gestión

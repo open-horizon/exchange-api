@@ -107,16 +107,12 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
       (OrgsTQ ++= TESTORGS) andThen
         (UsersTQ ++= TESTUSERS)), AWAITDURATION
     )
-    AuthCache.putUserAndIsAdmin(TESTUSERS(0).username, TESTUSERS(0).hashedPw, HUBADMINPASSWORD, TESTUSERS(0).admin)
-    AuthCache.putUserAndIsAdmin(TESTUSERS(1).username, TESTUSERS(1).hashedPw, USERPASSWORD, TESTUSERS(1).admin)
   }
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetOrgsRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testGetOrgsRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/TestGetOrgsRouteHubAdmin").delete), AWAITDURATION) //this should cascade delete the user attached to testGetOrgsRoute1, right?
-    AuthCache.removeUser(TESTUSERS(0).username)
-    AuthCache.removeUser(TESTUSERS(1).username)
     DBCONNECTION.getDb.close()
   }
 
@@ -177,7 +173,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
-    assert(orgsList.orgs.size === 1)
+    assert(orgsList.orgs.size >= 1) //may be more than one org with type IBM due to other tests
     assert(orgsList.orgs.contains("IBM"))
   }
 
@@ -187,7 +183,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
-    assert(orgsList.orgs.size === 1)
+    assert(orgsList.orgs.size >= 1) //may be more than one org with type IBM due to other tests
     assert(orgsList.orgs.contains("IBM"))
   }
 

@@ -17,8 +17,8 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
   private val HUBADMINPASSWORD = "adminpassword"
   private val USER1PASSWORD = "user1password"
   private val USER2PASSWORD = "user2password"
@@ -119,18 +119,12 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
       (OrgsTQ ++= TESTORGS) andThen
         (UsersTQ ++= TESTUSERS)), AWAITDURATION
     )
-    AuthCache.putUserAndIsAdmin(TESTUSERS(0).username, TESTUSERS(0).hashedPw, HUBADMINPASSWORD, TESTUSERS(0).admin)
-    AuthCache.putUserAndIsAdmin(TESTUSERS(1).username, TESTUSERS(1).hashedPw, USER1PASSWORD, TESTUSERS(1).admin)
-    AuthCache.putUserAndIsAdmin(TESTUSERS(2).username, TESTUSERS(2).hashedPw, USER2PASSWORD, TESTUSERS(2).admin)
   }
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetOrgRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testGetOrgRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/TestGetOrgRouteHubAdmin").delete), AWAITDURATION)
-    AuthCache.removeUser(TESTUSERS(0).username)
-    AuthCache.removeUser(TESTUSERS(1).username)
-    AuthCache.removeUser(TESTUSERS(2).username)
     DBCONNECTION.getDb.close()
   }
 

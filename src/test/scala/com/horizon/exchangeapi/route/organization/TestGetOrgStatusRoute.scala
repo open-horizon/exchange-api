@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.organization
 
-import com.horizon.exchangeapi.tables.{OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, AuthCache, HttpCode, Password, Role, TestDBConnection}
+import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeAgreementRow, NodeAgreementsTQ, NodeMsgRow, NodeMsgsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, SchemaTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, AuthCache, ExchMsg, GetOrgStatusResponse, HttpCode, Password, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.scalatest.BeforeAndAfterAll
@@ -22,9 +22,10 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val HUBADMINPASSWORD = "adminpassword"
   private val USER1PASSWORD = "user1password"
   private val USER2PASSWORD = "user2password"
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/TestGetOrgRouteHubAdmin:" + HUBADMINPASSWORD))
-  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetOrgRoute1/TestGetOrgRouteUser1:" + USER1PASSWORD))
-  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetOrgRoute2/TestGetOrgRouteUser2:" + USER2PASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/TestGetOrgStatusRouteHubAdmin:" + HUBADMINPASSWORD))
+  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetOrgStatusRoute1/TestGetOrgStatusRouteUser1:" + USER1PASSWORD))
+  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetOrgStatusRoute2/TestGetOrgStatusRouteUser2:" + USER2PASSWORD))
+  private val SCHEMAVERSION: Int = Await.result(DBCONNECTION.getDb.run(SchemaTQ.getSchemaVersion.result), AWAITDURATION).head
 
   private implicit val formats = DefaultFormats
 
@@ -114,25 +115,162 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
       )
     )
 
+  private val TESTNODES: Seq[NodeRow] =
+    Seq(
+      NodeRow(
+        arch               = "",
+        id                 = "testGetOrgStatusRoute1/n1",
+        heartbeatIntervals = "",
+        lastHeartbeat      = None,
+        lastUpdated        = ApiTime.nowUTC,
+        msgEndPoint        = "",
+        name               = "",
+        nodeType           = "",
+        orgid              = "testGetOrgStatusRoute1",
+        owner              = "testGetOrgStatusRoute1/TestGetOrgStatusRouteUser1",
+        pattern            = "",
+        publicKey          = "",
+        regServices        = "",
+        softwareVersions   = "",
+        token              = "",
+        userInput          = ""),
+      NodeRow(
+        arch               = "",
+        id                 = "testGetOrgStatusRoute1/n2",
+        heartbeatIntervals = "",
+        lastHeartbeat      = None,
+        lastUpdated        = ApiTime.nowUTC,
+        msgEndPoint        = "",
+        name               = "",
+        nodeType           = "",
+        orgid              = "testGetOrgStatusRoute1",
+        owner              = "testGetOrgStatusRoute1/TestGetOrgStatusRouteUser1",
+        pattern            = "",
+        publicKey          = "registered",
+        regServices        = "",
+        softwareVersions   = "",
+        token              = "",
+        userInput          = ""))
+
+  private val TESTAGREEMENTS: Seq[NodeAgreementRow] =
+    Seq(NodeAgreementRow(
+      agId          = "testGetOrgStatusRoute1/a1",
+      nodeId        = "testGetOrgStatusRoute1/n1",
+      services      = "",
+      agrSvcOrgid   = "TestGetOrgStatusRoute1",
+      agrSvcPattern = "",
+      agrSvcUrl     = "",
+      state         = "active",
+      lastUpdated   = ApiTime.nowUTC))
+
+  private val TESTAGBOTS: Seq[AgbotRow] = //must have an agbot in order to create a node message
+    Seq(AgbotRow(
+      id            = "testGetOrgStatusRoute1/a1",
+      orgid         = "testGetOrgStatusRoute1",
+      token         = "",
+      name          = "testAgbot",
+      owner         = "testGetOrgStatusRoute1/TestGetOrgStatusRouteUser1",
+      msgEndPoint   = "",
+      lastHeartbeat = ApiTime.nowUTC,
+      publicKey     = ""
+    ))
+
+  private val TESTMESSAGES: Seq[NodeMsgRow] =
+    Seq(NodeMsgRow(
+      msgId = 0, // this will be automatically set to a unique ID by the DB
+      nodeId = "testGetOrgStatusRoute1/n1",
+      agbotId = "testGetOrgStatusRoute1/a1",
+      agbotPubKey = "",
+      message = "Test Message",
+      timeSent = ApiTime.nowUTC,
+      timeExpires = ApiTime.futureUTC(120)))
+
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(
       (OrgsTQ ++= TESTORGS) andThen
-        (UsersTQ ++= TESTUSERS)), AWAITDURATION
+        (UsersTQ ++= TESTUSERS) andThen
+        (AgbotsTQ ++= TESTAGBOTS) andThen
+        (NodesTQ ++= TESTNODES) andThen
+        (NodeMsgsTQ ++= TESTMESSAGES) andThen
+        (NodeAgreementsTQ ++= TESTAGREEMENTS)), AWAITDURATION
     )
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetOrgRoute").delete andThen
-      OrgsTQ.filter(_.orgid startsWith "testGetOrgRoute").delete andThen
-      UsersTQ.filter(_.username startsWith "root/TestGetOrgRouteHubAdmin").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetOrgStatusRoute").delete andThen
+      OrgsTQ.filter(_.orgid startsWith "testGetOrgStatusRoute").delete andThen
+      UsersTQ.filter(_.username startsWith "root/TestGetOrgStatusRouteHubAdmin").delete), AWAITDURATION)
     DBCONNECTION.getDb.close()
   }
 
-  test("GET /orgs/doesNotExist/status -- 404 not found") {
+  //404 is listed as a possible return code in swagger, but I can find no way to get a 404 return.
+
+  //is this intended? I would think this should fail with 404 not found
+  test("GET /orgs/doesNotExist/status -- success, but returns 0 for everything") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist/status").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: GetOrgStatusResponse = JsonMethods.parse(response.body).extract[GetOrgStatusResponse]
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfNodes === 0)
+    assert(status.numberOfUsers === 0)
+    assert(status.numberOfNodeMsgs === 0)
+    assert(status.numberOfNodeAgreements === 0)
+    assert(status.numberOfRegisteredNodes === 0)
+    assert(status.SchemaVersion === SCHEMAVERSION)
   }
 
+  test("GET /orgs/testGetOrgStatusRoute1/status as root -- normal success") {
+    val response: HttpResponse[String] = Http(URL + "testGetOrgStatusRoute1/status").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: GetOrgStatusResponse = JsonMethods.parse(response.body).extract[GetOrgStatusResponse]
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfNodes === 2)
+    assert(status.numberOfUsers === 1)
+    assert(status.numberOfNodeMsgs === 1)
+    assert(status.numberOfNodeAgreements === 1)
+    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.SchemaVersion === SCHEMAVERSION)
+  }
+
+  test("GET /orgs/testGetOrgStatusRoute1/status as hub admin -- normal success") {
+    val response: HttpResponse[String] = Http(URL + "testGetOrgStatusRoute1/status").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: GetOrgStatusResponse = JsonMethods.parse(response.body).extract[GetOrgStatusResponse]
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfNodes === 2)
+    assert(status.numberOfUsers === 1)
+    assert(status.numberOfNodeMsgs === 1)
+    assert(status.numberOfNodeAgreements === 1)
+    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.SchemaVersion === SCHEMAVERSION)
+  }
+
+  test("GET /orgs/testGetOrgStatusRoute1/status as user in org -- normal success") {
+    val response: HttpResponse[String] = Http(URL + "testGetOrgStatusRoute1/status").headers(ACCEPT).headers(USER1AUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: GetOrgStatusResponse = JsonMethods.parse(response.body).extract[GetOrgStatusResponse]
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfNodes === 2)
+    assert(status.numberOfUsers === 1)
+    assert(status.numberOfNodeMsgs === 1)
+    assert(status.numberOfNodeAgreements === 1)
+    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.SchemaVersion === SCHEMAVERSION)
+  }
+
+  test("GET /orgs/testGetOrgStatusRoute1/status as user in other org -- 403 access denied") {
+    val response: HttpResponse[String] = Http(URL + "testGetOrgStatusRoute1/status").headers(ACCEPT).headers(USER2AUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  }
+  
 }

@@ -89,6 +89,8 @@ lazy val root = (project in file("."))
         ), 
         scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
         javacOptions ++= Seq("-source", "11", "-target", "11", "-Xlint"),
+        fork := true,
+        Test / javaOptions ++= Seq("--add-opens", "java.base/java.net=ALL-UNNAMED"),
         // Used when running test suites with HTTPS.
         // Requires path to your PKCS #12 cryptographic store and its password.
         // fork := true,

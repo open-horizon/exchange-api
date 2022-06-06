@@ -300,6 +300,12 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.102.0
+- Update the Exchange to OpenJDK17 from 11
+- Update the Exchange to UBI 9 minimal from 8
+- Add TLS 3.0 algorithm `TLS_CHACHA20_POLY1305_SHA256` to the approved algorithms list for TLS connections.
+- Updated Sbt to version 1.6.2 from 1.6.1
+
 ## Changes in 2.101.4
 - Internationalization updates.
 

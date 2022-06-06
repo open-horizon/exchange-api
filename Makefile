@@ -68,13 +68,13 @@ POSTGRES_DB_PORT ?= 5432
 POSTGRES_DB_USER ?= admin
 PROJECT_DIRECTORY ?= $(shell pwd)
 # Try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.sbt
-SCALA_VERSION ?= 2.13.5
+SCALA_VERSION ?= 2.13.8
 SCALA_VERSION_SHORT ?= 2.13
 
 
 # Altho the name is a little misleading, "docker-run-icp" just means build the container used for running the exchange
 .PHONY: default
-default: docker-run-icp
+default: run-docker-icp
 
 .PHONY: all
 all: cleanest run-docker-icp-https test

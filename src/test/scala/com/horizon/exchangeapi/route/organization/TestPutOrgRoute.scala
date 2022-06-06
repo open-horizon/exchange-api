@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.route.organization
 
-import com.horizon.exchangeapi.tables.{NodeHeartbeatIntervals, OrgLimits, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{NodeHeartbeatIntervals, OrgLimits, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ, UserRow, UsersTQ}
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, ExchConfig, HttpCode, Password, PostPutOrgRequest, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
@@ -140,10 +140,14 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
         OrgsTQ.filter(_.orgid startsWith "testPutOrgRoute").delete andThen
         UsersTQ.filter(_.username startsWith "root/TestPutOrgRouteHubAdmin").delete //this guy doesn't get deleted on cascade
     ), AWAITDURATION)
+    DBCONNECTION.getDb.close()
   }
 
   override def afterEach(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(TESTORGS(0).update), AWAITDURATION) //reset testPutOrgRoute1 each time
+    Await.ready(DBCONNECTION.getDb.run(
+      TESTORGS(0).update andThen
+        ResourceChangesTQ.filter(_.orgId startsWith "testPutOrgRoute").delete
+    ), AWAITDURATION) //reset testPutOrgRoute1 each time
   }
 
   test("PUT /orgs/doesNotExist -- 404 not found") {
@@ -283,6 +287,15 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === requestBody.description)
     assert(JsonMethods.parse(dbOrg.heartbeatIntervals).extract[NodeHeartbeatIntervals] === requestBody.heartbeatIntervals.get)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated) //make sure lastUpdated has changed
+    //insure entry was created in Resource Changes table
+    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === "testPutOrgRoute1")
+      .filter(_.id === "testPutOrgRoute1")
+      .filter(_.category === ResChangeCategory.ORG.toString)
+      .filter(_.resource === ResChangeResource.ORG.toString)
+      .filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString)
+      .result), AWAITDURATION).nonEmpty
+    assert(rcEntryExists)
   }
 
   test("PUT /orgs/testPutOrgRoute1 -- just label and description -- success, all else set to null or empty string") {
@@ -303,6 +316,15 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === requestBody("description"))
     assert(dbOrg.heartbeatIntervals === "")
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated) //make sure lastUpdated has changed
+    //insure entry was created in Resource Changes table
+    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === "testPutOrgRoute1")
+      .filter(_.id === "testPutOrgRoute1")
+      .filter(_.category === ResChangeCategory.ORG.toString)
+      .filter(_.resource === ResChangeResource.ORG.toString)
+      .filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString)
+      .result), AWAITDURATION).nonEmpty
+    assert(rcEntryExists)
   }
 
   test("PUT /orgs/testPutOrgRoute1 as hub admin -- normal success") {
@@ -331,6 +353,15 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === requestBody.description)
     assert(JsonMethods.parse(dbOrg.heartbeatIntervals).extract[NodeHeartbeatIntervals] === requestBody.heartbeatIntervals.get)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated) //make sure lastUpdated has changed
+    //insure entry was created in Resource Changes table
+    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === "testPutOrgRoute1")
+      .filter(_.id === "testPutOrgRoute1")
+      .filter(_.category === ResChangeCategory.ORG.toString)
+      .filter(_.resource === ResChangeResource.ORG.toString)
+      .filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString)
+      .result), AWAITDURATION).nonEmpty
+    assert(rcEntryExists)
   }
 
   test("PUT /orgs/testPutOrgRoute1 as admin in org -- normal success") {
@@ -359,6 +390,15 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === requestBody.description)
     assert(JsonMethods.parse(dbOrg.heartbeatIntervals).extract[NodeHeartbeatIntervals] === requestBody.heartbeatIntervals.get)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated) //make sure lastUpdated has changed
+    //insure entry was created in Resource Changes table
+    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === "testPutOrgRoute1")
+      .filter(_.id === "testPutOrgRoute1")
+      .filter(_.category === ResChangeCategory.ORG.toString)
+      .filter(_.resource === ResChangeResource.ORG.toString)
+      .filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString)
+      .result), AWAITDURATION).nonEmpty
+    assert(rcEntryExists)
   }
 
   test("PUT /orgs/testPutOrgRoute1 as regular user in org -- 403 access denied") {

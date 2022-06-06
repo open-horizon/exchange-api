@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.route.organization
 
-import com.horizon.exchangeapi.tables.{NodeHeartbeatIntervals, OrgLimits, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{NodeHeartbeatIntervals, OrgLimits, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ, UserRow, UsersTQ}
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, ExchConfig, HttpCode, Password, PostPutOrgRequest, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
@@ -91,6 +91,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
       OrgsTQ.filter(_.orgid startsWith "TEMPtestPostOrgRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/TestPostOrgRouteHubAdmin").delete //this guy doesn't get deleted on cascade
     ), AWAITDURATION)
+    DBCONNECTION.getDb.close()
   }
 
   override def afterEach(): Unit = {
@@ -178,6 +179,15 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(newOrg.label === postOrg1.label)
     assert(JsonMethods.parse(newOrg.limits).extract[OrgLimits] === postOrg1.limits.get)
     assert(newOrg.tags.get.extract[Map[String, String]] === postOrg1.tags.get)
+    //insure entry was created in Resource Changes table
+    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === "testPostOrgRoute1")
+      .filter(_.id === "testPostOrgRoute1")
+      .filter(_.category === ResChangeCategory.ORG.toString)
+      .filter(_.resource === ResChangeResource.ORG.toString)
+      .filter(_.operation === ResChangeOperation.CREATED.toString)
+      .result), AWAITDURATION).nonEmpty
+    assert(rcEntryExists)
   }
 
   test("POST /orgs/testPostOrgRoute1 as hub admin -- normal success") {
@@ -193,6 +203,15 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(newOrg.label === postOrg1.label)
     assert(JsonMethods.parse(newOrg.limits).extract[OrgLimits] === postOrg1.limits.get)
     assert(newOrg.tags.get.extract[Map[String, String]] === postOrg1.tags.get)
+    //insure entry was created in Resource Changes table
+    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === "testPostOrgRoute1")
+      .filter(_.id === "testPostOrgRoute1")
+      .filter(_.category === ResChangeCategory.ORG.toString)
+      .filter(_.resource === ResChangeResource.ORG.toString)
+      .filter(_.operation === ResChangeOperation.CREATED.toString)
+      .result), AWAITDURATION).nonEmpty
+    assert(rcEntryExists)
   }
 
   test("POST /orgs/testPostOrgRoute1 as regular user -- 403 access denied") {

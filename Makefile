@@ -72,7 +72,7 @@ SCALA_VERSION ?= 2.13.8
 SCALA_VERSION_SHORT ?= 2.13
 
 
-# Altho the name is a little misleading, "docker-run-icp" just means build the container used for running the exchange
+# Altho the name is a little misleading, "run-docker-icp" just means build the container used for running the exchange
 .PHONY: default
 default: run-docker-icp
 

@@ -278,6 +278,141 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 - See the Makefile target chain `target/docker/.run-docker-icp-https` (line 272) for idea of a running Exchange and database in docker containers using TLS.
 - Do to technical limitations the Swagger page will only refer to the Exchange's HTTPS traffic port.
 
+## Configuration Parameters
+
+`src/main/resources/config.json` is the default configuration file for the Exchange. This file is bundled in the Exchange jar. To run the exchange server with different values, copy this to `/etc/horizon/exchange/config.json`. In your version of the config file, you only have to set what you want to override.
+
+### api.acls
+
+| Parameter Name | Description       |
+|----------------|-------------------|
+| AdminUser      |                   |
+| Agbot          |                   |
+| Anonymous      | Not actually used |
+| HubAdmin       |                   |
+| Node           |                   |
+| SuperUser      |                   |
+| User           |                   |
+
+### api.akka
+
+Akka Actor: https://doc.akka.io/docs/akka/current/general/configuration-reference.html
+</br>
+Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
+
+| Parameter Name                     | Description                             |
+|------------------------------------|-----------------------------------------|
+| akka.http.server.backlog           |                                         |
+| akka.http.server.bind-timeout      |                                         |
+| akka.http.server.idle-timeout      |                                         |
+| akka.http.server.linger-timeout    |                                         |
+| akka.http.server.max-connections   |                                         |
+| akka.http.server.pipelining-limit  |                                         |
+| akka.http.server.request-timeout   |                                         |
+| akka.http.server.server-header     | Removes the Server header from response |
+
+### api.cache
+
+| Parameter Name         | Description                                                     |
+|------------------------|-----------------------------------------------------------------|
+| authDbTimeoutSeconds   | Timeout for db access for critical auth info when cache missing |
+| IAMusersMaxSize        | The users that are backed by IAM users                          |
+| IAMusersTtlSeconds     |                                                                 |
+| idsMaxSize             | Includes: local exchange users, nodes, agbots (all together)    |
+| idsTtlSeconds          |                                                                 |
+| resourcesMaxSize       | Each of: users, agbots, services, patterns, policies            |
+| resourcesTtlSeconds    |                                                                 |
+| type                   | Currently guava is the only option                              |
+
+### api.db
+
+| Parameter Name               | Description                                                          |
+|------------------------------|----------------------------------------------------------------------|
+| acquireIncrement             |                                                                      |
+| driverClass                  |                                                                      |
+| idleConnectionTestPeriod     | In seconds; 0 disables                                               |
+| initialPoolSize              |                                                                      |
+| jdbcUrl                      | The back-end db the exchange uses                                    |
+| maxConnectionAge             | In seconds; 0 is infinite                                            |
+| maxIdleTime                  | In seconds; 0 is infinite                                            |
+| maxIdleTimeExcessConnections | In seconds; 0 is infinite; culls connections down to the minPoolSize |
+| maxPoolSize                  |                                                                      |
+| maxStatementsPerConnection   | 0 disables; prepared statement caching per connection                |
+| minPoolSize                  |                                                                      |
+| numHelperThreads             |                                                                      |
+| password                     |                                                                      |
+| queueSize                    | -1 for unlimited, 0 to disable                                       |
+| testConnectionOnCheckin      |                                                                      |
+| upgradeTimeoutSeconds        |                                                                      |
+| user                         |                                                                      |
+
+#### api.defaults
+
+- ##### api.defaults.businessPolicy
+  | Parameter Name             | Description                                       |
+  |----------------------------|---------------------------------------------------|
+  | check_agreement_status     |                                                   |
+  | missing_heartbeat_interval | Used if the service.nodeHealth section is omitted |
+- ##### api.defaults.msgs
+  | Parameter Name                | Description                                                            |
+  |-------------------------------|------------------------------------------------------------------------|
+  | expired_msgs_removal_interval | Number of seconds between deletions of expired node and agbot messages |
+- ##### api.defaults.pattern
+  | Parameter Name             | Description                                        |
+  |----------------------------|----------------------------------------------------|
+  | missing_heartbeat_interval | Used if the services.nodeHealth section is omitted |
+  | check_agreement_status     |                                                    |
+
+#### api.limits
+
+| Parameter Name         | Description                                                                                                                 |
+|------------------------|-----------------------------------------------------------------------------------------------------------------------------|
+| maxAgbots              | Maximum number of agbots 1 user is allowed to create, 0 for unlimited                                                       |
+| maxAgreements          | Maximum number of agreements 1 node or agbot is allowed to create, 0 for unlimited                                          |
+| maxBusinessPolicies    | Maximum number of business policies 1 user is allowed to create, 0 for unlimited                                            |
+| maxManagementPolicies  | Maximum number of management policies 1 user is allowed to create, 0 for unlimited                                          |
+| maxMessagesInMailbox   | Maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting), 0 for unlimited |
+| maxNodes               | Maximum number of nodes 1 user is allowed to create, 0 for unlimited                                                        |
+| maxPatterns            | Maximum number of patterns 1 user is allowed to create, 0 for unlimited                                                     |
+| maxServices            | Maximum number of services 1 user is allowed to create, 0 for unlimited                                                     |
+
+#### api.logging
+
+| Parameter Name    | Description                                                                                 |
+|-------------------|---------------------------------------------------------------------------------------------|
+| level             | For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html    |
+
+#### api.resourceChanges
+
+| Parameter Name     | Description                                                                                                                                                                                               |
+|--------------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| cleanupInterval    | Number of seconds between pruning the resourcechanges table in the db of expired changes - 3600 is 1 hour                                                                                                 |
+| maxRecordsCap      | Maximum number of records the notification framework route will return                                                                                                                                    |
+| ttl                | Number of seconds to keep the history records of resource changes (14400 is 4 hours). When agents miss 1 or more heartbeats, they reset querying the /changes route, so they do not need very old entries |
+
+#### api.root
+
+| Parameter Name   | Description                                            |
+|------------------|--------------------------------------------------------|
+| enabled          | If set to false it will not honor the root credentials |
+| password         | Set this in your own version of this config file       |
+
+#### api.service
+
+| Parameter Name                      | Description                                                                    |
+|-------------------------------------|--------------------------------------------------------------------------------|
+| host                                |                                                                                |
+| port                                | Services HTTP traffic                                                          |
+| portEncrypted                       | Services HTTPS traffic                                                         |
+| shutdownWaitForRequestsToComplete   | Number of seconds to let in-flight requests complete before exiting the server |
+
+#### api.tls
+
+| Parameter Name | Description                                                                                                |
+|----------------|------------------------------------------------------------------------------------------------------------|
+| password       | Truststore's password                                                                                      |
+| truststore     | Absolute path and name of your pkcs12 (.p12) truststore that contains your tls certificate and private key |
+
 ## Todos that may be done in future versions
 
 - Granular (per org) service ACL support:
@@ -305,6 +440,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 - Update the Exchange to UBI 9 minimal from 8
 - Add TLS 3.0 algorithm `TLS_CHACHA20_POLY1305_SHA256` to the approved algorithms list for TLS connections.
 - Updated Sbt to version 1.6.2 from 1.6.1
+- Changed GitHub action to use OpenJDK 17 instead of AdoptJDK 11
 
 ## Changes in 2.101.4
 - Internationalization updates.

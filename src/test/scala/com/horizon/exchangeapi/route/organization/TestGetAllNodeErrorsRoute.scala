@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.organization
 
 import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeErrorRow, NodeErrorTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{AllNodeErrorsInOrgResp, ApiTime, ApiUtils, HttpCode, NodeErrorsResp, Password, PostNodeErrorResponse, Role, TestDBConnection}
+import com.horizon.exchangeapi.{AllNodeErrorsInOrgResp, ApiTime, ApiUtils, HttpCode, NodeErrorsResp, Password, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.scalatest.BeforeAndAfterAll

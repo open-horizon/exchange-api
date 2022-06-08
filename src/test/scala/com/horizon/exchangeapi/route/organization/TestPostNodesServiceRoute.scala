@@ -1,10 +1,13 @@
 package com.horizon.exchangeapi.route.organization
 
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, Password, Role, TestDBConnection}
-import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeErrorTQ, NodeRow, NodeStatusRow, NodeStatusTQ, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Password, PostServiceSearchRequest, PostServiceSearchResponse, Role, TestDBConnection}
+import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeRow, NodeStatusRow, NodeStatusTQ, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
+import org.json4s.jackson.JsonMethods
+import org.json4s.native.Serialization
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
+import scalaj.http.{Http, HttpResponse}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -163,7 +166,7 @@ class TestPostNodesServiceRoute extends AnyFunSuite with BeforeAndAfterAll {
         arch               = "",
         id                 = TESTORGS(0).orgId + "/liveadminnode",
         heartbeatIntervals = "",
-        lastHeartbeat      = None,
+        lastHeartbeat      = Some(ApiTime.nowUTC),
         lastUpdated        = ApiTime.nowUTC,
         msgEndPoint        = "",
         name               = "",
@@ -287,20 +290,232 @@ class TestPostNodesServiceRoute extends AnyFunSuite with BeforeAndAfterAll {
     DBCONNECTION.getDb.close()
   }
 
-  //invalid org - 404, empty return
-  //empty body - 400, empty return
-  //invalid body - 400, empty return
-  //nonexistent service - 404, empty return
-  //root normal - 201, 2 returned
-  //hub admin normal - 403, empty return
-  //user 1 - 201, 1 returned
-  //user 2 - 403, empty return
-  //admin 1 - 201, 2 returned
-  //admin 2 - 403, empty return
-  //agbot 1 - 201, 2 returned
-  //agbot 2 - 403, empty return
-  //node 1 - 403, empty return
-  //node 2 - 403, empty return
-  //search fakeService in org 2 - 404, empty return
+  val normalRequestBody: PostServiceSearchRequest = PostServiceSearchRequest(
+    orgid = TESTORGS(0).orgId,
+    serviceURL = SERVICEURL,
+    serviceVersion = SERVICEVERSION,
+    serviceArch = SERVICEARCH
+  )
+
+  test("POST /orgs/doesNotExist/search/nodes/service -- 404 not found -- empty return") {
+    val requestBody: PostServiceSearchRequest = PostServiceSearchRequest(
+      orgid = "doesNotExist",
+      serviceURL = SERVICEURL,
+      serviceVersion = SERVICEVERSION,
+      serviceArch = SERVICEARCH)
+    val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- empty body -- 400 bad input -- empty return") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- invalid body -- 400 bad input -- empty return") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData("{\"invalidKey\":\"invalidValue\"}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- null orgid in body -- 400 bad input -- empty return") {
+    val requestBody: Map[String, String] = Map(
+      "orgid" -> null,
+      "serviceURL" -> SERVICEURL,
+      "serviceVersion" -> SERVICEVERSION,
+      "serviceArch" -> SERVICEARCH)
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- null serviceURL in body -- 400 bad input -- empty return") {
+    val requestBody: Map[String, String] = Map(
+      "orgid" -> TESTORGS(0).orgId,
+      "serviceURL" -> null,
+      "serviceVersion" -> SERVICEVERSION,
+      "serviceArch" -> SERVICEARCH)
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- null serviceVersion in body -- 400 bad input -- empty return") {
+    val requestBody: Map[String, String] = Map(
+      "orgid" -> TESTORGS(0).orgId,
+      "serviceURL" -> SERVICEURL,
+      "serviceVersion" -> null,
+      "serviceArch" -> SERVICEARCH)
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- null serviceArch in body -- 400 bad input -- empty return") {
+    val requestBody: Map[String, String] = Map(
+      "orgid" -> TESTORGS(0).orgId,
+      "serviceURL" -> SERVICEURL,
+      "serviceVersion" -> SERVICEVERSION,
+      "serviceArch" -> null)
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- nonexistent service -- 404 not found -- empty return") {
+    val requestBody: PostServiceSearchRequest = PostServiceSearchRequest(
+      orgid = TESTORGS(0).orgId,
+      serviceURL = "doesNotExist",
+      serviceVersion = SERVICEVERSION,
+      serviceArch = SERVICEARCH)
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- as root -- success, all nodes returned") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    //the json4s extract method doesn't recognize a 2-element array as a tuple, so The PostServiceSearchResponse class in NodesRoutes won't work
+    //Instead, treat the (id, lastHeartbeat) tuple as a sequence of optional strings so that json4s can extract it
+    val searchResponse: Seq[Seq[Option[String]]] = (JsonMethods.parse(response.body) \ "nodes").extract[Seq[Seq[Option[String]]]]
+    assert(searchResponse.length === 2)
+    assert(searchResponse.contains(Seq(Some(TESTNODES(2).id), TESTNODES(2).lastHeartbeat)))
+    assert(searchResponse.contains(Seq(Some(TESTNODES(3).id), TESTNODES(3).lastHeartbeat)))
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- as hub admin -- 403 access denied -- empty return") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- as user in org -- success, only nodes owned by user returned") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    //the json4s extract method doesn't recognize a 2-element array as a tuple, so The PostServiceSearchResponse class in NodesRoutes won't work
+    //Instead, treat the (id, lastHeartbeat) tuple as a sequence of optional strings so that json4s can extract it
+    val searchResponse: Seq[Seq[Option[String]]] = (JsonMethods.parse(response.body) \ "nodes").extract[Seq[Seq[Option[String]]]]
+    assert(searchResponse.length === 1)
+    assert(searchResponse.contains(Seq(Some(TESTNODES(2).id), TESTNODES(2).lastHeartbeat)))
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- as user in other org -- 403 access denied -- empty return") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG2USERAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- as admin in org -- success, all nodes returned") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    //the json4s extract method doesn't recognize a 2-element array as a tuple, so The PostServiceSearchResponse class in NodesRoutes won't work
+    //Instead, treat the (id, lastHeartbeat) tuple as a sequence of optional strings so that json4s can extract it
+    val searchResponse: Seq[Seq[Option[String]]] = (JsonMethods.parse(response.body) \ "nodes").extract[Seq[Seq[Option[String]]]]
+    assert(searchResponse.length === 2)
+    assert(searchResponse.contains(Seq(Some(TESTNODES(2).id), TESTNODES(2).lastHeartbeat)))
+    assert(searchResponse.contains(Seq(Some(TESTNODES(3).id), TESTNODES(3).lastHeartbeat)))
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- as admin in other org -- 403 access denied -- empty return") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG2ADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- as agbot in org -- success, all nodes returned") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(AGBOT1AUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    //the json4s extract method doesn't recognize a 2-element array as a tuple, so The PostServiceSearchResponse class in NodesRoutes won't work
+    //Instead, treat the (id, lastHeartbeat) tuple as a sequence of optional strings so that json4s can extract it
+    val searchResponse: Seq[Seq[Option[String]]] = (JsonMethods.parse(response.body) \ "nodes").extract[Seq[Seq[Option[String]]]]
+    assert(searchResponse.length === 2)
+    assert(searchResponse.contains(Seq(Some(TESTNODES(2).id), TESTNODES(2).lastHeartbeat)))
+    assert(searchResponse.contains(Seq(Some(TESTNODES(3).id), TESTNODES(3).lastHeartbeat)))
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- as agbot in other org -- 403 access denied -- empty return") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(AGBOT2AUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- as node in org -- 403 access denied -- empty return") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(NODE1AUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + "/search/nodes/service -- as node in other org -- 403 access denied -- empty return") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(NODE2AUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(1).orgId + "/search/nodes/service -- search for service that isn't running in this org -- 404 not found -- empty return") {
+    val requestBody: PostServiceSearchRequest = PostServiceSearchRequest(
+      orgid = TESTORGS(0).orgId,
+      serviceURL = "fakeService",
+      serviceVersion = SERVICEVERSION,
+      serviceArch = SERVICEARCH)
+    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    val searchResponse: PostServiceSearchResponse = JsonMethods.parse(response.body).extract[PostServiceSearchResponse]
+    assert(searchResponse.nodes.isEmpty)
+  }
 
 }

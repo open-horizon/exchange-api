@@ -110,6 +110,8 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(request.code === HttpCode.BAD_INPUT.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid("testPostOrgRoute1").result), AWAITDURATION).length
     assert(numOrgs === 0) //make sure org didn't actually get added to DB
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPostOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   //error message "requirement failed" isn't very descriptive here
@@ -128,6 +130,8 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(request.code === HttpCode.BAD_INPUT.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid("testPostOrgRoute1").result), AWAITDURATION).length
     assert(numOrgs === 0) //make sure org didn't actually get added to DB
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPostOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   //error message "requirement failed" isn't very descriptive here
@@ -146,6 +150,8 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(request.code === HttpCode.BAD_INPUT.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid("testPostOrgRoute1").result), AWAITDURATION).length
     assert(numOrgs === 0) //make sure org didn't actually get added to DB
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPostOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("POST /orgs/testPostOrgRoute1 -- max nodes too large -- 400 bad input") {
@@ -164,6 +170,8 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(request.code === HttpCode.BAD_INPUT.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid("testPostOrgRoute1").result), AWAITDURATION).length
     assert(numOrgs === 0) //make sure org didn't actually get added to DB
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPostOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("POST /orgs/testPostOrgRoute1 as root -- normal success") {
@@ -221,6 +229,8 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(request.code === HttpCode.ACCESS_DENIED.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid("testPostOrgRoute1").result), AWAITDURATION).length
     assert(numOrgs === 0) //make sure org didn't actually get added to DB
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPostOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   //409 is not listed as a possible return in swagger
@@ -231,6 +241,8 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(request.code === HttpCode.ALREADY_EXISTS2.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid("TEMPtestPostOrgRoute").result), AWAITDURATION).length
     assert(numOrgs === 1)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TEMPtestPostOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
 }

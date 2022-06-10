@@ -145,9 +145,9 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
 
   override def afterEach(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(
-      TESTORGS(0).update andThen
-        ResourceChangesTQ.filter(_.orgId startsWith "testPutOrgRoute").delete
-    ), AWAITDURATION) //reset testPutOrgRoute1 each time
+      TESTORGS(0).update andThen //reset testPutOrgRoute1 each time
+      ResourceChangesTQ.filter(_.orgId startsWith "testPutOrgRoute").delete
+    ), AWAITDURATION)
   }
 
   test("PUT /orgs/doesNotExist -- 404 not found") {
@@ -165,6 +165,8 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(request.code === HttpCode.NOT_FOUND.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "doesNotExist").result), AWAITDURATION).length
     assert(numOrgs === 0) //insure org is not added
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "doesNotExist").result), AWAITDURATION).isEmpty)
   }
 
   test("PUT /orgs/testPutOrgRoute1 -- invalid body -- 400 bad input") {
@@ -183,6 +185,8 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("PUT /orgs/testPutOrgRoute1 -- null label -- 400 bad input") {
@@ -208,6 +212,8 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("PUT /orgs/testPutOrgRoute1 -- null description -- 400 bad input") {
@@ -233,6 +239,8 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("PUT /orgs/testPutOrgRoute1 -- max nodes too large -- 400 bad input") {
@@ -259,6 +267,8 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("PUT /orgs/testPutOrgRoute1 as root -- normal success") {
@@ -428,6 +438,8 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("PUT /orgs/testPutOrgRoute1 as org admin in other org -- 403 access denied") {
@@ -457,6 +469,8 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("PUT /orgs/testPutOrgRoute1 as regular user in other org -- 403 access denied") {
@@ -486,6 +500,8 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
 }

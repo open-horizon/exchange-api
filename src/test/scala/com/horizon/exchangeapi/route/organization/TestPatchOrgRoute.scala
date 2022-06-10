@@ -147,7 +147,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     Await.ready(DBCONNECTION.getDb.run(
       TESTORGS(0).update andThen
         ResourceChangesTQ.filter(_.orgId startsWith "testPatchOrgRoute").delete
-    ), AWAITDURATION) //reset testPutOrgRoute1 each time
+    ), AWAITDURATION)
   }
 
   test("PATCH /orgs/doesNotExist -- 404 not found") {
@@ -165,6 +165,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(request.code === HttpCode.NOT_FOUND.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "doesNotExist").result), AWAITDURATION).length
     assert(numOrgs === 0) //insure org is not added
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "doesNotExist").result), AWAITDURATION).isEmpty)
   }
 
   test("PATCH /orgs/testPatchOrgRoute1 -- invalid body -- 400 bad input") {
@@ -185,6 +187,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("PATCH /orgs/testPatchOrgRoute1 -- all fields empty -- 400 bad input") {
@@ -210,6 +214,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("PATCH /orgs/testPatchOrgRoute1 -- max nodes too large -- 400 bad input") {
@@ -236,6 +242,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   // it is undefined what happens when >1 attributes are included in the body, but based on the code it follows this order of preference:
@@ -557,6 +565,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("PATCH /orgs/testPatchOrgRoute1 -- as org admin in other org -- 403 access denied") {
@@ -582,6 +592,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
   test("PATCH /orgs/testPatchOrgRoute1 -- as regular user in other org -- 403 access denied") {
@@ -607,6 +619,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    //insure nothing was added to resource changes table
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
   }
 
 }

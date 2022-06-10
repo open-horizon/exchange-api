@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.organization
 
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, ChangeEntry, ExchangeApi, HttpCode, Password, ResourceChangesRequest, ResourceChangesRespObject, Role, TestDBConnection}
-import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeAgreementsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangeRow, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangeRow, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization

@@ -380,7 +380,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(response.code === HttpCode.POST_OK.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.changeId === lastChangeId).nonEmpty).nonEmpty) //check if RC with lastChangeId is in response
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId === lastChangeId))) //check if RC with lastChangeId is in response
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
   }
 
@@ -397,7 +397,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(response.code === HttpCode.POST_OK.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.changeId === lastChangeId).nonEmpty).nonEmpty) //check if RC with lastChangeId is in response
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId === lastChangeId))) //check if RC with lastChangeId is in response
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
   }
 
@@ -453,10 +453,10 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 4) //can't check for exact num because it may pick up some public RCs from other tests
     //check that the lastUpdated values match for the RCs that should be returned for this user
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(2).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(3).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(4).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString)).nonEmpty).nonEmpty)
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(2).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(3).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(4).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString))))
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
     //check that heartbeat of caller was updated
     assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.id === TESTAGBOTS(0).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(0).lastHeartbeat)
@@ -479,12 +479,12 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 6) //can't check for exact num because it may pick up some public RCs from other tests
     //check that the lastUpdated values match for the RCs that should be returned for this user
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(3).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(4).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(5).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(7).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(8).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString)).nonEmpty).nonEmpty)
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(3).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(4).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(5).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(7).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(8).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString))))
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
     //check that heartbeat of caller was updated
     assert(Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === TESTNODES(0).id).result), AWAITDURATION).head.lastHeartbeat.get > TESTNODES(0).lastHeartbeat.get)
@@ -507,13 +507,13 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 7) //can't check for exact num because it may pick up some public RCs from other tests
     //check that the lastUpdated values match for the RCs that should be returned for this user
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(2).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(3).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(4).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(5).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(7).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(8).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString)).nonEmpty).nonEmpty)
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(2).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(3).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(4).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(5).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(7).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(8).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString))))
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
   }
 
@@ -525,13 +525,13 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 7) //can't check for exact num because it may pick up some public RCs from other tests
     //check that the lastUpdated values match for the RCs that should be returned for this user
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(2).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(3).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(4).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(5).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(7).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(8).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString)).nonEmpty).nonEmpty)
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(2).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(3).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(4).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(5).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(7).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(8).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString))))
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
   }
 
@@ -543,13 +543,13 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 7) //can't check for exact num because it may pick up some public RCs from other tests
     //check that the lastUpdated values match for the RCs that should be returned for this user
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(2).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(3).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(4).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(5).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(7).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(8).lastUpdated.toString)).nonEmpty).nonEmpty)
-    assert(responseObj.changes.filter(_.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString)).nonEmpty).nonEmpty)
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(2).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(3).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(4).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(5).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(7).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(8).lastUpdated.toString))))
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString))))
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
   }
 
@@ -599,8 +599,8 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         val change: ChangeEntry = responseObj.changes.filter(_.orgId === TESTRESOURCECHANGES(9).orgId).filter(_.resource === TESTRESOURCECHANGES(9).resource).filter(_.id === TESTRESOURCECHANGES(9).id).head
         assert(change.operation === newRCs.head.operation)
         assert(change.resourceChanges.length === 2)
-        assert(change.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString)).nonEmpty)
-        assert(change.resourceChanges.filter(_.lastUpdated === ApiTime.fixFormatting(newRCs.head.lastUpdated.toString)).nonEmpty)
+        assert(change.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(TESTRESOURCECHANGES(9).lastUpdated.toString)))
+        assert(change.resourceChanges.exists(_.lastUpdated === ApiTime.fixFormatting(newRCs.head.lastUpdated.toString)))
         assert(responseObj.exchangeVersion === EXCHANGEVERSION)
       }, newRCs)
   }

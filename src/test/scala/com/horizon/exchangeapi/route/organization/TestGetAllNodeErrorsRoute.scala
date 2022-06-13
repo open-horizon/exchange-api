@@ -258,6 +258,12 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     DBCONNECTION.getDb.close()
   }
 
+  def assertErrorsEqual(error1: NodeErrorsResp, error2: NodeErrorRow): Unit = {
+    assert(error1.nodeId === error2.nodeId)
+    assert(error1.error === error2.errors)
+    assert(error1.lastUpdated === error2.lastUpdated)
+  }
+
   //this succeeds and returns an empty list for a nonexistent org -- would expect a 404 not found instead, but whatever
   test("GET /orgs/doesNotExist" + ROUTE + " -- success, empty list") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -274,13 +280,10 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val errorMap: Map[String, NodeErrorsResp] = JsonMethods.parse(response.body).extract[AllNodeErrorsInOrgResp].nodeErrors.map(a => a.nodeId -> a).toMap
-    assert(errorMap.size == 2)
+    assert(errorMap.size === 2)
     for (nodeError <- TESTNODEERRORS) {
       assert(errorMap.contains(nodeError.nodeId))
-      val error = errorMap(nodeError.nodeId)
-      assert(error.nodeId === nodeError.nodeId)
-      assert(error.error === nodeError.errors)
-      assert(error.lastUpdated === nodeError.lastUpdated)
+      assertErrorsEqual(errorMap(nodeError.nodeId), nodeError)
     }
   }
 
@@ -308,13 +311,10 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val errorMap: Map[String, NodeErrorsResp] = JsonMethods.parse(response.body).extract[AllNodeErrorsInOrgResp].nodeErrors.map(a => a.nodeId -> a).toMap
-    assert(errorMap.size == 2)
+    assert(errorMap.size === 2)
     for (nodeError <- TESTNODEERRORS) {
       assert(errorMap.contains(nodeError.nodeId))
-      val error = errorMap(nodeError.nodeId)
-      assert(error.nodeId === nodeError.nodeId)
-      assert(error.error === nodeError.errors)
-      assert(error.lastUpdated === nodeError.lastUpdated)
+      assertErrorsEqual(errorMap(nodeError.nodeId), nodeError)
     }
   }
 
@@ -342,13 +342,10 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val errorMap: Map[String, NodeErrorsResp] = JsonMethods.parse(response.body).extract[AllNodeErrorsInOrgResp].nodeErrors.map(a => a.nodeId -> a).toMap
-    assert(errorMap.size == 2)
+    assert(errorMap.size === 2)
     for (nodeError <- TESTNODEERRORS) {
       assert(errorMap.contains(nodeError.nodeId))
-      val error = errorMap(nodeError.nodeId)
-      assert(error.nodeId === nodeError.nodeId)
-      assert(error.error === nodeError.errors)
-      assert(error.lastUpdated === nodeError.lastUpdated)
+      assertErrorsEqual(errorMap(nodeError.nodeId), nodeError)
     }
   }
 
@@ -359,10 +356,7 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.OK.intValue)
     val errorList: Seq[NodeErrorsResp] = JsonMethods.parse(response.body).extract[AllNodeErrorsInOrgResp].nodeErrors.toList
     assert(errorList.length === 1)
-    val error = errorList.head
-    assert(error.nodeId === TESTNODEERRORS(0).nodeId)
-    assert(error.error === TESTNODEERRORS(0).errors)
-    assert(error.lastUpdated === TESTNODEERRORS(0).lastUpdated)
+    assertErrorsEqual(errorList.head, TESTNODEERRORS(0))
   }
 
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as admin in other org -- 403 access denied") {

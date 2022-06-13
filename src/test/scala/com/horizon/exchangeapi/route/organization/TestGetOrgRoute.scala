@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.organization
 
-import com.horizon.exchangeapi.tables.{NodeHeartbeatIntervals, OrgLimits, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, AuthCache, GetOrgsResponse, HttpCode, Password, Role, TestDBConnection}
+import com.horizon.exchangeapi.tables.{NodeHeartbeatIntervals, Org, OrgLimits, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetOrgsResponse, HttpCode, Password, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
@@ -18,15 +18,12 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+
+  private implicit val formats = DefaultFormats
+
   private val HUBADMINPASSWORD = "adminpassword"
   private val USER1PASSWORD = "user1password"
   private val USER2PASSWORD = "user2password"
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/TestGetOrgRouteHubAdmin:" + HUBADMINPASSWORD))
-  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetOrgRoute1/TestGetOrgRouteUser1:" + USER1PASSWORD))
-  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetOrgRoute2/TestGetOrgRouteUser2:" + USER2PASSWORD))
-
-  private implicit val formats = DefaultFormats
 
   private val TESTORGS: Seq[OrgRow] =
     Seq(
@@ -90,29 +87,34 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
         hubAdmin    = true,
         email       = "TestGetOrgRouteHubAdmin@ibm.com",
         lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
+        updatedBy   = "root/root"
       ),
       UserRow(
-        username    = "testGetOrgRoute1/TestGetOrgRouteUser1",
-        orgid       = "testGetOrgRoute1",
+        username    = TESTORGS(0).orgId + "/TestGetOrgRouteUser1",
+        orgid       = TESTORGS(0).orgId,
         hashedPw    = Password.hash(USER1PASSWORD),
         admin       = false,
         hubAdmin    = false,
         email       = "TestGetOrgRouteUser1@ibm.com",
         lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
+        updatedBy   = "root/root"
       ),
       UserRow(
-        username    = "testGetOrgRoute2/TestGetOrgRouteUser2",
-        orgid       = "testGetOrgRoute2",
+        username    = TESTORGS(1).orgId + "/TestGetOrgRouteUser2",
+        orgid       = TESTORGS(1).orgId,
         hashedPw    = Password.hash(USER2PASSWORD),
         admin       = false,
         hubAdmin    = false,
         email       = "TestGetOrgRouteUser2@ibm.com",
         lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
+        updatedBy   = "root/root"
       )
     )
+
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USER1PASSWORD))
+  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + USER2PASSWORD))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(
@@ -128,6 +130,16 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
     DBCONNECTION.getDb.close()
   }
 
+  def assertOrgsEqual(org1: Org, org2: OrgRow): Unit = {
+    assert(org1.heartbeatIntervals === JsonMethods.parse(org2.heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
+    assert(org1.description === org2.description)
+    assert(org1.label === org2.label)
+    assert(org1.lastUpdated === org2.lastUpdated)
+    assert(org1.limits === JsonMethods.parse(org2.limits).extract[OrgLimits]) //convert json string to orglimits object
+    assert(org1.orgType === org2.orgType)
+    assert(org1.tags === org2.tags || org1.tags === Some(org2.tags.get.extract[Map[String, String]])) //first check if both None, second check if both Some
+  }
+
   test("GET /orgs/doesNotExist -- 404 not found") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
@@ -135,55 +147,37 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  test("GET /orgs/testGetOrgRoute1 -- as root -- return testGetOrgRoute1") {
-    val response: HttpResponse[String] = Http(URL + "testGetOrgRoute1").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + " -- as root -- success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size === 1)
-    assert(orgsList.orgs.contains("testGetOrgRoute1"))
-    assert(orgsList.orgs("testGetOrgRoute1").heartbeatIntervals === JsonMethods.parse(TESTORGS(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(orgsList.orgs("testGetOrgRoute1").description === TESTORGS(0).description)
-    assert(orgsList.orgs("testGetOrgRoute1").label === TESTORGS(0).label)
-    assert(orgsList.orgs("testGetOrgRoute1").lastUpdated === TESTORGS(0).lastUpdated)
-    assert(orgsList.orgs("testGetOrgRoute1").limits === JsonMethods.parse(TESTORGS(0).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(orgsList.orgs("testGetOrgRoute1").orgType === TESTORGS(0).orgType)
-    assert(orgsList.orgs("testGetOrgRoute1").tags === TESTORGS(0).tags || orgsList.orgs("testGetOrgRoute1").tags === Some(TESTORGS(0).tags.get.extract[Map[String, String]])) //first check if both None, second check if both Some
+    assert(orgsList.orgs.contains(TESTORGS(0).orgId))
+    assertOrgsEqual(orgsList.orgs(TESTORGS(0).orgId), TESTORGS(0))
+    }
+
+  test("GET /orgs/ + " + TESTORGS(0).orgId + " -- as hub admin -- success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val orgsList = parse(response.body).extract[GetOrgsResponse]
+    assert(orgsList.orgs.size === 1)
+    assert(orgsList.orgs.contains(TESTORGS(0).orgId))
+    assertOrgsEqual(orgsList.orgs(TESTORGS(0).orgId), TESTORGS(0))
   }
 
-  test("GET /orgs/testGetOrgRoute1 -- as hub admin -- return testGetOrgRoute1") {
-    val response: HttpResponse[String] = Http(URL + "testGetOrgRoute1").headers(ACCEPT).headers(HUBADMINAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + " -- as user in org -- success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).headers(ACCEPT).headers(USER1AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size === 1)
-    assert(orgsList.orgs.contains("testGetOrgRoute1"))
-    assert(orgsList.orgs("testGetOrgRoute1").heartbeatIntervals === JsonMethods.parse(TESTORGS(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(orgsList.orgs("testGetOrgRoute1").description === TESTORGS(0).description)
-    assert(orgsList.orgs("testGetOrgRoute1").label === TESTORGS(0).label)
-    assert(orgsList.orgs("testGetOrgRoute1").lastUpdated === TESTORGS(0).lastUpdated)
-    assert(orgsList.orgs("testGetOrgRoute1").limits === JsonMethods.parse(TESTORGS(0).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(orgsList.orgs("testGetOrgRoute1").orgType === TESTORGS(0).orgType)
-    assert(orgsList.orgs("testGetOrgRoute1").tags === TESTORGS(0).tags || orgsList.orgs("testGetOrgRoute1").tags === Some(TESTORGS(0).tags.get.extract[Map[String, String]])) //first check if both None, second check if both Some
-  }
-
-  test("GET /orgs/testGetOrgRoute1 -- as user in testGetOrgRoute1 -- return testGetOrgRoute1") {
-    val response: HttpResponse[String] = Http(URL + "testGetOrgRoute1").headers(ACCEPT).headers(USER1AUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
-    val orgsList = parse(response.body).extract[GetOrgsResponse]
-    assert(orgsList.orgs.size === 1)
-    assert(orgsList.orgs.contains("testGetOrgRoute1"))
-    assert(orgsList.orgs("testGetOrgRoute1").heartbeatIntervals === JsonMethods.parse(TESTORGS(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(orgsList.orgs("testGetOrgRoute1").description === TESTORGS(0).description)
-    assert(orgsList.orgs("testGetOrgRoute1").label === TESTORGS(0).label)
-    assert(orgsList.orgs("testGetOrgRoute1").lastUpdated === TESTORGS(0).lastUpdated)
-    assert(orgsList.orgs("testGetOrgRoute1").limits === JsonMethods.parse(TESTORGS(0).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(orgsList.orgs("testGetOrgRoute1").orgType === TESTORGS(0).orgType)
-    assert(orgsList.orgs("testGetOrgRoute1").tags === TESTORGS(0).tags || orgsList.orgs("testGetOrgRoute1").tags === Some(TESTORGS(0).tags.get.extract[Map[String, String]])) //first check if both None, second check if both Some
+    assert(orgsList.orgs.contains(TESTORGS(0).orgId))
+    assertOrgsEqual(orgsList.orgs(TESTORGS(0).orgId), TESTORGS(0))
   }
 
   test("GET /orgs/testGetOrgRoute1 -- as user in testGetOrgRoute2 -- 403 access denied") {

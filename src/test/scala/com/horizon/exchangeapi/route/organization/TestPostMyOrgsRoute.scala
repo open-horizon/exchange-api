@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.organization
 
 import com.horizon.exchangeapi.auth.IamAccountInfo
-import com.horizon.exchangeapi.tables.{NodeHeartbeatIntervals, OrgLimits, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{NodeHeartbeatIntervals, Org, OrgLimits, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetOrgsResponse, HttpCode, Password, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
@@ -93,8 +93,8 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
         updatedBy   = "root/root"
       ),
       UserRow(
-        username    = "TestPostMyOrgsRouteOrg1/TestPostMyOrgsRouteUser",
-        orgid       = "TestPostMyOrgsRouteOrg1",
+        username    = TESTORGS(0).orgId + "/TestPostMyOrgsRouteUser",
+        orgid       = TESTORGS(0).orgId,
         hashedPw    = Password.hash(USERPASSWORD),
         admin       = false,
         hubAdmin    = false,
@@ -103,8 +103,8 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
         updatedBy   = "root/root"
       ),
       UserRow(
-        username    = "TestPostMyOrgsRouteOrg1/TestPostMyOrgsRouteAdmin",
-        orgid       = "TestPostMyOrgsRouteOrg1",
+        username    = TESTORGS(0).orgId + "/TestPostMyOrgsRouteAdmin",
+        orgid       = TESTORGS(0).orgId,
         hashedPw    = Password.hash(ADMINPASSWORD),
         admin       = true,
         hubAdmin    = false,
@@ -131,6 +131,16 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
       OrgsTQ.filter(_.orgid startsWith "TestPostMyOrgsRouteOrg").delete andThen
       UsersTQ.filter(_.username startsWith "root/TestPostMyOrgsRouteHubAdmin").delete), AWAITDURATION)
     DBCONNECTION.getDb.close()
+  }
+
+  def assertOrgsEqual(org1: Org, org2: OrgRow): Unit = {
+    assert(org1.heartbeatIntervals === JsonMethods.parse(org2.heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
+    assert(org1.description === org2.description)
+    assert(org1.label === org2.label)
+    assert(org1.lastUpdated === org2.lastUpdated)
+    assert(org1.limits === JsonMethods.parse(org2.limits).extract[OrgLimits]) //convert json string to orglimits object
+    assert(org1.orgType === org2.orgType)
+    assert(org1.tags.get === org2.tags.get.extract[Map[String, String]])
   }
 
   test("POST /myorgs -- empty body -- 400 bad input") {
@@ -177,13 +187,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.nonEmpty)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
-    assert(searchResponse.orgs(TESTORGS(0).orgId).heartbeatIntervals === JsonMethods.parse(TESTORGS(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).description === TESTORGS(0).description)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).label === TESTORGS(0).label)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).lastUpdated === TESTORGS(0).lastUpdated)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).limits === JsonMethods.parse(TESTORGS(0).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).orgType === TESTORGS(0).orgType)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).tags.get === TESTORGS(0).tags.get.extract[Map[String, String]])
+    assertOrgsEqual(searchResponse.orgs(TESTORGS(0).orgId), TESTORGS(0))
   }
 
   test("POST /myorgs -- only id provided -- 200 success") {
@@ -195,13 +199,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.nonEmpty)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
-    assert(searchResponse.orgs(TESTORGS(0).orgId).heartbeatIntervals === JsonMethods.parse(TESTORGS(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).description === TESTORGS(0).description)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).label === TESTORGS(0).label)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).lastUpdated === TESTORGS(0).lastUpdated)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).limits === JsonMethods.parse(TESTORGS(0).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).orgType === TESTORGS(0).orgType)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).tags.get === TESTORGS(0).tags.get.extract[Map[String, String]])
+    assertOrgsEqual(searchResponse.orgs(TESTORGS(0).orgId), TESTORGS(0))
   }
 
   test("POST /myorgs -- 3 orgs returned -- 200 success") {
@@ -226,31 +224,13 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.size >= 3)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
-    assert(searchResponse.orgs(TESTORGS(0).orgId).heartbeatIntervals === JsonMethods.parse(TESTORGS(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).description === TESTORGS(0).description)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).label === TESTORGS(0).label)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).lastUpdated === TESTORGS(0).lastUpdated)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).limits === JsonMethods.parse(TESTORGS(0).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).orgType === TESTORGS(0).orgType)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).tags.get === TESTORGS(0).tags.get.extract[Map[String, String]])
+    assertOrgsEqual(searchResponse.orgs(TESTORGS(0).orgId), TESTORGS(0))
 
     assert(searchResponse.orgs.contains(TESTORGS(1).orgId))
-    assert(searchResponse.orgs(TESTORGS(1).orgId).heartbeatIntervals === JsonMethods.parse(TESTORGS(1).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(searchResponse.orgs(TESTORGS(1).orgId).description === TESTORGS(1).description)
-    assert(searchResponse.orgs(TESTORGS(1).orgId).label === TESTORGS(1).label)
-    assert(searchResponse.orgs(TESTORGS(1).orgId).lastUpdated === TESTORGS(1).lastUpdated)
-    assert(searchResponse.orgs(TESTORGS(1).orgId).limits === JsonMethods.parse(TESTORGS(1).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(searchResponse.orgs(TESTORGS(1).orgId).orgType === TESTORGS(1).orgType)
-    assert(searchResponse.orgs(TESTORGS(1).orgId).tags.get === TESTORGS(1).tags.get.extract[Map[String, String]])
+    assertOrgsEqual(searchResponse.orgs(TESTORGS(1).orgId), TESTORGS(1))
 
     assert(searchResponse.orgs.contains(TESTORGS(2).orgId))
-    assert(searchResponse.orgs(TESTORGS(2).orgId).heartbeatIntervals === JsonMethods.parse(TESTORGS(2).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(searchResponse.orgs(TESTORGS(2).orgId).description === TESTORGS(2).description)
-    assert(searchResponse.orgs(TESTORGS(2).orgId).label === TESTORGS(2).label)
-    assert(searchResponse.orgs(TESTORGS(2).orgId).lastUpdated === TESTORGS(2).lastUpdated)
-    assert(searchResponse.orgs(TESTORGS(2).orgId).limits === JsonMethods.parse(TESTORGS(2).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(searchResponse.orgs(TESTORGS(2).orgId).orgType === TESTORGS(2).orgType)
-    assert(searchResponse.orgs(TESTORGS(2).orgId).tags.get === TESTORGS(2).tags.get.extract[Map[String, String]])
+    assertOrgsEqual(searchResponse.orgs(TESTORGS(2).orgId), TESTORGS(2))
   }
 
   test("POST /myorgs -- as hub admin -- 200 success") {
@@ -267,13 +247,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.nonEmpty)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
-    assert(searchResponse.orgs(TESTORGS(0).orgId).heartbeatIntervals === JsonMethods.parse(TESTORGS(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).description === TESTORGS(0).description)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).label === TESTORGS(0).label)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).lastUpdated === TESTORGS(0).lastUpdated)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).limits === JsonMethods.parse(TESTORGS(0).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).orgType === TESTORGS(0).orgType)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).tags.get === TESTORGS(0).tags.get.extract[Map[String, String]])
+    assertOrgsEqual(searchResponse.orgs(TESTORGS(0).orgId), TESTORGS(0))
   }
 
   test("POST /myorgs -- as admin -- 200 success") {
@@ -290,13 +264,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.nonEmpty)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
-    assert(searchResponse.orgs(TESTORGS(0).orgId).heartbeatIntervals === JsonMethods.parse(TESTORGS(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).description === TESTORGS(0).description)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).label === TESTORGS(0).label)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).lastUpdated === TESTORGS(0).lastUpdated)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).limits === JsonMethods.parse(TESTORGS(0).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).orgType === TESTORGS(0).orgType)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).tags.get === TESTORGS(0).tags.get.extract[Map[String, String]])
+    assertOrgsEqual(searchResponse.orgs(TESTORGS(0).orgId), TESTORGS(0))
   }
 
   test("POST /myorgs -- as user -- 200 success") {
@@ -313,13 +281,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.nonEmpty)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
-    assert(searchResponse.orgs(TESTORGS(0).orgId).heartbeatIntervals === JsonMethods.parse(TESTORGS(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).description === TESTORGS(0).description)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).label === TESTORGS(0).label)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).lastUpdated === TESTORGS(0).lastUpdated)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).limits === JsonMethods.parse(TESTORGS(0).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(searchResponse.orgs(TESTORGS(0).orgId).orgType === TESTORGS(0).orgType)
-    assert(searchResponse.orgs(TESTORGS(0).orgId).tags.get === TESTORGS(0).tags.get.extract[Map[String, String]])
+    assertOrgsEqual(searchResponse.orgs(TESTORGS(0).orgId), TESTORGS(0))
   }
 
   test("POST /myorgs -- as user getting orgs they aren't in -- 200 success") {
@@ -336,22 +298,10 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.size >= 2)
     assert(searchResponse.orgs.contains(TESTORGS(1).orgId))
-    assert(searchResponse.orgs(TESTORGS(1).orgId).heartbeatIntervals === JsonMethods.parse(TESTORGS(1).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(searchResponse.orgs(TESTORGS(1).orgId).description === TESTORGS(1).description)
-    assert(searchResponse.orgs(TESTORGS(1).orgId).label === TESTORGS(1).label)
-    assert(searchResponse.orgs(TESTORGS(1).orgId).lastUpdated === TESTORGS(1).lastUpdated)
-    assert(searchResponse.orgs(TESTORGS(1).orgId).limits === JsonMethods.parse(TESTORGS(1).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(searchResponse.orgs(TESTORGS(1).orgId).orgType === TESTORGS(1).orgType)
-    assert(searchResponse.orgs(TESTORGS(1).orgId).tags.get === TESTORGS(1).tags.get.extract[Map[String, String]])
+    assertOrgsEqual(searchResponse.orgs(TESTORGS(1).orgId), TESTORGS(1))
 
     assert(searchResponse.orgs.contains(TESTORGS(2).orgId))
-    assert(searchResponse.orgs(TESTORGS(2).orgId).heartbeatIntervals === JsonMethods.parse(TESTORGS(2).heartbeatIntervals).extract[NodeHeartbeatIntervals]) //convert json string to NodeHeartbeatIntervals object
-    assert(searchResponse.orgs(TESTORGS(2).orgId).description === TESTORGS(2).description)
-    assert(searchResponse.orgs(TESTORGS(2).orgId).label === TESTORGS(2).label)
-    assert(searchResponse.orgs(TESTORGS(2).orgId).lastUpdated === TESTORGS(2).lastUpdated)
-    assert(searchResponse.orgs(TESTORGS(2).orgId).limits === JsonMethods.parse(TESTORGS(2).limits).extract[OrgLimits]) //convert json string to orglimits object
-    assert(searchResponse.orgs(TESTORGS(2).orgId).orgType === TESTORGS(2).orgType)
-    assert(searchResponse.orgs(TESTORGS(2).orgId).tags.get === TESTORGS(2).tags.get.extract[Map[String, String]])
+    assertOrgsEqual(searchResponse.orgs(TESTORGS(2).orgId), TESTORGS(2))
   }
 
 }

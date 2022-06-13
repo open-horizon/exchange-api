@@ -20,19 +20,14 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+
+  private implicit val formats = DefaultFormats
+
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORGADMIN1PASSWORD = "orgadmin1password"
   private val ORGADMIN2PASSWORD = "orgadmin2password"
   private val USER1PASSWORD = "user1password"
   private val USER2PASSWORD = "user2password"
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/TestPutOrgRouteHubAdmin:" + HUBADMINPASSWORD))
-  private val ORGADMIN1AUTH = ("Authorization", "Basic " + ApiUtils.encode("testPutOrgRoute1/TestPutOrgRouteOrgAdmin1:" + ORGADMIN1PASSWORD))
-  private val ORGADMIN2AUTH = ("Authorization", "Basic " + ApiUtils.encode("testPutOrgRoute2/TestPutOrgRouteOrgAdmin2:" + ORGADMIN2PASSWORD))
-  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode("testPutOrgRoute1/TestPutOrgRouteUser1:" + USER1PASSWORD))
-  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode("testPutOrgRoute2/TestPutOrgRouteUser2:" + USER2PASSWORD))
-
-  private implicit val formats = DefaultFormats
 
   private val TESTORGS: Seq[OrgRow] =
     Seq(
@@ -84,49 +79,56 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
         hubAdmin    = true,
         email       = "TestPutOrgRouteHubAdmin@ibm.com",
         lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
+        updatedBy   = "root/root"
       ),
       UserRow(
-        username    = "testPutOrgRoute1/TestPutOrgRouteOrgAdmin1",
-        orgid       = "testPutOrgRoute1",
+        username    = TESTORGS(0).orgId + "/TestPutOrgRouteOrgAdmin1",
+        orgid       = TESTORGS(0).orgId,
         hashedPw    = Password.hash(ORGADMIN1PASSWORD),
         admin       = true,
         hubAdmin    = false,
         email       = "TestPutOrgRouteOrgAdmin1@ibm.com",
         lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
+        updatedBy   = "root/root"
       ),
       UserRow(
-        username    = "testPutOrgRoute2/TestPutOrgRouteOrgAdmin2",
-        orgid       = "testPutOrgRoute2",
+        username    = TESTORGS(1).orgId + "/TestPutOrgRouteOrgAdmin2",
+        orgid       = TESTORGS(1).orgId,
         hashedPw    = Password.hash(ORGADMIN2PASSWORD),
         admin       = true,
         hubAdmin    = false,
         email       = "TestPutOrgRouteOrgAdmin2@ibm.com",
         lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
+        updatedBy   = "root/root"
       ),
       UserRow(
-        username    = "testPutOrgRoute1/TestPutOrgRouteUser1",
-        orgid       = "testPutOrgRoute1",
+        username    = TESTORGS(0).orgId + "/TestPutOrgRouteUser1",
+        orgid       = TESTORGS(0).orgId,
         hashedPw    = Password.hash(USER1PASSWORD),
         admin       = false,
         hubAdmin    = false,
         email       = "TestPutOrgRouteUser1@ibm.com",
         lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
+        updatedBy   = "root/root"
       ),
       UserRow(
-        username    = "testPutOrgRoute2/TestPutOrgRouteUser2",
-        orgid       = "testPutOrgRoute2",
+        username    = TESTORGS(1).orgId + "/TestPutOrgRouteUser2",
+        orgid       = TESTORGS(1).orgId,
         hashedPw    = Password.hash(USER2PASSWORD),
         admin       = false,
         hubAdmin    = false,
         email       = "TestPutOrgRouteUser2@ibm.com",
         lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
+        updatedBy   = "root/root"
       )
     )
+
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORGADMIN1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORGADMIN1PASSWORD))
+  private val ORGADMIN2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORGADMIN2PASSWORD))
+  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(3).username + ":" + USER1PASSWORD))
+  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(4).username + ":" + USER2PASSWORD))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(
@@ -150,16 +152,58 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     ), AWAITDURATION)
   }
 
-  test("PUT /orgs/doesNotExist -- 404 not found") {
-    val requestBody: PostPutOrgRequest = PostPutOrgRequest(
-      orgType = None,
-      label = "label",
-      description = "description",
-      tags = None,
-      limits = None,
-      heartbeatIntervals = None
+  def assertNoChanges(org: OrgRow): Unit = {
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === org.orgId).result), AWAITDURATION).head
+    assert(dbOrg.orgType === org.orgType)
+    assert(dbOrg.tags.get === org.tags.get)
+    assert(dbOrg.orgId === org.orgId)
+    assert(dbOrg.limits === org.limits)
+    assert(dbOrg.label === org.label)
+    assert(dbOrg.description === org.description)
+    assert(dbOrg.heartbeatIntervals === org.heartbeatIntervals)
+    assert(dbOrg.lastUpdated === org.lastUpdated)
+  }
+
+  def assertOrg1Updated(request: PostPutOrgRequest): Unit = {
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
+    assert(dbOrg.orgType === request.orgType.getOrElse(""))
+    assert(dbOrg.tags.get.extract[Map[String, String]] === request.tags.get)
+    assert(dbOrg.orgId === TESTORGS(0).orgId)
+    assert(JsonMethods.parse(dbOrg.limits).extract[OrgLimits] === request.limits.get)
+    assert(dbOrg.label === request.label)
+    assert(dbOrg.description === request.description)
+    assert(JsonMethods.parse(dbOrg.heartbeatIntervals).extract[NodeHeartbeatIntervals] === request.heartbeatIntervals.get)
+    assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated) //make sure lastUpdated has changed
+  }
+
+  def assertCreatedModifiedEntryExists(orgId: String): Unit = {
+    assert(
+      Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+        .filter(_.orgId === orgId)
+        .filter(_.id === orgId)
+        .filter(_.category === ResChangeCategory.ORG.toString)
+        .filter(_.resource === ResChangeResource.ORG.toString)
+        .filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString)
+        .result), AWAITDURATION)
+        .nonEmpty
     )
-    val request: HttpResponse[String] = Http(URL + "doesNotExist").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+  }
+
+  val normalRequestBody: PostPutOrgRequest = PostPutOrgRequest(
+    orgType = None,
+    label = "newLabel",
+    description = "newDescription",
+    tags = Some(Map("newKey" -> "newValue")),
+    limits = Some(OrgLimits(101)),
+    heartbeatIntervals = Some(NodeHeartbeatIntervals(
+      minInterval = 4,
+      maxInterval = 5,
+      intervalAdjustment = 6
+    ))
+  )
+
+  test("PUT /orgs/doesNotExist -- 404 not found") {
+    val request: HttpResponse[String] = Http(URL + "doesNotExist").put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.NOT_FOUND.intValue)
@@ -169,27 +213,18 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "doesNotExist").result), AWAITDURATION).isEmpty)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 -- invalid body -- 400 bad input") {
+  test("PUT /orgs/" + TESTORGS(0).orgId + " -- invalid body -- 400 bad input") {
     val requestBody: Map[String, String] = Map("invalidKey" -> "invalidValue")
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 -- null label -- 400 bad input") {
+  test("PUT /orgs/" + TESTORGS(0).orgId + " -- null label -- 400 bad input") {
     val requestBody: Map[String, String] = Map( //can't use PostPutOrgRequest here because it throws an exception if it's improperly created
       "orgType" -> null,
       "label" -> null,
@@ -198,25 +233,16 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
       "limits" -> null,
       "heartbeatIntervals" -> null
     )
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 -- null description -- 400 bad input") {
+  test("PUT /orgs/" + TESTORGS(0).orgId + " -- null description -- 400 bad input") {
     val requestBody: Map[String, String] = Map( //can't use PostPutOrgRequest here because it throws an exception if it's improperly created
       "orgType" -> null,
       "label" -> "label",
@@ -225,25 +251,16 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
       "limits" -> null,
       "heartbeatIntervals" -> null
     )
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 -- max nodes too large -- 400 bad input") {
+  test("PUT /orgs/" + TESTORGS(0).orgId + " -- max nodes too large -- 400 bad input") {
     val exchangeMaxNodes: Int = ExchConfig.getInt("api.limits.maxNodes")
     val requestBody: PostPutOrgRequest = PostPutOrgRequest(
       orgType = None,
@@ -253,255 +270,91 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
       limits = Some(OrgLimits(exchangeMaxNodes + 1)),
       heartbeatIntervals = None
     )
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 as root -- normal success") {
-    val requestBody: PostPutOrgRequest = PostPutOrgRequest(
-      orgType = None,
-      label = "newLabel",
-      description = "newDescription",
-      tags = Some(Map("newKey" -> "newValue")),
-      limits = Some(OrgLimits(101)),
-      heartbeatIntervals = Some(NodeHeartbeatIntervals(
-        minInterval = 4,
-        maxInterval = 5,
-        intervalAdjustment = 6
-      ))
-    )
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("PUT /orgs/" + TESTORGS(0).orgId + " as root -- normal success") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.PUT_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === requestBody.orgType.getOrElse(""))
-    assert(dbOrg.tags.get.extract[Map[String, String]] === requestBody.tags.get)
-    assert(dbOrg.orgId === "testPutOrgRoute1")
-    assert(JsonMethods.parse(dbOrg.limits).extract[OrgLimits] === requestBody.limits.get)
-    assert(dbOrg.label === requestBody.label)
-    assert(dbOrg.description === requestBody.description)
-    assert(JsonMethods.parse(dbOrg.heartbeatIntervals).extract[NodeHeartbeatIntervals] === requestBody.heartbeatIntervals.get)
-    assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated) //make sure lastUpdated has changed
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPutOrgRoute1")
-      .filter(_.id === "testPutOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertOrg1Updated(normalRequestBody)
+    assertCreatedModifiedEntryExists(TESTORGS(0).orgId)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 -- just label and description -- success, all else set to null or empty string") {
+  test("PUT /orgs/" + TESTORGS(0).orgId + " -- just label and description -- success, all else set to null or empty string") {
     val requestBody: Map[String, String] = Map(
       "label" -> "newLabel",
       "description" -> "newDescription"
     )
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.PUT_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === "")
     assert(dbOrg.tags.isEmpty)
-    assert(dbOrg.orgId === "testPutOrgRoute1")
+    assert(dbOrg.orgId === TESTORGS(0).orgId)
     assert(dbOrg.limits === "")
     assert(dbOrg.label === requestBody("label"))
     assert(dbOrg.description === requestBody("description"))
     assert(dbOrg.heartbeatIntervals === "")
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated) //make sure lastUpdated has changed
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPutOrgRoute1")
-      .filter(_.id === "testPutOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertCreatedModifiedEntryExists(TESTORGS(0).orgId)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 as hub admin -- normal success") {
-    val requestBody: PostPutOrgRequest = PostPutOrgRequest(
-      orgType = None,
-      label = "newLabel",
-      description = "newDescription",
-      tags = Some(Map("newKey" -> "newValue")),
-      limits = Some(OrgLimits(101)),
-      heartbeatIntervals = Some(NodeHeartbeatIntervals(
-        minInterval = 4,
-        maxInterval = 5,
-        intervalAdjustment = 6
-      ))
-    )
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+  test("PUT /orgs/" + TESTORGS(0).orgId + " as hub admin -- normal success") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.PUT_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === requestBody.orgType.getOrElse(""))
-    assert(dbOrg.tags.get.extract[Map[String, String]] === requestBody.tags.get)
-    assert(dbOrg.orgId === "testPutOrgRoute1")
-    assert(JsonMethods.parse(dbOrg.limits).extract[OrgLimits] === requestBody.limits.get)
-    assert(dbOrg.label === requestBody.label)
-    assert(dbOrg.description === requestBody.description)
-    assert(JsonMethods.parse(dbOrg.heartbeatIntervals).extract[NodeHeartbeatIntervals] === requestBody.heartbeatIntervals.get)
-    assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated) //make sure lastUpdated has changed
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPutOrgRoute1")
-      .filter(_.id === "testPutOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertOrg1Updated(normalRequestBody)
+    assertCreatedModifiedEntryExists(TESTORGS(0).orgId)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 as admin in org -- normal success") {
-    val requestBody: PostPutOrgRequest = PostPutOrgRequest(
-      orgType = None,
-      label = "newLabel",
-      description = "newDescription",
-      tags = Some(Map("newKey" -> "newValue")),
-      limits = Some(OrgLimits(101)),
-      heartbeatIntervals = Some(NodeHeartbeatIntervals(
-        minInterval = 4,
-        maxInterval = 5,
-        intervalAdjustment = 6
-      ))
-    )
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ORGADMIN1AUTH).asString
+  test("PUT /orgs/" + TESTORGS(0).orgId + " as admin in org -- normal success") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ORGADMIN1AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.PUT_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === requestBody.orgType.getOrElse(""))
-    assert(dbOrg.tags.get.extract[Map[String, String]] === requestBody.tags.get)
-    assert(dbOrg.orgId === "testPutOrgRoute1")
-    assert(JsonMethods.parse(dbOrg.limits).extract[OrgLimits] === requestBody.limits.get)
-    assert(dbOrg.label === requestBody.label)
-    assert(dbOrg.description === requestBody.description)
-    assert(JsonMethods.parse(dbOrg.heartbeatIntervals).extract[NodeHeartbeatIntervals] === requestBody.heartbeatIntervals.get)
-    assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated) //make sure lastUpdated has changed
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPutOrgRoute1")
-      .filter(_.id === "testPutOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertOrg1Updated(normalRequestBody)
+    assertCreatedModifiedEntryExists(TESTORGS(0).orgId)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 as regular user in org -- 403 access denied") {
-    val requestBody: PostPutOrgRequest = PostPutOrgRequest(
-      orgType = None,
-      label = "newLabel",
-      description = "newDescription",
-      tags = Some(Map("newKey" -> "newValue")),
-      limits = Some(OrgLimits(101)),
-      heartbeatIntervals = Some(NodeHeartbeatIntervals(
-        minInterval = 4,
-        maxInterval = 5,
-        intervalAdjustment = 6
-      ))
-    )
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(USER1AUTH).asString
+  test("PUT /orgs/" + TESTORGS(0).orgId + " as regular user in org -- 403 access denied") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(USER1AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.ACCESS_DENIED.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 as org admin in other org -- 403 access denied") {
-    val requestBody: PostPutOrgRequest = PostPutOrgRequest(
-      orgType = None,
-      label = "newLabel",
-      description = "newDescription",
-      tags = Some(Map("newKey" -> "newValue")),
-      limits = Some(OrgLimits(101)),
-      heartbeatIntervals = Some(NodeHeartbeatIntervals(
-        minInterval = 4,
-        maxInterval = 5,
-        intervalAdjustment = 6
-      ))
-    )
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ORGADMIN2AUTH).asString
+  test("PUT /orgs/" + TESTORGS(0).orgId + " as org admin in other org -- 403 access denied") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ORGADMIN2AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.ACCESS_DENIED.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
-  test("PUT /orgs/testPutOrgRoute1 as regular user in other org -- 403 access denied") {
-    val requestBody: PostPutOrgRequest = PostPutOrgRequest(
-      orgType = None,
-      label = "newLabel",
-      description = "newDescription",
-      tags = Some(Map("newKey" -> "newValue")),
-      limits = Some(OrgLimits(101)),
-      heartbeatIntervals = Some(NodeHeartbeatIntervals(
-        minInterval = 4,
-        maxInterval = 5,
-        intervalAdjustment = 6
-      ))
-    )
-    val request: HttpResponse[String] = Http(URL + "testPutOrgRoute1").put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
+  test("PUT /orgs/" + TESTORGS(0).orgId + " as regular user in other org -- 403 access denied") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.ACCESS_DENIED.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPutOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPutOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
 }

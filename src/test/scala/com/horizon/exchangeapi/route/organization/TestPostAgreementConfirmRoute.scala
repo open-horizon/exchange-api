@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.route.organization
 
-import com.horizon.exchangeapi.tables.{AgbotAgreementRow, AgbotAgreementsTQ, AgbotRow, AgbotsTQ, NodeAgreementRow, NodeAgreementsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{AgbotAgreementRow, AgbotAgreementsTQ, AgbotRow, AgbotsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import com.horizon.exchangeapi.{ApiResponse, ApiTime, ApiUtils, ExchMsg, HttpCode, Password, PostAgreementsConfirmRequest, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
@@ -91,7 +91,7 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
     Seq(
       NodeRow(
         arch               = "",
-        id                 = TESTORGS(0).orgId + "/org1agbot1", //named same as agbot
+        id                 = TESTORGS(0).orgId + "/org1node1",
         heartbeatIntervals = "",
         lastHeartbeat      = Some(ApiTime.nowUTC),
         lastUpdated        = ApiTime.nowUTC,

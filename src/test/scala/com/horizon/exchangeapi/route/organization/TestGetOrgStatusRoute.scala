@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.organization
 
 import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeAgreementRow, NodeAgreementsTQ, NodeMsgRow, NodeMsgsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, SchemaTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, AuthCache, ExchMsg, GetOrgStatusResponse, HttpCode, Password, Role, TestDBConnection}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, ExchMsg, GetOrgStatusResponse, HttpCode, Password, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.scalatest.BeforeAndAfterAll
@@ -18,16 +18,14 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
-  private val HUBADMINPASSWORD = "adminpassword"
-  private val USER1PASSWORD = "user1password"
-  private val USER2PASSWORD = "user2password"
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/TestGetOrgStatusRouteHubAdmin:" + HUBADMINPASSWORD))
-  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetOrgStatusRoute1/TestGetOrgStatusRouteUser1:" + USER1PASSWORD))
-  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetOrgStatusRoute2/TestGetOrgStatusRouteUser2:" + USER2PASSWORD))
+  private val ROUTE = "/status"
   private val SCHEMAVERSION: Int = Await.result(DBCONNECTION.getDb.run(SchemaTQ.getSchemaVersion.result), AWAITDURATION).head
 
   private implicit val formats = DefaultFormats
+
+  private val HUBADMINPASSWORD = "adminpassword"
+  private val USER1PASSWORD = "user1password"
+  private val USER2PASSWORD = "user2password"
 
   private val TESTORGS: Seq[OrgRow] =
     Seq(
@@ -52,7 +50,6 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgId              = "testGetOrgStatusRoute1",
         orgType            = "testGetOrgStatus",
         tags               = None),
-
       OrgRow(
         heartbeatIntervals =
           """
@@ -94,24 +91,24 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
         updatedBy   = "root"
       ),
       UserRow(
-        username    = "testGetOrgStatusRoute1/TestGetOrgStatusRouteUser1",
-        orgid       = "testGetOrgStatusRoute1",
+        username    = TESTORGS(0).orgId + "/TestGetOrgStatusRouteUser1",
+        orgid       = TESTORGS(0).orgId,
         hashedPw    = Password.hash(USER1PASSWORD),
         admin       = false,
         hubAdmin    = false,
         email       = "TestGetOrgStatusRouteUser1@ibm.com",
         lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
+        updatedBy   = "root/root"
       ),
       UserRow(
-        username    = "testGetOrgStatusRoute2/TestGetOrgStatusRouteUser2",
-        orgid       = "testGetOrgStatusRoute2",
+        username    = TESTORGS(1).orgId + "/TestGetOrgStatusRouteUser2",
+        orgid       = TESTORGS(1).orgId,
         hashedPw    = Password.hash(USER2PASSWORD),
         admin       = false,
         hubAdmin    = false,
         email       = "TestGetOrgStatusRouteUser2@ibm.com",
         lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
+        updatedBy   = "root/root"
       )
     )
 
@@ -119,15 +116,15 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     Seq(
       NodeRow(
         arch               = "",
-        id                 = "testGetOrgStatusRoute1/n1",
+        id                 = TESTORGS(0).orgId + "/n1",
         heartbeatIntervals = "",
         lastHeartbeat      = None,
         lastUpdated        = ApiTime.nowUTC,
         msgEndPoint        = "",
         name               = "",
         nodeType           = "",
-        orgid              = "testGetOrgStatusRoute1",
-        owner              = "testGetOrgStatusRoute1/TestGetOrgStatusRouteUser1",
+        orgid              = TESTORGS(0).orgId,
+        owner              = TESTUSERS(1).username,
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -136,15 +133,15 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
         userInput          = ""),
       NodeRow(
         arch               = "",
-        id                 = "testGetOrgStatusRoute1/n2",
+        id                 = TESTORGS(0).orgId + "/n2",
         heartbeatIntervals = "",
         lastHeartbeat      = None,
         lastUpdated        = ApiTime.nowUTC,
         msgEndPoint        = "",
         name               = "",
         nodeType           = "",
-        orgid              = "testGetOrgStatusRoute1",
-        owner              = "testGetOrgStatusRoute1/TestGetOrgStatusRouteUser1",
+        orgid              = TESTORGS(0).orgId,
+        owner              = TESTUSERS(1).username,
         pattern            = "",
         publicKey          = "registered",
         regServices        = "",
@@ -152,38 +149,43 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
         token              = "",
         userInput          = ""))
 
-  private val TESTAGREEMENTS: Seq[NodeAgreementRow] =
-    Seq(NodeAgreementRow(
-      agId          = "testGetOrgStatusRoute1/a1",
-      nodeId        = "testGetOrgStatusRoute1/n1",
-      services      = "",
-      agrSvcOrgid   = "TestGetOrgStatusRoute1",
-      agrSvcPattern = "",
-      agrSvcUrl     = "",
-      state         = "active",
-      lastUpdated   = ApiTime.nowUTC))
-
   private val TESTAGBOTS: Seq[AgbotRow] = //must have an agbot in order to create a node message
     Seq(AgbotRow(
-      id            = "testGetOrgStatusRoute1/a1",
-      orgid         = "testGetOrgStatusRoute1",
+      id            = TESTORGS(0).orgId + "/a1",
+      orgid         = TESTORGS(0).orgId,
       token         = "",
       name          = "testAgbot",
-      owner         = "testGetOrgStatusRoute1/TestGetOrgStatusRouteUser1",
+      owner         = TESTUSERS(1).username,
       msgEndPoint   = "",
       lastHeartbeat = ApiTime.nowUTC,
       publicKey     = ""
     ))
 
+  private val TESTAGREEMENTS: Seq[NodeAgreementRow] =
+    Seq(NodeAgreementRow(
+      agId          = TESTAGBOTS(0).id,
+      nodeId        = TESTNODES(0).id,
+      services      = "",
+      agrSvcOrgid   = TESTORGS(0).orgId,
+      agrSvcPattern = "",
+      agrSvcUrl     = "",
+      state         = "active",
+      lastUpdated   = ApiTime.nowUTC))
+
   private val TESTMESSAGES: Seq[NodeMsgRow] =
     Seq(NodeMsgRow(
       msgId = 0, // this will be automatically set to a unique ID by the DB
-      nodeId = "testGetOrgStatusRoute1/n1",
-      agbotId = "testGetOrgStatusRoute1/a1",
+      nodeId = TESTNODES(0).id,
+      agbotId = TESTAGBOTS(0).id,
       agbotPubKey = "",
       message = "Test Message",
       timeSent = ApiTime.nowUTC,
       timeExpires = ApiTime.futureUTC(120)))
+
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USER1PASSWORD))
+  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + USER2PASSWORD))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(
@@ -206,8 +208,8 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
   //404 is listed as a possible return code in swagger, but I can find no way to get a 404 return.
 
   //is this intended? I would think this should fail with 404 not found
-  test("GET /orgs/doesNotExist/status -- success, but returns 0 for everything") {
-    val response: HttpResponse[String] = Http(URL + "doesNotExist/status").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/doesNotExist" + ROUTE + " -- success, but returns 0 for everything") {
+    val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -221,8 +223,8 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(status.SchemaVersion === SCHEMAVERSION)
   }
 
-  test("GET /orgs/testGetOrgStatusRoute1/status as root -- normal success") {
-    val response: HttpResponse[String] = Http(URL + "testGetOrgStatusRoute1/status").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " as root -- normal success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -236,8 +238,8 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(status.SchemaVersion === SCHEMAVERSION)
   }
 
-  test("GET /orgs/testGetOrgStatusRoute1/status as hub admin -- normal success") {
-    val response: HttpResponse[String] = Http(URL + "testGetOrgStatusRoute1/status").headers(ACCEPT).headers(HUBADMINAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " as hub admin -- normal success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -251,8 +253,8 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(status.SchemaVersion === SCHEMAVERSION)
   }
 
-  test("GET /orgs/testGetOrgStatusRoute1/status as user in org -- normal success") {
-    val response: HttpResponse[String] = Http(URL + "testGetOrgStatusRoute1/status").headers(ACCEPT).headers(USER1AUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " as user in org -- normal success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(USER1AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
@@ -266,8 +268,8 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(status.SchemaVersion === SCHEMAVERSION)
   }
 
-  test("GET /orgs/testGetOrgStatusRoute1/status as user in other org -- 403 access denied") {
-    val response: HttpResponse[String] = Http(URL + "testGetOrgStatusRoute1/status").headers(ACCEPT).headers(USER2AUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " as user in other org -- 403 access denied") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(USER2AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)

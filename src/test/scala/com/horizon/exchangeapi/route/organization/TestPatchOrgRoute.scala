@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.organization
 
 import com.horizon.exchangeapi.tables.{NodeHeartbeatIntervals, OrgLimits, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ, UserRow, UsersTQ}
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, ExchConfig, HttpCode, Password, PatchOrgRequest, PostPutOrgRequest, Role, TestDBConnection}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, ExchConfig, HttpCode, Password, PatchOrgRequest, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -20,19 +20,14 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+
+  private implicit val formats = DefaultFormats
+
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORGADMIN1PASSWORD = "orgadmin1password"
   private val ORGADMIN2PASSWORD = "orgadmin2password"
   private val USER1PASSWORD = "user1password"
   private val USER2PASSWORD = "user2password"
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/TestPatchOrgRouteHubAdmin:" + HUBADMINPASSWORD))
-  private val ORGADMIN1AUTH = ("Authorization", "Basic " + ApiUtils.encode("testPatchOrgRoute1/TestPatchOrgRouteOrgAdmin1:" + ORGADMIN1PASSWORD))
-  private val ORGADMIN2AUTH = ("Authorization", "Basic " + ApiUtils.encode("testPatchOrgRoute2/TestPatchOrgRouteOrgAdmin2:" + ORGADMIN2PASSWORD))
-  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode("testPatchOrgRoute1/TestPatchOrgRouteUser1:" + USER1PASSWORD))
-  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode("testPatchOrgRoute2/TestPatchOrgRouteUser2:" + USER2PASSWORD))
-
-  private implicit val formats = DefaultFormats
 
   private val TESTORGS: Seq[OrgRow] =
     Seq(
@@ -87,8 +82,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
         updatedBy   = "root"
       ),
       UserRow(
-        username    = "testPatchOrgRoute1/TestPatchOrgRouteOrgAdmin1",
-        orgid       = "testPatchOrgRoute1",
+        username    = TESTORGS(0).orgId + "/TestPatchOrgRouteOrgAdmin1",
+        orgid       = TESTORGS(0).orgId,
         hashedPw    = Password.hash(ORGADMIN1PASSWORD),
         admin       = true,
         hubAdmin    = false,
@@ -97,8 +92,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
         updatedBy   = "root"
       ),
       UserRow(
-        username    = "testPatchOrgRoute2/TestPatchOrgRouteOrgAdmin2",
-        orgid       = "testPatchOrgRoute2",
+        username    = TESTORGS(1).orgId + "/TestPatchOrgRouteOrgAdmin2",
+        orgid       = TESTORGS(1).orgId,
         hashedPw    = Password.hash(ORGADMIN2PASSWORD),
         admin       = true,
         hubAdmin    = false,
@@ -107,8 +102,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
         updatedBy   = "root"
       ),
       UserRow(
-        username    = "testPatchOrgRoute1/TestPatchOrgRouteUser1",
-        orgid       = "testPatchOrgRoute1",
+        username    = TESTORGS(0).orgId + "/TestPatchOrgRouteUser1",
+        orgid       = TESTORGS(0).orgId,
         hashedPw    = Password.hash(USER1PASSWORD),
         admin       = false,
         hubAdmin    = false,
@@ -117,8 +112,8 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
         updatedBy   = "root"
       ),
       UserRow(
-        username    = "testPatchOrgRoute2/TestPatchOrgRouteUser2",
-        orgid       = "testPatchOrgRoute2",
+        username    = TESTORGS(1).orgId + "/TestPatchOrgRouteUser2",
+        orgid       = TESTORGS(1).orgId,
         hashedPw    = Password.hash(USER2PASSWORD),
         admin       = false,
         hubAdmin    = false,
@@ -127,6 +122,13 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
         updatedBy   = "root"
       )
     )
+
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORGADMIN1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORGADMIN1PASSWORD))
+  private val ORGADMIN2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORGADMIN2PASSWORD))
+  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(3).username + ":" + USER1PASSWORD))
+  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(4).username + ":" + USER2PASSWORD))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(
@@ -150,16 +152,40 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     ), AWAITDURATION)
   }
 
+  def assertNoChanges(org: OrgRow): Unit = {
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === org.orgId).result), AWAITDURATION).head
+    assert(dbOrg.orgType === org.orgType)
+    assert(dbOrg.tags.get === org.tags.get)
+    assert(dbOrg.orgId === org.orgId)
+    assert(dbOrg.limits === org.limits)
+    assert(dbOrg.label === org.label)
+    assert(dbOrg.description === org.description)
+    assert(dbOrg.heartbeatIntervals === org.heartbeatIntervals)
+    assert(dbOrg.lastUpdated === org.lastUpdated)
+  }
+
+  def assertPatchedEntryCreated(orgId: String): Unit = {
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === orgId)
+      .filter(_.id === orgId)
+      .filter(_.category === ResChangeCategory.ORG.toString)
+      .filter(_.resource === ResChangeResource.ORG.toString)
+      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
+      .result), AWAITDURATION)
+    .nonEmpty)
+  }
+
+  private val normalRequestBody: PatchOrgRequest = PatchOrgRequest(
+    orgType = Some("newType"),
+    label = None,
+    description = None,
+    tags = None,
+    limits = None,
+    heartbeatIntervals = None
+  )
+
   test("PATCH /orgs/doesNotExist -- 404 not found") {
-    val requestBody: PatchOrgRequest = PatchOrgRequest(
-      orgType = Some("newType"),
-      label = None,
-      description = None,
-      tags = None,
-      limits = None,
-      heartbeatIntervals = None
-    )
-    val request: HttpResponse[String] = Http(URL + "doesNotExist").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + "doesNotExist").postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.NOT_FOUND.intValue)
@@ -169,29 +195,20 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "doesNotExist").result), AWAITDURATION).isEmpty)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- invalid body -- 400 bad input") {
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- invalid body -- 400 bad input") {
     val requestBody: Map[String, String] = Map(
       "invalidKey" -> "invalidValue"
     )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- all fields empty -- 400 bad input") {
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- all fields empty -- 400 bad input") {
     val requestBody: PatchOrgRequest = PatchOrgRequest(
       orgType = None,
       label = None,
@@ -200,25 +217,16 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       limits = None,
       heartbeatIntervals = None
     )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- max nodes too large -- 400 bad input") {
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- max nodes too large -- 400 bad input") {
     val exchangeMaxNodes: Int = ExchConfig.getInt("api.limits.maxNodes")
     val requestBody: PatchOrgRequest = PatchOrgRequest(
       orgType = None,
@@ -228,33 +236,24 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       limits = Some(OrgLimits(exchangeMaxNodes + 1)),
       heartbeatIntervals = None
     )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
   // it is undefined what happens when >1 attributes are included in the body, but based on the code it follows this order of preference:
   // orgType, label, description, heartbeatIntervals, tags, limits
-  test("PATCH /orgs/testPatchOrgRoute1 -- 2 attributes included -- success, only one attribute updated") {
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- 2 attributes included -- success, only one attribute updated") {
     val requestBody = "{\"label\":\"newLabel\",\"orgType\":\"newType\"}" //easier to just type the JSON as a string to maintain the order of attributes
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(requestBody).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(requestBody).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === "newType")
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
     assert(dbOrg.orgId === TESTORGS(0).orgId)
@@ -263,18 +262,10 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated)
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPatchOrgRoute1")
-      .filter(_.id === "testPatchOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertPatchedEntryCreated(TESTORGS(0).orgId)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- update orgType -- normal success") {
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- update orgType -- normal success") {
     val requestBody: PatchOrgRequest = PatchOrgRequest(
       orgType = Some("newType"),
       label = None,
@@ -283,11 +274,11 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       limits = None,
       heartbeatIntervals = None
     )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === requestBody.orgType.get)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
     assert(dbOrg.orgId === TESTORGS(0).orgId)
@@ -296,18 +287,10 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated)
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPatchOrgRoute1")
-      .filter(_.id === "testPatchOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertPatchedEntryCreated(TESTORGS(0).orgId)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- update label -- normal success") {
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- update label -- normal success") {
     val requestBody: PatchOrgRequest = PatchOrgRequest(
       orgType = None,
       label = Some("newLabel"),
@@ -316,11 +299,11 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       limits = None,
       heartbeatIntervals = None
     )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === TESTORGS(0).orgType)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
     assert(dbOrg.orgId === TESTORGS(0).orgId)
@@ -329,18 +312,10 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated)
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPatchOrgRoute1")
-      .filter(_.id === "testPatchOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertPatchedEntryCreated(TESTORGS(0).orgId)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- update description -- normal success") {
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- update description -- normal success") {
     val requestBody: PatchOrgRequest = PatchOrgRequest(
       orgType = None,
       label = None,
@@ -349,11 +324,11 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       limits = None,
       heartbeatIntervals = None
     )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === TESTORGS(0).orgType)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
     assert(dbOrg.orgId === TESTORGS(0).orgId)
@@ -362,18 +337,10 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === requestBody.description.get)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated)
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPatchOrgRoute1")
-      .filter(_.id === "testPatchOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertPatchedEntryCreated(TESTORGS(0).orgId)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- update tags -- normal success") {
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- update tags -- normal success") {
     val requestBody: PatchOrgRequest = PatchOrgRequest(
       orgType = None,
       label = None,
@@ -382,11 +349,11 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       limits = None,
       heartbeatIntervals = None
     )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === TESTORGS(0).orgType)
     assert(dbOrg.tags.get.extract[Map[String, Option[String]]] === requestBody.tags.get)
     assert(dbOrg.orgId === TESTORGS(0).orgId)
@@ -395,18 +362,10 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated)
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPatchOrgRoute1")
-      .filter(_.id === "testPatchOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertPatchedEntryCreated(TESTORGS(0).orgId)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- update limits -- normal success") {
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- update limits -- normal success") {
     val requestBody: PatchOrgRequest = PatchOrgRequest(
       orgType = None,
       label = None,
@@ -415,11 +374,11 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       limits = Some(OrgLimits(101)),
       heartbeatIntervals = None
     )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === TESTORGS(0).orgType)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
     assert(dbOrg.orgId === TESTORGS(0).orgId)
@@ -428,18 +387,10 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated)
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPatchOrgRoute1")
-      .filter(_.id === "testPatchOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertPatchedEntryCreated(TESTORGS(0).orgId)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- update heartbeatIntervals -- normal success") {
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- update heartbeatIntervals -- normal success") {
     val requestBody: PatchOrgRequest = PatchOrgRequest(
       orgType = None,
       label = None,
@@ -452,11 +403,11 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
         intervalAdjustment = 6
       ))
     )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === TESTORGS(0).orgType)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
     assert(dbOrg.orgId === TESTORGS(0).orgId)
@@ -465,32 +416,16 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(JsonMethods.parse(dbOrg.heartbeatIntervals).extract[NodeHeartbeatIntervals] === requestBody.heartbeatIntervals.get)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated)
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPatchOrgRoute1")
-      .filter(_.id === "testPatchOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertPatchedEntryCreated(TESTORGS(0).orgId)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- as hub admin -- normal success") {
-    val requestBody: PatchOrgRequest = PatchOrgRequest(
-      orgType = Some("newType"),
-      label = None,
-      description = None,
-      tags = None,
-      limits = None,
-      heartbeatIntervals = None
-    )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- as hub admin -- normal success") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === requestBody.orgType.get)
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
+    assert(dbOrg.orgType === normalRequestBody.orgType.get)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
     assert(dbOrg.orgId === TESTORGS(0).orgId)
     assert(dbOrg.limits === TESTORGS(0).limits)
@@ -498,32 +433,16 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated)
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPatchOrgRoute1")
-      .filter(_.id === "testPatchOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertPatchedEntryCreated(TESTORGS(0).orgId)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- as admin in org -- normal success") {
-    val requestBody: PatchOrgRequest = PatchOrgRequest(
-      orgType = Some("newType"),
-      label = None,
-      description = None,
-      tags = None,
-      limits = None,
-      heartbeatIntervals = None
-    )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ORGADMIN1AUTH).asString
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- as admin in org -- normal success") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ORGADMIN1AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === requestBody.orgType.get)
+    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
+    assert(dbOrg.orgType === normalRequestBody.orgType.get)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
     assert(dbOrg.orgId === TESTORGS(0).orgId)
     assert(dbOrg.limits === TESTORGS(0).limits)
@@ -531,96 +450,37 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(dbOrg.description === TESTORGS(0).description)
     assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
     assert(dbOrg.lastUpdated !== TESTORGS(0).lastUpdated)
-    //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "testPatchOrgRoute1")
-      .filter(_.id === "testPatchOrgRoute1")
-      .filter(_.category === ResChangeCategory.ORG.toString)
-      .filter(_.resource === ResChangeResource.ORG.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty
-    assert(rcEntryExists)
+    assertPatchedEntryCreated(TESTORGS(0).orgId)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- as regular user in org -- 403 access denied") {
-    val requestBody: PatchOrgRequest = PatchOrgRequest(
-      orgType = Some("newType"),
-      label = None,
-      description = None,
-      tags = None,
-      limits = None,
-      heartbeatIntervals = None
-    )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USER1AUTH).asString
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- as regular user in org -- 403 access denied") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USER1AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.ACCESS_DENIED.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- as org admin in other org -- 403 access denied") {
-    val requestBody: PatchOrgRequest = PatchOrgRequest(
-      orgType = Some("newType"),
-      label = None,
-      description = None,
-      tags = None,
-      limits = None,
-      heartbeatIntervals = None
-    )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ORGADMIN2AUTH).asString
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- as org admin in other org -- 403 access denied") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ORGADMIN2AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.ACCESS_DENIED.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
-  test("PATCH /orgs/testPatchOrgRoute1 -- as regular user in other org -- 403 access denied") {
-    val requestBody: PatchOrgRequest = PatchOrgRequest(
-      orgType = Some("newType"),
-      label = None,
-      description = None,
-      tags = None,
-      limits = None,
-      heartbeatIntervals = None
-    )
-    val request: HttpResponse[String] = Http(URL + "testPatchOrgRoute1").postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
+  test("PATCH /orgs/" + TESTORGS(0).orgId + " -- as regular user in other org -- 403 access denied") {
+    val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.ACCESS_DENIED.intValue)
-    //insure nothing changed:
-    val dbOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "testPatchOrgRoute1").result), AWAITDURATION).head
-    assert(dbOrg.orgType === TESTORGS(0).orgType)
-    assert(dbOrg.tags.get === TESTORGS(0).tags.get)
-    assert(dbOrg.orgId === TESTORGS(0).orgId)
-    assert(dbOrg.limits === TESTORGS(0).limits)
-    assert(dbOrg.label === TESTORGS(0).label)
-    assert(dbOrg.description === TESTORGS(0).description)
-    assert(dbOrg.heartbeatIntervals === TESTORGS(0).heartbeatIntervals)
-    assert(dbOrg.lastUpdated === TESTORGS(0).lastUpdated)
+    assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "testPatchOrgRoute1").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
 }

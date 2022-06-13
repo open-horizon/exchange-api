@@ -357,8 +357,8 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
-
-  /* disabling until issue 619 bug fix
+  //TODO: enable this test after issue 619 is resolved
+  /*
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- improperly formatted time -- 502 bad gateway") {
     val request: ResourceChangesRequest = ResourceChangesRequest(
       changeId = 0, //shouldn't actually be used so value doesn't matter
@@ -422,7 +422,8 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
   }
 
-  /* disabling until issue 620 bug fix
+  //TODO: enable this test after issue 620 is resolved
+  /*
   test("POST /orgs/" + TESTORGS(1).orgId + ROUTE + " -- " + TESTORGS(1).orgId + " not in orgList, should be autmatically added -- success") {
     val request: ResourceChangesRequest = ResourceChangesRequest(
       changeId = 0,

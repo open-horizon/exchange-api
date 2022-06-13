@@ -12,7 +12,7 @@ import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 import slick.jdbc.PostgresProfile.api._
 
-class TestGetMaxChangeIDRoute  extends AnyFunSuite with BeforeAndAfterAll {
+class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds

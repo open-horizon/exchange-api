@@ -8,8 +8,8 @@ import com.typesafe.sbt.packager.docker._
 enablePlugins(JavaAppPackaging, DockerPlugin)
 
 // For latest versions, see https://mvnrepository.com/
-lazy val akkaHttpVersion = "[10.2.4]"  // as of 11/19/2019 this is the latest version
-lazy val akkaVersion    = "[2.6.14]"  // released 10/2019. Version 2.6.0 was released 11/2019
+lazy val akkaHttpVersion = settingKey[String]("Version of Akka-Http")
+lazy val akkaVersion     = settingKey[String]("Version of Akka")
 
 // Red Hat certification Docker labels.
 lazy val release = settingKey[String]("A number used to identify the specific build for this image.")
@@ -28,6 +28,8 @@ Global / excludeLintKeys += dockerEnvVars
 
 lazy val root = (project in file("."))
     .settings(
+        akkaHttpVersion               := "[10.2.7]",
+        akkaVersion                   := "[2.6.16]",
         description                   := "'Containerized exchange-api'",
         name                          := "amd64_exchange-api",
         organization                  := "com.horizon",
@@ -43,8 +45,8 @@ lazy val root = (project in file("."))
 
         // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
         libraryDependencies ++= Seq(
-          "com.typesafe.akka" %% "akka-http"            % "[10.2.7]",
-          "com.typesafe.akka" %% "akka-http-xml"        % "[10.2.7]",
+          "com.typesafe.akka" %% "akka-http"            % akkaHttpVersion.value,
+          "com.typesafe.akka" %% "akka-http-xml"        % akkaHttpVersion.value,
           // "com.typesafe.akka" %% "akka-stream"          % "[2.6.14,)",
           // "com.typesafe.akka" %% "akka-http-spray-json" % "[10.2.1,)",
           "de.heikoseeberger" %% "akka-http-jackson" % "[1.39.2]",  // version 1.35.3 pulls in akka 2.6.10 and akkahttp 10.2.2
@@ -78,9 +80,9 @@ lazy val root = (project in file("."))
           "com.github.cb372" %% "scalacache-guava" % "[0.28.0,)",
           "com.osinka.i18n" %% "scala-i18n" % "[1.0.3,)",
   
-          "com.typesafe.akka" %% "akka-http-testkit"    % "[10.2.7]"     % Test,
-          "com.typesafe.akka" %% "akka-testkit"         % "[2.6.16]"     % Test,
-          "com.typesafe.akka" %% "akka-stream-testkit"  % "[2.6.16]"     % Test,
+          "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpVersion.value  % Test,
+          "com.typesafe.akka" %% "akka-testkit"         % akkaVersion.value      % Test,
+          "com.typesafe.akka" %% "akka-stream-testkit"  % akkaVersion.value      % Test,
   
           "org.scalatest" %% "scalatest" % "[3.3.0-SNAP2,)" % "test",
           "org.scalatestplus" %% "junit-4-12" % "[3.3.0.0-SNAP2,)" % "test",
@@ -88,7 +90,7 @@ lazy val root = (project in file("."))
           "junit" % "junit" % "[4.13.1,)" % "test"
         ), 
         scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
-        javacOptions ++= Seq("-source", "11", "-target", "11", "-Xlint"),
+        javacOptions ++= Seq("-source", "17", "-target", "17", "-Xlint"),
         fork := true,
         Test / javaOptions ++= Seq("--add-opens", "java.base/java.net=ALL-UNNAMED"),
         // Used when running test suites with HTTPS.
@@ -105,7 +107,7 @@ lazy val root = (project in file("."))
         Docker / daemonGroup    := "exchangegroup",
         Docker / daemonGroupGid := some("1001"),
         dockerExposedPorts     ++= Seq(8080),
-        dockerBaseImage         := "registry.access.redhat.com/ubi8-minimal:latest",
+        dockerBaseImage         := "registry.access.redhat.com/ubi9-minimal:latest",
         dockerEnvVars := Map("JAVA_OPTS" -> ""),   // this is here so JAVA_OPTS can be overridden on the docker run cmd with a value like: -Xmx1G
         //dockerEntrypoint ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config")  // <- had trouble getting this to work
         Docker / mappings ++= Seq((baseDirectory.value / "LICENSE.txt") -> "/1/licenses/LICENSE.txt",
@@ -134,7 +136,7 @@ lazy val root = (project in file("."))
                                         Cmd("LABEL", "summary=" ++ summary.value), 
                                         Cmd("LABEL", "vendor=" ++ vendor.value), 
                                         Cmd("LABEL", "version=" ++ version.value), 
-                                        Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs && microdnf install -y --nodocs shadow-utils gettext java-11-openjdk openssl && microdnf clean all"),
+                                        Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs && microdnf install -y --nodocs shadow-utils gettext java-17-openjdk openssl && microdnf clean all"),
                                         Cmd("USER", "root"), 
                                         Cmd("RUN", "id -u " ++ (Docker / daemonUser).value ++ " 1>/dev/null 2>&1 || ((getent group 1001 1>/dev/null 2>&1 || (type groupadd 1>/dev/null 2>&1 && groupadd -g 1001 " ++ (Docker / daemonGroup).value ++ " || addgroup -g 1001 -S " ++ (Docker / daemonGroup).value ++ ")) && (type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 1001 " ++ (Docker / daemonUser).value ++ " || adduser -S -u 1001 -G " ++ (Docker / daemonGroup).value ++ " " ++ (Docker / daemonUser).value ++ "))"),
                                         Cmd("WORKDIR", "/etc/horizon/exchange"), 

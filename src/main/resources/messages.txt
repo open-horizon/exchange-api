@@ -375,3 +375,4 @@ node.managementpolicy.status.not.inserted.or.updated=management policy ''{0}'' s
 agent.file.versions.deleted=all agent file versions have been deleted
 agent.file.versions.deleted.not=agent file versions not deleted
 agent.file.versions.deleted.not.message=agent file versions not deleted: {0}
+error.parsing.timestamp=error parsing timestamp ''{0}''. The proper format is uuuu-MM-dd''T''HH:mm:ss.SSS  (Ex: ''2020-02-05T20:28:14.469Z[UTC]'')

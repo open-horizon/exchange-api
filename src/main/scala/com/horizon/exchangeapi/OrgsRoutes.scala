@@ -195,7 +195,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("orgs")
   @Operation(summary = "Returns all orgs", description = "Returns some or all org definitions. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user or a hub admin.",
     parameters = Array(
-      new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. A common org type is 'IBM'.",
+      new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. Currently the only supported org type for this route is 'IBM'.",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM"))))),
       new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
@@ -307,6 +307,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             schema = new Schema(implementation = classOf[GetOrgsResponse])
           )
         )),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -347,8 +348,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(schema = new Schema(implementation = classOf[GetOrgStatusResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied"),
-      new responses.ApiResponse(responseCode = "404", description = "not found")))
+      new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def orgStatusRoute: Route = (path("orgs" / Segment /"status") & get ) { (orgId) =>
     exchAuth(TOrg(orgId), Access.READ) { ident =>
       logger.debug(s"GET /orgs/$orgId/status")
@@ -451,8 +451,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         description = "access denied"
       ),
       new responses.ApiResponse(
-        responseCode = "404",
-        description = "not found"
+        responseCode = "409",
+        description = "conflict (org already exists)"
       )
     )
   )
@@ -697,7 +697,6 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body:",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[PostNodeErrorResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -731,9 +730,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body:",
+      new responses.ApiResponse(responseCode = "200", description = "response body:",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[AllNodeErrorsInOrgResp])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -871,7 +869,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("orgs/{orgid}/search/nodehealth")
   @Operation(
     summary = "Returns agreement health of nodes with no pattern",
-    description = "Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
+    description = "Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have had a heartbeat since the specified lastTime. Can be run by an organization admin or agbot (but not a node).",
     parameters = Array(
       new Parameter(
         name = "orgid",
@@ -1143,11 +1141,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // ====== GET /changes/maxchangeid ================================
   @GET
   @Path("changes/maxchangeid")
-  @Operation(summary = "Returns the max changeid of the resource changes", description = "Returns the max changeid of the resource changes. Can be run by any user, node, or agbot.",
+  @Operation(summary = "Returns the max changeid of the resource changes", description = "Returns the max changeid of the resource changes. Can be run by the root user, organization admins, or any node or agbot.",
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[MaxChangeIdResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def orgsGetMaxChangeIdRoute: Route = (path("changes" / "maxchangeid") & get) {
@@ -1231,7 +1228,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
   def myOrgsPostRoute: Route = (path("myorgs") & post & entity(as[List[IamAccountInfo]])) { reqBody =>
     logger.debug("Doing POST /myorgs")
     // set hint here to some key that states that no org is ok
@@ -1264,11 +1261,6 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         name = "orgid",
         in = ParameterIn.PATH,
         description = "Organization id."
-      ),
-      new Parameter(
-        name = "id",
-        in = ParameterIn.PATH,
-        description = "ID of the agbot to be updated."
       )
     ),
     requestBody = new RequestBody(

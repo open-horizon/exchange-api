@@ -28,6 +28,13 @@ import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `must-revali
 import akka.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
 import akka.http.scaladsl.server._
 import akka.http.scaladsl.server.{ExceptionHandler, Route}
+
+import akka.http.scaladsl.model.HttpMethods._
+import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Credentials`, `Access-Control-Allow-Headers`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Origin`}
+import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
+import akka.http.scaladsl.server.Directives._
+import akka.http.scaladsl.server.{Directive0, Route}
+
 import akka.stream.{ActorMaterializer, Materializer}
 import com.horizon.exchangeapi.tables
 import com.horizon.exchangeapi.tables.{AgbotMsgsTQ, NodeMsgsTQ, ResourceChangesTQ}
@@ -65,6 +72,35 @@ object ExchangeApiConstants {
 }
 */
 
+
+
+trait CORSHandler {
+
+  private val corsResponseHeaders = List(
+    `Access-Control-Allow-Origin`.*,
+    `Access-Control-Allow-Credentials`(true),
+    `Access-Control-Allow-Headers`("Origin", "Authorization", "Content-Type", "X-Requested-With", "X-Auth-Token")
+  )
+  //this directive adds access control headers to normal responses
+  private def addAccessControlHeaders: Directive0 = {
+    respondWithHeaders(corsResponseHeaders)
+  }
+  //this handles preflight OPTIONS requests.
+  private def preflightRequestHandler: Route = options {
+    complete(HttpResponse(StatusCodes.OK).withHeaders(`Access-Control-Allow-Methods`(OPTIONS, PATCH, POST, PUT, GET, DELETE)))
+  }
+  // Wrap the Route with this method to enable adding of CORS headers
+  def corsHandler(r: Route): Route = addAccessControlHeaders {
+    preflightRequestHandler ~ r
+  }
+  // Helper method to add CORS headers to HttpResponse
+  // preventing duplication of CORS headers across code
+  def addCORSHeaders(response: HttpResponse): HttpResponse =
+    response.withHeaders(corsResponseHeaders)
+}
+
+class CORS extends CORSHandler {}
+
 /**
  * Main akka server for the Exchange REST API.
  */
@@ -101,6 +137,8 @@ object ExchangeApiApp extends App
       ExchangeApi.servicePortEncrypted = pe
       ExchangeApi.servicePortUnencrypted = pu
   }
+  val cors = new CORS()
+
   //val actorConfig = ConfigFactory.parseString("akka.loglevel=" + ExchConfig.getLogLevel)
   implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)  // includes the loglevel
   implicit val executionContext: ExecutionContext = system.dispatcher
@@ -204,6 +242,7 @@ object ExchangeApiApp extends App
         respondWithDefaultHeaders(`Cache-Control`(Seq(`max-age`(0), `must-revalidate`, `no-cache`, `no-store`)),
                                   // RawHeader("Content-Type", "application/json"/*; charset=UTF-8"*/),
                                   RawHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"), // 2 years
+                                  RawHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization"),
                                   RawHeader("X-Content-Type-Options", "nosniff"),
                                   RawHeader("X-XSS-Protection", "1; mode=block")) {
           handleExceptions(myExceptionHandler) {
@@ -395,7 +434,7 @@ object ExchangeApiApp extends App
               engine.setUseClientMode(false)
               engine
             }))
-            .bind(routes)
+            .bind(cors.corsHandler(routes))
             .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
             .onComplete {
               case Success(binding) =>
@@ -425,7 +464,7 @@ object ExchangeApiApp extends App
   
   if(ExchangeApi.servicePortUnencrypted.isDefined) {
     Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePortUnencrypted.get)
-          .bind(routes)
+          .bind(cors.corsHandler(routes))
           .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
           .onComplete {
             case Success(binding) =>

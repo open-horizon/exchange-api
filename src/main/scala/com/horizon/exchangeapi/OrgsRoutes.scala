@@ -1112,7 +1112,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               //logger.debug("POST /orgs/" + orgId + "/changes changes : " + qOrgResult.toString())
               logger.debug("POST /orgs/" + orgId + "/changes number of changed rows retrieved: " + qResult.size)
               qResp = qResult
-              val id: String = orgId + "/" + ident.getIdentity
+              val id: String = ident.getOrg + "/" + ident.getIdentity
               ident match {
                 case _: INode =>
                   NodesTQ.getLastHeartbeat(id).update(Some(ApiTime.nowUTC)).asTry

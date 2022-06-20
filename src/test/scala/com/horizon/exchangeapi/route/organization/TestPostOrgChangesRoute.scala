@@ -424,27 +424,72 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
   }
 
-  //TODO: enable this test after issue 620 is resolved
-  ignore("POST /orgs/" + TESTORGS(1).orgId + ROUTE + " -- " + TESTORGS(1).orgId + " not in orgList, should be automatically added -- success") {
+  test("POST /orgs/" + TESTORGS(1).orgId + ROUTE + " -- " + TESTORGS(1).orgId + " not in orgList, should be automatically added -- success") {
     val request: ResourceChangesRequest = ResourceChangesRequest(
       changeId = 0,
       lastUpdated = Some(ApiTime.pastUTC(60)), //should get most TESTRCs
       maxRecords = 100,
-      orgList = Some(List(TESTORGS(0).orgId))
+      orgList = Some(List.empty)
     )
     val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(IBMAGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
-    assert(responseObj.changes.nonEmpty)
-    assertResourceChangeExists(TESTRESOURCECHANGES(6), responseObj)
+    assert(responseObj.changes.size >= 3)
+    assertResourceChangeExists(TESTRESOURCECHANGES(1), responseObj)
+    assertResourceChangeExists(TESTRESOURCECHANGES(4), responseObj)
+    assertResourceChangeExists(TESTRESOURCECHANGES(9), responseObj)
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
     //check that heartbeat of caller was updated
     assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.id === TESTAGBOTS(2).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(2).lastHeartbeat)
   }
 
-  //TODO: add more tests for multitenant agbot after issue 620 bug fix
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- " + TESTORGS(0).orgId + " wildcard '*' -- success") {
+    val request: ResourceChangesRequest = ResourceChangesRequest(
+      changeId = 0,
+      lastUpdated = Some(ApiTime.pastUTC(60)), //should get most TESTRCs
+      maxRecords = 100,
+      orgList = Some(List("*"))
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(IBMAGBOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
+    assert(responseObj.changes.size >= 5)
+    assertResourceChangeExists(TESTRESOURCECHANGES(1), responseObj)
+    assertResourceChangeExists(TESTRESOURCECHANGES(2), responseObj)
+    assertResourceChangeExists(TESTRESOURCECHANGES(3), responseObj)
+    assertResourceChangeExists(TESTRESOURCECHANGES(4), responseObj)
+    assertResourceChangeExists(TESTRESOURCECHANGES(9), responseObj)
+    assert(responseObj.exchangeVersion === EXCHANGEVERSION)
+    //check that heartbeat of caller was updated
+    assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.id === TESTAGBOTS(2).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(2).lastHeartbeat)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- " + TESTORGS(0).orgId + " wildcard '' (empty string) -- success") {
+    val request: ResourceChangesRequest = ResourceChangesRequest(
+      changeId = 0,
+      lastUpdated = Some(ApiTime.pastUTC(60)), //should get most TESTRCs
+      maxRecords = 100,
+      orgList = Some(List("*"))
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(IBMAGBOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
+    assert(responseObj.changes.size >= 5)
+    assertResourceChangeExists(TESTRESOURCECHANGES(1), responseObj)
+    assertResourceChangeExists(TESTRESOURCECHANGES(2), responseObj)
+    assertResourceChangeExists(TESTRESOURCECHANGES(3), responseObj)
+    assertResourceChangeExists(TESTRESOURCECHANGES(4), responseObj)
+    assertResourceChangeExists(TESTRESOURCECHANGES(9), responseObj)
+    assert(responseObj.exchangeVersion === EXCHANGEVERSION)
+    //check that heartbeat of caller was updated
+    assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.id === TESTAGBOTS(2).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(2).lastHeartbeat)
+  }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as agbot in org -- success") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(ORG1AGBOTAUTH).asString

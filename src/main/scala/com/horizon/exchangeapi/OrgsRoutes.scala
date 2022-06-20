@@ -1309,44 +1309,46 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TAgbot(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
       complete({
         val creds = ident.creds
-        val owner = ident match { case IUser(creds2) => creds2.id; case _ => "" }
-        if (owner != "") {
-          // the user invoked this rest method, so look for an agbot owned by this user with this agr id
-          val agbotAgreementJoin = for {
-            (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
-            if agbot.owner === owner && agr.map(_.agrId) === reqBody.agreementId
-          } yield (agbot, agr)
-          db.run(agbotAgreementJoin.result).map({ list =>
-            logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
-            // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.owner === owner && agr.agrId === req.agreementId
-            if (list.nonEmpty && list.head._2.isDefined && list.head._2.get.state != "") {
-              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
-            } else {
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
-            }
-          })
-        } else {
-          // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
-          val agbotAgreementJoin = for {
-            (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
-            if agbot.id === creds.id || agr.map(_.agrId) === reqBody.agreementId
-          } yield (agbot, agr)
-          db.run(agbotAgreementJoin.result).map({ list =>
-            logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
-            if (list.nonEmpty) {
-              // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.id === creds.id || agr.agrId === req.agreementId
-              val agbot1 = list.find(r => r._1.id == creds.id).orNull
-              val agbot2 = list.find(r => r._2.isDefined && r._2.get.agrId == reqBody.agreementId).orNull
-              if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
+        ident match {
+          case _: IUser =>
+            // the user invoked this rest method, so look for an agbot owned by this user with this agr id
+            val agbotAgreementJoin = for {
+              (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
+              if agbot.owner === creds.id && agr.map(_.agrId) === reqBody.agreementId
+            } yield (agbot, agr)
+            db.run(agbotAgreementJoin.result).map({ list =>
+              logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
+              // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.owner === owner && agr.agrId === req.agreementId
+              if (list.nonEmpty && list.head._2.isDefined && list.head._2.get.state != "") {
                 (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
               } else {
                 (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
               }
-            } else {
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
-            }
-          })
-        }
+            })
+          case _: IAgbot =>
+            // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
+            val agbotAgreementJoin = for {
+              (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
+              if agbot.id === creds.id || agr.map(_.agrId) === reqBody.agreementId
+            } yield (agbot, agr)
+            db.run(agbotAgreementJoin.result).map({ list =>
+              logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
+              if (list.nonEmpty) {
+                // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.id === creds.id || agr.agrId === req.agreementId
+                val agbot1 = list.find(r => r._1.id == creds.id).orNull
+                val agbot2 = list.find(r => r._2.isDefined && r._2.get.agrId == reqBody.agreementId).orNull
+                if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
+                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
+                } else {
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
+                }
+              } else {
+                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
+              }
+            })
+          case _ => //node should not be calling this route
+            (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied")))
+        } //end of match
       }) // end of complete
     } // end of exchAuth
   }

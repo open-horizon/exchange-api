@@ -370,8 +370,6 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  //TODO: enable this test once issue 621 is resolved
-  /*
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as node -- 403 access denied") {
     val requestBody: PostAgreementsConfirmRequest = PostAgreementsConfirmRequest(agreementId = TESTAGREEMENTS(1).agrId)
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(NODE1AUTH).asString
@@ -379,5 +377,5 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
-*/
+
 }

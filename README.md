@@ -435,6 +435,12 @@ Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.102.1
+- Issue 618: updated Swagger docs for `organization` routes
+- Issue 619: fixed date parsing bug in `POST /orgs/{orgid}/changes`
+- Issue 620: fixed heartbeat bug in `POST /orgs/{orgid}/changes`
+- Issue 621: fixed authorization bug in `POST /orgs/{orgid}/agreements/confirm`
+
 ## Changes in 2.102.0
 - Update the Exchange to OpenJDK17 from 11
 - Update the Exchange to UBI 9 minimal from 8

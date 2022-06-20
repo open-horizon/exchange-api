@@ -376,7 +376,6 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(errors.nodes.isEmpty)
   }
 
-  //this returns 404 not found for an existing org with no error nodes -- would expect a success that returns an empty list
   test("POST /orgs/" + TESTORGS(1).orgId + ROUTE + " -- as root -- 404 not found, returns empty list (no error nodes)") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE).postForm.headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)

@@ -205,8 +205,6 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     DBCONNECTION.getDb.close()
   }
 
-  //404 is listed as a possible return code in swagger, but I can find no way to get a 404 return.
-
   //is this intended? I would think this should fail with 404 not found
   test("GET /orgs/doesNotExist" + ROUTE + " -- success, but returns 0 for everything") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString

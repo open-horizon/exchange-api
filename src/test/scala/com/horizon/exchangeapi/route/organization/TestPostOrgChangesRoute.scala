@@ -362,8 +362,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
-  //TODO: enable this test after issue 619 is resolved
-  ignore("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- improperly formatted time -- 502 bad gateway") {
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- improperly formatted time -- 400 bad input") {
     val request: ResourceChangesRequest = ResourceChangesRequest(
       changeId = 0, //shouldn't actually be used so value doesn't matter
       lastUpdated = Some("asdf"), //invalid

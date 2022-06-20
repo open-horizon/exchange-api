@@ -2,7 +2,6 @@
 package com.horizon.exchangeapi
 
 import java.time.ZonedDateTime
-
 import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
@@ -14,20 +13,18 @@ import com.horizon.exchangeapi
 import com.horizon.exchangeapi.auth.{DBProcessingError, IamAccountInfo, IbmCloudAuth}
 
 import scala.concurrent.ExecutionContext
-
 import de.heikoseeberger.akkahttpjackson._
 import org.json4s._
 import org.json4s.jackson.Serialization.write
-
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
-
 import com.horizon.exchangeapi.tables._
 import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 
+import java.time.format.DateTimeParseException
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
 import scala.util._
@@ -127,7 +124,15 @@ final case class PostNodeHealthResponse(nodes: Map[String, NodeHealthHashElement
 
 /** Case class for request body for ResourceChanges route */
 final case class ResourceChangesRequest(changeId: Long, lastUpdated: Option[String], maxRecords: Int, orgList: Option[List[String]]) {
-  def getAnyProblem: Option[String] = None // None means no problems with input
+  def getAnyProblem: Option[String] = {
+    try {
+      ZonedDateTime.parse(lastUpdated.getOrElse(ApiTime.beginningUTC)) //if lastUpdated is provided, make sure we can parse it
+      None //if the parse was successful, no problem
+    }
+    catch {
+      case _: DateTimeParseException => Some.apply(ExchMsg.translate("error.parsing.timestamp", lastUpdated.get))
+    }
+  }
 }
 
 /** The following classes are to build the response object for the ResourceChanges route */

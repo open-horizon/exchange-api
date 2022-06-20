@@ -1,10 +1,9 @@
-package com.horizon.exchangeapi.route.org
+package com.horizon.exchangeapi.route.organization
 
+import com.horizon.exchangeapi.NodeHealthAgreementElement
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
-
-import com.horizon.exchangeapi.NodeHealthAgreementElement
 
 @RunWith(classOf[JUnitRunner])
 class TestNodeHealthAgreementElement extends AnyFunSuite {

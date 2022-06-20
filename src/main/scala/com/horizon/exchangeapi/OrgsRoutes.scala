@@ -1234,6 +1234,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def myOrgsPostRoute: Route = (path("myorgs") & post & entity(as[List[IamAccountInfo]])) { reqBody =>
     logger.debug("Doing POST /myorgs")

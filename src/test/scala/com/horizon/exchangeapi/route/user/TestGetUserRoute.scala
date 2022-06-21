@@ -142,9 +142,9 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(
       (OrgsTQ ++= TESTORGS) andThen
-        (UsersTQ ++= TESTUSERS) andThen
-        (AgbotsTQ ++= TESTAGBOTS) andThen
-        (NodesTQ ++= TESTNODES)
+      (UsersTQ ++= TESTUSERS) andThen
+      (AgbotsTQ ++= TESTAGBOTS) andThen
+      (NodesTQ ++= TESTNODES)
     ), AWAITDURATION)
   }
 

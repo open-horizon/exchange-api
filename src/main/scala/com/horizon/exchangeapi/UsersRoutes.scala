@@ -293,11 +293,8 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "403",
         description = "access denied"
-      ),
-      new responses.ApiResponse(
-        responseCode = "404",
-        description = "not found"
       )
+      //no 404 response here because this route errors with 500 when invalid orgId is supplied. This prevents having to do a separate DB access just to determine the orgId is valid
     )
   )
   def userPostRoute: Route = (path("orgs" / Segment / "users" / Segment) & post & entity(as[PostPutUsersRequest])) { (orgid, username, reqBody) =>

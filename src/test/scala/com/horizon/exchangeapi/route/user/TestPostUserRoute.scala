@@ -347,7 +347,13 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- as org admin -- 201 OK") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
+    val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+      password = "newPassword",
+      admin = true,
+      hubAdmin = None,
+      email = "newUser@ibm.com"
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -356,7 +362,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(newUser.username === TESTORGS(0).orgId + "/newUser")
     assert(newUser.orgid === TESTORGS(0).orgId)
     assert(newUser.updatedBy === TESTUSERS(1).username) //updated by org admin
-    assertUsersEqual(normalRequestBody, newUser)
+    assertUsersEqual(requestBody, newUser)
   }
 
   test("POST /orgs/" + TESTORGS(1).orgId + ROUTE + "newUser -- org admin tries to create user in other org -- 403 access denied") {

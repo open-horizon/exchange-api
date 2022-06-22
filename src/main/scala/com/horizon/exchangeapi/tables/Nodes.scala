@@ -329,6 +329,50 @@ object NodeErrorTQ extends TableQuery(new NodeErrors(_)) {
 
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
+//Node Groups for MCM
+final case class NodeGroupRow(description: String, group: String, organization: String, updated: String, name: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  def upsert: DBIO[_] = NodeGroupTQ.insertOrUpdate(this)
+}
+
+class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
+  def description = column[String]("description")
+  def group = column[String]("group", O.AutoInc)
+  def organization = column[String]("orgid")
+  def updated = column[String]("updated")
+  def name = column[String]("name")
+  //def lastUpdated = column[String]("lastUpdated")
+  def * = (description, group, organization, updated, name).<>(NodeGroupRow.tupled, NodeGroupRow.unapply)
+  def nodeGroupIdx = index("node_group_idx", (organization, name), unique = true)
+  def pkNodeGroup = primaryKey("pk_node_group", group)
+  def fkOrg = foreignKey("fk_organization", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object NodeGroupTQ extends TableQuery(new NodeGroup(_)){
+  def getNodeGroup(group: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.group === group)
+  def getNodeGroupName(name: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.name === name)
+}
+
+final case class NodeGroups(description: String, group: String, organization: String, updated: String)
+
+//Node Group Assignments
+
+class NodeGroupAssignment(tag: Tag) extends Table[(String, String)](tag, "node_group_assignment") {
+  def node = column[String]("node")
+  def group = column[String]("group", O.AutoInc)
+  def * = (node, group)
+  def pkNodeGroup = primaryKey("pk_node_group_assignment", node)
+  def fkGroup = foreignKey("fk_group", group, NodeGroupTQ)(_.group, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkNode = foreignKey("fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object NodeGroupAssignmentTQ extends TableQuery(new NodeGroupAssignment(_)){
+  def getNodeGroupAssignment(group: String): Query[Rep[String], String, Seq] = this.filter(_.group === group).map(_.node)
+}
+
+final case class NodeGroupAssignments(node: String, group: String)
+
+//NMP Status tables
 final case class UpgradedVersions(softwareVersion: String,
                                   certVersion: String,
                                   configVersion: String)

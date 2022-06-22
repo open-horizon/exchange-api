@@ -435,6 +435,9 @@ Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.103.0
+- Issue 591: Adds Node Group table schema
+
 ## Changes in 2.102.0
 - Update the Exchange to OpenJDK17 from 11
 - Update the Exchange to UBI 9 minimal from 8

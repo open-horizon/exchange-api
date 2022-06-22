@@ -286,6 +286,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(newUser.username === TESTUSERS(2).username)
     assert(newUser.orgid === TESTORGS(0).orgId)
     assert(newUser.updatedBy === "root/root") //updated by root
+    assert(newUser.lastUpdated > TESTUSERS(2).lastUpdated)
     assertUsersEqual(requestBody, newUser)
   }
 
@@ -357,7 +358,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assertNoChanges(TESTUSERS(1))
   }
 
-  test("PUT /orgs/root" + ROUTE + "newUser -- try to give admin privileges to hub admin -- 400 bad input") {
+  test("PUT /orgs/root" + ROUTE + "TestPutUserRouteHubAdmin -- try to give admin privileges to hub admin -- 400 bad input") {
     val requestBody: PostPutUsersRequest = PostPutUsersRequest(
       password = "newPassword",
       admin = true,
@@ -373,7 +374,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assertNoChanges(TESTUSERS(0))
   }
 
-  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as org admin -- 201 OK") {
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + normalUsernameToUpdate + " -- as org admin -- 201 OK") {
     val requestBody: PostPutUsersRequest = PostPutUsersRequest(
       password = "newPassword",
       admin = true,
@@ -389,6 +390,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(newUser.username === TESTUSERS(2).username)
     assert(newUser.orgid === TESTORGS(0).orgId)
     assert(newUser.updatedBy === TESTUSERS(1).username) //updated by org admin
+    assert(newUser.lastUpdated > TESTUSERS(2).lastUpdated)
     assertUsersEqual(requestBody, newUser)
   }
 
@@ -410,6 +412,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(newUser.username === TESTUSERS(2).username)
     assert(newUser.orgid === TESTORGS(0).orgId)
     assert(newUser.updatedBy === TESTUSERS(2).username) //updated by self
+    assert(newUser.lastUpdated > TESTUSERS(2).lastUpdated)
     assertUsersEqual(normalRequestBody, newUser)
   }
 

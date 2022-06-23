@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.route.user
 
-import com.horizon.exchangeapi.{ApiResponse, ApiTime, ApiUtils, AuthCache, ExchMsg, HttpCode, Password, PatchUsersRequest, PostPutUsersRequest, Role, TestDBConnection}
+import com.horizon.exchangeapi.{ApiResponse, ApiTime, ApiUtils, ExchMsg, HttpCode, Password, PatchUsersRequest, Role, TestDBConnection}
 import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods

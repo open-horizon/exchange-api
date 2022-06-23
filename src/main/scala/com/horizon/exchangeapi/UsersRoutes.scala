@@ -137,7 +137,6 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     "orgid/username": {
       "password": "string",
       "admin": false,
-      "hubAdmin": false,
       "email": "string",
       "lastUpdated": "string",
       "updatedBy": "string"
@@ -145,7 +144,6 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     "orgid/username": {
       "password": "string",
       "admin": false,
-      "hubAdmin": false,
       "email": "string",
       "lastUpdated": "string",
       "updatedBy": "string"
@@ -182,7 +180,7 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
   /* ====== GET /orgs/{orgid}/users/{username} ================================ */
   @GET
   @Path("{username}")
-  @Operation(summary = "Returns a user", description = "Returns the specified username. Can only be run by that user, the root user, hub admins, or org admins.",
+  @Operation(summary = "Returns a user", description = "Returns the specified username. Can only be run by that user or root.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "username", in = ParameterIn.PATH, description = "Username of the user.")),
@@ -198,7 +196,6 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
     "orgid/username": {
       "password": "string",
       "admin": false,
-      "hubAdmin": false,
       "email": "string",
       "lastUpdated": "string",
       "updatedBy": "string"
@@ -293,8 +290,11 @@ trait UsersRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
         responseCode = "403",
         description = "access denied"
+      ),
+      new responses.ApiResponse(
+        responseCode = "404",
+        description = "not found"
       )
-      //no 404 response here because this route errors with 500 when invalid orgId is supplied. This prevents having to do a separate DB access just to determine the orgId is valid
     )
   )
   def userPostRoute: Route = (path("orgs" / Segment / "users" / Segment) & post & entity(as[PostPutUsersRequest])) { (orgid, username, reqBody) =>

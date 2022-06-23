@@ -273,7 +273,6 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTUSERS(5).username).result), AWAITDURATION).isEmpty) //insure user is deleted
   }
 
-  //TODO: enable this test when the route is fixed
   //currently a hub admin is able to delete any user (other than root). However, a hub admin is only supposed to be able to delete admins
   ignore("DELETE /orgs/" + TESTORGS(0).orgId + ROUTE + normalUsernameToDelete + " -- hub admin tries to delete regular user -- 403 ACCESS DENIED") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + normalUsernameToDelete).method("DELETE").headers(ACCEPT).headers(HUBADMINAUTH).asString

@@ -42,7 +42,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
 //      putNodeGroup ~
 //      postNodeGroup
 
-  /* ====== DELETE /orgs/{orgid}/hagroup/{name} ================================ */
+  /* ====== DELETE /orgs/{orgid}/hagroups/{name} ================================ */
   @DELETE
   @Path("{name}")
   @Operation(
@@ -62,15 +62,15 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteNodeGroup: Route = (path("orgs" / Segment / "hagroup" / Segment) & delete) { (orgid, name) =>
-    logger.debug(s"Doing DELETE /orgs/$orgid/hagroup/$name")
+  def deleteNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & delete) { (orgid, name) =>
+    logger.debug(s"Doing DELETE /orgs/$orgid/hagroups/$name")
     val compositeId: String = OrgAndId(orgid, name).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
       complete({
         db.run(NodeGroupTQ.getNodeGroupName(name).delete.transactionally.asTry.flatMap({
           case Success(v) =>
             // Add the resource to the resourcechanges table
-            logger.debug("DELETE /orgs/" + orgid + "/hagroup/" + name + " result: " + v)
+            logger.debug("DELETE /orgs/" + orgid + "/hagroups/" + name + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               ResourceChange(0L, orgid, name, ResChangeCategory.NODEGROUP, false, ResChangeResource.NODEGROUP, ResChangeOperation.DELETED).insert.asTry
             } else {
@@ -79,7 +79,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
-            logger.debug("DELETE /orgs/" + orgid + "/hagroup/" + name + " updated in changes table: " + v)
+            logger.debug("DELETE /orgs/" + orgid + "/hagroups/" + name + " updated in changes table: " + v)
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
@@ -92,8 +92,8 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-//  /* ====== GET /orgs/{orgid}/hagroup/{name} ================================ */
-//  def getNodeGroup: Route = (path("orgs" / Segment / "hagroup" / Segment) & get) { (orgid, name) =>
+//  /* ====== GET /orgs/{orgid}/hagroups/{name} ================================ */
+//  def getNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & get) { (orgid, name) =>
 //
 //  }
 
@@ -187,13 +187,13 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
     }
   }
 //
-//  /* ====== PUT /orgs/{orgid}/hagroup/{name} ================================ */
-//  def putNodeGroup: Route = (path("orgs" / Segment / "hagroup" / Segment) & put) { (orgid, name) =>
+//  /* ====== PUT /orgs/{orgid}/hagroups/{name} ================================ */
+//  def putNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & put) { (orgid, name) =>
 //
 //  }
 //
-//  /* ====== POST /orgs/{orgid}/hagroup/{name} ================================ */
-//  def postNodeGroup: Route = (path("orgs" / Segment / "hagroup" / Segment) & post) { (orgid, name) =>
+//  /* ====== POST /orgs/{orgid}/hagroups/{name} ================================ */
+//  def postNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & post) { (orgid, name) =>
 //
 //  }
 

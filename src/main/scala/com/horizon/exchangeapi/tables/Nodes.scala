@@ -349,6 +349,7 @@ class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
 }
 
 object NodeGroupTQ extends TableQuery(new NodeGroup(_)){
+  def getAllNodeGroups(orgid: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.organization === orgid)
   def getNodeGroup(group: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.group === group)
   def getNodeGroupName(name: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.name === name)
 }

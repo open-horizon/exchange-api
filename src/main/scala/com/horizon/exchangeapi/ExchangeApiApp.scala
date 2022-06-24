@@ -69,6 +69,7 @@ object ExchangeApiConstants {
  * Main akka server for the Exchange REST API.
  */
 object ExchangeApiApp extends App
+  with NodeGroupRoutes
   with AgentConfigurationManagementRoutes
   with AdminRoutes
   with AgbotsRoutes
@@ -215,6 +216,7 @@ object ExchangeApiApp extends App
               catalogRoutes ~
               managementPoliciesRoutes ~
               nodesRoutes ~
+              nodeGroupRoutes ~
               orgsRoutes ~
               patternsRoutes ~
               servicesRoutes ~

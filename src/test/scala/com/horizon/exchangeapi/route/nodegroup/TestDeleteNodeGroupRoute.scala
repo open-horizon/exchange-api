@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.route.nodegroup
 
-import com.horizon.exchangeapi.tables.{ManagementPoliciesTQ, NodeGroupAssignmentTQ, NodeGroupAssignments, NodeGroupRow, NodeGroupTQ, NodeMgmtPolStatusRow, NodeMgmtPolStatuses, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{NodeGroupAssignmentTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.scalatest.BeforeAndAfterAll
@@ -107,24 +107,24 @@ class TestDeleteNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
   }
 
 
-  test("DELETE /orgs/TestDeleteNodeGroup/hagroup/randomgroup -- 404 Not Found - Group Name") {
-    val response: HttpResponse[String] = Http(URL + "TestDeleteNodeGroup/hagroup/randomgroup").method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+  test("DELETE /orgs/TestDeleteNodeGroup/hagroups/randomgroup -- 404 Not Found - Group Name") {
+    val response: HttpResponse[String] = Http(URL + "TestDeleteNodeGroup/hagroups/randomgroup").method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
 
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  test("GET /orgs/somerandomorg/hagroup/king1 -- 404 Not Found - Organization") {
-    val response: HttpResponse[String] = Http(URL + "somerandomorg/hagroup/king1").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/somerandomorg/hagroups/king1 -- 404 Not Found - Organization") {
+    val response: HttpResponse[String] = Http(URL + "somerandomorg/hagroups/king1").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
 
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  test("DELETE /orgs/TestDeleteNodeGroup/hagroup/king2 -- 204 Deleted - root") {
-    val response: HttpResponse[String] = Http(URL + "TestDeleteNodeGroup/hagroup/king2").method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("DELETE /orgs/TestDeleteNodeGroup/hagroups/king2 -- 204 Deleted - root") {
+    val response: HttpResponse[String] = Http(URL + "TestDeleteNodeGroup/hagroups/king2").method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
 

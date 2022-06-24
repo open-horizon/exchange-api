@@ -11,7 +11,7 @@ import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth.DBProcessingError
-import com.horizon.exchangeapi.tables.{NodeGroupAssignmentTQ, NodeGroupTQ, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupRow, NodeGroupTQ, NodeRow, Nodes, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
@@ -36,9 +36,9 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
   implicit def executionContext: ExecutionContext
 
   def nodeGroupRoutes: Route =
-    deleteNodeGroup
+    deleteNodeGroup ~
 //      getNodeGroup ~
-//      getAllNodeGroup ~
+    getAllNodeGroup
 //      putNodeGroup ~
 //      postNodeGroup
 
@@ -155,12 +155,34 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"doing GET /orgs/$orgid/hagroups")
     exchAuth(TNode(OrgAndId(orgid, "#").toString), Access.READ) { ident =>
       complete({
+        val nodeGroupsQuery = NodeGroupTQ.getAllNodeGroups(orgid).sortBy(_.name)
+        val subQuery = if (ident.isAdmin) NodesTQ.getAllNodes(orgid) else NodesTQ.filter(_.owner === ident.identityString)
+        val queries: DBIOAction[(Seq[NodeGroupRow], Seq[NodeGroupAssignmentRow]), NoStream, Effect.Read] =
+          for {
+            nodeGroups <- nodeGroupsQuery.result
+            nodeGroupAssignments <- NodeGroupAssignmentTQ.filter(_.node in subQuery.map(_.id)).filter(_.group in nodeGroupsQuery.map(_.group)).sortBy(a => (a.group, a.node)).result
+          } yield (nodeGroups, nodeGroupAssignments)
+        db.run(queries.transactionally.asTry).map({
+          case Success(result) =>
+            if (result._1.nonEmpty) {
+              val response: ListBuffer[NodeGroupResp] = ListBuffer[NodeGroupResp]()
+              for (nodeGroup <- result._1) {
+                val members = result._2.filter(_.group == nodeGroup.group).map(_.node)
+                response += NodeGroupResp(nodeGroup.name, members, nodeGroup.updated)
+              }
+              (HttpCode.OK, GetNodeGroupsResponse(response.toSeq))
+            }
+            else (HttpCode.NOT_FOUND, GetNodeGroupsResponse(ListBuffer[NodeGroupResp]().toSeq))
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("api.internal.error")))
+        })
+/*
         val q1 = NodeGroupTQ.getAllNodeGroups(orgid)
         val q2 = if (ident.isAdmin) NodesTQ.getAllNodes(orgid) else NodesTQ.filter(_.owner === ident.identityString)
         val q3 = for {
           ((nodeGroup, nodeGroupAssignment), _) <- (q1 joinLeft NodeGroupAssignmentTQ on (_.group === _.group)) join q2 on (_._2.map(_.node) === _.id)
         } yield (nodeGroupAssignment.map(_.node), nodeGroup.group, nodeGroup.name, nodeGroup.updated)
-        db.run(q3.result).map({ list =>
+        db.run(q3.sortBy(a => (a._2.asc, a._1.asc)).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/hagroups result size: ${list.size}")
           if (list.isEmpty) (HttpCode.NOT_FOUND, GetNodeGroupsResponse(Seq.empty[NodeGroupResp]))
           else {
@@ -183,6 +205,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             (HttpCode.OK, GetNodeGroupsResponse(resp.toSeq))
           }
         })
+*/
       })
     }
   }

@@ -4,6 +4,7 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization.read
 import com.horizon.exchangeapi.{ApiTime, ExchMsg, Role, StrConstants, Version, VersionRange, tables}
+import slick.ast.ScalaBaseType.longType
 import slick.dbio.{Effect, NoStream}
 import slick.jdbc.PostgresProfile.api.{DBIO, ForeignKeyAction, Query, Table, TableQuery, Tag, anyToShapedValue, booleanColumnExtensionMethods, booleanColumnType, columnExtensionMethods, intColumnType, queryInsertActionExtensionMethods, queryUpdateActionExtensionMethods, recordQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType, valueToConstColumn}
 import slick.lifted.Rep
@@ -330,14 +331,14 @@ object NodeErrorTQ extends TableQuery(new NodeErrors(_)) {
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
 //Node Groups for MCM
-final case class NodeGroupRow(description: String, group: String, organization: String, updated: String, name: String) {
+final case class NodeGroupRow(description: String, group: Long, organization: String, updated: String, name: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def upsert: DBIO[_] = NodeGroupTQ.insertOrUpdate(this)
 }
 
 class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
   def description = column[String]("description")
-  def group = column[String]("group", O.AutoInc)
+  def group = column[Long]("group", O.AutoInc)
   def organization = column[String]("orgid")
   def updated = column[String]("updated")
   def name = column[String]("name")
@@ -350,25 +351,29 @@ class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
 
 object NodeGroupTQ extends TableQuery(new NodeGroup(_)){
   def getAllNodeGroups(orgid: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.organization === orgid)
-  def getNodeGroup(group: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.group === group)
+  def getNodeGroup(group: Long): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.group === group)
   def getNodeGroupName(name: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.name === name)
 }
 
 final case class NodeGroups(description: String, group: String, organization: String, updated: String)
 
 //Node Group Assignments
+final case class NodeGroupAssignmentRow(node: String, group: Long) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  def upsert: DBIO[_] = NodeGroupAssignmentTQ.insertOrUpdate(this)
+}
 
-class NodeGroupAssignment(tag: Tag) extends Table[(String, String)](tag, "node_group_assignment") {
+class NodeGroupAssignment(tag: Tag) extends Table[NodeGroupAssignmentRow](tag, "node_group_assignment") {
   def node = column[String]("node")
-  def group = column[String]("group", O.AutoInc)
-  def * = (node, group)
+  def group = column[Long]("group")
+  def * = (node, group).<>(NodeGroupAssignmentRow.tupled, NodeGroupAssignmentRow.unapply)
   def pkNodeGroup = primaryKey("pk_node_group_assignment", node)
   def fkGroup = foreignKey("fk_group", group, NodeGroupTQ)(_.group, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def fkNode = foreignKey("fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
 
 object NodeGroupAssignmentTQ extends TableQuery(new NodeGroupAssignment(_)){
-  def getNodeGroupAssignment(group: String): Query[Rep[String], String, Seq] = this.filter(_.group === group).map(_.node)
+  def getNodeGroupAssignment(group: Long): Query[Rep[String], String, Seq] = this.filter(_.group === group).map(_.node)
 }
 
 final case class NodeGroupAssignments(node: String, group: String)

@@ -7,9 +7,15 @@ import scalaj.http._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
+
 import scala.collection.mutable.ListBuffer
 import com.horizon.exchangeapi.tables._
+import org.scalatest.BeforeAndAfterAll
+
 import scala.collection.immutable._
+import scala.concurrent.Await
+import scala.concurrent.duration.{Duration, DurationInt}
+import slick.jdbc.PostgresProfile.api._
 
 /**
  * Tests for the /orgs and /orgs/"+orgid+"/users routes. To run
@@ -20,7 +26,7 @@ import scala.collection.immutable._
  * clear and detailed tutorial of FunSuite: http://doc.scalatest.org/1.9.1/index.html#org.scalatest.FunSuite
  */
 @RunWith(classOf[JUnitRunner])
-class UsersSuite extends AnyFunSuite {
+class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080")
   val ACCEPT = ("Accept", "application/json")
@@ -129,26 +135,75 @@ class UsersSuite extends AnyFunSuite {
     }
   }
 
+  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val AWAITDURATION: Duration = 15.seconds
+
+  private val TESTORGANIZATIONS: Seq[OrgRow] =
+    Seq(OrgRow(heartbeatIntervals = "",
+      description        = "",
+      label              = "",
+      lastUpdated        = ApiTime.nowUTC,
+      orgId              = "UsersSuiteTests",
+      orgType            = "",
+      tags               = None,
+      limits             = ""),
+      OrgRow(heartbeatIntervals = "",
+        description        = "",
+        label              = "",
+        lastUpdated        = ApiTime.nowUTC,
+        orgId              = "UsersSuiteTests2",
+        orgType            = "",
+        tags               = None,
+        limits             = ""),
+      OrgRow(heartbeatIntervals = "",
+        description        = "",
+        label              = "",
+        lastUpdated        = ApiTime.nowUTC,
+        orgId              = "UsersSuiteTests3",
+        orgType            = "",
+        tags               = None,
+        limits             = ""),
+      OrgRow(heartbeatIntervals = "",
+        description        = "",
+        label              = "",
+        lastUpdated        = ApiTime.nowUTC,
+        orgId              = "UsersSuiteTests4",
+        orgType            = "",
+        tags               = None,
+        limits             = ""),
+      OrgRow(heartbeatIntervals = "",
+        description        = "",
+        label              = "",
+        lastUpdated        = ApiTime.nowUTC,
+        orgId              = "UsersSuiteTestsCloud",
+        orgType            = "",
+        tags               = None,
+        limits             = ""))
+
+  override def beforeAll(): Unit = {
+    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGANIZATIONS)), AWAITDURATION)
+  }
+
+  override def afterAll(): Unit = {
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "UsersSuiteTest").delete andThen
+      OrgsTQ.filter(_.orgid startsWith "UsersSuiteTest").delete), AWAITDURATION)
+
+    DBCONNECTION.getDb.close()
+  }
+
+
+  /*
+   * This test case will fail on successive runs due to the running Exchange application caching the IAM login. The
+   * running Exchange instance must be restarted to clear the IAM Auth Cache in order for this test case to pass a 2+
+   * time in a row.
+   */
   test("IAM login") {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
-    deleteAllOrgs()
 
-    // add a good org
-    var input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", Some(Map("tagName" -> "test")), None, None)
-    var response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-
-    // Add a 2nd org, no tags to make sure it is optional
-    input = PostPutOrgRequest(None, "My Other Org", "desc", None, None, Some(NodeHeartbeatIntervals(5,15,2)))
-    response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-
-    val input2 = PostPutUsersRequest(pw, admin = false, Some(true), hubadmin + "@none.com")
-    response = Http(urlRootOrg + "/users/" + hubadmin).postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    //val input2 = PostPutUsersRequest(pw, admin = false, Some(true), hubadmin + "@none.com")
+    //var response = Http(urlRootOrg + "/users/" + hubadmin).postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    //info("code: " + response.code + ", response.body: " + response.body)
+    //assert(response.code === HttpCode.POST_OK.intValue)
 
     // these tests will perform authentication with IBM cloud and will only run
     // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY (iamKey), EXCHANGE_IAM_EMAIL (iamUser), and EXCHANGE_MULT_ACCOUNT_ID (ocpAccountId) or EXCHANGE_IAM_ACCOUNT_ID (iamAccountId)
@@ -158,7 +213,7 @@ class UsersSuite extends AnyFunSuite {
       val tagMap = if (ocpAccountId.nonEmpty) Map("cloud_id" -> ocpAccountId) else Map("ibmcloud_id" -> iamAccountId)
       info("Add cloud org with tag: " + tagMap)
       val input = PostPutOrgRequest(None, "Cloud Org", "desc", Some(tagMap), None, None)
-      var response = Http(CLOUDURL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(CLOUDURL).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
       assert(response.code === HttpCode.POST_OK.intValue)
 
@@ -227,7 +282,22 @@ class UsersSuite extends AnyFunSuite {
       // Can only add resources to an ibm public cloud org that we created (the icp org is the one in the cluster)
       if (iamAccountId.nonEmpty) {
         // ensure we can add a service to check acls to other objects
-        val inputSvc = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, "s1", "1.2.3", "amd64", "single", None, None, None,None , Some("a"), Some("b"), None, None)
+        val inputSvc = PostPutServiceRequest(label = "testSvc",
+          description = Some("desc"),
+          public = false,
+          documentation = None,
+          url = "s1",
+          version = "1.2.3",
+          arch = "amd64",
+          sharable = "single",
+          matchHardware = None,
+          requiredServices = None,
+          userInput = None,
+          deployment = Some("a"),
+          deploymentSignature = Some("b"),
+          clusterDeployment = None,
+          clusterDeploymentSignature = None,
+          imageStore = None)
         response = Http(CLOUDURL + "/services").postData(write(inputSvc)).method("post").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.POST_OK.intValue)
@@ -282,7 +352,8 @@ class UsersSuite extends AnyFunSuite {
         assert(response.code === HttpCode.BADCREDS.intValue)
         errorMsg = s"the iamapikey or iamtoken specified can not be used with org '$cloudorg' prepended to it, because the iamapikey or iamtoken is not associated with that org"
         assert(parse(response.body).extract[Map[String, String]].apply("msg").startsWith(errorMsg))
-      } else {
+      }
+      else {
         info("Skipping IAM public cloud tests tests")
       }
 
@@ -292,7 +363,8 @@ class UsersSuite extends AnyFunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
       */
-    } else {
+    }
+    else {
       info("Skipping all IAM login tests")
     }
   }
@@ -402,7 +474,7 @@ class UsersSuite extends AnyFunSuite {
   }
 
   /** Clean up, delete all the test users */
-  test("Cleanup 1 - DELETE all test users") {
+  /*test("Cleanup 1 - DELETE all test users") {
     deleteAllUsers()
   }
 
@@ -410,10 +482,10 @@ class UsersSuite extends AnyFunSuite {
     val response = Http(urlRootOrg + "/users/" + hubadmin).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.DELETED.intValue)
-  }
+  }*/
 
   /** Delete the orgs we used for this test */
-  test("DELETE orgs") {
+  /*test("DELETE orgs") {
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.DELETED.intValue)
@@ -435,6 +507,6 @@ class UsersSuite extends AnyFunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED.intValue)
     }
-  }
+  }*/
 
 }

@@ -12,13 +12,13 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
-class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
+class TestGetNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val ROUTE = "/hagroups"
+  private val ROUTE = "/hagroups/"
 
   private implicit val formats = DefaultFormats
 
@@ -33,29 +33,29 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
       OrgRow(
         heartbeatIntervals = "",
         description        = "Test Organization 1",
-        label              = "testGetNodeGroups",
+        label              = "testGetNodeGroup",
         lastUpdated        = ApiTime.nowUTC,
         limits             = "",
-        orgId              = "testGetNodeGroupsRoute1",
+        orgId              = "testGetNodeGroupRoute1",
         orgType            = "",
         tags               = None),
       OrgRow(
         heartbeatIntervals = "",
         description        = "Test Organization 2",
-        label              = "testGetNodeGroups",
+        label              = "testGetNodeGroup",
         lastUpdated        = ApiTime.nowUTC,
         limits             = "",
-        orgId              = "testGetNodeGroupsRoute2",
+        orgId              = "testGetNodeGroupRoute2",
         orgType            = "",
         tags               = None
       ),
       OrgRow(
         heartbeatIntervals = "",
         description        = "Test Organization 3",
-        label              = "testGetNodeGroups",
+        label              = "testGetNodeGroup",
         lastUpdated        = ApiTime.nowUTC,
         limits             = "",
-        orgId              = "testGetNodeGroupsRoute3",
+        orgId              = "testGetNodeGroupRoute3",
         orgType            = "",
         tags               = None
       )
@@ -64,12 +64,12 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val TESTUSERS: Seq[UserRow] =
     Seq(
       UserRow(
-        username    = "root/TestGetNodeGroupsRouteHubAdmin",
+        username    = "root/TestGetNodeGroupRouteHubAdmin",
         orgid       = "root",
         hashedPw    = Password.hash(HUBADMINPASSWORD),
         admin       = false,
         hubAdmin    = true,
-        email       = "TestGetNodeGroupsRouteHubAdmin@ibm.com",
+        email       = "TestGetNodeGroupRouteHubAdmin@ibm.com",
         lastUpdated = ApiTime.nowUTC,
         updatedBy   = "root/root"
       ),
@@ -194,21 +194,21 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
         group = 0, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
         updated = ApiTime.nowUTC,
-        name = "TestGetNodeGroupsRoute_empty"
+        name = "TestGetNodeGroupRoute_empty"
       ),
       NodeGroupRow(
         description = "test node group",
         group = 0, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
         updated = ApiTime.nowUTC,
-        name = "TestGetNodeGroupsRoute_main"
+        name = "TestGetNodeGroupRoute_main"
       ),
       NodeGroupRow(
         description = "other node group",
         group = 0, //gets automatically set by DB
         organization = TESTORGS(1).orgId,
         updated = ApiTime.nowUTC,
-        name = "TestGetNodeGroupsRoute_other"
+        name = "TestGetNodeGroupRoute_other"
       )
     )
 
@@ -252,15 +252,15 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(
-      ResourceChangesTQ.filter(_.orgId startsWith "testGetNodeGroupsRoute").delete andThen
-      OrgsTQ.filter(_.orgid startsWith "testGetNodeGroupsRoute").delete andThen
+      ResourceChangesTQ.filter(_.orgId startsWith "testGetNodeGroupRoute").delete andThen
+      OrgsTQ.filter(_.orgid startsWith "testGetNodeGroupRoute").delete andThen
       UsersTQ.filter(_.username startsWith TESTUSERS(0).username).delete
     ), AWAITDURATION)
     DBCONNECTION.getDb.close()
   }
 
-  test("GET /orgs/doesNotExist" + ROUTE + " -- 404 NOT FOUND") {
-    val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/doesNotExist" + ROUTE + TESTNODEGROUPS(1).name + " -- 404 NOT FOUND") {
+    val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE + TESTNODEGROUPS(1).name).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
@@ -268,8 +268,8 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.isEmpty)
   }
 
-  test("GET /orgs/" + TESTORGS(2).orgId + ROUTE + " -- no node groups in org -- 404 NOT FOUND") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(2).orgId + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + "doesNotExist -- 404 NOT FOUND") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "doesNotExist").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
@@ -277,20 +277,15 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.isEmpty)
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as root -- 200 OK, all nodes included") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- as root -- 200 OK, all nodes included") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val responseBody: GetNodeGroupsResponse = JsonMethods.parse(response.body).extract[GetNodeGroupsResponse]
-    assert(responseBody.nodeGroups.length === 2)
-    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
+    assert(responseBody.nodeGroups.length === 1)
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
-    assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.updated === TESTNODEGROUPS(0).updated)
-    assert(emptyGroup.members.isEmpty)
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
     assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
     assert(mainGroup.members.length === 2)
@@ -298,20 +293,29 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as org admin -- 200 OK, all nodes included") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(ORGADMINAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name + " -- as root -- 200 OK") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val responseBody: GetNodeGroupsResponse = JsonMethods.parse(response.body).extract[GetNodeGroupsResponse]
-    assert(responseBody.nodeGroups.length === 2)
+    assert(responseBody.nodeGroups.length === 1)
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
-    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
     val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
-    val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(emptyGroup.name === TESTNODEGROUPS(0).name)
     assert(emptyGroup.updated === TESTNODEGROUPS(0).updated)
     assert(emptyGroup.members.isEmpty)
+  }
+
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- as org admin -- 200 OK, all nodes included") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).headers(ACCEPT).headers(ORGADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody: GetNodeGroupsResponse = JsonMethods.parse(response.body).extract[GetNodeGroupsResponse]
+    assert(responseBody.nodeGroups.length === 1)
+    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
+    val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
     assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
     assert(mainGroup.members.length === 2)
@@ -319,47 +323,37 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as user -- 200 OK, only owned nodes included") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(USERAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- as user -- 200 OK, only owned nodes included") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val responseBody: GetNodeGroupsResponse = JsonMethods.parse(response.body).extract[GetNodeGroupsResponse]
-    assert(responseBody.nodeGroups.length === 2)
-    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
+    assert(responseBody.nodeGroups.length === 1)
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
-    assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.updated === TESTNODEGROUPS(0).updated)
-    assert(emptyGroup.members.isEmpty)
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
     assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
     assert(mainGroup.members.length === 1)
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as hub admin -- 403 access denied") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(HUBADMINAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- as hub admin -- 403 ACCESS DENIED") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as agbot -- 200 OK, all nodes included") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(AGBOTAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- as agbot -- 200 OK, all nodes included") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val responseBody: GetNodeGroupsResponse = JsonMethods.parse(response.body).extract[GetNodeGroupsResponse]
-    assert(responseBody.nodeGroups.length === 2)
-    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
+    assert(responseBody.nodeGroups.length === 1)
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
-    assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.updated === TESTNODEGROUPS(0).updated)
-    assert(emptyGroup.members.isEmpty)
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
     assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
     assert(mainGroup.members.length === 2)
@@ -367,15 +361,15 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as node -- 403 access denied") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(NODEAUTH).asString
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- as node -- 403 ACCESS DENIED") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).headers(ACCEPT).headers(NODEAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + " -- as org admin in other org -- 403 access denied") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE).headers(ACCEPT).headers(ORGADMINAUTH).asString
+  test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- as org admin in other org -- 403 ACCESS DENIED") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + TESTNODEGROUPS(1).name).headers(ACCEPT).headers(ORGADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)

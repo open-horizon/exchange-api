@@ -11,7 +11,7 @@ import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth.DBProcessingError
-import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupRow, NodeGroupTQ, NodeRow, Nodes, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupAssignments, NodeGroupRow, NodeGroupTQ, NodeRow, Nodes, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
@@ -37,7 +37,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
 
   def nodeGroupRoutes: Route =
     deleteNodeGroup ~
-//      getNodeGroup ~
+    getNodeGroup ~
     getAllNodeGroup
 //      putNodeGroup ~
 //      postNodeGroup
@@ -92,17 +92,82 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-//  /* ====== GET /orgs/{orgid}/hagroups/{name} ================================ */
-//  def getNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & get) { (orgid, name) =>
-//
-//  }
+  /* ====== GET /orgs/{orgid}/hagroups/{name} ================================ */
+  @GET
+  @Path("{name}")
+  @Operation(
+    summary = "Lists all members of the specified Node Group (HA Group)",
+    description = "Returns the Node Group along with the member nodes that the caller has permission to view.",
+    parameters = Array(
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization identifier."
+      ),
+      new Parameter(
+        name = "name",
+        in = ParameterIn.PATH,
+        description = "Node Group identifier."
+      )
+    ),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value =
+"""{
+  "nodeGroups": [
+    {
+      "name": "nodegroup",
+      "members": [
+        "node1",
+        "node2",
+        "node3"
+      ],
+      "updated": "2020-02-05T20:28:14.469Z[UTC]"
+    }
+  ]
+}"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetNodeGroupsResponse])
+          )
+        )
+      ),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")
+    )
+  )
+  def getNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & get) { (orgid, name) =>
+    logger.debug(s"doing GET /orgs/$orgid/hagroups")
+    exchAuth(TNode(OrgAndId(orgid, "#").toString), Access.READ) { ident =>
+      complete({
+        val nodesQuery = if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) NodesTQ.getAllNodes(orgid) else NodesTQ.filter(_.owner === ident.identityString)
+        val query = NodeGroupTQ.getAllNodeGroups(orgid).filter(_.name === name) joinLeft NodeGroupAssignmentTQ.filter(_.node in nodesQuery.map(_.id)) on (_.group === _.group)
+        db.run(query.sortBy(_._2.map(_.node).getOrElse("")).result.transactionally.asTry).map({
+          case Success(result) =>
+            if (result.nonEmpty) {
+              if (result.head._2.isDefined) (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(result.head._1.name, result.map(_._2.get.node.split("/")(1)), result.head._1.updated))))
+              else (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(result.head._1.name, Seq.empty[String], result.head._1.updated)))) //node group with no members
+            }
+            else (HttpCode.NOT_FOUND, GetNodeGroupsResponse(ListBuffer[NodeGroupResp]().toSeq)) //node group doesn't exist
+          case Failure(t) =>
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("api.internal.error")))
+        })
+      })
+    }
+  }
 
   /* ====== GET /orgs/{orgid}/hagroups ================================ */
   @GET
   @Path("")
   @Operation(
     summary = "Lists all members of all Node Groups (HA Groups)",
-    description = "Returns 0 or more Node Groups and all node IDs associated with each group that the caller has permission to view.",
+    description = "Returns all Node Groups in this org along with the member nodes that the caller has permission to view.",
     parameters = Array(
       new Parameter(
         name = "orgid",
@@ -168,7 +233,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               val assignmentMap = result._2.groupBy(_.group)
               val response: ListBuffer[NodeGroupResp] = ListBuffer[NodeGroupResp]()
               for (nodeGroup <- result._1) {
-                if (assignmentMap.contains(nodeGroup.group)) response += NodeGroupResp(nodeGroup.name, assignmentMap(nodeGroup.group).map(_.node).collect{_.split("/")(1)}, nodeGroup.updated)
+                if (assignmentMap.contains(nodeGroup.group)) response += NodeGroupResp(nodeGroup.name, assignmentMap(nodeGroup.group).map(_.node.split("/")(1)), nodeGroup.updated)
                 else response += NodeGroupResp(nodeGroup.name, Seq.empty[String], nodeGroup.updated) //node group with no assignments
               }
               (HttpCode.OK, GetNodeGroupsResponse(response.toSeq))

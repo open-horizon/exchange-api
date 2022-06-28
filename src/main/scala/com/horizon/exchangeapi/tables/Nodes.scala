@@ -333,6 +333,7 @@ final case class NodeError(errors: List[Any], lastUpdated: String)
 //Node Groups for MCM
 final case class NodeGroupRow(description: String, group: Long, organization: String, updated: String, name: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
+  def update: DBIO[_] = NodeGroupTQ.update(this)
   def upsert: DBIO[_] = NodeGroupTQ.insertOrUpdate(this)
 }
 

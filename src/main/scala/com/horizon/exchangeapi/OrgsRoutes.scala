@@ -2,7 +2,6 @@
 package com.horizon.exchangeapi
 
 import java.time.ZonedDateTime
-
 import javax.ws.rs._
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
@@ -14,20 +13,18 @@ import com.horizon.exchangeapi
 import com.horizon.exchangeapi.auth.{DBProcessingError, IamAccountInfo, IbmCloudAuth}
 
 import scala.concurrent.ExecutionContext
-
 import de.heikoseeberger.akkahttpjackson._
 import org.json4s._
 import org.json4s.jackson.Serialization.write
-
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
-
 import com.horizon.exchangeapi.tables._
 import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 
+import java.time.format.DateTimeParseException
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
 import scala.util._
@@ -127,7 +124,15 @@ final case class PostNodeHealthResponse(nodes: Map[String, NodeHealthHashElement
 
 /** Case class for request body for ResourceChanges route */
 final case class ResourceChangesRequest(changeId: Long, lastUpdated: Option[String], maxRecords: Int, orgList: Option[List[String]]) {
-  def getAnyProblem: Option[String] = None // None means no problems with input
+  def getAnyProblem: Option[String] = {
+    try {
+      ZonedDateTime.parse(lastUpdated.getOrElse(ApiTime.beginningUTC)) //if lastUpdated is provided, make sure we can parse it
+      None //if the parse was successful, no problem
+    }
+    catch {
+      case _: DateTimeParseException => Some.apply(ExchMsg.translate("error.parsing.timestamp", lastUpdated.get))
+    }
+  }
 }
 
 /** The following classes are to build the response object for the ResourceChanges route */
@@ -195,7 +200,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("orgs")
   @Operation(summary = "Returns all orgs", description = "Returns some or all org definitions. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user or a hub admin.",
     parameters = Array(
-      new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. A common org type is 'IBM'.",
+      new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. Currently the only supported org type for this route is 'IBM'.",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM"))))),
       new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
@@ -307,6 +312,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             schema = new Schema(implementation = classOf[GetOrgsResponse])
           )
         )),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -451,8 +457,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         description = "access denied"
       ),
       new responses.ApiResponse(
-        responseCode = "404",
-        description = "not found"
+        responseCode = "409",
+        description = "conflict (org already exists)"
       )
     )
   )
@@ -697,7 +703,6 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body:",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[PostNodeErrorResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -731,9 +736,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id.")),
     responses = Array(
-      new responses.ApiResponse(responseCode = "201", description = "response body:",
+      new responses.ApiResponse(responseCode = "200", description = "response body:",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[AllNodeErrorsInOrgResp])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
@@ -871,7 +875,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("orgs/{orgid}/search/nodehealth")
   @Operation(
     summary = "Returns agreement health of nodes with no pattern",
-    description = "Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
+    description = "Returns the lastHeartbeat and agreement times for all nodes in this org that do not have a pattern and have had a heartbeat since the specified lastTime. Can be run by an organization admin or agbot (but not a node).",
     parameters = Array(
       new Parameter(
         name = "orgid",
@@ -1109,7 +1113,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               //logger.debug("POST /orgs/" + orgId + "/changes changes : " + qOrgResult.toString())
               logger.debug("POST /orgs/" + orgId + "/changes number of changed rows retrieved: " + qResult.size)
               qResp = qResult
-              val id: String = orgId + "/" + ident.getIdentity
+              val id: String = ident.getOrg + "/" + ident.getIdentity
               ident match {
                 case _: INode =>
                   NodesTQ.getLastHeartbeat(id).update(Some(ApiTime.nowUTC)).asTry
@@ -1143,11 +1147,10 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   // ====== GET /changes/maxchangeid ================================
   @GET
   @Path("changes/maxchangeid")
-  @Operation(summary = "Returns the max changeid of the resource changes", description = "Returns the max changeid of the resource changes. Can be run by any user, node, or agbot.",
+  @Operation(summary = "Returns the max changeid of the resource changes", description = "Returns the max changeid of the resource changes. Can be run by the root user, organization admins, or any node or agbot.",
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[MaxChangeIdResponse])))),
-      new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def orgsGetMaxChangeIdRoute: Route = (path("changes" / "maxchangeid") & get) {
@@ -1231,7 +1234,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         )),
       new responses.ApiResponse(responseCode = "400", description = "bad input"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied")))
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
   def myOrgsPostRoute: Route = (path("myorgs") & post & entity(as[List[IamAccountInfo]])) { reqBody =>
     logger.debug("Doing POST /myorgs")
     // set hint here to some key that states that no org is ok
@@ -1264,11 +1268,6 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         name = "orgid",
         in = ParameterIn.PATH,
         description = "Organization id."
-      ),
-      new Parameter(
-        name = "id",
-        in = ParameterIn.PATH,
-        description = "ID of the agbot to be updated."
       )
     ),
     requestBody = new RequestBody(
@@ -1312,44 +1311,46 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TAgbot(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
       complete({
         val creds = ident.creds
-        val owner = ident match { case IUser(creds2) => creds2.id; case _ => "" }
-        if (owner != "") {
-          // the user invoked this rest method, so look for an agbot owned by this user with this agr id
-          val agbotAgreementJoin = for {
-            (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
-            if agbot.owner === owner && agr.map(_.agrId) === reqBody.agreementId
-          } yield (agbot, agr)
-          db.run(agbotAgreementJoin.result).map({ list =>
-            logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
-            // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.owner === owner && agr.agrId === req.agreementId
-            if (list.nonEmpty && list.head._2.isDefined && list.head._2.get.state != "") {
-              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
-            } else {
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
-            }
-          })
-        } else {
-          // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
-          val agbotAgreementJoin = for {
-            (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
-            if agbot.id === creds.id || agr.map(_.agrId) === reqBody.agreementId
-          } yield (agbot, agr)
-          db.run(agbotAgreementJoin.result).map({ list =>
-            logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
-            if (list.nonEmpty) {
-              // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.id === creds.id || agr.agrId === req.agreementId
-              val agbot1 = list.find(r => r._1.id == creds.id).orNull
-              val agbot2 = list.find(r => r._2.isDefined && r._2.get.agrId == reqBody.agreementId).orNull
-              if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
+        ident match {
+          case _: IUser =>
+            // the user invoked this rest method, so look for an agbot owned by this user with this agr id
+            val agbotAgreementJoin = for {
+              (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
+              if agbot.owner === creds.id && agr.map(_.agrId) === reqBody.agreementId
+            } yield (agbot, agr)
+            db.run(agbotAgreementJoin.result).map({ list =>
+              logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
+              // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.owner === owner && agr.agrId === req.agreementId
+              if (list.nonEmpty && list.head._2.isDefined && list.head._2.get.state != "") {
                 (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
               } else {
                 (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
               }
-            } else {
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
-            }
-          })
-        }
+            })
+          case _: IAgbot =>
+            // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
+            val agbotAgreementJoin = for {
+              (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
+              if agbot.id === creds.id || agr.map(_.agrId) === reqBody.agreementId
+            } yield (agbot, agr)
+            db.run(agbotAgreementJoin.result).map({ list =>
+              logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
+              if (list.nonEmpty) {
+                // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.id === creds.id || agr.agrId === req.agreementId
+                val agbot1 = list.find(r => r._1.id == creds.id).orNull
+                val agbot2 = list.find(r => r._2.isDefined && r._2.get.agrId == reqBody.agreementId).orNull
+                if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
+                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
+                } else {
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
+                }
+              } else {
+                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
+              }
+            })
+          case _ => //node should not be calling this route
+            (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied")))
+        } //end of match
       }) // end of complete
     } // end of exchAuth
   }

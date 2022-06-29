@@ -125,8 +125,6 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     )
   }
 
-  //404 not found is listed as a possible return of this route in swagger, but I can't find a way that that would be returned
-
   test("POST /orgs/" + orgId + " -- invalid body -- 400 bad input") {
     val requestBody: Map[String, String] = Map("invalidKey" -> "invalidValue")
     val request: HttpResponse[String] = Http(URL + orgId).postData(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -138,7 +136,6 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
   }
 
-  //error message "requirement failed" isn't very descriptive here
   test("POST /orgs/" + orgId + " -- null label -- 400 bad input") {
     val requestBody: Map[String, String] = Map( //can't use PostPutOrgRequest here because it throws an exception if it's improperly created
       "orgType" -> null,
@@ -228,7 +225,6 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
   }
 
-  //409 is not listed as a possible return in swagger
   test("POST /orgs/" + TESTORGS(0).orgId + " -- 409 conflict (already exists)") {
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)

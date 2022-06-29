@@ -186,7 +186,6 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(orgsList.orgs.contains("IBM"))
   }
 
-  //should Swagger docs be updated to say orgType must be IBM or nothing?
   test("GET /orgs -- orgType = testGetOrgs -- failure because orgType is not IBM") {
     val response: HttpResponse[String] = Http(URL).param("orgtype", "testGetOrgs").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)

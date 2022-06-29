@@ -207,7 +207,6 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(orgsList.orgs.contains("root"))
   }
 
-  //Returns code 400, but code 400 is not listed as a possible return in swagger doc
   test("GET /orgs/testGetOrgRoute1 -- attribute = doesNotExist -- 400 bad input") {
     val response: HttpResponse[String] = Http(URL + "testGetOrgRoute1").param("attribute", "doesNotExist").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)

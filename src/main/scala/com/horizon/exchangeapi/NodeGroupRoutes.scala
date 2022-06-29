@@ -26,8 +26,7 @@ import scala.util.{Failure, Success}
 final case class NodeGroupResp(name: String, members: Seq[String], updated: String)
 final case class GetNodeGroupsResponse(nodeGroups: Seq[NodeGroupResp])
 
-final case class PostPutNodeGroupsRequest(members: Seq[String]) {
-  require(members!=null)
+final case class PutNodeGroupsRequest(members: Option[Seq[String]], description: Option[String]) {
   def getAnyProblem: Option[String] = None
 }
 
@@ -283,11 +282,12 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
     "node4",
     "node5"
   ],
+  "description": "New Description"
 }"""
             )
           ),
           mediaType = "application/json",
-          schema = new Schema(implementation = classOf[PostPutNodeGroupsRequest])
+          schema = new Schema(implementation = classOf[PutNodeGroupsRequest])
         )
       )
     ),
@@ -301,67 +301,113 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "409", description = "node already belongs to other group")
     )
   )
-  def putNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & put & entity(as[PostPutNodeGroupsRequest])) { (orgid, name, reqBody) =>
+  def putNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & put & entity(as[PutNodeGroupsRequest])) { (orgid, name, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/users/$name")
     exchAuth(TNode(OrgAndId(orgid, "#").toString), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val members: Seq[String] = reqBody.members.distinct.map(a => orgid + "/" + a) //don't want duplicate nodes in list, and need to pre-pend orgId to match id in Node table
           val nodeGroupQuery = NodeGroupTQ.filter(_.organization === orgid).filter(_.name === name)
-          val nodesQuery = if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) NodesTQ.getAllNodes(orgid) else NodesTQ.getAllNodes(orgid).filter(_.owner === ident.identityString)
-          var nodeGroup: NodeGroupRow = null
-          db.run(nodeGroupQuery.result.asTry.flatMap({
-            case Success(result) =>
-              if (result.nonEmpty) { //good: node group w/ provided orgid + name exists
-                nodeGroup = result.head
-                NodeGroupAssignmentTQ.filterNot(_.group in nodeGroupQuery.map(_.group)).filter(_.node inSet members).result.asTry //empty if no nodes in list are in other groups
+
+          if (reqBody.members.isDefined) {
+            val members: Seq[String] = reqBody.members.get.distinct.map(a => orgid + "/" + a) //don't want duplicate nodes in list, and need to pre-pend orgId to match id in Node table
+            val nodesQuery = if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) NodesTQ.getAllNodes(orgid) else NodesTQ.getAllNodes(orgid).filter(_.owner === ident.identityString)
+
+            val queries = for {
+              nodeGroup <- nodeGroupQuery.result
+
+              nodesInOtherGroups <- NodeGroupAssignmentTQ.filterNot(_.group in nodeGroupQuery.map(_.group)).filter(_.node inSet members).result //empty if no nodes in list are in other groups
+              nodesCallerDoesntOwn <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
+              ownedNodesInList <- nodesQuery.filter(_.id inSet members).result //if caller owns all new nodes, length should equal length of 'members'
+
+              _ <- {
+                if (nodeGroup.nonEmpty && nodesInOtherGroups.isEmpty && nodesCallerDoesntOwn.isEmpty && (ownedNodesInList.length == members.length)) {
+                  DBIO.seq(
+                    NodeGroupRow(
+                      if (reqBody.description.isDefined) reqBody.description.get else nodeGroup.head.description,
+                      nodeGroup.head.group,
+                      nodeGroup.head.organization,
+                      ApiTime.nowUTC,
+                      nodeGroup.head.name).update,
+                    NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).delete,
+                    NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroup.head.group)),
+                    ResourceChange(
+                      0L,
+                      orgid,
+                      name,
+                      ResChangeCategory.NODEGROUP,
+                      false,
+                      ResChangeResource.NODEGROUP,
+                      ResChangeOperation.MODIFIED).insert
+                  )
+                }
+                else DBIO.successful(())
               }
-              else DBIO.failed(new ResourceNotFoundException("node group does not exist")).asTry //todo: translate
-            case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
-            case Success(result) =>
-              if (result.isEmpty) { //good: no nodes in the request body exist in other node groups
-                NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result.asTry //empty if caller owns all old nodes
+            } yield (nodeGroup, nodesInOtherGroups, nodesCallerDoesntOwn, ownedNodesInList)
+
+            db.run(queries.transactionally.asTry).map({
+              case Success(result) =>
+                if (result._1.isEmpty) {
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, s"node group $name in org $orgid not found")) //todo: translate w/ error message
+                }
+                else if (result._2.nonEmpty) {
+                  (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, "some provided nodes are already in other node groups")) //todo: translate w/ error message
+                }
+                else if (result._3.nonEmpty) {
+                  (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "you do not have permission to remove some existing nodes from this node group")) //todo: translate w/ error message
+                }
+                else if (result._4.length != members.length) {
+                  (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist")) //todo: translate w/ error message
+                }
+                else {
+                  logger.debug(s"PUT /orgs/$orgid/hagroups/$name result: $result")
+                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, s"Node Group $name in org $orgid updated.")) //todo: translate
+                }
+              case Failure(t) =>
+                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
+            })
+          }
+          else if (reqBody.description.isDefined) {
+            val queries = for {
+              nodeGroup <- nodeGroupQuery.result
+              _ <- {
+                if (nodeGroup.nonEmpty) {
+                  DBIO.seq(
+                    NodeGroupRow(
+                      reqBody.description.get,
+                      nodeGroup.head.group,
+                      nodeGroup.head.organization,
+                      ApiTime.nowUTC,
+                      nodeGroup.head.name).update,
+                    ResourceChange(
+                      0L,
+                      orgid,
+                      name,
+                      ResChangeCategory.NODEGROUP,
+                      false,
+                      ResChangeResource.NODEGROUP,
+                      ResChangeOperation.MODIFIED).insert
+                  )
+                }
+                else {
+                  DBIO.successful(())
+                }
               }
-              else DBIO.failed(new BadInputException("some provided nodes are already in other node groups")).asTry //todo: translate
-            case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
-            case Success(result) =>
-              if (result.isEmpty) { //good: caller owns all old nodes in this group
-                nodesQuery.filter(_.id inSet members).result.asTry //if caller owns all new nodes, length should equal length of 'members'
-              }
-              else DBIO.failed(new AccessDeniedException("you do not have permission to remove some existing nodes from this node group")).asTry //todo: translate
-            case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
-            case Success(result) =>
-              if (result.length == members.length) { //good: caller owns all nodes in new 'members' list
-                //all tests passed, now time to perform the actual update
-                val nodeGroupAssignments: Seq[NodeGroupAssignmentRow] = members.map(a => NodeGroupAssignmentRow(a, nodeGroup.group))
-                val newNodeGroup: NodeGroupRow = NodeGroupRow(nodeGroup.description, nodeGroup.group, nodeGroup.organization, ApiTime.nowUTC, nodeGroup.name)
-                //run the delete and then inserts as a single transaction (in case of error it will be rolled back):
-                DBIO.seq(NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).delete, NodeGroupAssignmentTQ ++= nodeGroupAssignments, newNodeGroup.update).transactionally.asTry
-              }
-              else DBIO.failed(new AccessDeniedException("you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist")).asTry //todo: translate
-            case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
-            case Success(result) =>
-              logger.debug(s"PUT /orgs/$orgid/hagroups/$name result: $result")
-              //insert resource change
-              ResourceChange(0L, orgid, name, ResChangeCategory.NODEGROUP, false, ResChangeResource.NODEGROUP, ResChangeOperation.MODIFIED).insert.asTry
-            case Failure(t) => DBIO.failed(t).asTry
-          })).map({
-            case Success(result) =>
-              logger.debug(s"PUT /orgs/$orgid/hagroups/$name put in changes table: $result")
-              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, s"Node Group $name in org $orgid updated.")) //todo: translate
-            case Failure(t: ResourceNotFoundException) =>
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, s"node group $name in org $orgid not found")) //todo: translate w/ error message
-            case Failure(t: BadInputException) =>
-              (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, t.getMessage)) //todo: translate w/ error message
-            case Failure(t: AccessDeniedException) =>
-              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, t.getMessage)) //todo: translate w/ error message
-            case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, "node group not updated")) //todo: translate
-          })
+            } yield (nodeGroup)
+            db.run(queries.transactionally.asTry).map({
+              case Success(result) =>
+                if (result.isEmpty)
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, s"node group $name in org $orgid not found")) //todo: translate w/ error message
+                else {
+                  logger.debug(s"PUT /orgs/$orgid/hagroups/$name result: $result")
+                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, s"Node Group $name in org $orgid updated.")) //todo: translate
+                }
+              case Failure(t) =>
+                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
+            })
+          }
+          else {
+            (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "must supply either 'members' or 'description'")) //todo: translate
+          }
         })
       }
     }

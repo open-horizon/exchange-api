@@ -10,7 +10,7 @@ import scala.concurrent.ExecutionContext
 import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.horizon.exchangeapi.auth.{AccessDeniedException, BadInputException, DBProcessingError, ResourceNotFoundException}
+import com.horizon.exchangeapi.auth.{AccessDeniedException, AlreadyExistsException, BadInputException, DBProcessingError, ResourceNotFoundException}
 import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupAssignments, NodeGroupRow, NodeGroupTQ, NodeRow, Nodes, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.tags.Tag
@@ -315,87 +315,82 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
           val nodesQuery = if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) NodesTQ.getAllNodes(orgid) else NodesTQ.getAllNodes(orgid).filter(_.owner === ident.identityString)
 
           val queries = for {
-            nodeGroup <- nodeGroupQuery.result
-            nodesCallerDoesntOwn <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
+            _ <- {
+              if (!reqBody.members.isDefined && !reqBody.description.isDefined) DBIO.failed(new BadInputException("must supply either 'members' or 'description'"))
+              else DBIO.successful(())
+            }
 
-            //todo: is there a way to stop these queries from running if 'description' is not provided?
-            nodesInOtherGroups <- NodeGroupAssignmentTQ.filterNot(_.group in nodeGroupQuery.map(_.group)).filter(_.node inSet members).result //empty if no nodes in list are in other groups
-            ownedNodesInList <- nodesQuery.filter(_.id inSet members).result //if caller owns all new nodes, length should equal length of 'members'
+            nodeGroup <- nodeGroupQuery.result
+            _ <- {
+              if (nodeGroup.isEmpty) DBIO.failed(new ResourceNotFoundException("node group does not exist"))
+              else DBIO.successful(())
+            }
+
+            nodesCallerDoesntOwn <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
+            _ <- {
+              if (nodesCallerDoesntOwn.nonEmpty) DBIO.failed(new AccessDeniedException("you do not have permission to remove some existing nodes from this node group"))
+              else DBIO.successful(())
+            }
 
             _ <- {
-              if (nodeGroup.nonEmpty && nodesCallerDoesntOwn.isEmpty) { //node group exists and caller can modify it
-                val newNodeGroup: NodeGroupRow = NodeGroupRow(
-                  if (reqBody.description.isDefined) reqBody.description.get else nodeGroup.head.description,
-                  nodeGroup.head.group,
-                  nodeGroup.head.organization,
-                  ApiTime.nowUTC,
-                  nodeGroup.head.name
-                )
-                val resourceChange: ResourceChange = ResourceChange(
-                  0L,
-                  orgid,
-                  name,
-                  ResChangeCategory.NODEGROUP,
-                  false,
-                  ResChangeResource.NODEGROUP,
-                  ResChangeOperation.MODIFIED
-                )
+              NodeGroupRow(
+                if (reqBody.description.isDefined) reqBody.description.get else nodeGroup.head.description,
+                nodeGroup.head.group,
+                nodeGroup.head.organization,
+                ApiTime.nowUTC,
+                nodeGroup.head.name
+              ).update
+            } //this will get rolled back if we hit a failure later on
 
-                if (reqBody.members.isDefined) { //need to check other queries to make sure the members list is ok
-                  if (nodesInOtherGroups.isEmpty && (ownedNodesInList.length == members.length)) {
-                    DBIO.seq(
-                      newNodeGroup.update,
-                      NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).delete,
-                      NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroup.head.group)),
-                      resourceChange.insert
-                    )
-                  }
-                  else {
-                    DBIO.successful(())
-                  }
-                }
-                else if (reqBody.description.isDefined) {
-                  DBIO.seq(
-                    newNodeGroup.update,
-                    resourceChange.insert
-                  )
-                }
-                else DBIO.successful(())
+            //todo: is there a way to stop these next 2 queries from running if 'members' is not provided?
+            nodesInOtherGroups <- NodeGroupAssignmentTQ.filterNot(_.group in nodeGroupQuery.map(_.group)).filter(_.node inSet members).result //empty if no nodes in list are in other groups
+            _ <- {
+              if (reqBody.members.isDefined && nodesInOtherGroups.nonEmpty) DBIO.failed(new AlreadyExistsException("some provided nodes are already in other node groups"))
+              else DBIO.successful(())
+            }
+
+            ownedNodesInList <- nodesQuery.filter(_.id inSet members).result //if caller owns all new nodes, length should equal length of 'members'
+            _ <- {
+              if (reqBody.members.isDefined && (ownedNodesInList.length != members.length)) DBIO.failed(new AccessDeniedException("you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist"))
+              else DBIO.successful(())
+            }
+
+            _ <- {
+              if (reqBody.members.isDefined) {
+                DBIO.seq(
+                  NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).delete,
+                  NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroup.head.group))
+                )
               }
               else DBIO.successful(())
             }
 
-          } yield (nodeGroup, nodesCallerDoesntOwn, nodesInOtherGroups, ownedNodesInList)
+            _ <- ResourceChange(
+              0L,
+              orgid,
+              name,
+              ResChangeCategory.NODEGROUP,
+              false,
+              ResChangeResource.NODEGROUP,
+              ResChangeOperation.MODIFIED
+            ).insert
+
+          } yield ()
 
           db.run(queries.transactionally.asTry).map({
             case Success(result) =>
-              if (result._1.isEmpty) {
-                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, s"node group $name in org $orgid not found")) //todo: translate w/ error message
-              }
-              else if (result._2.nonEmpty) {
-                (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "you do not have permission to remove some existing nodes from this node group")) //todo: translate w/ error message
-              }
-              else if (reqBody.members.isDefined) {
-                if (result._3.nonEmpty) {
-                  (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, "some provided nodes are already in other node groups")) //todo: translate w/ error message
-                }
-                else if (result._4.length != members.length) {
-                  (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist")) //todo: translate w/ error message
-                }
-                else {
-                  logger.debug(s"PUT /orgs/$orgid/hagroups/$name result: $result")
-                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, s"Node Group $name in org $orgid updated.")) //todo: translate
-                }
-              }
-              else if (reqBody.description.isDefined) {
-                logger.debug(s"PUT /orgs/$orgid/hagroups/$name result: $result")
-                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, s"Node Group $name in org $orgid updated.")) //todo: translate
-              }
-              else {
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "must supply either 'members' or 'description'")) //todo: translate
-              }
+              logger.debug(s"PUT /orgs/$orgid/hagroups/$name put in changes table: $result")
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, s"Node Group $name in org $orgid updated.")) //todo: translate
+            case Failure(t: ResourceNotFoundException) =>
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, s"node group $name in org $orgid not found")) //todo: translate w/ error message
+            case Failure(t: BadInputException) =>
+              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, t.getMessage)) //todo: translate w/ error message
+            case Failure(t: AlreadyExistsException) =>
+              (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, t.getMessage)) //todo: translate w/ error message
+            case Failure(t: AccessDeniedException) =>
+              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, t.getMessage)) //todo: translate w/ error message
             case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, "node group not updated")) //todo: translate
           })
         })
       }

@@ -367,11 +367,11 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
     Await.ready(DBCONNECTION.getDb.run(
       NodeGroupAssignmentTQ.filter(a => a.group === emptyGroup || a.group === mainGroup || a.group === mixedGroupOwner || a.group === mixedGroupOrg || a.group === org2Group).delete andThen
       (NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS) andThen
-      TESTNODEGROUPS(0).update andThen
-      TESTNODEGROUPS(1).update andThen
-      TESTNODEGROUPS(2).update andThen
-      TESTNODEGROUPS(3).update andThen
-      TESTNODEGROUPS(4).update andThen
+      NodeGroupTQ.filter(_.group === emptyGroup).update(NodeGroupRow(TESTNODEGROUPS(0).description, emptyGroup, TESTNODEGROUPS(0).organization, TESTNODEGROUPS(0).updated, TESTNODEGROUPS(0).name)) andThen
+      NodeGroupTQ.filter(_.group === mainGroup).update(NodeGroupRow(TESTNODEGROUPS(1).description, mainGroup, TESTNODEGROUPS(1).organization, TESTNODEGROUPS(1).updated, TESTNODEGROUPS(1).name)) andThen
+      NodeGroupTQ.filter(_.group === mixedGroupOwner).update(NodeGroupRow(TESTNODEGROUPS(2).description, mixedGroupOwner, TESTNODEGROUPS(2).organization, TESTNODEGROUPS(2).updated, TESTNODEGROUPS(2).name)) andThen
+      NodeGroupTQ.filter(_.group === mixedGroupOrg).update(NodeGroupRow(TESTNODEGROUPS(3).description, mixedGroupOrg, TESTNODEGROUPS(3).organization, TESTNODEGROUPS(3).updated, TESTNODEGROUPS(3).name)) andThen
+      NodeGroupTQ.filter(_.group === org2Group).update(NodeGroupRow(TESTNODEGROUPS(4).description, org2Group, TESTNODEGROUPS(4).organization, TESTNODEGROUPS(4).updated, TESTNODEGROUPS(4).name)) andThen
       ResourceChangesTQ.filter(a => a.orgId === TESTORGS(0).orgId || a.orgId === TESTORGS(1).orgId).delete
     ), AWAITDURATION)
   }
@@ -393,58 +393,309 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
     }
   }
 
-  def assertNodeGroupUpdated(group: Long, nodeGroup: NodeGroupRow): Unit = {
-    assert(Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.group === group).result), AWAITDURATION).head.updated > nodeGroup.updated)
+  def assertNodeGroupUpdated(group: Long, nodeGroup: NodeGroupRow, reqBody: PutNodeGroupsRequest): Unit = {
+    val dbNodeGroup = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.group === group).result), AWAITDURATION).head
+    if (reqBody.description.isDefined)
+      assert(dbNodeGroup.description === reqBody.description.get)
+    else
+      assert(dbNodeGroup.description === nodeGroup.description)
+    assert(dbNodeGroup.updated > nodeGroup.updated)
   }
 
   def assertNodeGroupNotUpdated(group: Long, nodeGroup: NodeGroupRow): Unit = {
-    assert(Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.group === group).result), AWAITDURATION).head.updated === nodeGroup.updated)
+    val dbNodeGroup = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.group === group).result), AWAITDURATION).head
+    assert(dbNodeGroup.description === nodeGroup.description)
+    assert(dbNodeGroup.updated === nodeGroup.updated)
   }
 
-  /*def assertResourceChangeAdded(orgId: String, )*/
+  def assertResourceChangeExists(orgId: String, name: String): Unit = {
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === orgId)
+      .filter(_.id === name)
+      .filter(_.category === ResChangeCategory.NODEGROUP.toString)
+      .filter(_.public === "false")
+      .filter(_.resource === ResChangeResource.NODEGROUP.toString)
+      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
+      .result), AWAITDURATION).nonEmpty)
+  }
+
+  def assertNoResourceChangeExists(orgId: String, name: String): Unit = {
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
+  }
+
+  private val normalRequestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+    members = Some(Seq(TESTNODES(0).id.split("/")(1), TESTNODES(6).id.split("/")(1))),
+    description = Some("new description")
+  )
 
   test("PUT /orgs/doesNotExist" + ROUTE + TESTNODEGROUPS(1).name + " -- 404 NOT FOUND") {
-    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
-      members = Some(Seq(TESTNODES(0).id.split("/")(1), TESTNODES(6).id.split("/")(1))),
-      description = None
-    )
-    val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE + TESTNODEGROUPS(1).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE + TESTNODEGROUPS(1).name).put(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
     assertAssignmentsNotChanged(mainGroup)
     assertNodeGroupNotUpdated(mainGroup, TESTNODEGROUPS(1))
-    val resourceChange = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "doesNotExist")
-      .filter(_.id === TESTNODEGROUPS(1).name)
-      .filter(_.category === ResChangeCategory.NODEGROUP.toString)
-      .filter(_.public === "false")
-      .filter(_.resource === ResChangeResource.NODEGROUP.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION)
-    assert(resourceChange.isEmpty)
+    assertNoResourceChangeExists("doesNotExist", TESTNODEGROUPS(1).name)
   }
 
-  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- as user -- 201 OK") {
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE  + "doesNotExist -- 404 NOT FOUND") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "doesNotExist").put(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assertAssignmentsNotChanged(mainGroup)
+    assertNoResourceChangeExists(TESTORGS(0).orgId, "doesNotExist")
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- empty request body -- 400 BAD INPUT") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).put("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assertAssignmentsNotChanged(mainGroup)
+    assertNodeGroupNotUpdated(mainGroup, TESTNODEGROUPS(1))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- invalid request body -- 400 BAD INPUT") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).put("{\"invalidKey\":\"invalidValue\"}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assertAssignmentsNotChanged(mainGroup)
+    assertNodeGroupNotUpdated(mainGroup, TESTNODEGROUPS(1))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- invalid format of members -- 400 BAD INPUT") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).put("{\"members\":\"this should not be a string\"}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assertAssignmentsNotChanged(mainGroup)
+    assertNodeGroupNotUpdated(mainGroup, TESTNODEGROUPS(1))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- just update description -- 201 OK") {
     val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
-      members = Some(Seq(TESTNODES(0).id.split("/")(1), TESTNODES(6).id.split("/")(1))),
-      description = None
+      description = Some("new description!"),
+      members = None
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(USERAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assertAssignmentsNotChanged(mainGroup)
+    assertNodeGroupUpdated(mainGroup, TESTNODEGROUPS(1), requestBody)
+    assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- just update members -- 201 OK") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = None,
+      members = Some(Seq(TESTNODES(0).id.split("/")(1), TESTNODES(6).id.split("/")(1)))
     )
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     assertAssignmentsChanged(mainGroup, requestBody, TESTORGS(0).orgId)
-    assertNodeGroupUpdated(mainGroup, TESTNODEGROUPS(1))
-    val resourceChange = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === TESTORGS(0).orgId)
-      .filter(_.id === TESTNODEGROUPS(1).name)
-      .filter(_.category === ResChangeCategory.NODEGROUP.toString)
-      .filter(_.public === "false")
-      .filter(_.resource === ResChangeResource.NODEGROUP.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION)
-    assert(resourceChange.nonEmpty)
+    assertNodeGroupUpdated(mainGroup, TESTNODEGROUPS(1), requestBody)
+    assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- as user -- 201 OK") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).put(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(USERAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assertAssignmentsChanged(mainGroup, normalRequestBody, TESTORGS(0).orgId)
+    assertNodeGroupUpdated(mainGroup, TESTNODEGROUPS(1), normalRequestBody)
+    assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name + " -- put members in empty group -- 201 OK") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = Some(Seq(TESTNODES(5).id.split("/")(1), TESTNODES(6).id.split("/")(1)))
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORGADMINAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assertAssignmentsChanged(emptyGroup, requestBody, TESTORGS(0).orgId)
+    assertNodeGroupUpdated(emptyGroup, TESTNODEGROUPS(0), requestBody)
+    assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(0).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(2).name + " -- user tries to update group they don't own -- 403 ACCESS DENIED") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = None
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(2).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(USERAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assertAssignmentsNotChanged(mixedGroupOwner)
+    assertNodeGroupNotUpdated(mixedGroupOwner, TESTNODEGROUPS(2))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(2).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(3).name + " -- admin tries to update group they don't own -- 403 ACCESS DENIED") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = None
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(3).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORGADMINAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assertAssignmentsNotChanged(mixedGroupOrg)
+    assertNodeGroupNotUpdated(mixedGroupOrg, TESTNODEGROUPS(3))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(3).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(2).name + " -- as admin -- 201 OK") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = Some(Seq(TESTNODES(5).id.split("/")(1), TESTNODES(6).id.split("/")(1)))
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(2).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORGADMINAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assertAssignmentsChanged(mixedGroupOwner, requestBody, TESTORGS(0).orgId)
+    assertNodeGroupUpdated(mixedGroupOwner, TESTNODEGROUPS(2), requestBody)
+    assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(2).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- user tries to insert node they don't own -- 403 ACCESS DENIED") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = Some(Seq(TESTNODES(5).id.split("/")(1), TESTNODES(6).id.split("/")(1)))
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(USERAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assertAssignmentsNotChanged(mainGroup)
+    assertNodeGroupNotUpdated(mainGroup, TESTNODEGROUPS(1))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- admin tries to insert node they don't own -- 403 ACCESS DENIED") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = Some(Seq(TESTNODES(5).id.split("/")(1), TESTNODES(6).id.split("/")(1), TESTNODES(7).id.split("/")(1)))
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORGADMINAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assertAssignmentsNotChanged(mainGroup)
+    assertNodeGroupNotUpdated(mainGroup, TESTNODEGROUPS(1))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name + " -- try to put node from one group into a different group -- 409 CONFLICT") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = Some(Seq(TESTNODES(0).id.split("/")(1)))
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ALREADY_EXISTS2.intValue)
+    assertAssignmentsNotChanged(emptyGroup)
+    assertNodeGroupNotUpdated(emptyGroup, TESTNODEGROUPS(0))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(0).name)
+  }
+
+  //the behavior of this route might need to be changed to make this case return 400 BAD INPUT instead
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name + " -- try to insert node that doesn't exist -- 403 ACCESS DENIED") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = Some(Seq("doesNotExist"))
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assertAssignmentsNotChanged(emptyGroup)
+    assertNodeGroupNotUpdated(emptyGroup, TESTNODEGROUPS(0))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(0).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(1).orgId + ROUTE + TESTNODEGROUPS(4).name + " -- admin tries to update group in other org -- 403 ACCESS DENIED") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = None
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + TESTNODEGROUPS(4).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORGADMINAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assertAssignmentsNotChanged(org2Group)
+    assertNodeGroupNotUpdated(org2Group, TESTNODEGROUPS(4))
+    assertNoResourceChangeExists(TESTORGS(1).orgId, TESTNODEGROUPS(4).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(2).name + " -- as root -- 201 OK") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = Some(Seq(TESTNODES(5).id.split("/")(1), TESTNODES(6).id.split("/")(1)))
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(2).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    assertAssignmentsChanged(mixedGroupOwner, requestBody, TESTORGS(0).orgId)
+    assertNodeGroupUpdated(mixedGroupOwner, TESTNODEGROUPS(2), requestBody)
+    assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(2).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name + " -- as hub admin -- 403 ACCESS DENIED") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = None
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assertAssignmentsNotChanged(emptyGroup)
+    assertNodeGroupNotUpdated(emptyGroup, TESTNODEGROUPS(0))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(0).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name + " -- as node -- 403 ACCESS DENIED") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = None
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(NODEAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assertAssignmentsNotChanged(emptyGroup)
+    assertNodeGroupNotUpdated(emptyGroup, TESTNODEGROUPS(0))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(0).name)
+  }
+
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name + " -- as agbot -- 403 ACCESS DENIED") {
+    val requestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
+      description = Some("NEW DESCRIPTION"),
+      members = None
+    )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(AGBOTAUTH).asString
+    info("code: " + response.code)
+    info("body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assertAssignmentsNotChanged(emptyGroup)
+    assertNodeGroupNotUpdated(emptyGroup, TESTNODEGROUPS(0))
+    assertNoResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(0).name)
   }
 
 }

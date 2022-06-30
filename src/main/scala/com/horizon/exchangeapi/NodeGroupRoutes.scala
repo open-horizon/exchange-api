@@ -312,7 +312,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             else Seq.empty[String]
 
           val nodeGroupQuery = NodeGroupTQ.filter(_.organization === orgid).filter(_.name === name)
-          val nodesQuery = if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) NodesTQ.getAllNodes(orgid) else NodesTQ.getAllNodes(orgid).filter(_.owner === ident.identityString)
+          val nodesQuery = if (ident.isAdmin) NodesTQ.getAllNodes(orgid) else NodesTQ.getAllNodes(orgid).filter(_.owner === ident.identityString)
 
           val queries = for {
             _ <- {
@@ -328,7 +328,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
 
             nodesCallerDoesntOwn <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
             _ <- {
-              if (nodesCallerDoesntOwn.nonEmpty) DBIO.failed(new AccessDeniedException("you do not have permission to remove some existing nodes from this node group"))
+              if (nodesCallerDoesntOwn.nonEmpty) DBIO.failed(new AccessDeniedException("you do not have permission to edit this group (you do not own all nodes assigned to this group)"))
               else DBIO.successful(())
             }
 

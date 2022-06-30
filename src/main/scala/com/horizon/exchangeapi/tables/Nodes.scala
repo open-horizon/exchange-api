@@ -352,8 +352,8 @@ class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
 
 object NodeGroupTQ extends TableQuery(new NodeGroup(_)){
   def getAllNodeGroups(orgid: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.organization === orgid)
-  def getNodeGroup(group: Long): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.group === group)
-  def getNodeGroupName(name: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.name === name)
+  def getNodeGroupId(orgid: String, name: String): Query[Rep[Long], Long, Seq] = this.filter(_.organization === orgid).filter(_.name === name).map(_.group)
+  def getNodeGroupName(orgid: String, name: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.organization === orgid).filter(_.name === name)
 }
 
 final case class NodeGroups(description: String, group: String, organization: String, updated: String)
@@ -374,7 +374,7 @@ class NodeGroupAssignment(tag: Tag) extends Table[NodeGroupAssignmentRow](tag, "
 }
 
 object NodeGroupAssignmentTQ extends TableQuery(new NodeGroupAssignment(_)){
-  def getNodeGroupAssignment(group: Long): Query[Rep[String], String, Seq] = this.filter(_.group === group).map(_.node)
+  def getNodeGroupAssignment(node: String): Query[Rep[Long], Long, Seq] = this.filter(_.node === node).map(_.group)
 }
 
 final case class NodeGroupAssignments(node: String, group: String)

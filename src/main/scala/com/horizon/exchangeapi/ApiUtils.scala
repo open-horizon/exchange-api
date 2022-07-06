@@ -333,7 +333,8 @@ object ExchConfig {
     val rootIsEnabled: Boolean = config.getBoolean("api.root.enabled")
     if (rootpw == "" || !rootIsEnabled) {
       rootHashedPw = "" // this should already be true, but just make sure
-    } else { // there is a real, enabled root pw
+    }
+    else { // there is a real, enabled root pw
       //val hashedPw = Password.hashIfNot(rootpw)  <- can't hash this again, because it would be different
       if (rootHashedPw == "") logger.error("Internal Error: rootHashedPw not already set")
       val rootUnhashedPw: String = if (Password.isHashed(rootpw)) "" else rootpw // this is the 1 case in which an id cache entry could not have an unhashed pw/tok
@@ -343,6 +344,67 @@ object ExchConfig {
     //val rootemail = config.getString("api.root.email")
     val rootemail = ""
     // Create the root org, create the IBM org, and create the root user (all only if necessary)
+    
+    // TODO: Read the hub admin section of the config file into something we can operate on.
+    case class HubAdmin(password: Option[String] = None, org: String = "root", user: String)
+    
+    val a: Seq[HubAdmin] = config.getObjectList("api.hubadmins").asScala.map(
+      c => HubAdmin(password = {
+                      val credential: Option[String] =
+                        try {
+                          Option(c.toConfig.getString("password"))
+                        }
+                        catch {
+                          case _: Exception => None
+                        }
+                      if(credential.isEmpty) credential                      // No password, IAM User.
+                      else if(Password.isHashed(credential.get)) credential  // Password is already hashed.
+                      else Option(Password.hash(credential.get))             // Plain-text, hash.
+                    },
+                    org = c.toConfig.getString("org"),
+                    user = c.toConfig.getString("user"))
+    ).toList
+    
+    // TODO: rewrite the DB block below into a single transaction. Add in the creation of hub admins.
+    // TODO: check that the hub admins do not already exist.
+    // TODO: vaildate that the hub admins ae created in the root org.
+    // TODO: create each of the hub admins defined in the config. Do not overwrite existing users. Create only.
+    /*val query = for {
+      
+           // Root Organization and Super User
+      _ <- OrgRow(description = "Organization for the root user only",
+                  heartbeatIntervals = "",
+                  label = "Root Org",
+                  lastUpdated = ApiTime.nowUTC,
+                  limits = "",
+                  orgId = "root",
+                  orgType = "",
+                  tags = None)  // TODO: read in the account_id field and add it to tags.
+             .upsert
+           
+      _ <- UserRow(admin = true,
+                   email = rootemail,
+                   hashedPw = rootHashedPw,
+                   hubAdmin = true,
+                   lastUpdated = ApiTime.nowUTC,
+                   orgid = "root",
+                   updatedBy = Role.superUser,
+                   username = Role.superUser).upsertUser
+      
+           // IBM Organzation
+      _ <- OrgRow(description = "Organization containing IBM services",
+                  heartbeatIntervals = "",
+                  label = "IBM Org",
+                  lastUpdated = ApiTime.nowUTC,
+                  limits = "",
+                  orgId = "IBM",
+                  orgType = "IBM",
+                  tags = None)
+             .upsert
+           
+    } yield _ */
+    
+    
     db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None, "", "").upsert.asTry.flatMap({ xs =>
       logger.debug("Upsert /orgs/root result: " + xs.toString)
       xs match {

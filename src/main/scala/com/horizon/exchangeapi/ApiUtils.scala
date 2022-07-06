@@ -11,7 +11,7 @@ import scala.jdk.CollectionConverters.{CollectionHasAsScala, MapHasAsJava, MapHa
 import scala.util.matching.Regex
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server._
-import com.horizon.exchangeapi.tables.{OrgRow, UserRow}
+import com.horizon.exchangeapi.tables.{OrgRow, UserRow, UsersTQ}
 import com.osinka.i18n.{Lang, Messages}
 import com.typesafe.config._
 import slick.jdbc.PostgresProfile.api._
@@ -25,7 +25,7 @@ import org.json4s.JsonAST.JValue
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 
-import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 
 /** HTTP codes, taken from https://en.wikipedia.org/wiki/List_of_HTTP_status_codes and https://www.restapitutorial.com/httpstatuscodes.html */
 object HttpCode {
@@ -343,86 +343,97 @@ object ExchConfig {
     // Put the root org and user in the db, even if root is disabled (because in that case we want all exchange instances to know the root pw is blank
     //val rootemail = config.getString("api.root.email")
     val rootemail = ""
-    // Create the root org, create the IBM org, and create the root user (all only if necessary)
-    
-    // TODO: Read the hub admin section of the config file into something we can operate on.
-    case class HubAdmin(password: Option[String] = None, org: String = "root", user: String)
-    
-    val a: Seq[HubAdmin] = config.getObjectList("api.hubadmins").asScala.map(
-      c => HubAdmin(password = {
-                      val credential: Option[String] =
-                        try {
-                          Option(c.toConfig.getString("password"))
-                        }
-                        catch {
-                          case _: Exception => None
-                        }
-                      if(credential.isEmpty) credential                      // No password, IAM User.
-                      else if(Password.isHashed(credential.get)) credential  // Password is already hashed.
-                      else Option(Password.hash(credential.get))             // Plain-text, hash.
-                    },
-                    org = c.toConfig.getString("org"),
-                    user = c.toConfig.getString("user"))
-    ).toList
-    
-    // TODO: rewrite the DB block below into a single transaction. Add in the creation of hub admins.
-    // TODO: check that the hub admins do not already exist.
-    // TODO: vaildate that the hub admins ae created in the root org.
-    // TODO: create each of the hub admins defined in the config. Do not overwrite existing users. Create only.
-    /*val query = for {
-      
-           // Root Organization and Super User
-      _ <- OrgRow(description = "Organization for the root user only",
-                  heartbeatIntervals = "",
-                  label = "Root Org",
-                  lastUpdated = ApiTime.nowUTC,
-                  limits = "",
-                  orgId = "root",
-                  orgType = "",
-                  tags = None)  // TODO: read in the account_id field and add it to tags.
-             .upsert
-           
-      _ <- UserRow(admin = true,
-                   email = rootemail,
-                   hashedPw = rootHashedPw,
-                   hubAdmin = true,
-                   lastUpdated = ApiTime.nowUTC,
-                   orgid = "root",
-                   updatedBy = Role.superUser,
-                   username = Role.superUser).upsertUser
-      
-           // IBM Organzation
-      _ <- OrgRow(description = "Organization containing IBM services",
-                  heartbeatIntervals = "",
-                  label = "IBM Org",
-                  lastUpdated = ApiTime.nowUTC,
-                  limits = "",
-                  orgId = "IBM",
-                  orgType = "IBM",
-                  tags = None)
-             .upsert
-           
-    } yield _ */
-    
-    
-    db.run(OrgRow("root", "", "Root Org", "Organization for the root user only", ApiTime.nowUTC, None, "", "").upsert.asTry.flatMap({ xs =>
-      logger.debug("Upsert /orgs/root result: " + xs.toString)
-      xs match {
-        case Success(_) => UserRow(Role.superUser, "root", rootHashedPw, admin = true, hubAdmin = true, rootemail, ApiTime.nowUTC, Role.superUser).upsertUser.asTry // next action
-        case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
-      }
-    }).flatMap({ xs =>
-      logger.debug("Upsert /orgs/root/users/root (root) result: " + xs.toString)
-      xs match {
-        case Success(_) => OrgRow("IBM", "IBM", "IBM Org", "Organization containing IBM services", ApiTime.nowUTC, None, "", "").upsert.asTry // next action
-        case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step
-      }
-    })).map({ xs =>
-      logger.debug("Upsert /orgs/IBM result: " + xs.toString)
-      xs match {
-        case Success(_) => logger.info("Root org and user from config.json was successfully created/updated in the DB")
-        case Failure(t) => logger.error("Failed to write the root user from config.json to the DB: " + t.toString)
-      }
+    // Create the root org, create the IBM org, create the root user, and create hub admins listed in config.json (all only if necessary)
+
+    val rootOrg: OrgRow = OrgRow(
+      orgId = "root",
+      orgType = "",
+      label = "Root Org",
+      description = "Organization for the root user only",
+      lastUpdated = ApiTime.nowUTC,
+      tags = {
+        try {
+          Some(JObject("ibmcloud_id" -> JString(config.getString("api.root.account_id"))))
+        }
+        catch {
+          case _: Exception => None
+        }
+      },
+      limits = "",
+      heartbeatIntervals = ""
+    )
+
+    val rootUser: UserRow = UserRow(
+      admin = true,
+      email = rootemail,
+      hashedPw = rootHashedPw,
+      hubAdmin = true,
+      lastUpdated = ApiTime.nowUTC,
+      orgid = "root",
+      updatedBy = Role.superUser,
+      username = Role.superUser
+    )
+
+    val IBMOrg: OrgRow = OrgRow(
+      description = "Organization containing IBM services",
+      heartbeatIntervals = "",
+      label = "IBM Org",
+      lastUpdated = ApiTime.nowUTC,
+      limits = "",
+      orgId = "IBM",
+      orgType = "IBM",
+      tags = None
+    )
+
+    val configHubAdmins: ListBuffer[UserRow] = ListBuffer.empty[UserRow]
+    config.getObjectList("api.hubadmins").asScala.foreach({
+      c =>
+        if (c.toConfig.getString("org") == "root") {
+          configHubAdmins += UserRow(
+            hashedPw = {
+              val credential: Option[String] =
+                try {
+                  Option(c.toConfig.getString("password"))
+                }
+                catch {
+                  case _: Exception => None
+                }
+              if(credential.isEmpty) ""                                  // No password, IAM User.
+              else if(Password.isHashed(credential.get)) credential.get  // Password is already hashed.
+              else Password.hash(credential.get)                         // Plain-text, hash.
+            },
+            orgid = c.toConfig.getString("org"),
+            username = c.toConfig.getString("org") + "/" + c.toConfig.getString("user"),
+            admin = false,
+            hubAdmin = true,
+            email = "",
+            lastUpdated = ApiTime.nowUTC,
+            updatedBy = ""
+          )
+        }
+        else {
+          logger.error(s"Hub Admin '${c.toConfig.getString("user")}' not created: hub admin must be in the root org")
+        }
+    })
+
+    val query = for {
+      existingUsers <- UsersTQ.filter(_.username inSet configHubAdmins.map(_.username)).map(_.username).result //get all users whose usernames match a hub admin username in config.json
+      _ <- DBIO.seq(
+        rootOrg.upsert,
+        rootUser.upsertUser,
+        IBMOrg.upsert,
+        UsersTQ ++= configHubAdmins.filter(a => !existingUsers.contains(a.username)) //only insert the ones whose usernames don't already exist
+      )
+    } yield existingUsers
+
+    db.run(query.transactionally.asTry).map({
+      case Success(result) =>
+        for (badUser <- result) {
+          logger.error(s"Hub Admin '$badUser' not created: a user with this username already exists")
+        }
+        logger.info("Successfully updated/inserted root org, root user, IBM org, and hub admins from config")
+      case Failure(t) =>
+        logger.error(s"Failed to update/insert root org, root user, IBM org, and hub admins from config: ${t.toString}")
     })
   }
 

@@ -316,7 +316,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
 
           val queries = for {
             _ <- {
-              if (!reqBody.members.isDefined && !reqBody.description.isDefined) DBIO.failed(new BadInputException(ExchMsg.translate("no.valid.node.group.attribute.specified")))
+              if (reqBody.members.isEmpty && reqBody.description.isEmpty) DBIO.failed(new BadInputException(ExchMsg.translate("no.valid.node.group.attribute.specified")))
               else DBIO.successful(())
             }
 

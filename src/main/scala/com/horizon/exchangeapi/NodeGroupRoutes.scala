@@ -316,19 +316,19 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
 
           val queries = for {
             _ <- {
-              if (!reqBody.members.isDefined && !reqBody.description.isDefined) DBIO.failed(new BadInputException("must supply either 'members' or 'description'"))
+              if (!reqBody.members.isDefined && !reqBody.description.isDefined) DBIO.failed(new BadInputException(ExchMsg.translate("no.valid.node.group.attribute.specified")))
               else DBIO.successful(())
             }
 
             nodeGroup <- nodeGroupQuery.result
             _ <- {
-              if (nodeGroup.isEmpty) DBIO.failed(new ResourceNotFoundException("node group does not exist"))
+              if (nodeGroup.isEmpty) DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("node.group.not.found", orgid + "/" + name)))
               else DBIO.successful(())
             }
 
             nodesCallerDoesntOwn <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
             _ <- {
-              if (nodesCallerDoesntOwn.nonEmpty) DBIO.failed(new AccessDeniedException("you do not have permission to edit this group (you do not own all nodes assigned to this group)"))
+              if (nodesCallerDoesntOwn.nonEmpty) DBIO.failed(new AccessDeniedException(ExchMsg.translate("node.group.access.denied")))
               else DBIO.successful(())
             }
 
@@ -345,13 +345,13 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             //todo: is there a way to stop these next 2 queries from running if 'members' is not provided?
             nodesInOtherGroups <- NodeGroupAssignmentTQ.filterNot(_.group in nodeGroupQuery.map(_.group)).filter(_.node inSet members).result //empty if no nodes in list are in other groups
             _ <- {
-              if (reqBody.members.isDefined && nodesInOtherGroups.nonEmpty) DBIO.failed(new AlreadyExistsException("some provided nodes are already in other node groups"))
+              if (reqBody.members.isDefined && nodesInOtherGroups.nonEmpty) DBIO.failed(new AlreadyExistsException(ExchMsg.translate("node.group.conflict")))
               else DBIO.successful(())
             }
 
             ownedNodesInList <- nodesQuery.filter(_.id inSet members).result //if caller owns all new nodes, length should equal length of 'members'
             _ <- {
-              if (reqBody.members.isDefined && (ownedNodesInList.length != members.length)) DBIO.failed(new AccessDeniedException("you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist"))
+              if (reqBody.members.isDefined && (ownedNodesInList.length != members.length)) DBIO.failed(new AccessDeniedException(ExchMsg.translate("node.group.node.access.denied")))
               else DBIO.successful(())
             }
 
@@ -379,18 +379,18 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
 
           db.run(queries.transactionally.asTry).map({
             case Success(result) =>
-              logger.debug(s"PUT /orgs/$orgid/hagroups/$name put in changes table: $result")
-              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, s"Node Group $name in org $orgid updated.")) //todo: translate
+              logger.debug(s"PUT /orgs/$orgid/hagroups/$name update successful")
+              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.updated.successfully", name, orgid)))
             case Failure(t: ResourceNotFoundException) =>
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, s"node group $name in org $orgid not found")) //todo: translate w/ error message
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, t.getMessage))
             case Failure(t: BadInputException) =>
-              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, t.getMessage)) //todo: translate w/ error message
+              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, t.getMessage))
             case Failure(t: AlreadyExistsException) =>
-              (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, t.getMessage)) //todo: translate w/ error message
+              (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, t.getMessage))
             case Failure(t: AccessDeniedException) =>
-              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, t.getMessage)) //todo: translate w/ error message
+              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, t.getMessage))
             case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, "node group not updated")) //todo: translate
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.not.updated", name, orgid, t.getMessage)))
           })
         })
       }

@@ -59,7 +59,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{name}")
   @Operation(
     summary = "Deletes a Node Group",
-    description = "Deletes an Highly Available Node Group by name",
+    description = "Deletes a Highly Available Node Group by name",
     parameters = Array(
       new Parameter(
         name = "orgid",
@@ -422,8 +422,55 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
   /* ====== POST /orgs/{orgid}/hagroups/{name} ================================ */
   @POST
   @Path("{name}")
+  @Operation(
+    summary = "Insert the nodes that belong to an existing Node Group (HA Group)",
+    description = "Creates the list of nodes that belong to the specified node group with the list of nodes provided in the request body.",
+    parameters = Array(
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization identifier."
+      ),
+      new Parameter(
+        name = "name",
+        in = ParameterIn.PATH,
+        description = "Node Group identifier."
+      )
+    ),
+    requestBody = new RequestBody(
+      required = true,
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value =
+                """{
+  "members": [
+    "node2",
+    "node4",
+    "node5"
+  ],
+  "description": "New Description"
+}"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PutNodeGroupsRequest])
+        )
+      )
+    ),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied: node isn't owned by caller"),
+      new responses.ApiResponse(responseCode = "404", description = "not found"),
+      new responses.ApiResponse(responseCode = "409", description = "node already belongs to other group")
+    )
+  )
   def postNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & post & entity(as[PostPutNodeGroupsRequest])) { (orgid, name, reqBody) =>
-    val compositeId: String = OrgAndId(orgid, "#").toString
+    val compositeId: String = OrgAndId(orgid, name).toString
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
@@ -482,17 +529,17 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
           db.run(queries.transactionally.asTry).map({
             case Success(result) =>
               if (result._1.nonEmpty) {
-                (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, s"node group $name in org $orgid already found")) //todo: translate w/ error message
+                (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.already.exists", compositeId))) //todo: translate w/ error message
               }
               else if (result._2.nonEmpty) {
-                (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, "some provided nodes are already in other node groups")) //todo: translate w/ error message
+                (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.conflict", compositeId))) //todo: translate w/ error message
               }
               else if (result._3.length != members.size) {
-                (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist")) //todo: translate w/ error message
+                (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED,ExchMsg.translate("node.group.node.access.denied", compositeId))) //todo: translate w/ error message
               }
               else {
                 logger.debug(s"POST /orgs/$orgid/hagroups/$name result: $result")
-                (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, s"Node Group $name in org $orgid posted. " + "ownedNodesInList: " + result._3.length.toString + ".   NodeGroupId just ceated: " + result._4.head.group)) //todo: translate
+                (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.created", compositeId))) //todo: translate
               }
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))

@@ -384,3 +384,5 @@ no.valid.node.group.attribute.specified=no valid node group attribute specified
 node.group.access.denied=you do not have permission to edit this node group (you do not own all nodes assigned to this group)
 node.group.conflict=some provided nodes already exist in other node groups
 node.group.node.access.denied=you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist
+node.group.already.exists=node group ''{0}'' already exists
+node.group.created=node group ''{0}'' created

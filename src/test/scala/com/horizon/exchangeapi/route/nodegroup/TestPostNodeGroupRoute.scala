@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.nodegroup
 
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
-import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, PostPutNodeGroupsRequest, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, PutNodeGroupsRequest, Role, TestDBConnection}
+import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, PostPutNodeGroupsRequest, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
@@ -246,7 +246,6 @@ class TestPostNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Bef
     DBCONNECTION.getDb.close()
   }
 
-
   test("POST /orgs/" + TESTORGS.head.orgId + ROUTE + "king  -- 201 Ok - Create as Root") {
 
     val members: Seq[String] =
@@ -258,13 +257,14 @@ class TestPostNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Bef
         members = members)
 
     val request: HttpResponse[String] = Http(URL + "TestPostNodeGroupRoute/hagroups/king").postData(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info(members.length.toString)
 
     info("code: " + request.code)
     info("body: " + request.body)
 
     assert(request.code === HttpCode.POST_OK.intValue)
-
+    val dbNodeGroup = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === "king").result), AWAITDURATION).head
+    assert(dbNodeGroup.description === requestBody.description)
+    assert(dbNodeGroup.name === "king")
   }
 
 
@@ -285,6 +285,9 @@ class TestPostNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Bef
     info("body: " + request.body)
 
     assert(request.code === HttpCode.POST_OK.intValue)
+    val dbNodeGroup = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === "queen").result), AWAITDURATION).head
+    assert(dbNodeGroup.description === requestBody.description)
+    assert(dbNodeGroup.name === "queen")
 
   }
 
@@ -299,7 +302,7 @@ class TestPostNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Bef
         members = members)
 
     val request: HttpResponse[String] = Http(URL + "TestPostNodeGroupRoute/hagroups/test").postData(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("TestPostNodeGroupRoute/u1:u1pw"))).asString
-    info(members.length.toString)
+
 
     info("code: " + request.code)
     info("body: " + request.body)
@@ -319,8 +322,6 @@ class TestPostNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Bef
         members = members)
 
     val request: HttpResponse[String] = Http(URL + "TestPostNodeGroupRoute/hagroups/test").postData(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info(members.length.toString)
-
     info("code: " + request.code)
     info("body: " + request.body)
 
@@ -339,7 +340,7 @@ class TestPostNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Bef
         members = members)
 
     val request: HttpResponse[String] = Http(URL + "TestPostNodeGroupRoute/hagroups/king").postData(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info(members.length.toString)
+
 
     info("code: " + request.code)
     info("body: " + request.body)

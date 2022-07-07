@@ -429,7 +429,7 @@ object ExchConfig {
     db.run(query.transactionally.asTry).map({
       case Success(result) =>
         for (badUser <- result) {
-          logger.error(s"Hub Admin '$badUser' not created: a user with this username already exists")
+          logger.warning(s"Hub Admin '$badUser' not created: a user with this username already exists")
         }
         logger.info("Successfully updated/inserted root org, root user, IBM org, and hub admins from config")
       case Failure(t) =>

@@ -5,13 +5,13 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.Route
 import slick.jdbc.PostgresProfile.api._
 
-import javax.ws.rs.{DELETE, GET, PUT, Path}
-import scala.concurrent.ExecutionContext
+import javax.ws.rs.{DELETE, GET, PUT, POST, Path}
+import scala.concurrent.{ExecutionContext}
 import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth.{AccessDeniedException, AlreadyExistsException, BadInputException, DBProcessingError, ResourceNotFoundException}
-import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupAssignments, NodeGroupRow, NodeGroupTQ, NodeRow, Nodes, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupAssignments, PostPutNodeGroupsRequest, NodeGroupRow, NodeGroupTQ, Nodes, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
@@ -30,9 +30,11 @@ import scala.util.{Failure, Success}
 final case class NodeGroupResp(name: String, members: Seq[String], updated: String)
 final case class GetNodeGroupsResponse(nodeGroups: Seq[NodeGroupResp])
 
+/** Input format for POST/PUT /orgs/{orgid}/hagroups/<name> */
 final case class PutNodeGroupsRequest(members: Option[Seq[String]], description: Option[String]) {
   def getAnyProblem: Option[String] = None
 }
+
 
 /** Implementation for all of the /orgs/{orgid}/hagroups routes */
 @Path("/v1/orgs/{orgid}/hagroups")
@@ -50,26 +52,6 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
     getAllNodeGroup ~
     putNodeGroup ~
     postNodeGroup
-
-
-  /** Input format for POST/PUT /orgs/{orgid}/hagroups/<name> */
-
-  final case class PutNodeGroupsRequest(members: Option[Seq[String]], description: Option[String]) {
-    def getAnyProblem: Option[String] = None
-  }
-
-  final case class PostPutNodeGroupsRequest(members: List[String], description: String) {
-    require(members!=null && description!=null)
-    def getAnyProblem: Option[String] = None
-
-    // Note: write() handles correctly the case where the optional fields are None.
-    def getDbUpsertGroup(orgid: String, name: String, description: String): DBIO[_] =
-      NodeGroupRow(description = description,
-        group = 0L,
-        organization = orgid,
-        updated = ApiTime.nowUTC,
-        name = name).upsert
-  }
 
 
   /* ====== DELETE /orgs/{orgid}/hagroups/{name} ================================ */
@@ -95,27 +77,40 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
   def deleteNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & delete) { (orgid, name) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/hagroups/$name")
     val compositeId: String = OrgAndId(orgid, name).toString
-    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+    exchAuth(TNode(compositeId), Access.WRITE) { ident =>
       complete({
-        //Check if nodes are owned by caller -> Delete group by name
-        db.run(NodeGroupTQ.getNodeGroupName(orgid, name).delete.transactionally.asTry.flatMap({
-          case Success(v) =>
-            // Add the resource to the resourcechanges table
-            logger.debug("DELETE /orgs/" + orgid + "/hagroups/" + name + " result: " + v)
-            if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              ResourceChange(0L, orgid, name, ResChangeCategory.NODEGROUP, false, ResChangeResource.NODEGROUP, ResChangeOperation.DELETED).insert.asTry
-            } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.group.not.found", compositeId))).asTry
+        val nodesQuery = if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) NodesTQ.getAllNodes(orgid) else NodesTQ.getAllNodes(orgid).filter(_.owner === ident.identityString)
+        val nodeGroupQuery = NodeGroupTQ.filter(_.organization === orgid).filter(_.name === name)
+        //I need to get all the nodes inside of a group... If all nodes from "query" is owned by the caller, then we can delete
+        val deleteQuery = for {
+
+          nodeGroup <- nodeGroupQuery.result // will be empty if wrong group is provided
+          nodesNotOwned <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
+
+          _ <- {
+            if (nodesNotOwned.isEmpty && nodeGroup.nonEmpty) {
+              val action = NodeGroupTQ.getNodeGroupName(orgid, name).delete
+              DBIO.seq(
+                action,
+                ResourceChange(0L, orgid, name, ResChangeCategory.NODEGROUP, false, ResChangeResource.NODEGROUP, ResChangeOperation.DELETED).insert
+              )
             }
-          case Failure(t) => DBIO.failed(t).asTry
-        })).map({
-          case Success(v) =>
-            logger.debug("DELETE /orgs/" + orgid + "/hagroups/" + name + " updated in changes table: " + v)
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.deleted")))
-          case Failure(t: DBProcessingError) =>
-            t.toComplete
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.group.not.deleted", compositeId, t.toString))
+            else DBIO.successful(())
+          }
+        } yield (nodeGroup, nodesNotOwned)
+
+        db.run(deleteQuery.transactionally.asTry).map({
+          case Success(result) =>
+            if (result._1.isEmpty) {
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.group.not.found", compositeId)))
+            }
+            else if (result._2.nonEmpty) {
+              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist")) //todo: translate w/ error message
+            }
+            else {
+              logger.debug("DELETE /orgs/" + orgid + "/hagroups/" + name + " updated in changes table: " + result)
+              (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.deleted")))
+            }
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.not.deleted", compositeId, t.toString)))
         })
@@ -425,15 +420,19 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
 //
 
   /* ====== POST /orgs/{orgid}/hagroups/{name} ================================ */
+  @POST
+  @Path("{name}")
   def postNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & post & entity(as[PostPutNodeGroupsRequest])) { (orgid, name, reqBody) =>
-    val compositeId: String = OrgAndId(orgid, name).toString
+    val compositeId: String = OrgAndId(orgid, "#").toString
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val owner: Option[String] = ident match { case IUser(creds) => Option(creds.id); case _ => None}
           val nodeGroupQuery = NodeGroupTQ.filter(_.organization === orgid).filter(_.name === name)
-          val nodesQuery = NodesTQ.filterOpt(owner)((node, owner) => node.owner === owner)
-          val members: Set[String] = reqBody.members.distinct.map(a => orgid + "/" + a).toSet
+          val nodesQuery = if (ident.isAdmin) NodesTQ.getAllNodes(orgid) else NodesTQ.getAllNodes(orgid).filter(_.owner === ident.identityString)
+          val members: Seq[String] =
+            if (reqBody.members.nonEmpty)
+              reqBody.members.distinct.map(a => orgid + "/" + a) //don't want duplicate nodes in list, and need to pre-pend orgId to match id in Node table
+            else Seq.empty[String]
 
           val queries = for {
             nodeGroup <- nodeGroupQuery.result //should be empty if POST
@@ -443,11 +442,10 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             ownedNodesInList <- nodesQuery.filter(_.id inSet members).result //if caller owns all new nodes, length should equal length of 'members'
 
             _ <- {
-              if (nodeGroup.nonEmpty && nodesInOtherGroups.isEmpty && (ownedNodesInList.length == members.size)) {
+              if (nodeGroup.isEmpty && nodesInOtherGroups.isEmpty && (ownedNodesInList.length == members.size)) {
                 val action = reqBody.getDbUpsertGroup(orgid, name, reqBody.description)
                 DBIO.seq(
-                  action.asTry,
-                  NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroup.head.group)),
+                  action,
                   ResourceChange(
                     0L,
                     orgid,
@@ -460,12 +458,31 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               }
               else DBIO.successful(())
             }
-          } yield (nodeGroup, nodesInOtherGroups, ownedNodesInList)
+
+            nodeGroupId <- nodeGroupQuery.result
+
+            _ <- {
+              if (nodeGroupId.nonEmpty) {
+                DBIO.seq(
+                  NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroupId.head.group)),
+                  ResourceChange(
+                    0L,
+                    orgid,
+                    name,
+                    ResChangeCategory.NODEGROUP,
+                    false,
+                    ResChangeResource.NODEGROUP,
+                    ResChangeOperation.MODIFIED).insert
+                )
+              }
+              else DBIO.successful(())
+            }
+          } yield (nodeGroup, nodesInOtherGroups, ownedNodesInList, nodeGroupId)
 
           db.run(queries.transactionally.asTry).map({
             case Success(result) =>
               if (result._1.nonEmpty) {
-                (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, s"node group $name in org $orgid not found")) //todo: translate w/ error message
+                (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, s"node group $name in org $orgid already found")) //todo: translate w/ error message
               }
               else if (result._2.nonEmpty) {
                 (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, "some provided nodes are already in other node groups")) //todo: translate w/ error message
@@ -474,8 +491,8 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
                 (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist")) //todo: translate w/ error message
               }
               else {
-                logger.debug(s"PUT /orgs/$orgid/hagroups/$name result: $result")
-                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, s"Node Group $name in org $orgid updated.")) //todo: translate
+                logger.debug(s"POST /orgs/$orgid/hagroups/$name result: $result")
+                (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, s"Node Group $name in org $orgid posted. " + "ownedNodesInList: " + result._3.length.toString + ".   NodeGroupId just ceated: " + result._4.head.group)) //todo: translate
               }
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))

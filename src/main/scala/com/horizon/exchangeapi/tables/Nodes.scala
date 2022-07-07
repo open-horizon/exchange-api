@@ -10,7 +10,7 @@ import slick.jdbc.PostgresProfile.api.{DBIO, ForeignKeyAction, Query, Table, Tab
 import slick.lifted.Rep
 import slick.sql.FixedSqlAction
 
-import scala.collection.immutable.Map
+import scala.collection.immutable.{List, Map}
 
 
 /** We define this trait because services in the DB and in the search criteria need the same methods, but have slightly different constructor args */
@@ -378,6 +378,19 @@ object NodeGroupAssignmentTQ extends TableQuery(new NodeGroupAssignment(_)){
 }
 
 final case class NodeGroupAssignments(node: String, group: String)
+
+final case class PostPutNodeGroupsRequest(members: Seq[String], description: String) {
+  require(members!=null && description!=null)
+  def getAnyProblem: Option[String] = None
+
+  // Note: write() handles correctly the case where the optional fields are None.
+  def getDbUpsertGroup(orgid: String, name: String, description: String): DBIO[_] =
+    NodeGroupRow(description = description,
+      group = 0L,
+      organization = orgid,
+      updated = ApiTime.nowUTC,
+      name = name).upsert
+}
 
 //NMP Status tables
 final case class UpgradedVersions(softwareVersion: String,

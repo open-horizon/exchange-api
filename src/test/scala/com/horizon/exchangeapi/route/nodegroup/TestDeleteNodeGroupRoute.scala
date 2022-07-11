@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.route.nodegroup
 
-import com.horizon.exchangeapi.tables.{NodeGroupAssignmentTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.scalatest.BeforeAndAfterAll
@@ -22,60 +22,229 @@ class TestDeleteNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
 
-  private val TESTNODEGROUP: Seq[NodeGroupRow] =
+  private val TESTNODEGROUPS: Seq[NodeGroupRow] =
     Seq(NodeGroupRow(description   = "",
-      group              = "1",
+      group              = 0L,
       organization       = "TestDeleteNodeGroup",
       updated            = ApiTime.nowUTC,
-      name               = "king1"),
+      name               = "king"),
       NodeGroupRow(description   = "",
-        group              = "1",
+        group              = 0L,
         organization       = "TestDeleteNodeGroup",
         updated            = ApiTime.nowUTC,
-        name               = "king2"))
-  private val TESTNODE: NodeRow =
-    NodeRow(arch               = "",
-      id                 = "TestDeleteNodeGroup/n1",
-      heartbeatIntervals = "",
-      lastHeartbeat      = Option(ApiTime.nowUTC),
-      lastUpdated        = ApiTime.nowUTC,
-      msgEndPoint        = "",
-      name               = "",
-      nodeType           = "",
-      orgid              = "TestDeleteNodeGroup",
-      owner              = "TestDeleteNodeGroup/u1",
-      pattern            = "TestDeleteNodeGroup/p1",
-      publicKey          = "",
-      regServices        = "",
-      softwareVersions   = "",
-      token              = "",
-      userInput          = "")
-  private val TESTORGANIZATION: OrgRow =
-    OrgRow(heartbeatIntervals = "",
-      description        = "",
-      label              = "",
-      lastUpdated        = ApiTime.nowUTC,
-      orgId              = "TestDeleteNodeGroup",
-      orgType            = "",
-      tags               = None,
-      limits             = "")
-  private val TESTUSER: UserRow =
-    UserRow(admin       = false,
-      hubAdmin    = false,
-      email       = "",
-      hashedPw    = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i", // TestNodeDeleteMgmtPolStatus/u1:u1pw
-      lastUpdated = ApiTime.nowUTC,
-      orgid       = "TestDeleteNodeGroup",
-      updatedBy   = "",
-      username    = "TestDeleteNodeGroup/u1")
+        name               = "queen"))
 
+  private val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(admin = true,
+      email = "",
+      hashedPw = "$2a$10$LNH5rZACF8YnbHWtUFnULOxNecpZoq6qXG0iI47OBCdNtugUehRLG", // TestPutAgentConfigMgmt/admin1:admin1pw
+      hubAdmin = false,
+      lastUpdated = ApiTime.nowUTC,
+      orgid = "TestDeleteNodeGroup",
+      updatedBy = "",
+      username = "TestDeleteNodeGroup/admin1"),
+      UserRow(admin = false,
+        email = "",
+        hashedPw = "$2a$10$DGVQ73YXt2IXtxA3bMmxSu0q5wEj26UgE.6hGryB5BedV1E945yki", // TestPutAgentConfigMgmt/u1:a1pw
+        hubAdmin = false,
+        lastUpdated = ApiTime.nowUTC,
+        orgid = "TestDeleteNodeGroup",
+        updatedBy = "",
+        username = "TestDeleteNodeGroup/u1"),
+      UserRow(admin = false,
+        email = "",
+        hashedPw = "$2a$10$DGVQ73YXt2IXtxA3bMmxSu0q5wEj26UgE.6hGryB5BedV1E945yki", // TestPutAgentConfigMgmt/u2:a1pw
+        hubAdmin = false,
+        lastUpdated = ApiTime.nowUTC,
+        orgid = "TestDeleteNodeGroup",
+        updatedBy = "",
+        username = "TestDeleteNodeGroup/u2"))
+
+  private val TESTORGS: Seq[OrgRow] =
+    Seq(
+      OrgRow(
+        heartbeatIntervals = "",
+        description = "Test Organization 1",
+        label = "TestDeleteNodeGroup",
+        lastUpdated = ApiTime.nowUTC,
+        limits = "",
+        orgId = "TestDeleteNodeGroup",
+        orgType = "",
+        tags = None))
+
+  private val TESTNODES: Seq[NodeRow] =
+    Seq(
+      NodeRow(
+        arch = "",
+        id = TESTORGS(0).orgId + "/node0",
+        heartbeatIntervals = "",
+        lastHeartbeat = Some(ApiTime.nowUTC),
+        lastUpdated = ApiTime.nowUTC,
+        msgEndPoint = "",
+        name = "",
+        nodeType = "",
+        orgid = TESTORGS(0).orgId,
+        owner = TESTUSERS(0).username, //org admin
+        pattern = "",
+        publicKey = "",
+        regServices = "",
+        softwareVersions = "",
+        token = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i",
+        userInput = ""
+      ),
+      NodeRow(
+        arch = "",
+        id = TESTORGS(0).orgId + "/node1",
+        heartbeatIntervals = "",
+        lastHeartbeat = Some(ApiTime.nowUTC),
+        lastUpdated = ApiTime.nowUTC,
+        msgEndPoint = "",
+        name = "",
+        nodeType = "",
+        orgid = TESTORGS(0).orgId,
+        owner = TESTUSERS(0).username, //org admin
+        pattern = "",
+        publicKey = "",
+        regServices = "",
+        softwareVersions = "",
+        token = "",
+        userInput = ""
+      ),
+      NodeRow(
+        arch = "",
+        id = TESTORGS(0).orgId + "/node2",
+        heartbeatIntervals = "",
+        lastHeartbeat = Some(ApiTime.nowUTC),
+        lastUpdated = ApiTime.nowUTC,
+        msgEndPoint = "",
+        name = "",
+        nodeType = "",
+        orgid = TESTORGS(0).orgId,
+        owner = TESTUSERS(0).username, //org admin
+        pattern = "",
+        publicKey = "",
+        regServices = "",
+        softwareVersions = "",
+        token = "",
+        userInput = ""
+      ),
+      NodeRow(
+        arch = "",
+        id = TESTORGS(0).orgId + "/node3",
+        heartbeatIntervals = "",
+        lastHeartbeat = Some(ApiTime.nowUTC),
+        lastUpdated = ApiTime.nowUTC,
+        msgEndPoint = "",
+        name = "",
+        nodeType = "",
+        orgid = TESTORGS(0).orgId,
+        owner = TESTUSERS(1).username, //org user 1
+        pattern = "",
+        publicKey = "",
+        regServices = "",
+        softwareVersions = "",
+        token = "",
+        userInput = ""
+      ),
+      NodeRow(
+        arch = "",
+        id = TESTORGS(0).orgId + "/node4",
+        heartbeatIntervals = "",
+        lastHeartbeat = Some(ApiTime.nowUTC),
+        lastUpdated = ApiTime.nowUTC,
+        msgEndPoint = "",
+        name = "",
+        nodeType = "",
+        orgid = TESTORGS(0).orgId,
+        owner = TESTUSERS(1).username, //org user 1
+        pattern = "",
+        publicKey = "",
+        regServices = "",
+        softwareVersions = "",
+        token = "",
+        userInput = ""
+      ),
+      NodeRow(
+        arch = "",
+        id = TESTORGS(0).orgId + "/node5",
+        heartbeatIntervals = "",
+        lastHeartbeat = Some(ApiTime.nowUTC),
+        lastUpdated = ApiTime.nowUTC,
+        msgEndPoint = "",
+        name = "",
+        nodeType = "",
+        orgid = TESTORGS(0).orgId,
+        owner = TESTUSERS(2).username, //org user 2
+        pattern = "",
+        publicKey = "",
+        regServices = "",
+        softwareVersions = "",
+        token = "",
+        userInput = ""
+      ),
+      NodeRow(
+        arch = "",
+        id = TESTORGS(0).orgId + "/node6",
+        heartbeatIntervals = "",
+        lastHeartbeat = Some(ApiTime.nowUTC),
+        lastUpdated = ApiTime.nowUTC,
+        msgEndPoint = "",
+        name = "",
+        nodeType = "",
+        orgid = TESTORGS(0).orgId,
+        owner = TESTUSERS(2).username, //org user 2
+        pattern = "",
+        publicKey = "",
+        regServices = "",
+        softwareVersions = "",
+        token = "",
+        userInput = ""
+      ),
+      NodeRow(
+        arch = "",
+        id = TESTORGS(0).orgId + "/node7",
+        heartbeatIntervals = "",
+        lastHeartbeat = Some(ApiTime.nowUTC),
+        lastUpdated = ApiTime.nowUTC,
+        msgEndPoint = "",
+        name = "",
+        nodeType = "",
+        orgid = TESTORGS(0).orgId,
+        owner = TESTUSERS(2).username, //org user 2
+        pattern = "",
+        publicKey = "",
+        regServices = "",
+        softwareVersions = "",
+        token = "",
+        userInput = ""
+      )
+    )
 
   // Build test harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ += TESTORGANIZATION) andThen
-      (UsersTQ += TESTUSER) andThen
-      (NodesTQ += TESTNODE) andThen
-      (NodeGroupTQ ++= TESTNODEGROUP)), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGS) andThen
+      (UsersTQ ++= TESTUSERS) andThen
+      (NodesTQ ++= TESTNODES) andThen
+      (NodeGroupTQ ++= TESTNODEGROUPS)), AWAITDURATION)
+    val groupId: Long = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS(1).name).result), AWAITDURATION).head.group
+    val TESTNODEGROUPASSIGNMENTS: Seq[NodeGroupAssignmentRow] =
+      Seq(
+        NodeGroupAssignmentRow(
+          group = groupId, //"queen"
+          node = TESTNODES(5).id //node5 , owned by u2
+        ),
+        NodeGroupAssignmentRow(
+          group = groupId,
+          node = TESTNODES(6).id  //node6
+        ),
+        NodeGroupAssignmentRow(
+          group = groupId,
+          node = TESTNODES(7).id  //node7
+        )
+      )
+    Await.ready(DBCONNECTION.getDb.run(
+      NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS
+    ), AWAITDURATION)
   }
 
   // Teardown testing harness and cleanup.
@@ -86,27 +255,6 @@ class TestDeleteNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
     DBCONNECTION.getDb.close()
   }
 
-  // Node Group Assignments that are dynamically needed, specific to the test case.
-  def fixtureNodeGroupAssignment(testCode: Seq[(String, String)] => Any, testData: Seq[(String, String)]): Any = {
-    try {
-      Await.result(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ ++= testData), AWAITDURATION)
-      testCode(testData)
-    }
-    finally
-      Await.result(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ.delete), AWAITDURATION)
-  }
-
-  // Users that are dynamically needed, specific to the test case.
-  def fixtureUsers(testCode: Seq[UserRow] => Any, testData: Seq[UserRow]): Any = {
-    try{
-      Await.result(DBCONNECTION.getDb.run(UsersTQ ++= testData), AWAITDURATION)
-      testCode(testData)
-    }
-    finally
-      Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username inSet testData.map(_.username)).delete), AWAITDURATION)
-  }
-
-
   test("DELETE /orgs/TestDeleteNodeGroup/hagroups/randomgroup -- 404 Not Found - Group Name") {
     val response: HttpResponse[String] = Http(URL + "TestDeleteNodeGroup/hagroups/randomgroup").method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
@@ -115,22 +263,31 @@ class TestDeleteNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  test("GET /orgs/somerandomorg/hagroups/king1 -- 404 Not Found - Organization") {
-    val response: HttpResponse[String] = Http(URL + "somerandomorg/hagroups/king1").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/somerandomorg/hagroups/king -- 404 Not Found - Organization") {
+    val response: HttpResponse[String] = Http(URL + "somerandomorg/hagroups/king").method("get").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
 
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  test("DELETE /orgs/TestDeleteNodeGroup/hagroups/king2 -- 204 Deleted - root") {
-    val response: HttpResponse[String] = Http(URL + "TestDeleteNodeGroup/hagroups/king2").method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("DELETE /orgs/TestDeleteNodeGroup/hagroups/king -- 204 Deleted - As root") {
+    val response: HttpResponse[String] = Http(URL + "TestDeleteNodeGroup/hagroups/king").method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
 
     assert(response.code === HttpCode.DELETED.intValue)
 
-    assert(Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.getNodeGroupName("king1").result), AWAITDURATION).size === 1)
-    assert(Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.getNodeGroupName("king2").result), AWAITDURATION).size === 0)
+    assert(Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.getNodeGroupName("TestDeleteNodeGroup", "queen").result), AWAITDURATION).size === 1)
+    assert(Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.getNodeGroupName("TestDeleteNodeGroup","king").result), AWAITDURATION).size === 0)
+  }
+
+  test("DELETE /orgs/TestDeleteNodeGroup/hagroups/queen -- 403 Access Denied - As u1 trying to delete nodes it doesn't own") {
+    val response: HttpResponse[String] = Http(URL + "TestDeleteNodeGroup/hagroups/queen").method("delete").headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("TestDeleteNodeGroup/u1:u1pw"))).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+
   }
 }

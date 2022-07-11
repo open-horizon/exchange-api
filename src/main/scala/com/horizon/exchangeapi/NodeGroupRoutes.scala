@@ -5,20 +5,24 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.Route
 import slick.jdbc.PostgresProfile.api._
 
-import javax.ws.rs.{DELETE, GET, PUT, Path}
-import scala.concurrent.ExecutionContext
+import javax.ws.rs.{DELETE, GET, PUT, POST, Path}
+import scala.concurrent.{ExecutionContext}
 import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth.{AccessDeniedException, AlreadyExistsException, BadInputException, DBProcessingError, ResourceNotFoundException}
-import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupAssignments, NodeGroupRow, NodeGroupTQ, NodeRow, Nodes, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupAssignments, PostPutNodeGroupsRequest, NodeGroupRow, NodeGroupTQ, Nodes, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
+import org.json4s.{DefaultFormats, Formats}
+import slick.lifted.Rep
 
+import java.sql.Timestamp
+import scala.collection.immutable.{List, Set}
 import scala.collection.mutable.ListBuffer
 import scala.util.{Failure, Success}
 
@@ -26,9 +30,11 @@ import scala.util.{Failure, Success}
 final case class NodeGroupResp(name: String, members: Seq[String], updated: String)
 final case class GetNodeGroupsResponse(nodeGroups: Seq[NodeGroupResp])
 
+/** Input format for POST/PUT /orgs/{orgid}/hagroups/<name> */
 final case class PutNodeGroupsRequest(members: Option[Seq[String]], description: Option[String]) {
   def getAnyProblem: Option[String] = None
 }
+
 
 /** Implementation for all of the /orgs/{orgid}/hagroups routes */
 @Path("/v1/orgs/{orgid}/hagroups")
@@ -44,15 +50,16 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
     deleteNodeGroup ~
     getNodeGroup ~
     getAllNodeGroup ~
-    putNodeGroup
-//      postNodeGroup
+    putNodeGroup ~
+    postNodeGroup
+
 
   /* ====== DELETE /orgs/{orgid}/hagroups/{name} ================================ */
   @DELETE
   @Path("{name}")
   @Operation(
     summary = "Deletes a Node Group",
-    description = "Deletes an Highly Available Node Group by name",
+    description = "Deletes a Highly Available Node Group by name",
     parameters = Array(
       new Parameter(
         name = "orgid",
@@ -70,26 +77,40 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
   def deleteNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & delete) { (orgid, name) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/hagroups/$name")
     val compositeId: String = OrgAndId(orgid, name).toString
-    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+    exchAuth(TNode(compositeId), Access.WRITE) { ident =>
       complete({
-        db.run(NodeGroupTQ.getNodeGroupName(name).delete.transactionally.asTry.flatMap({
-          case Success(v) =>
-            // Add the resource to the resourcechanges table
-            logger.debug("DELETE /orgs/" + orgid + "/hagroups/" + name + " result: " + v)
-            if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              ResourceChange(0L, orgid, name, ResChangeCategory.NODEGROUP, false, ResChangeResource.NODEGROUP, ResChangeOperation.DELETED).insert.asTry
-            } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.group.not.found", compositeId))).asTry
+        val nodesQuery = if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) NodesTQ.getAllNodes(orgid) else NodesTQ.getAllNodes(orgid).filter(_.owner === ident.identityString)
+        val nodeGroupQuery = NodeGroupTQ.filter(_.organization === orgid).filter(_.name === name)
+        //I need to get all the nodes inside of a group... If all nodes from "query" is owned by the caller, then we can delete
+        val deleteQuery = for {
+
+          nodeGroup <- nodeGroupQuery.result // will be empty if wrong group is provided
+          nodesNotOwned <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
+
+          _ <- {
+            if (nodesNotOwned.isEmpty && nodeGroup.nonEmpty) {
+              val action = NodeGroupTQ.getNodeGroupName(orgid, name).delete
+              DBIO.seq(
+                action,
+                ResourceChange(0L, orgid, name, ResChangeCategory.NODEGROUP, false, ResChangeResource.NODEGROUP, ResChangeOperation.DELETED).insert
+              )
             }
-          case Failure(t) => DBIO.failed(t).asTry
-        })).map({
-          case Success(v) =>
-            logger.debug("DELETE /orgs/" + orgid + "/hagroups/" + name + " updated in changes table: " + v)
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.deleted")))
-          case Failure(t: DBProcessingError) =>
-            t.toComplete
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.group.not.deleted", compositeId, t.toString))
+            else DBIO.successful(())
+          }
+        } yield (nodeGroup, nodesNotOwned)
+
+        db.run(deleteQuery.transactionally.asTry).map({
+          case Success(result) =>
+            if (result._1.isEmpty) {
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.group.not.found", compositeId)))
+            }
+            else if (result._2.nonEmpty) {
+              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist")) //todo: translate w/ error message
+            }
+            else {
+              logger.debug("DELETE /orgs/" + orgid + "/hagroups/" + name + " updated in changes table: " + result)
+              (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.deleted")))
+            }
           case Failure(t) =>
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.not.deleted", compositeId, t.toString)))
         })
@@ -397,9 +418,137 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
     }
   }
 //
-//  /* ====== POST /orgs/{orgid}/hagroups/{name} ================================ */
-//  def postNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & post) { (orgid, name) =>
+
+  /* ====== POST /orgs/{orgid}/hagroups/{name} ================================ */
+  @POST
+  @Path("{name}")
+  @Operation(
+    summary = "Insert the nodes that belong to an existing Node Group (HA Group)",
+    description = "Creates the list of nodes that belong to the specified node group with the list of nodes provided in the request body.",
+    parameters = Array(
+      new Parameter(
+        name = "orgid",
+        in = ParameterIn.PATH,
+        description = "Organization identifier."
+      ),
+      new Parameter(
+        name = "name",
+        in = ParameterIn.PATH,
+        description = "Node Group identifier."
+      )
+    ),
+    requestBody = new RequestBody(
+      required = true,
+      content = Array(
+        new Content(
+          examples = Array(
+            new ExampleObject(
+              value =
+                """{
+  "members": [
+    "node2",
+    "node4",
+    "node5"
+  ],
+  "description": "New Description"
+}"""
+            )
+          ),
+          mediaType = "application/json",
+          schema = new Schema(implementation = classOf[PutNodeGroupsRequest])
+        )
+      )
+    ),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
+        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
+      new responses.ApiResponse(responseCode = "400", description = "bad input"),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied: node isn't owned by caller"),
+      new responses.ApiResponse(responseCode = "404", description = "not found"),
+      new responses.ApiResponse(responseCode = "409", description = "node already belongs to other group")
+    )
+  )
+  def postNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment) & post & entity(as[PostPutNodeGroupsRequest])) { (orgid, name, reqBody) =>
+    val compositeId: String = OrgAndId(orgid, name).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { ident =>
+      validateWithMsg(reqBody.getAnyProblem) {
+        complete({
+          val nodeGroupQuery = NodeGroupTQ.filter(_.organization === orgid).filter(_.name === name)
+          val nodesQuery = if (ident.isAdmin) NodesTQ.getAllNodes(orgid) else NodesTQ.getAllNodes(orgid).filter(_.owner === ident.identityString)
+          val members: Seq[String] =
+            if (reqBody.members.nonEmpty)
+              reqBody.members.distinct.map(a => orgid + "/" + a) //don't want duplicate nodes in list, and need to pre-pend orgId to match id in Node table
+            else Seq.empty[String]
+
+          val queries = for {
+            nodeGroup <- nodeGroupQuery.result //should be empty if POST
+
+            nodesInOtherGroups <- NodeGroupAssignmentTQ.filterNot(_.group in nodeGroupQuery.map(_.group)).filter(_.node inSet members).result //empty if no nodes in list are in other groups
+
+            ownedNodesInList <- nodesQuery.filter(_.id inSet members).result //if caller owns all new nodes, length should equal length of 'members'
+
+            _ <- {
+              if (nodeGroup.isEmpty && nodesInOtherGroups.isEmpty && (ownedNodesInList.length == members.size)) {
+                val action = reqBody.getDbUpsertGroup(orgid, name, reqBody.description)
+                DBIO.seq(
+                  action,
+                  ResourceChange(
+                    0L,
+                    orgid,
+                    name,
+                    ResChangeCategory.NODEGROUP,
+                    false,
+                    ResChangeResource.NODEGROUP,
+                    ResChangeOperation.MODIFIED).insert
+                )
+              }
+              else DBIO.successful(())
+            }
+
+            nodeGroupId <- nodeGroupQuery.result
+
+            _ <- {
+              if (nodeGroupId.nonEmpty) {
+                DBIO.seq(
+                  NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroupId.head.group)),
+                  ResourceChange(
+                    0L,
+                    orgid,
+                    name,
+                    ResChangeCategory.NODEGROUP,
+                    false,
+                    ResChangeResource.NODEGROUP,
+                    ResChangeOperation.MODIFIED).insert
+                )
+              }
+              else DBIO.successful(())
+            }
+          } yield (nodeGroup, nodesInOtherGroups, ownedNodesInList, nodeGroupId)
+
+          db.run(queries.transactionally.asTry).map({
+            case Success(result) =>
+              if (result._1.nonEmpty) {
+                (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.already.exists", compositeId))) //todo: translate w/ error message
+              }
+              else if (result._2.nonEmpty) {
+                (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.conflict", compositeId))) //todo: translate w/ error message
+              }
+              else if (result._3.length != members.size) {
+                (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED,ExchMsg.translate("node.group.node.access.denied", compositeId))) //todo: translate w/ error message
+              }
+              else {
+                logger.debug(s"POST /orgs/$orgid/hagroups/$name result: $result")
+                (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.created", compositeId))) //todo: translate
+              }
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
+          })
+        }) // end of complete
+      } // end of validateWithMsg
+    } // end of exchAuth
+  }
 //
-//  }
+
 
 }

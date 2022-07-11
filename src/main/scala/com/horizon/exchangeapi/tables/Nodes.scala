@@ -10,7 +10,7 @@ import slick.jdbc.PostgresProfile.api.{DBIO, ForeignKeyAction, Query, Table, Tab
 import slick.lifted.Rep
 import slick.sql.FixedSqlAction
 
-import scala.collection.immutable.Map
+import scala.collection.immutable.{List, Map}
 
 
 /** We define this trait because services in the DB and in the search criteria need the same methods, but have slightly different constructor args */
@@ -352,8 +352,8 @@ class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
 
 object NodeGroupTQ extends TableQuery(new NodeGroup(_)){
   def getAllNodeGroups(orgid: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.organization === orgid)
-  def getNodeGroup(group: Long): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.group === group)
-  def getNodeGroupName(name: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.name === name)
+  def getNodeGroupId(orgid: String, name: String): Query[Rep[Long], Long, Seq] = this.filter(_.organization === orgid).filter(_.name === name).map(_.group)
+  def getNodeGroupName(orgid: String, name: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.organization === orgid).filter(_.name === name)
 }
 
 final case class NodeGroups(description: String, group: String, organization: String, updated: String)
@@ -374,10 +374,23 @@ class NodeGroupAssignment(tag: Tag) extends Table[NodeGroupAssignmentRow](tag, "
 }
 
 object NodeGroupAssignmentTQ extends TableQuery(new NodeGroupAssignment(_)){
-  def getNodeGroupAssignment(group: Long): Query[Rep[String], String, Seq] = this.filter(_.group === group).map(_.node)
+  def getNodeGroupAssignment(node: String): Query[Rep[Long], Long, Seq] = this.filter(_.node === node).map(_.group)
 }
 
 final case class NodeGroupAssignments(node: String, group: String)
+
+final case class PostPutNodeGroupsRequest(members: Seq[String], description: String) {
+  require(members!=null && description!=null)
+  def getAnyProblem: Option[String] = None
+
+  // Note: write() handles correctly the case where the optional fields are None.
+  def getDbUpsertGroup(orgid: String, name: String, description: String): DBIO[_] =
+    NodeGroupRow(description = description,
+      group = 0L,
+      organization = orgid,
+      updated = ApiTime.nowUTC,
+      name = name).upsert
+}
 
 //NMP Status tables
 final case class UpgradedVersions(softwareVersion: String,

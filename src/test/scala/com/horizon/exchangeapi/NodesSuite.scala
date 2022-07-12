@@ -3270,6 +3270,55 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
+  //TEST NODE GROUP
+  test("POST /orgs/"+orgid+"/hagroups/ng - create node group with node assigned to it") {
+    val input = PostPutNodeGroupsRequest(Seq(nodeId), "description")
+    val response = Http(URL+"/hagroups/ng").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    info("body: "+response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - make sure node group is in response body") {
+    val response = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    info("body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody = parse(response.body).extract[GetNodesResponse].nodes
+    assert(responseBody.contains(orgid+"/"+nodeId))
+    assert(responseBody(orgid+"/"+nodeId).group.get === "ng")
+  }
+
+  test("GET /orgs/"+orgid+"/nodes - make sure node group is in response body") {
+    val response = Http(URL+"/nodes").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    info("body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody = parse(response.body).extract[GetNodesResponse].nodes
+    assert(responseBody.contains(orgid+"/"+nodeId))
+    assert(responseBody(orgid+"/"+nodeId).group.get === "ng")
+  }
+
+  test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - get only node group") {
+    val response = Http(URL+"/nodes/"+nodeId+"?attribute=group").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    info("body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody = parse(response.body).extract[GetNodeAttributeResponse]
+    assert(responseBody.attribute === "group")
+    assert(responseBody.value === "ng")
+  }
+
+  test("GET /orgs/"+orgid+"/node-details"+" - make sure node group is in response body of node-details") {
+    val response = Http(URL+"/node-details").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("code: "+response.code)
+    info("body: "+response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody = parse(response.body).extract[List[NodeDetails]]
+    assert(responseBody.exists(_.id === orgid+"/"+nodeId))
+    assert(responseBody.filter(_.id === orgid+"/"+nodeId).head.group.get === "ng")
+  }
+
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId) {
     val response = Http(URL+"/nodes/"+nodeId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

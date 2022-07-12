@@ -65,8 +65,8 @@ object NodeType extends Enumeration {
 }
 
 // This is the node table minus the key - used as the data structure to return to the REST clients
-class Node(var token: String, var name: String, var owner: String, var nodeType: String, var pattern: String, var registeredServices: List[RegService], var userInput: List[OneUserInputService], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String, var arch: String, var heartbeatIntervals: NodeHeartbeatIntervals, var lastUpdated: String) {
-  def copy = new Node(token, name, owner, nodeType, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated)
+class Node(var token: String, var name: String, var owner: String, var nodeType: String, var pattern: String, var registeredServices: List[RegService], var userInput: List[OneUserInputService], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String, var arch: String, var heartbeatIntervals: NodeHeartbeatIntervals, var lastUpdated: String, var group: Option[String]) {
+  def copy = new Node(token, name, owner, nodeType, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated, group)
 }
 
 final case class NodeRow(id: String,
@@ -87,7 +87,7 @@ final case class NodeRow(id: String,
                          lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def toNode(superUser: Boolean): Node = {
+  def toNode(superUser: Boolean, group: Option[String]): Node = {
     val tok: String = if (superUser) token else StrConstants.hiddenPw
     val nt: String = if (nodeType == "") NodeType.DEVICE.toString else nodeType
     val swv: Map[String, String] = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
@@ -96,7 +96,7 @@ final case class NodeRow(id: String,
     val rsvc2: List[RegService] = rsvc.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version.orElse(Some(""))))
     val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val hbInterval: NodeHeartbeatIntervals = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
-    new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat.orNull, publicKey, arch, hbInterval, lastUpdated)
+    new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat.orNull, publicKey, arch, hbInterval, lastUpdated, group)
   }
 
   def upsert: DBIO[_] = {
@@ -215,6 +215,7 @@ object NodesTQ  extends TableQuery(new Nodes(_)){
       case "arch" => filter.map(_.arch)
       case "heartbeatIntervals" => filter.map(_.heartbeatIntervals)
       case "lastUpdated" => filter.map(_.lastUpdated)
+      case "group" => NodeGroupTQ.filter(_.group in NodeGroupAssignmentTQ.filter(_.node === id).map(_.group)).map(_.name)
       case _ => null
     }
   }

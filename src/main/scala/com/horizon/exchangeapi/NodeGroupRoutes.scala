@@ -35,10 +35,9 @@ final case class PutNodeGroupsRequest(members: Option[Seq[String]], description:
   def getAnyProblem: Option[String] = None
 }
 
-
 /** Implementation for all of the /orgs/{orgid}/hagroups routes */
 @Path("/v1/orgs/{orgid}/hagroups")
-@io.swagger.v3.oas.annotations.tags.Tag(name = "nodegroup")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "hagroup")
 trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database

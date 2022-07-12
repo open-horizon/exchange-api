@@ -71,7 +71,8 @@ case class NodeDetails(arch: Option[String] = None,
                        services: Option[List[OneService]] = None,
                        softwareVersions: Option[Map[String, String]] = None,
                        token: String = StrConstants.hiddenPw,
-                       userInput: Option[List[OneUserInputService]] = None)
+                       userInput: Option[List[OneUserInputService]] = None,
+                       group: Option[String] = None)
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
 final case class PatternSearchHashElement(nodeType: String, publicKey: String, noAgreementYet: Boolean)
@@ -508,7 +509,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "maxInterval": 0,
         "intervalAdjustment": 0
       },
-      "lastUpdated": "string"
+      "lastUpdated": "string",
+      "group": "groupName"
     }
   },
   "lastIndex": 0
@@ -546,10 +548,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             else if (NodeType.isCluster(nt)) q = q.filter(_.nodeType === nt)
           }
 
-          db.run(q.result).map({ list =>
-            logger.debug(s"GET /orgs/$orgid/nodes result size: ${list.size}")
+          val combinedQuery = for {
+            ((nodes, _), groups) <- (q joinLeft NodeGroupAssignmentTQ on (_.id === _.node)).joinLeft(NodeGroupTQ).on(_._2.map(_.group) === _.group)
+          } yield (nodes, groups.map(_.name))
+
+          db.run(combinedQuery.result).map({ result =>
+            logger.debug(s"GET /orgs/$orgid/nodes result size: ${result.size}")
             //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
-            val nodes: Map[String, Node] = list.map(e => e.id -> e.toNode(ident.isSuperUser)).toMap
+            val nodes: Map[String, Node] = result.map(e => e._1.id -> e._1.toNode(ident.isSuperUser, e._2)).toMap
             val code: StatusCode with Serializable = if (nodes.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetNodesResponse(nodes, 0))
           })
@@ -638,7 +644,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "maxInterval": 0,
         "intervalAdjustment": 0
       },
-      "lastUpdated": "string"
+      "lastUpdated": "string",
+      "group": "groupName"
     }
   },
   "lastIndex": 0
@@ -672,12 +679,14 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
               })
 
             case None =>   // Return the whole node
-              val q = NodesTQ.getNode(compositeId)
+              val q = for {
+                ((node, _), group) <- (NodesTQ.getNode(compositeId) joinLeft NodeGroupAssignmentTQ on (_.id === _.node)).joinLeft(NodeGroupTQ).on(_._2.map(_.group) === _.group)
+              } yield (node, group.map(_.name))
               db.run(q.result).map({ list =>
                 logger.debug("GET /orgs/"+orgid+"/nodes/"+id+" result: "+list.size)
                 if (list.nonEmpty) {
                   //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
-                  val nodes: Map[String, Node] = list.map(e => e.id -> e.toNode(ident.isSuperUser)).toMap
+                  val nodes: Map[String, Node] = list.map(e => e._1.id -> e._1.toNode(ident.isSuperUser, e._2)).toMap
                   (HttpCode.OK, GetNodesResponse(nodes, 0))
                 } else {
                   (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))     // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
@@ -2569,7 +2578,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "serviceArch": "string",
         "serviceOrgid": "string",
         "serviceUrl": "string",
-        "serviceVersionRange": "string"
+        "serviceVersionRange": "string",
+        "group": "string"
       }
     ]
   }
@@ -2613,40 +2623,43 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                      }) // "" === ""
                                    .filter(_.orgid === orgid)
                                    .filterOpt(ownerFilter)((node, ownerFilter) => node.owner like ownerFilter)
-                                   .joinLeft(NodeErrorTQ.filterOpt(id)((nodeErrors, id) => nodeErrors.nodeId like id))
+                                   .joinLeft(NodeErrorTQ.filterOpt(id)((nodeErrors, id) => nodeErrors.nodeId like id)) // (Node, NodeError)
                                      .on(_.id === _.nodeId)
-                                   .joinLeft(NodePolicyTQ.filterOpt(id)((nodePolicy, id) => nodePolicy.nodeId like id))
+                                   .joinLeft(NodePolicyTQ.filterOpt(id)((nodePolicy, id) => nodePolicy.nodeId like id)) // ((Node, NodeError), NodePolicy)
                                      .on(_._1.id === _.nodeId)
-                                   .joinLeft(NodeStatusTQ.filterOpt(id)((nodeStatuses, id) => nodeStatuses.nodeId like id))
+                                   .joinLeft(NodeStatusTQ.filterOpt(id)((nodeStatuses, id) => nodeStatuses.nodeId like id)) // (((Nodes, Node Errors), Node Policy), Node Statuses)
                                      .on(_._1._1.id === _.nodeId) // node.id === nodeStatus.nodeid
-                                   .sortBy(_._1._1._1.id.asc)     // node.id ASC
-                                   // (((Nodes, Node Errors), Node Policy), Node Statuses)
+                                   .joinLeft(NodeGroupTQ.join(NodeGroupAssignmentTQ.filterOpt(id)((assignment, id) => assignment.node like id)).on(_.group === _.group)) // ((((Nodes, Node Errors), Node Policy), Node Statuses), (Node Group, Node Group Assignment)))
+                                     .on(_._1._1._1.id === _._2.node) // node.id === nodeGroupAssignment.node
+                                   .sortBy(_._1._1._1._1.id.asc)     // node.id ASC
+                                   // ((((Nodes, Node Errors), Node Policy), Node Statuses), (Node Group, Node Group Assignment)))
                                    // Flatten the tupled structure, lexically sort columns.
                                    .map(
                                      node =>
-                                       (node._1._1._1.arch,
-                                         node._1._1._1.id,
-                                         node._1._1._1.heartbeatIntervals,
-                                         node._1._1._1.lastHeartbeat,
-                                         node._1._1._1.lastUpdated,
-                                         node._1._1._1.msgEndPoint,
-                                         node._1._1._1.name,
-                                         node._1._1._1.nodeType,
-                                         node._1._1._1.orgid,
-                                         node._1._1._1.owner,
-                                         node._1._1._1.pattern,
-                                         node._1._1._1.publicKey,
-                                         node._1._1._1.regServices,
-                                         node._1._1._1.softwareVersions,
+                                       (node._1._1._1._1.arch,
+                                         node._1._1._1._1.id,
+                                         node._1._1._1._1.heartbeatIntervals,
+                                         node._1._1._1._1.lastHeartbeat,
+                                         node._1._1._1._1.lastUpdated,
+                                         node._1._1._1._1.msgEndPoint,
+                                         node._1._1._1._1.name,
+                                         node._1._1._1._1.nodeType,
+                                         node._1._1._1._1.orgid,
+                                         node._1._1._1._1.owner,
+                                         node._1._1._1._1.pattern,
+                                         node._1._1._1._1.publicKey,
+                                         node._1._1._1._1.regServices,
+                                         node._1._1._1._1.softwareVersions,
                                          (if(ident.isAdmin ||
                                              ident.isSuperUser) // Do not pull nor query the Node's token if (Super)Admin.
-                                           node._1._1._1.id.substring(0,0) // node.id -> ""
+                                           node._1._1._1._1.id.substring(0,0) // node.id -> ""
                                          else
-                                           node._1._1._1.token),
-                                         node._1._1._1.userInput,
-                                         node._1._1._2,           // Node Errors (errors, lastUpdated)
-                                         node._1._2,              // Node Policy (constraints, lastUpdated, properties)
-                                         node._2))                // Node Statuses (connectivity, lastUpdated, runningServices, services)
+                                           node._1._1._1._1.token),
+                                         node._1._1._1._1.userInput,
+                                         node._1._1._1._2,           // Node Errors (errors, lastUpdated)
+                                         node._1._1._2,              // Node Policy (constraints, lastUpdated, properties)
+                                         node._1._2,                 // Node Statuses (connectivity, lastUpdated, runningServices, services)
+                                         node._2.map(_._1.name)))    // Node Group
                                    .result
                                    // Complete type conversion to something more usable.
                                    .map(
@@ -2763,8 +2776,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                if(node._16.isEmpty)
                                                  None
                                                else
-                                                 Some(read[List[OneUserInputService]](node._16)))).toList)
-                    
+                                                 Some(read[List[OneUserInputService]](node._16)),
+                                             group = node._20)).toList)
                   } yield(nodes)
                 
                 db.run(getNodes.asTry).map({

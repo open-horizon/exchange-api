@@ -72,7 +72,7 @@ case class NodeDetails(arch: Option[String] = None,
                        softwareVersions: Option[Map[String, String]] = None,
                        token: String = StrConstants.hiddenPw,
                        userInput: Option[List[OneUserInputService]] = None,
-                       group: Option[String] = None)
+                       ha_group: Option[String] = None)
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
 final case class PatternSearchHashElement(nodeType: String, publicKey: String, noAgreementYet: Boolean)
@@ -509,8 +509,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "maxInterval": 0,
         "intervalAdjustment": 0
       },
-      "lastUpdated": "string",
-      "group": "groupName"
+      "ha_group": "groupName",
+      "lastUpdated": "string"
     }
   },
   "lastIndex": 0
@@ -644,8 +644,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "maxInterval": 0,
         "intervalAdjustment": 0
       },
-      "lastUpdated": "string",
-      "group": "groupName"
+      "ha_group": "groupName",
+      "lastUpdated": "string"
     }
   },
   "lastIndex": 0
@@ -2579,7 +2579,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "serviceOrgid": "string",
         "serviceUrl": "string",
         "serviceVersionRange": "string",
-        "group": "string"
+        "ha_group": "string"
       }
     ]
   }
@@ -2777,7 +2777,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                  None
                                                else
                                                  Some(read[List[OneUserInputService]](node._16)),
-                                             group = node._20)).toList)
+                                             ha_group = node._20)).toList)
                   } yield(nodes)
                 
                 db.run(getNodes.asTry).map({

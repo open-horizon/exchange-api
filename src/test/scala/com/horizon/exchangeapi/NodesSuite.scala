@@ -3286,7 +3286,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.OK.intValue)
     val responseBody = parse(response.body).extract[GetNodesResponse].nodes
     assert(responseBody.contains(orgid+"/"+nodeId))
-    assert(responseBody(orgid+"/"+nodeId).group.get === "ng")
+    assert(responseBody(orgid+"/"+nodeId).ha_group.get === "ng")
   }
 
   test("GET /orgs/"+orgid+"/nodes - make sure node group is in response body") {
@@ -3296,16 +3296,16 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.OK.intValue)
     val responseBody = parse(response.body).extract[GetNodesResponse].nodes
     assert(responseBody.contains(orgid+"/"+nodeId))
-    assert(responseBody(orgid+"/"+nodeId).group.get === "ng")
+    assert(responseBody(orgid+"/"+nodeId).ha_group.get === "ng")
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - get only node group") {
-    val response = Http(URL+"/nodes/"+nodeId+"?attribute=group").headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"?attribute=ha_group").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code)
     info("body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val responseBody = parse(response.body).extract[GetNodeAttributeResponse]
-    assert(responseBody.attribute === "group")
+    assert(responseBody.attribute === "ha_group")
     assert(responseBody.value === "ng")
   }
 
@@ -3316,7 +3316,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.OK.intValue)
     val responseBody = parse(response.body).extract[List[NodeDetails]]
     assert(responseBody.exists(_.id === orgid+"/"+nodeId))
-    assert(responseBody.filter(_.id === orgid+"/"+nodeId).head.group.get === "ng")
+    assert(responseBody.filter(_.id === orgid+"/"+nodeId).head.ha_group.get === "ng")
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId) {

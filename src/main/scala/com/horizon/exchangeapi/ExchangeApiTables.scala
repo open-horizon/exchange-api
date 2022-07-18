@@ -46,6 +46,8 @@ object ExchangeApiTables {
       ++ AgentConfigurationVersionsTQ.schema
       ++ AgentSoftwareVersionsTQ.schema
       ++ AgentVersionsChangedTQ.schema
+      ++ NodeGroupTQ.schema
+      ++ NodeGroupAssignmentTQ.schema
     ).create,
     SchemaTQ.getSetVersionAction)
 
@@ -54,6 +56,8 @@ object ExchangeApiTables {
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val dropDB = DBIO.seq(
     /* these are no longer used, but just in case they are still here */
+    sqlu"drop table if exists node_group_assignment",
+    sqlu"drop table if exists node_group",
     sqlu"drop table if exists agent_version_certificate",
     sqlu"drop table if exists agent_version_configuration",
     sqlu"drop table if exists agent_version_software",

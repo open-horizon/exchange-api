@@ -4,12 +4,13 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization.read
 import com.horizon.exchangeapi.{ApiTime, ExchMsg, Role, StrConstants, Version, VersionRange, tables}
+import slick.ast.ScalaBaseType.longType
 import slick.dbio.{Effect, NoStream}
 import slick.jdbc.PostgresProfile.api.{DBIO, ForeignKeyAction, Query, Table, TableQuery, Tag, anyToShapedValue, booleanColumnExtensionMethods, booleanColumnType, columnExtensionMethods, intColumnType, queryInsertActionExtensionMethods, queryUpdateActionExtensionMethods, recordQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType, valueToConstColumn}
 import slick.lifted.Rep
 import slick.sql.FixedSqlAction
 
-import scala.collection.immutable.Map
+import scala.collection.immutable.{List, Map}
 
 
 /** We define this trait because services in the DB and in the search criteria need the same methods, but have slightly different constructor args */
@@ -64,8 +65,8 @@ object NodeType extends Enumeration {
 }
 
 // This is the node table minus the key - used as the data structure to return to the REST clients
-class Node(var token: String, var name: String, var owner: String, var nodeType: String, var pattern: String, var registeredServices: List[RegService], var userInput: List[OneUserInputService], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String, var arch: String, var heartbeatIntervals: NodeHeartbeatIntervals, var lastUpdated: String) {
-  def copy = new Node(token, name, owner, nodeType, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated)
+class Node(var token: String, var name: String, var owner: String, var nodeType: String, var pattern: String, var registeredServices: List[RegService], var userInput: List[OneUserInputService], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String, var arch: String, var heartbeatIntervals: NodeHeartbeatIntervals, var ha_group: Option[String], var lastUpdated: String) {
+  def copy = new Node(token, name, owner, nodeType, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, ha_group, lastUpdated)
 }
 
 final case class NodeRow(id: String,
@@ -86,7 +87,7 @@ final case class NodeRow(id: String,
                          lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
-  def toNode(superUser: Boolean): Node = {
+  def toNode(superUser: Boolean, ha_group: Option[String]): Node = {
     val tok: String = if (superUser) token else StrConstants.hiddenPw
     val nt: String = if (nodeType == "") NodeType.DEVICE.toString else nodeType
     val swv: Map[String, String] = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
@@ -95,7 +96,7 @@ final case class NodeRow(id: String,
     val rsvc2: List[RegService] = rsvc.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version.orElse(Some(""))))
     val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val hbInterval: NodeHeartbeatIntervals = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
-    new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat.orNull, publicKey, arch, hbInterval, lastUpdated)
+    new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat.orNull, publicKey, arch, hbInterval, ha_group, lastUpdated)
   }
 
   def upsert: DBIO[_] = {
@@ -214,6 +215,7 @@ object NodesTQ  extends TableQuery(new Nodes(_)){
       case "arch" => filter.map(_.arch)
       case "heartbeatIntervals" => filter.map(_.heartbeatIntervals)
       case "lastUpdated" => filter.map(_.lastUpdated)
+      case "ha_group" => NodeGroupTQ.filter(_.group in NodeGroupAssignmentTQ.filter(_.node === id).map(_.group)).map(_.name)
       case _ => null
     }
   }
@@ -329,6 +331,69 @@ object NodeErrorTQ extends TableQuery(new NodeErrors(_)) {
 
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
+//Node Groups for MCM
+final case class NodeGroupRow(description: String, group: Long, organization: String, lastUpdated: String, name: String) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  def update: DBIO[_] = (for { m <- NodeGroupTQ if m.group === group } yield m).update(this)
+  def upsert: DBIO[_] = NodeGroupTQ.insertOrUpdate(this)
+}
+
+class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
+  def description = column[String]("description")
+  def group = column[Long]("group", O.AutoInc)
+  def organization = column[String]("orgid")
+  def lastUpdated = column[String]("lastUpdated")
+  def name = column[String]("name")
+  //def lastUpdated = column[String]("lastUpdated")
+  def * = (description, group, organization, lastUpdated, name).<>(NodeGroupRow.tupled, NodeGroupRow.unapply)
+  def nodeGroupIdx = index("node_group_idx", (organization, name), unique = true)
+  def pkNodeGroup = primaryKey("pk_node_group", group)
+  def fkOrg = foreignKey("fk_organization", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object NodeGroupTQ extends TableQuery(new NodeGroup(_)){
+  def getAllNodeGroups(orgid: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.organization === orgid)
+  def getNodeGroupId(orgid: String, name: String): Query[Rep[Long], Long, Seq] = this.filter(_.organization === orgid).filter(_.name === name).map(_.group)
+  def getNodeGroupName(orgid: String, name: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.organization === orgid).filter(_.name === name)
+}
+
+final case class NodeGroups(description: String, group: String, organization: String, lastUpdated: String)
+
+//Node Group Assignments
+final case class NodeGroupAssignmentRow(node: String, group: Long) {
+  protected implicit val jsonFormats: Formats = DefaultFormats
+  def upsert: DBIO[_] = NodeGroupAssignmentTQ.insertOrUpdate(this)
+}
+
+class NodeGroupAssignment(tag: Tag) extends Table[NodeGroupAssignmentRow](tag, "node_group_assignment") {
+  def node = column[String]("node")
+  def group = column[Long]("group")
+  def * = (node, group).<>(NodeGroupAssignmentRow.tupled, NodeGroupAssignmentRow.unapply)
+  def pkNodeGroup = primaryKey("pk_node_group_assignment", node)
+  def fkGroup = foreignKey("fk_group", group, NodeGroupTQ)(_.group, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkNode = foreignKey("fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+}
+
+object NodeGroupAssignmentTQ extends TableQuery(new NodeGroupAssignment(_)){
+  def getNodeGroupAssignment(node: String): Query[Rep[Long], Long, Seq] = this.filter(_.node === node).map(_.group)
+}
+
+final case class NodeGroupAssignments(node: String, group: String)
+
+final case class PostPutNodeGroupsRequest(members: Seq[String], description: String) {
+  require(members!=null && description!=null)
+  def getAnyProblem: Option[String] = None
+
+  // Note: write() handles correctly the case where the optional fields are None.
+  def getDbUpsertGroup(orgid: String, name: String, description: String): DBIO[_] =
+    NodeGroupRow(description = description,
+      group = 0L,
+      organization = orgid,
+      lastUpdated = ApiTime.nowUTC,
+      name = name).upsert
+}
+
+//NMP Status tables
 final case class UpgradedVersions(softwareVersion: String,
                                   certVersion: String,
                                   configVersion: String)

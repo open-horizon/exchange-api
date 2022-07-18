@@ -47,6 +47,8 @@ class ResourceNotFoundException(msg: String = ExchMsg.translate("not.found")) ex
 
 class UserCreateException(msg: String = ExchMsg.translate("error.creating.user.noargs")) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
 
+class AlreadyExistsException(msg: String = ExchMsg.translate("already.exists")) extends AuthException(HttpCode.ALREADY_EXISTS2, ApiRespType.ALREADY_EXISTS, msg)
+
 // Not currently used. The IAM token we were given was expired, or some similar problem
 //class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 

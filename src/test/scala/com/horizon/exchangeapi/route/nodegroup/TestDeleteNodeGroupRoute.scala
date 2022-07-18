@@ -26,12 +26,12 @@ class TestDeleteNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
     Seq(NodeGroupRow(description   = "",
       group              = 0L,
       organization       = "TestDeleteNodeGroup",
-      updated            = ApiTime.nowUTC,
+      lastUpdated            = ApiTime.nowUTC,
       name               = "king"),
       NodeGroupRow(description   = "",
         group              = 0L,
         organization       = "TestDeleteNodeGroup",
-        updated            = ApiTime.nowUTC,
+        lastUpdated            = ApiTime.nowUTC,
         name               = "queen"))
 
   private val TESTUSERS: Seq[UserRow] =

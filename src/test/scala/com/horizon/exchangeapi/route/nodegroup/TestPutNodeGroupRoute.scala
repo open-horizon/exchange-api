@@ -264,35 +264,35 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
         description = "empty node group",
         group = 0L, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestPutNodeGroupRoute_empty"
       ),
       NodeGroupRow(
         description = "main node group",
         group = 0L, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestPutNodeGroupRoute_main"
       ),
       NodeGroupRow(
         description = "mixed node group (owner)",
         group = 0L, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestPutNodeGroupRoute_mixed_owner"
       ),
       NodeGroupRow(
         description = "mixed node group (org)",
         group = 0L, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestPutNodeGroupRoute_mixed_org"
       ),
       NodeGroupRow(
         description = "org 2 node group",
         group = 0L, //gets automatically set by DB
         organization = TESTORGS(1).orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestPutNodeGroupRoute_other_org"
       )
     )
@@ -367,11 +367,11 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
     Await.ready(DBCONNECTION.getDb.run(
       NodeGroupAssignmentTQ.filter(a => a.group === emptyGroup || a.group === mainGroup || a.group === mixedGroupOwner || a.group === mixedGroupOrg || a.group === org2Group).delete andThen
       (NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS) andThen
-      NodeGroupTQ.filter(_.group === emptyGroup).update(NodeGroupRow(TESTNODEGROUPS(0).description, emptyGroup, TESTNODEGROUPS(0).organization, TESTNODEGROUPS(0).updated, TESTNODEGROUPS(0).name)) andThen
-      NodeGroupTQ.filter(_.group === mainGroup).update(NodeGroupRow(TESTNODEGROUPS(1).description, mainGroup, TESTNODEGROUPS(1).organization, TESTNODEGROUPS(1).updated, TESTNODEGROUPS(1).name)) andThen
-      NodeGroupTQ.filter(_.group === mixedGroupOwner).update(NodeGroupRow(TESTNODEGROUPS(2).description, mixedGroupOwner, TESTNODEGROUPS(2).organization, TESTNODEGROUPS(2).updated, TESTNODEGROUPS(2).name)) andThen
-      NodeGroupTQ.filter(_.group === mixedGroupOrg).update(NodeGroupRow(TESTNODEGROUPS(3).description, mixedGroupOrg, TESTNODEGROUPS(3).organization, TESTNODEGROUPS(3).updated, TESTNODEGROUPS(3).name)) andThen
-      NodeGroupTQ.filter(_.group === org2Group).update(NodeGroupRow(TESTNODEGROUPS(4).description, org2Group, TESTNODEGROUPS(4).organization, TESTNODEGROUPS(4).updated, TESTNODEGROUPS(4).name)) andThen
+      NodeGroupTQ.filter(_.group === emptyGroup).update(NodeGroupRow(TESTNODEGROUPS(0).description, emptyGroup, TESTNODEGROUPS(0).organization, TESTNODEGROUPS(0).lastUpdated, TESTNODEGROUPS(0).name)) andThen
+      NodeGroupTQ.filter(_.group === mainGroup).update(NodeGroupRow(TESTNODEGROUPS(1).description, mainGroup, TESTNODEGROUPS(1).organization, TESTNODEGROUPS(1).lastUpdated, TESTNODEGROUPS(1).name)) andThen
+      NodeGroupTQ.filter(_.group === mixedGroupOwner).update(NodeGroupRow(TESTNODEGROUPS(2).description, mixedGroupOwner, TESTNODEGROUPS(2).organization, TESTNODEGROUPS(2).lastUpdated, TESTNODEGROUPS(2).name)) andThen
+      NodeGroupTQ.filter(_.group === mixedGroupOrg).update(NodeGroupRow(TESTNODEGROUPS(3).description, mixedGroupOrg, TESTNODEGROUPS(3).organization, TESTNODEGROUPS(3).lastUpdated, TESTNODEGROUPS(3).name)) andThen
+      NodeGroupTQ.filter(_.group === org2Group).update(NodeGroupRow(TESTNODEGROUPS(4).description, org2Group, TESTNODEGROUPS(4).organization, TESTNODEGROUPS(4).lastUpdated, TESTNODEGROUPS(4).name)) andThen
       ResourceChangesTQ.filter(a => a.orgId === TESTORGS(0).orgId || a.orgId === TESTORGS(1).orgId).delete
     ), AWAITDURATION)
   }
@@ -399,13 +399,13 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
       assert(dbNodeGroup.description === reqBody.description.get)
     else
       assert(dbNodeGroup.description === nodeGroup.description)
-    assert(dbNodeGroup.updated > nodeGroup.updated)
+    assert(dbNodeGroup.lastUpdated > nodeGroup.lastUpdated)
   }
 
   def assertNodeGroupNotUpdated(group: Long, nodeGroup: NodeGroupRow): Unit = {
     val dbNodeGroup = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.group === group).result), AWAITDURATION).head
     assert(dbNodeGroup.description === nodeGroup.description)
-    assert(dbNodeGroup.updated === nodeGroup.updated)
+    assert(dbNodeGroup.lastUpdated === nodeGroup.lastUpdated)
   }
 
   def assertResourceChangeExists(orgId: String, name: String): Unit = {

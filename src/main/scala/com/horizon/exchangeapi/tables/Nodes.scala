@@ -332,7 +332,7 @@ object NodeErrorTQ extends TableQuery(new NodeErrors(_)) {
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
 //Node Groups for MCM
-final case class NodeGroupRow(description: String, group: Long, organization: String, updated: String, name: String) {
+final case class NodeGroupRow(description: String, group: Long, organization: String, lastUpdated: String, name: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def update: DBIO[_] = (for { m <- NodeGroupTQ if m.group === group } yield m).update(this)
   def upsert: DBIO[_] = NodeGroupTQ.insertOrUpdate(this)
@@ -342,10 +342,10 @@ class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
   def description = column[String]("description")
   def group = column[Long]("group", O.AutoInc)
   def organization = column[String]("orgid")
-  def updated = column[String]("updated")
+  def lastUpdated = column[String]("lastUpdated")
   def name = column[String]("name")
   //def lastUpdated = column[String]("lastUpdated")
-  def * = (description, group, organization, updated, name).<>(NodeGroupRow.tupled, NodeGroupRow.unapply)
+  def * = (description, group, organization, lastUpdated, name).<>(NodeGroupRow.tupled, NodeGroupRow.unapply)
   def nodeGroupIdx = index("node_group_idx", (organization, name), unique = true)
   def pkNodeGroup = primaryKey("pk_node_group", group)
   def fkOrg = foreignKey("fk_organization", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
@@ -357,7 +357,7 @@ object NodeGroupTQ extends TableQuery(new NodeGroup(_)){
   def getNodeGroupName(orgid: String, name: String): Query[NodeGroup, NodeGroupRow, Seq] = this.filter(_.organization === orgid).filter(_.name === name)
 }
 
-final case class NodeGroups(description: String, group: String, organization: String, updated: String)
+final case class NodeGroups(description: String, group: String, organization: String, lastUpdated: String)
 
 //Node Group Assignments
 final case class NodeGroupAssignmentRow(node: String, group: Long) {
@@ -389,7 +389,7 @@ final case class PostPutNodeGroupsRequest(members: Seq[String], description: Str
     NodeGroupRow(description = description,
       group = 0L,
       organization = orgid,
-      updated = ApiTime.nowUTC,
+      lastUpdated = ApiTime.nowUTC,
       name = name).upsert
 }
 

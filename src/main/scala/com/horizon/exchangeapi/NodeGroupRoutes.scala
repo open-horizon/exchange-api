@@ -27,7 +27,7 @@ import scala.collection.mutable.ListBuffer
 import scala.util.{Failure, Success}
 
 /** Output format for GET /hagroups */
-final case class NodeGroupResp(name: String, members: Seq[String], lastUpdated: String)
+final case class NodeGroupResp(name: String, description: String, members: Seq[String], lastUpdated: String)
 final case class GetNodeGroupsResponse(nodeGroups: Seq[NodeGroupResp])
 
 /** Input format for POST/PUT /orgs/{orgid}/hagroups/<name> */
@@ -176,8 +176,8 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
         db.run(query.sortBy(_._2.map(_.node).getOrElse("")).result.transactionally.asTry).map({
           case Success(result) =>
             if (result.nonEmpty) {
-              if (result.head._2.isDefined) (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(result.head._1.name, result.map(_._2.get.node.split("/")(1)), result.head._1.lastUpdated))))
-              else (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(result.head._1.name, Seq.empty[String], result.head._1.lastUpdated)))) //node group with no members
+              if (result.head._2.isDefined) (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(result.head._1.name, result.head._1.description, result.map(_._2.get.node.split("/")(1)), result.head._1.lastUpdated))))
+              else (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(result.head._1.name, result.head._1.description, Seq.empty[String], result.head._1.lastUpdated)))) //node group with no members
             }
             else (HttpCode.NOT_FOUND, GetNodeGroupsResponse(ListBuffer[NodeGroupResp]().toSeq)) //node group doesn't exist
           case Failure(t) =>
@@ -258,8 +258,8 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               val assignmentMap = result._2.groupBy(_.group)
               val response: ListBuffer[NodeGroupResp] = ListBuffer[NodeGroupResp]()
               for (nodeGroup <- result._1) {
-                if (assignmentMap.contains(nodeGroup.group)) response += NodeGroupResp(nodeGroup.name, assignmentMap(nodeGroup.group).map(_.node.split("/")(1)), nodeGroup.lastUpdated)
-                else response += NodeGroupResp(nodeGroup.name, Seq.empty[String], nodeGroup.lastUpdated) //node group with no assignments
+                if (assignmentMap.contains(nodeGroup.group)) response += NodeGroupResp(nodeGroup.name, nodeGroup.description, assignmentMap(nodeGroup.group).map(_.node.split("/")(1)), nodeGroup.lastUpdated)
+                else response += NodeGroupResp(nodeGroup.name, nodeGroup.description, Seq.empty[String], nodeGroup.lastUpdated) //node group with no assignments
               }
               (HttpCode.OK, GetNodeGroupsResponse(response.toSeq))
             }

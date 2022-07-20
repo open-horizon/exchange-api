@@ -487,6 +487,12 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
 
             ownedNodesInList <- nodesQuery.filter(_.id inSet members).result //if caller owns all new nodes, length should equal length of 'members'
 
+            skipGroupAssignment: Boolean =
+              if (nodeGroup.nonEmpty)
+                true
+              else
+                false
+
             _ <- {
               if (nodeGroup.isEmpty && nodesInOtherGroups.isEmpty && (ownedNodesInList.length == members.size)) {
                 val action = reqBody.getDbUpsertGroup(orgid, name, reqBody.description)
@@ -508,7 +514,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             nodeGroupId <- nodeGroupQuery.result
 
             _ <- {
-              if (nodeGroupId.nonEmpty) {
+              if ((skipGroupAssignment == false) && (nodeGroupId.nonEmpty)) {
                 DBIO.seq(
                   NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroupId.head.group)),
                   ResourceChange(

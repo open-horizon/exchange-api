@@ -85,13 +85,23 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
 
           nodeGroup <- nodeGroupQuery.result // will be empty if wrong group is provided
           nodesNotOwned <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
+          oldNodes <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).map(_.node).result
 
           _ <- {
             if (nodesNotOwned.isEmpty && nodeGroup.nonEmpty) {
               val action = NodeGroupTQ.getNodeGroupName(orgid, name).delete
               DBIO.seq(
                 action,
-                ResourceChange(0L, orgid, name, ResChangeCategory.NODEGROUP, false, ResChangeResource.NODEGROUP, ResChangeOperation.DELETED).insert
+                ResourceChange(0L, orgid, name, ResChangeCategory.NODEGROUP, false, ResChangeResource.NODEGROUP, ResChangeOperation.DELETED).insert,
+                ResourceChangesTQ ++= oldNodes.map(a => ResourceChange(
+                  0L,
+                  orgid,
+                  a,
+                  ResChangeCategory.NODE,
+                  false,
+                  ResChangeResource.NODE,
+                  ResChangeOperation.MODIFIED
+                ).toResourceChangeRow)
               )
             }
             else DBIO.successful(())
@@ -375,11 +385,23 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               else DBIO.successful(())
             }
 
+            oldNodes <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).map(_.node).result
+            nodesChanged = members.filterNot(oldNodes.contains(_)) ++ oldNodes.filterNot(members.contains(_))
+
             _ <- {
               if (reqBody.members.isDefined) {
                 DBIO.seq(
                   NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).delete,
-                  NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroup.head.group))
+                  NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroup.head.group)),
+                  ResourceChangesTQ ++= nodesChanged.map(a => ResourceChange(
+                    0L,
+                    orgid,
+                    a,
+                    ResChangeCategory.NODE,
+                    false,
+                    ResChangeResource.NODE,
+                    ResChangeOperation.MODIFIED
+                  ).toResourceChangeRow)
                 )
               }
               else DBIO.successful(())
@@ -505,7 +527,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
                     ResChangeCategory.NODEGROUP,
                     false,
                     ResChangeResource.NODEGROUP,
-                    ResChangeOperation.MODIFIED).insert
+                    ResChangeOperation.CREATED).insert
                 )
               }
               else DBIO.successful(())
@@ -517,14 +539,15 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               if ((skipGroupAssignment == false) && (nodeGroupId.nonEmpty)) {
                 DBIO.seq(
                   NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroupId.head.group)),
-                  ResourceChange(
+                  ResourceChangesTQ ++= members.map(a => ResourceChange(
                     0L,
                     orgid,
-                    name,
-                    ResChangeCategory.NODEGROUP,
+                    a,
+                    ResChangeCategory.NODE,
                     false,
-                    ResChangeResource.NODEGROUP,
-                    ResChangeOperation.MODIFIED).insert
+                    ResChangeResource.NODE,
+                    ResChangeOperation.MODIFIED
+                  ).toResourceChangeRow)
                 )
               }
               else DBIO.successful(())

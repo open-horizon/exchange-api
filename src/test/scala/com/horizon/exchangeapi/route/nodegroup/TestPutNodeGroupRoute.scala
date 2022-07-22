@@ -423,6 +423,25 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
     assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
   }
 
+  def assertNodeRCExists(orgId: String, id: String): Unit = {
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === orgId)
+      .filter(_.id === id)
+      .filter(_.category === ResChangeCategory.NODE.toString)
+      .filter(_.public === "false")
+      .filter(_.resource === ResChangeResource.NODE.toString)
+      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
+      .result), AWAITDURATION).nonEmpty)
+  }
+
+  def assertNoNodeRCExists(orgId: String, id: String): Unit = {
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === orgId)
+      .filter(_.resource === ResChangeCategory.NODE.toString)
+      .filter(_.id === id)
+      .result), AWAITDURATION).isEmpty)
+  }
+
   private val normalRequestBody: PutNodeGroupsRequest = PutNodeGroupsRequest(
     members = Some(Seq(TESTNODES(0).id.split("/")(1), TESTNODES(6).id.split("/")(1))),
     description = Some("new description")
@@ -489,6 +508,7 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
     assertAssignmentsNotChanged(mainGroup)
     assertNodeGroupUpdated(mainGroup, TESTNODEGROUPS(1), requestBody)
     assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+    assertNoNodeRCExists(TESTORGS(0).orgId, TESTNODES(0).id)
   }
 
   test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- just update members -- 201 OK") {
@@ -503,6 +523,8 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
     assertAssignmentsChanged(mainGroup, requestBody, TESTORGS(0).orgId)
     assertNodeGroupUpdated(mainGroup, TESTNODEGROUPS(1), requestBody)
     assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+    assertNoNodeRCExists(TESTORGS(0).orgId, TESTNODES(0).id)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(6).id)
   }
 
   test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- as user -- 201 OK") {
@@ -513,6 +535,8 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
     assertAssignmentsChanged(mainGroup, normalRequestBody, TESTORGS(0).orgId)
     assertNodeGroupUpdated(mainGroup, TESTNODEGROUPS(1), normalRequestBody)
     assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(1).name)
+    assertNoNodeRCExists(TESTORGS(0).orgId, TESTNODES(0).id)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(6).id)
   }
 
   test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name + " -- put members in empty group -- 201 OK") {
@@ -527,6 +551,8 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
     assertAssignmentsChanged(emptyGroup, requestBody, TESTORGS(0).orgId)
     assertNodeGroupUpdated(emptyGroup, TESTNODEGROUPS(0), requestBody)
     assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(0).name)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(5).id)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(6).id)
   }
 
   test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(2).name + " -- user tries to update group they don't own -- 403 ACCESS DENIED") {
@@ -569,6 +595,10 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
     assertAssignmentsChanged(mixedGroupOwner, requestBody, TESTORGS(0).orgId)
     assertNodeGroupUpdated(mixedGroupOwner, TESTNODEGROUPS(2), requestBody)
     assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(2).name)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(1).id)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(2).id)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(5).id)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(6).id)
   }
 
   test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(1).name + " -- user tries to insert node they don't own -- 403 ACCESS DENIED") {
@@ -654,6 +684,10 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
     assertAssignmentsChanged(mixedGroupOwner, requestBody, TESTORGS(0).orgId)
     assertNodeGroupUpdated(mixedGroupOwner, TESTNODEGROUPS(2), requestBody)
     assertResourceChangeExists(TESTORGS(0).orgId, TESTNODEGROUPS(2).name)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(1).id)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(2).id)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(5).id)
+    assertNodeRCExists(TESTORGS(0).orgId, TESTNODES(6).id)
   }
 
   test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + TESTNODEGROUPS(0).name + " -- as hub admin -- 403 ACCESS DENIED") {

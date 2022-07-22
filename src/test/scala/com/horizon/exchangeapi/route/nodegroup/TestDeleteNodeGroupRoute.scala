@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.route.nodegroup
 
-import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ, UserRow, UsersTQ}
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.scalatest.BeforeAndAfterAll
@@ -220,6 +220,8 @@ class TestDeleteNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
       )
     )
 
+  var kingGroup: Long = -1
+
   // Build test harness.
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGS) andThen
@@ -227,8 +229,13 @@ class TestDeleteNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
       (NodesTQ ++= TESTNODES) andThen
       (NodeGroupTQ ++= TESTNODEGROUPS)), AWAITDURATION)
     val groupId: Long = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS(1).name).result), AWAITDURATION).head.group
+    kingGroup = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS(0).name).result), AWAITDURATION).head.group
     val TESTNODEGROUPASSIGNMENTS: Seq[NodeGroupAssignmentRow] =
       Seq(
+        NodeGroupAssignmentRow(
+          group = kingGroup, //"king"
+          node = TESTNODES(0).id //node0
+        ),
         NodeGroupAssignmentRow(
           group = groupId, //"queen"
           node = TESTNODES(5).id //node5 , owned by u2
@@ -280,6 +287,23 @@ class TestDeleteNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
 
     assert(Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.getNodeGroupName("TestDeleteNodeGroup", "queen").result), AWAITDURATION).size === 1)
     assert(Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.getNodeGroupName("TestDeleteNodeGroup","king").result), AWAITDURATION).size === 0)
+    assert(Await.result(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ.filter(_.group === kingGroup).result), AWAITDURATION).size === 0)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === "TestDeleteNodeGroup")
+      .filter(_.id === "king")
+      .filter(_.category === ResChangeCategory.NODEGROUP.toString)
+      .filter(_.public === "false")
+      .filter(_.resource === ResChangeResource.NODEGROUP.toString)
+      .filter(_.operation === ResChangeOperation.DELETED.toString)
+      .result), AWAITDURATION).nonEmpty)
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      .filter(_.orgId === "TestDeleteNodeGroup")
+      .filter(_.id === TESTNODES(0).id)
+      .filter(_.category === ResChangeCategory.NODE.toString)
+      .filter(_.public === "false")
+      .filter(_.resource === ResChangeResource.NODE.toString)
+      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
+      .result), AWAITDURATION).nonEmpty)
   }
 
   test("DELETE /orgs/TestDeleteNodeGroup/hagroups/queen -- 403 Access Denied - As u1 trying to delete nodes it doesn't own") {

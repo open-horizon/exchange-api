@@ -114,7 +114,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.group.not.found", compositeId)))
             }
             else if (result._2.nonEmpty) {
-              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "you do not have permission to edit all nodes provided in the request body, or some nodes provided in the request body do not exist")) //todo: translate w/ error message
+              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.group.access.denied", compositeId))) //todo: translate w/ error message
             }
             else {
               logger.debug("DELETE /orgs/" + orgid + "/hagroups/" + name + " updated in changes table: " + result)

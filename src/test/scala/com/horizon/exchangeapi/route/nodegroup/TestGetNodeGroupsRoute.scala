@@ -193,21 +193,21 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
         description = "empty node group",
         group = 0, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestGetNodeGroupsRoute_empty"
       ),
       NodeGroupRow(
         description = "test node group",
         group = 0, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestGetNodeGroupsRoute_main"
       ),
       NodeGroupRow(
         description = "other node group",
         group = 0, //gets automatically set by DB
         organization = TESTORGS(1).orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestGetNodeGroupsRoute_other"
       )
     )
@@ -289,10 +289,10 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.updated === TESTNODEGROUPS(0).updated)
+    assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
     assert(emptyGroup.members.isEmpty)
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
-    assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
+    assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 2)
     assert(mainGroup.members.contains(TESTNODES(0).id.split("/")(1)))
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
@@ -310,10 +310,10 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.updated === TESTNODEGROUPS(0).updated)
+    assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
     assert(emptyGroup.members.isEmpty)
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
-    assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
+    assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 2)
     assert(mainGroup.members.contains(TESTNODES(0).id.split("/")(1)))
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
@@ -331,10 +331,10 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.updated === TESTNODEGROUPS(0).updated)
+    assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
     assert(emptyGroup.members.isEmpty)
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
-    assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
+    assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 1)
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
   }
@@ -358,10 +358,10 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.updated === TESTNODEGROUPS(0).updated)
+    assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
     assert(emptyGroup.members.isEmpty)
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
-    assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
+    assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 2)
     assert(mainGroup.members.contains(TESTNODES(0).id.split("/")(1)))
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))

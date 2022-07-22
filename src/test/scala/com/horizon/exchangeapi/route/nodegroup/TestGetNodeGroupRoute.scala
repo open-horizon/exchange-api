@@ -193,21 +193,21 @@ class TestGetNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
         description = "empty node group",
         group = 0, //gets automatically set by DB
         organization = TESTORGS.head.orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestGetNodeGroupRoute_empty"
       ),
       NodeGroupRow(
         description = "test node group",
         group = 0, //gets automatically set by DB
         organization = TESTORGS.head.orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestGetNodeGroupRoute_main"
       ),
       NodeGroupRow(
         description = "other node group",
         group = 0, //gets automatically set by DB
         organization = TESTORGS(1).orgId,
-        updated = ApiTime.nowUTC,
+        lastUpdated = ApiTime.nowUTC,
         name = "TestGetNodeGroupRoute_other"
       )
     )
@@ -287,7 +287,7 @@ class TestGetNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
-    assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
+    assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 2)
     assert(mainGroup.members.contains(TESTNODES(0).id.split("/")(1)))
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
@@ -303,7 +303,7 @@ class TestGetNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
     val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
     assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.updated === TESTNODEGROUPS(0).updated)
+    assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
     assert(emptyGroup.members.isEmpty)
   }
 
@@ -317,7 +317,7 @@ class TestGetNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
-    assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
+    assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 2)
     assert(mainGroup.members.contains(TESTNODES(0).id.split("/")(1)))
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
@@ -333,7 +333,7 @@ class TestGetNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
-    assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
+    assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 1)
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
   }
@@ -355,7 +355,7 @@ class TestGetNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
     val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(mainGroup.name === TESTNODEGROUPS(1).name)
-    assert(mainGroup.updated === TESTNODEGROUPS(1).updated)
+    assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 2)
     assert(mainGroup.members.contains(TESTNODES(0).id.split("/")(1)))
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))

@@ -108,7 +108,7 @@ object ResChangeCategory extends Enumeration {
   val PATTERN: ResChangeCategory.Value = Value("pattern")
   val POLICY: ResChangeCategory.Value = Value("policy")
   val SERVICE: ResChangeCategory.Value = Value("service")
-  val NODEGROUP: ResChangeCategory.Value = Value("nodegroup")
+  val NODEGROUP: ResChangeCategory.Value = Value("ha_group")
 }
 import com.horizon.exchangeapi.tables.ResChangeCategory._
 
@@ -128,7 +128,7 @@ object ResChangeResource extends Enumeration {
   val NODEPOLICIES: ResChangeResource.Value = Value("nodepolicies")
   val NODESERVICES_CONFIGSTATE: ResChangeResource.Value = Value("services_configstate")
   val NODESTATUS: ResChangeResource.Value = Value("nodestatus")
-  val NODEGROUP: ResChangeResource.Value = Value("nodegroup")
+  val NODEGROUP: ResChangeResource.Value = Value("ha_group")
 
   val ORG: ResChangeResource.Value = Value("org")
   

@@ -12,7 +12,7 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
-class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
+class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
@@ -36,7 +36,7 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
         label              = "testGetNodeGroups",
         lastUpdated        = ApiTime.nowUTC,
         limits             = "",
-        orgId              = "testGetNodeGroupsRoute1",
+        orgId              = "testGetAllNodeGroupsRoute1",
         orgType            = "",
         tags               = None),
       OrgRow(
@@ -45,7 +45,7 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
         label              = "testGetNodeGroups",
         lastUpdated        = ApiTime.nowUTC,
         limits             = "",
-        orgId              = "testGetNodeGroupsRoute2",
+        orgId              = "testGetAllNodeGroupsRoute2",
         orgType            = "",
         tags               = None
       ),
@@ -55,7 +55,7 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
         label              = "testGetNodeGroups",
         lastUpdated        = ApiTime.nowUTC,
         limits             = "",
-        orgId              = "testGetNodeGroupsRoute3",
+        orgId              = "testGetAllNodeGroupsRoute3",
         orgType            = "",
         tags               = None
       )
@@ -64,12 +64,12 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val TESTUSERS: Seq[UserRow] =
     Seq(
       UserRow(
-        username    = "root/TestGetNodeGroupsRouteHubAdmin",
+        username    = "root/TestGetAllNodeGroupsRouteHubAdmin",
         orgid       = "root",
         hashedPw    = Password.hash(HUBADMINPASSWORD),
         admin       = false,
         hubAdmin    = true,
-        email       = "TestGetNodeGroupsRouteHubAdmin@ibm.com",
+        email       = "TestGetAllNodeGroupsRouteHubAdmin@ibm.com",
         lastUpdated = ApiTime.nowUTC,
         updatedBy   = "root/root"
       ),
@@ -194,21 +194,21 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
         group = 0, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
         lastUpdated = ApiTime.nowUTC,
-        name = "TestGetNodeGroupsRoute_empty"
+        name = "TestGetAllNodeGroupsRoute_empty"
       ),
       NodeGroupRow(
         description = "test node group",
         group = 0, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
         lastUpdated = ApiTime.nowUTC,
-        name = "TestGetNodeGroupsRoute_main"
+        name = "TestGetAllNodeGroupsRoute_main"
       ),
       NodeGroupRow(
         description = "other node group",
         group = 0, //gets automatically set by DB
         organization = TESTORGS(1).orgId,
         lastUpdated = ApiTime.nowUTC,
-        name = "TestGetNodeGroupsRoute_other"
+        name = "TestGetAllNodeGroupsRoute_other"
       )
     )
 
@@ -252,8 +252,8 @@ class TestGetNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(
-      ResourceChangesTQ.filter(_.orgId startsWith "testGetNodeGroupsRoute").delete andThen
-      OrgsTQ.filter(_.orgid startsWith "testGetNodeGroupsRoute").delete andThen
+      ResourceChangesTQ.filter(_.orgId startsWith "testGetAllNodeGroupsRoute").delete andThen
+      OrgsTQ.filter(_.orgid startsWith "testGetAllNodeGroupsRoute").delete andThen
       UsersTQ.filter(_.username startsWith TESTUSERS(0).username).delete
     ), AWAITDURATION)
     DBCONNECTION.getDb.close()

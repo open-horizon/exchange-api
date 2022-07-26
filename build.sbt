@@ -123,7 +123,7 @@ lazy val root = (project in file("."))
                                         Cmd("COPY", "1/licenses /1/licenses"), 
                                         Cmd("WORKDIR", "/opt/docker"), 
                                         Cmd("COPY", "1/opt /1/opt"), 
-                                        Cmd("COPY", "2/opt /2/opt"), 
+                                        Cmd("COPY", "2/opt /2/opt"),
                                         Cmd("USER", "root"), 
                                         Cmd("RUN", "chmod -R u=r,g=r /2/etc/horizon /licenses && chmod -R u+w,g+w /2/etc/horizon/exchange && chmod -R u=rX,g=rX /1/opt/docker /2/opt/docker && chmod u+x,g+x /1/opt/docker/bin/" ++ name.value), 
                                         Cmd("FROM", dockerBaseImage.value), 

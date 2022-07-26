@@ -221,11 +221,15 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
         sqlu"CREATE UNIQUE INDEX IF NOT EXISTS idx_avconfig_priority ON agent_version_configuration (organization, priority);",
         sqlu"""CREATE UNIQUE INDEX IF NOT EXISTS idx_avsoft_priority ON agent_version_software ("version", priority);"""
     )
+      case 49 => DBIO.seq(
+        NodeGroupTQ.schema.create,
+        NodeGroupAssignmentTQ.schema.create
+      )
       case other => logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()   // should never get here
     }
   }
 
-  val latestSchemaVersion: Int = 48    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 49    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = "adding deployment, management, nodepolicyversion columns to nodepolicies table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

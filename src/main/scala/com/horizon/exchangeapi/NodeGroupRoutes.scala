@@ -400,7 +400,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
                     ResChangeCategory.NODE,
                     false,
                     ResChangeResource.NODE,
-                    ResChangeOperation.MODIFIED
+                    ResChangeOperation.CREATEDMODIFIED
                   ).toResourceChangeRow)
                 )
               }
@@ -546,7 +546,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
                     ResChangeCategory.NODE,
                     false,
                     ResChangeResource.NODE,
-                    ResChangeOperation.MODIFIED
+                    ResChangeOperation.CREATEDMODIFIED
                   ).toResourceChangeRow)
                 )
               }

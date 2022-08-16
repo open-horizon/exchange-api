@@ -430,7 +430,7 @@ class TestPutNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Befo
       .filter(_.category === ResChangeCategory.NODE.toString)
       .filter(_.public === "false")
       .filter(_.resource === ResChangeResource.NODE.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
+      .filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString)
       .result), AWAITDURATION).nonEmpty)
   }
 

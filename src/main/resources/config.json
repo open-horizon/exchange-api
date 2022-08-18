@@ -98,6 +98,7 @@
       "akka.http.server.idle-timeout": "60s",
       "akka.http.server.linger-timeout": "1m",
       "akka.http.server.max-connections": "1024",
+      "akka.http.server.parsing.max-header-name-length": "128",
       "akka.http.server.pipelining-limit": "1",
       "akka.http.server.request-timeout": "45s",
       "akka.http.server.server-header": ""
@@ -144,6 +145,7 @@
         "check_agreement_status": 1800
       }
     },
+    "hubadmins": [],
     "limits": {
       "maxAgbots": 1000,
       "maxAgreements": 0,
@@ -163,6 +165,7 @@
       "ttl": 14400
     },
     "root": {
+      "account_id": null,
       "enabled": true,
       "password": ""
     },

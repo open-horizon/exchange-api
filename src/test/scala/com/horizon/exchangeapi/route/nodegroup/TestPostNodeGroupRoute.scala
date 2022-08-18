@@ -266,7 +266,7 @@ class TestPostNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Bef
     assert(dbNodeGroup.description === requestBody.description)
     assert(dbNodeGroup.name === "king")
     assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeResource.NODEGROUP.toString).filter(_.operation === ResChangeOperation.CREATED.toString).result),AWAITDURATION).nonEmpty)
-    val nodeRCs = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeResource.NODE.toString).filter(_.operation === ResChangeOperation.MODIFIED.toString).result), AWAITDURATION)
+    val nodeRCs = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeResource.NODE.toString).filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString).result), AWAITDURATION)
     assert(nodeRCs.exists(_.id === "TestPostNodeGroupRoute/node0"))
     assert(nodeRCs.exists(_.id === "TestPostNodeGroupRoute/node1"))
     assert(nodeRCs.exists(_.id === "TestPostNodeGroupRoute/node2"))
@@ -294,7 +294,7 @@ class TestPostNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Bef
     assert(dbNodeGroup.description === requestBody.description)
     assert(dbNodeGroup.name === "queen")
     assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeResource.NODEGROUP.toString).filter(_.operation === ResChangeOperation.CREATED.toString).result),AWAITDURATION).nonEmpty)
-    val nodeRCs = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeResource.NODE.toString).filter(_.operation === ResChangeOperation.MODIFIED.toString).result), AWAITDURATION)
+    val nodeRCs = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeResource.NODE.toString).filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString).result), AWAITDURATION)
     assert(nodeRCs.exists(_.id === "TestPostNodeGroupRoute/node3"))
     assert(nodeRCs.exists(_.id === "TestPostNodeGroupRoute/node4"))
   }

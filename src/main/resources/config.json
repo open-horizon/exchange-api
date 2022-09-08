@@ -1,6 +1,3 @@
-// Default config file for Horizon Exchange. This file is bundled in the exchange api jar file.
-// To run the exchange svr with different values, copy this to /etc/horizon/exchange/config.json.
-// In your version of the config file, you only have to set what you want to override.
 {
   "api": {
     "acls": {
@@ -25,7 +22,7 @@
         "WRITE_AGENT_CONFIG_MGMT",
         "WRITE_MYSELF"
       ],
-      "Anonymous": [],  // we do not actually use this
+      "Anonymous": [],
       "HubAdmin": [
         "CREATE_IN_OTHER_ORGS",
         "CREATE_ORGS",
@@ -101,39 +98,36 @@
       "akka.http.server.idle-timeout": "60s",
       "akka.http.server.linger-timeout": "1m",
       "akka.http.server.max-connections": "1024",
+      "akka.http.server.parsing.max-header-name-length": "128",
       "akka.http.server.pipelining-limit": "1",
       "akka.http.server.request-timeout": "45s",
-      "akka.http.server.server-header": ""        // Removes the Server header from response.
-      // add additional entries like: "akka.http.server.max-connections": 512
-      // see: https://doc.akka.io/docs/akka-http/current/configuration.html
-      // and see: https://doc.akka.io/docs/akka/current/general/configuration-reference.html
-      // can use this to see all of the akka config: "akka.log-config-on-start": "on"
+      "akka.http.server.server-header": ""
     },
     "cache": {
-      "authDbTimeoutSeconds": 15,  // timeout for db access for critical auth info when cache missing
-      "IAMusersMaxSize": 300,      // the users that are backed by IAM users
+      "authDbTimeoutSeconds": 15,
+      "IAMusersMaxSize": 300,
       "IAMusersTtlSeconds": 300,
-      "idsMaxSize": 47000,         // includes: local exchange users, nodes, agbots (all together)
+      "idsMaxSize": 47000,
       "idsTtlSeconds": 5400,
-      "resourcesMaxSize": 300,     // each of: users, agbots, services, patterns, policies
+      "resourcesMaxSize": 300,
       "resourcesTtlSeconds": 300,
-      "type": "guava"              // currently guava is the only option
+      "type": "guava"
     },
     "db": {
       "acquireIncrement": 1,
       "driverClass": "org.postgresql.Driver",
-      "idleConnectionTestPeriod": 0,           // in seconds; 0 disables
+      "idleConnectionTestPeriod": 0,
       "initialPoolSize": 1,
-      "jdbcUrl": "",                           // the back-end db the exchange uses
-      "maxConnectionAge": 0,                   // in seconds; 0 is infinite
-      "maxIdleTime": 0,                        // in seconds; 0 is infinite
-      "maxIdleTimeExcessConnections": 0,       // in seconds; 0 is infinite; culls connections down to the minPoolSize
+      "jdbcUrl": "",
+      "maxConnectionAge": 0,
+      "maxIdleTime": 0,
+      "maxIdleTimeExcessConnections": 0,
       "maxPoolSize": 50,
-      "maxStatementsPerConnection": 0,         // 0 disables; prepared statement caching per connection
+      "maxStatementsPerConnection": 0,
       "minPoolSize": 1,
       "numHelperThreads": 3,
       "password": "",
-      "queueSize": 1000,                       // -1 for unlimited, 0 to disable
+      "queueSize": 1000,
       "testConnectionOnCheckin": false,
       "upgradeTimeoutSeconds": 180,
       "user": ""
@@ -141,47 +135,49 @@
     "defaults": {
       "businessPolicy": {
         "check_agreement_status": 1800,
-        "missing_heartbeat_interval": 1800  // used if the service.nodeHealth section is omitted
+        "missing_heartbeat_interval": 1800
       },
       "msgs": {
-        "expired_msgs_removal_interval": 1800  // number of seconds between deletions of expired node and agbot messages
+        "expired_msgs_removal_interval": 1800
       },
       "pattern": {
-        "missing_heartbeat_interval": 1800,  // used if the services.nodeHealth section is omitted
+        "missing_heartbeat_interval": 1800,
         "check_agreement_status": 1800
       }
     },
+    "hubadmins": [],
     "limits": {
-      "maxAgbots": 1000,            // maximum number of agbots 1 user is allowed to create, 0 for unlimited
-      "maxAgreements": 0,           // maximum number of agreements 1 node or agbot is allowed to create, 0 for unlimited
-      "maxBusinessPolicies": 5000,  // maximum number of business policies 1 user is allowed to create, 0 for unlimited
-      "maxManagementPolicies": 5000,  // maximum number of management policies 1 user is allowed to create, 0 for unlimited
-      "maxMessagesInMailbox": 0,    // maximum number of msgs currently in 1 node or agbot mailbox (the sending side is handled by rate limiting), 0 for unlimited
-      "maxNodes": 45000,            // maximum number of nodes 1 user is allowed to create, 0 for unlimited
-      "maxPatterns": 1000,          // maximum number of patterns 1 user is allowed to create, 0 for unlimited
-      "maxServices": 1000           // maximum number of services 1 user is allowed to create, 0 for unlimited
+      "maxAgbots": 1000,
+      "maxAgreements": 0,
+      "maxBusinessPolicies": 5000,
+      "maxManagementPolicies": 5000,
+      "maxMessagesInMailbox": 0,
+      "maxNodes": 45000,
+      "maxPatterns": 1000,
+      "maxServices": 1000
     },
     "logging": {
-      "level": "INFO"  // For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html
+      "level": "INFO"
     },
     "resourceChanges": {
-      "cleanupInterval": 3600,  // number of seconds between pruning the resourcechanges table in the db of expired changes - 3600 is 1 hour
-      "maxRecordsCap": 10000,   // maximum number of records the notification framework route will return
-      "ttl": 14400              // number of seconds to keep the history records of resource changes (14400 is 4 hours). When agents miss 1 or more heartbeats, they reset querying the /changes route, so they do not need very old entries.
+      "cleanupInterval": 3600,
+      "maxRecordsCap": 10000,
+      "ttl": 14400
     },
     "root": {
-      "enabled": true,  // if set to false it will not honor the root credentials
-      "password": ""    // set this in your own version of this config file
+      "account_id": null,
+      "enabled": true,
+      "password": ""
     },
     "service": {
       "host": "0.0.0.0",
-      "port": 8080,                 // Services HTTP traffic
-      "portEncrypted": 8083,                   // Services HTTPS traffic
-      "shutdownWaitForRequestsToComplete": 60  // number of seconds to let in-flight requests complete before exiting the server
+      "port": 8080,
+      "portEncrypted": 8083,
+      "shutdownWaitForRequestsToComplete": 60
     },
     "tls": {
-      "password": null,   // Truststore's password.
-      "truststore": null  // Absolute path and name of your pkcs12 (.p12) truststore that contains your tls certificate and private key.
+      "password": null,
+      "truststore": null
     }
   }
 }

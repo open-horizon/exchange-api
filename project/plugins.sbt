@@ -20,7 +20,9 @@ addSbtPlugin("io.spray"                % "sbt-revolver"            % "[0.9.1,)")
 // Code coverage report generation
 addSbtPlugin("org.scoverage"           % "sbt-scoverage"           % "[1.6.1,)")
 
-
+ThisBuild / libraryDependencySchemes ++= Seq(
+  "org.scala-lang.modules" %% "scala-xml" % VersionScheme.Always
+)
 
 
 

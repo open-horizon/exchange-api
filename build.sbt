@@ -85,7 +85,8 @@ lazy val root = (project in file("."))
           "org.scalatest" %% "scalatest" % "[3.3.0-SNAP2,)" % "test",
           "org.scalatestplus" %% "junit-4-12" % "[3.3.0.0-SNAP2,)" % "test",
           "org.scalacheck" %% "scalacheck" % "[1.15.0-M1,)" % "test",
-          "junit" % "junit" % "[4.13.1,)" % "test"
+          "junit" % "junit" % "[4.13.1,)" % "test",
+          "ch.megard" %% "akka-http-cors" % "1.1.3"
         ), 
         scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
         javacOptions ++= Seq("-source", "11", "-target", "11", "-Xlint"),

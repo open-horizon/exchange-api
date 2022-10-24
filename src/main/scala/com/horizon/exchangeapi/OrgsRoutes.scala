@@ -985,14 +985,14 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     // fill in changesMap
     for (entry <- inputList) { // looping through every single ResourceChangeRow in inputList, given that we apply `.take(maxRecords)` in the query, this should never be over maxRecords, so no more need to break
       val resChange: ResourceChangesInnerObject = ResourceChangesInnerObject(entry.changeId, ApiTime.fixFormatting(entry.lastUpdated.toString))
-      changesMap.get(entry.orgId+"_"+entry.id+"_"+entry.resource) match { // using the map allows for better searching and entry
+      changesMap.get(entry.orgId + "_" + entry.id + "_" + entry.resource) match { // using the map allows for better searching and entry
         case Some(change) =>
           // inputList is already sorted by changeId from the query so we know this change happened later
           change.addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
           change.setOperation(entry.operation) // update the most recent operation performed
         case None => // add the change to the changesMap
           val resChangeListBuffer: ListBuffer[ResourceChangesInnerObject] = ListBuffer[ResourceChangesInnerObject](resChange)
-          changesMap.put(entry.orgId+"_"+entry.id+"_"+entry.resource, ChangeEntry(entry.orgId, entry.resource, entry.id, entry.operation, resChangeListBuffer))
+          changesMap.put(entry.orgId + "_" + entry.id + "_" + entry.resource, ChangeEntry(entry.orgId, entry.resource, entry.id, entry.operation, resChangeListBuffer))
       } // end of match
     } // end of for loop
     // now we have changesMap which is Map[String, ChangeEntry] we need to convert that to a List[ChangeEntry]

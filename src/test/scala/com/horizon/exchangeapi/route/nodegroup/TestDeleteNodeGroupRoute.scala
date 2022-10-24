@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.route.nodegroup
 
-import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ, UserRow, UsersTQ}
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.scalatest.BeforeAndAfterAll
@@ -256,8 +256,8 @@ class TestDeleteNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteNodeGroup").delete andThen
-      OrgsTQ.filter(_.orgid startsWith "TestDeleteNodeGroup").delete), AWAITDURATION)
+     Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteNodeGroup").delete andThen
+                                        OrgsTQ.filter(_.orgid startsWith "TestDeleteNodeGroup").delete), AWAITDURATION)
 
     DBCONNECTION.getDb.close()
   }
@@ -288,22 +288,43 @@ class TestDeleteNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.getNodeGroupName("TestDeleteNodeGroup", "queen").result), AWAITDURATION).size === 1)
     assert(Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.getNodeGroupName("TestDeleteNodeGroup","king").result), AWAITDURATION).size === 0)
     assert(Await.result(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ.filter(_.group === kingGroup).result), AWAITDURATION).size === 0)
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "TestDeleteNodeGroup")
-      .filter(_.id === "king")
-      .filter(_.category === ResChangeCategory.NODEGROUP.toString)
-      .filter(_.public === "false")
-      .filter(_.resource === ResChangeResource.NODEGROUP.toString)
-      .filter(_.operation === ResChangeOperation.DELETED.toString)
-      .result), AWAITDURATION).nonEmpty)
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
-      .filter(_.orgId === "TestDeleteNodeGroup")
-      .filter(_.id === TESTNODES(0).id)
-      .filter(_.category === ResChangeCategory.NODE.toString)
-      .filter(_.public === "false")
-      .filter(_.resource === ResChangeResource.NODE.toString)
-      .filter(_.operation === ResChangeOperation.MODIFIED.toString)
-      .result), AWAITDURATION).nonEmpty)
+  
+    val changes: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestDeleteNodeGroup").sortBy(_.changeId.desc).result), AWAITDURATION)
+    
+    assert(changes.nonEmpty)
+    assert(changes.size === 2)
+    
+    val nodeGroup: Option[ResourceChangeRow] = changes.find(_.category === ResChangeCategory.NODEGROUP.toString)
+    val node: Option[ResourceChangeRow] = changes.find(_.category === ResChangeCategory.NODE.toString)
+    
+    assert(nodeGroup.nonEmpty)
+    assert(nodeGroup.get.id === "king")
+    assert(nodeGroup.get.public === "false")
+    assert(nodeGroup.get.resource === ResChangeResource.NODEGROUP.toString)
+    assert(nodeGroup.get.operation === ResChangeOperation.DELETED.toString)
+    
+    assert(node.nonEmpty)
+    assert(node.get.id === "node0")
+    assert(node.get.public === "false")
+    assert(node.get.resource === ResChangeResource.NODE.toString)
+    assert(node.get.operation === ResChangeOperation.MODIFIED.toString)
+    
+    /*assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestDeleteNodeGroup")
+                                                                .filter(_.id === "king")
+                                                                .filter(_.category === ResChangeCategory.NODEGROUP.toString)
+                                                                .filter(_.public === "false")
+                                                                .filter(_.resource === ResChangeResource.NODEGROUP.toString)
+                                                                .filter(_.operation === ResChangeOperation.DELETED.toString)
+                                                                .result), AWAITDURATION).nonEmpty)
+    
+    
+    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestDeleteNodeGroup")
+                                                                .filter(_.id === "node0")
+                                                                .filter(_.category === ResChangeCategory.NODE.toString)
+                                                                .filter(_.public === "false")
+                                                                .filter(_.resource === ResChangeResource.NODE.toString)
+                                                                .filter(_.operation === ResChangeOperation.MODIFIED.toString)
+                                                                .result), AWAITDURATION).nonEmpty)*/
   }
 
   test("DELETE /orgs/TestDeleteNodeGroup/hagroups/queen -- 403 Access Denied - As u1 trying to delete nodes it doesn't own") {

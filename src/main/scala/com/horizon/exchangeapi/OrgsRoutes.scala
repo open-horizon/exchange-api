@@ -3,7 +3,7 @@ package com.horizon.exchangeapi
 
 import java.time.ZonedDateTime
 
-import javax.ws.rs._
+import jakarta.ws.rs.{DELETE, GET, Path, PATCH, POST, PUT}
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._

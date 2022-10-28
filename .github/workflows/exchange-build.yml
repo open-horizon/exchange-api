@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - master
+      - v2.87
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -24,10 +25,10 @@ jobs:
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
-      - uses: actions/checkout@v2
-      - uses: olafurpg/setup-scala@v10
+      - uses: actions/checkout@v3
+      - uses: olafurpg/setup-scala@v13
         with:
-          java-version: adopt@1.11
+          java-version: openjdk@1.17
 
       - name: Create Docker Env
         run: |

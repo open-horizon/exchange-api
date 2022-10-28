@@ -1,7 +1,7 @@
 /** Services routes for all of the /orgs/{orgid}/services api methods. */
 package com.horizon.exchangeapi
 
-import javax.ws.rs._
+import jakarta.ws.rs.{DELETE, GET, Path, PATCH, POST, PUT}
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
@@ -18,8 +18,8 @@ import io.swagger.v3.oas.annotations._
 import scala.concurrent.ExecutionContext
 import com.horizon.exchangeapi.tables._
 import org.json4s._
-import java.net.{MalformedURLException, URL}
 
+import java.net.{MalformedURLException, URL}
 import com.horizon.exchangeapi
 import org.json4s.jackson.Serialization.write
 import slick.jdbc

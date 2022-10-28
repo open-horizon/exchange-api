@@ -16,37 +16,37 @@
     <script src="./swagger-ui-standalone-preset.js" charset="UTF-8"> </script>
     <script src="./swagger-initializer.js" charset="UTF-8"> </script>
     <script>
-    window.onload = function() {
-      // Begin Swagger UI call region
-      const ui = SwaggerUIBundle({
-        url: "/v1/api-docs/swagger.json",
-        docExpansion: "none",
-        dom_id: '#swagger-ui',
-        deepLinking: true,
-        operationsSorter: (a, b) => {
-            var methodsOrder = ["get", "post", "put", "delete", "patch", "options", "trace"];
-            var result = a.get("path").localeCompare(b.get("path"));
+        window.onload = function() {
+          // Begin Swagger UI call region
+          const ui = SwaggerUIBundle({
+            url: "/v1/api-docs/swagger.json",
+            docExpansion: "none",
+            dom_id: '#swagger-ui',
+            deepLinking: true,
+            operationsSorter: (a, b) => {
+                var methodsOrder = ["get", "post", "put", "delete", "patch", "options", "trace"];
+                var result = a.get("path").localeCompare(b.get("path"));
 
-            if (result === 0) {
-                result = methodsOrder.indexOf(a.get("method")) - methodsOrder.indexOf(b.get("method"));
-            }
-            return result;
-        },
-        supportedSubmitMethods: [], 
-        tagsSorter: "alpha", 
-        presets: [
-          SwaggerUIBundle.presets.apis,
-          SwaggerUIStandalonePreset
-        ],
-        plugins: [
-          SwaggerUIBundle.plugins.DownloadUrl
-        ],
-        layout: "StandaloneLayout"
-      });
-      // End Swagger UI call region
+                if (result === 0) {
+                    result = methodsOrder.indexOf(a.get("method")) - methodsOrder.indexOf(b.get("method"));
+                }
+                return result;
+            },
+            supportedSubmitMethods: [],
+            tagsSorter: "alpha",
+            presets: [
+              SwaggerUIBundle.presets.apis,
+              SwaggerUIStandalonePreset
+            ],
+            plugins: [
+              SwaggerUIBundle.plugins.DownloadUrl
+            ],
+            layout: "StandaloneLayout"
+          });
+          // End Swagger UI call region
 
-      window.ui = ui;
-    };
-  </script>
+          window.ui = ui;
+        };
+    </script>
   </body>
 </html>

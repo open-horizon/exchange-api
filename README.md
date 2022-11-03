@@ -435,6 +435,29 @@ Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.106.0
+- Dependency Updates.
+    - sbt                    1.6.1 -> 1.7.1
+    - akka                   2.6.14 -> 2.6.16
+    - config                 1.4.0 -> 1.4.2
+    - jakarta.ws.rs-api      2.1.1 -> 3.1.0
+    - json4s-native          4.0.5 -> 4.0.6
+    - json4s-jackson         4.0.5 -> 4.0.6
+    - junit                  4.13.1 -> 4.13.2
+    - jwt-core               4.3.0 -> 5.0.0
+    - postgresql             42.3.4 -> 42.5.0
+    - scalacheck             1.15.0-M1 -> 1.17.0
+    - slick-pg_json4s        0.20.3 -> 0.20.4
+    - swagger-akka-http      2.5.2 -> 2.6.0
+    - swagger-core-jakarta   2.1.5 -> 2.1.12
+    - swagger-jaxrs2-jakarta 2.1.5 -> 2.1.12
+    - swagger-scala-module   1.0.6 -> 2.5.0
+    - swagger-ui             4.10.3 -> 4.15.0
+    - sbt-scoverage          1.6.1 -> 2.0.6
+    - sbt-native-packager    1.8.1 -> 1.9.11
+- javax.ws.rs-api support removed.
+- jakarta.ws.rs-api support added.
+
 ## Changes in 2.105.0
 - Issue 625: Added ability to create hub admins on start-up in config.json
 - Issue 625: Added ability to define an account id for the root org on start-up

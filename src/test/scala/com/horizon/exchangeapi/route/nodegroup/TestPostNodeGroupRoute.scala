@@ -1,7 +1,7 @@
 package com.horizon.exchangeapi.route.nodegroup
 
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, PutNodeGroupsRequest, Role, TestDBConnection}
-import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, PostPutNodeGroupsRequest, ResChangeOperation, ResChangeResource, ResourceChangesTQ, UserRow, UsersTQ}
+import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, PostPutNodeGroupsRequest, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
@@ -262,16 +262,15 @@ class TestPostNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Bef
     info("body: " + request.body)
 
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbNodeGroup = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === "king").result), AWAITDURATION).head
+    val dbNodeGroup: NodeGroupRow = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === "king").result), AWAITDURATION).head
     assert(dbNodeGroup.description === requestBody.description)
     assert(dbNodeGroup.name === "king")
     assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeResource.NODEGROUP.toString).filter(_.operation === ResChangeOperation.CREATED.toString).result),AWAITDURATION).nonEmpty)
-    val nodeRCs = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeResource.NODE.toString).filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString).result), AWAITDURATION)
-    assert(nodeRCs.exists(_.id === "TestPostNodeGroupRoute/node0"))
-    assert(nodeRCs.exists(_.id === "TestPostNodeGroupRoute/node1"))
-    assert(nodeRCs.exists(_.id === "TestPostNodeGroupRoute/node2"))
+    val nodeRCs: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeCategory.NODE.toString).result), AWAITDURATION)
+    assert(nodeRCs.exists(_.id === "node0"))
+    assert(nodeRCs.exists(_.id === "node1"))
+    assert(nodeRCs.exists(_.id === "node2"))
   }
-
 
   test("POST /orgs/" + TESTORGS.head.orgId + ROUTE + "queen  -- 201 Ok - Create as User: u1") {
 
@@ -290,13 +289,13 @@ class TestPostNodeGroupRoute extends AnyFunSuite with BeforeAndAfterAll with Bef
     info("body: " + request.body)
 
     assert(request.code === HttpCode.POST_OK.intValue)
-    val dbNodeGroup = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === "queen").result), AWAITDURATION).head
+    val dbNodeGroup: NodeGroupRow = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === "queen").result), AWAITDURATION).head
     assert(dbNodeGroup.description === requestBody.description)
     assert(dbNodeGroup.name === "queen")
     assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeResource.NODEGROUP.toString).filter(_.operation === ResChangeOperation.CREATED.toString).result),AWAITDURATION).nonEmpty)
-    val nodeRCs = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeResource.NODE.toString).filter(_.operation === ResChangeOperation.CREATEDMODIFIED.toString).result), AWAITDURATION)
-    assert(nodeRCs.exists(_.id === "TestPostNodeGroupRoute/node3"))
-    assert(nodeRCs.exists(_.id === "TestPostNodeGroupRoute/node4"))
+    val nodeRCs: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroupRoute").filter(_.resource === ResChangeCategory.NODE.toString).result), AWAITDURATION)
+    assert(nodeRCs.exists(_.id === "node3"))
+    assert(nodeRCs.exists(_.id === "node4"))
   }
 
   test("POST /orgs/" + TESTORGS.head.orgId + ROUTE + "test  -- 403 Access Denied - User: u1") {

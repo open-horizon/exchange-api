@@ -1,5 +1,6 @@
 package com.horizon.exchangeapi.route.organization
 
+import akka.http.scaladsl.model.headers.CacheDirectives.public
 import com.horizon.exchangeapi.{ApiTime, ApiUtils, ChangeEntry, ExchangeApi, HttpCode, Password, ResourceChangesRequest, ResourceChangesRespObject, Role, TestDBConnection}
 import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangeRow, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
@@ -176,106 +177,105 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   private val IBMAGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(2).id + ":" + IBMAGBOTTOKEN))
 
   private val TESTRESOURCECHANGES: Seq[ResourceChangeRow] = Seq(
-    ResourceChangeRow( //old -- 0
-      changeId = 0L,
-      orgId = TESTORGS(0).orgId,
-      id = TESTNODES(0).id,
-      category = "node",
-      public = "true",
-      resource = "org",
-      operation = "created",
-      lastUpdated = ApiTime.pastUTCTimestamp(3600) //1 hour ago
-    ),
-    ResourceChangeRow( //other org, not public -- 1
-      changeId = 0L,
-      orgId = TESTORGS(1).orgId,
-      id = TESTNODES(0).id,
-      category = "service",
-      public = "false",
-      resource = "agbot",
-      operation = "created",
-      lastUpdated = ApiTime.nowUTCTimestamp
-    ),
-    ResourceChangeRow( //node category, id of other node -- 2
-      changeId = 0L,
-      orgId = TESTORGS(0).orgId,
-      id = TESTNODES(1).id,
-      category = "node",
-      public = "false",
-      resource = "agbotagreements",
-      operation = "deleted",
-      lastUpdated = ApiTime.nowUTCTimestamp
-    ),
-    ResourceChangeRow( //mgmtpolicy -- 3
-      changeId = 0L,
-      orgId = TESTORGS(0).orgId,
-      id = TESTNODES(1).id,
-      category = "mgmtpolicy",
-      public = "false",
-      resource = "nodeagreements",
-      operation = "deleted",
-      lastUpdated = ApiTime.nowUTCTimestamp
-    ),
-    ResourceChangeRow( //other org, public -- 4
-      changeId = 0L,
-      orgId = TESTORGS(1).orgId,
-      id = TESTNODES(1).id,
-      category = "mgmtpolicy",
-      public = "true",
-      resource = "node",
-      operation = "deleted",
-      lastUpdated = ApiTime.nowUTCTimestamp
-    ),
-    ResourceChangeRow( //resource nodemsgs -- 5
-      changeId = 0L,
-      orgId = TESTORGS(1).orgId,
-      id = TESTNODES(0).id,
-      category = "service",
-      public = "true",
-      resource = "nodemsgs",
-      operation = "deleted",
-      lastUpdated = ApiTime.nowUTCTimestamp
-    ),
-    ResourceChangeRow(  //resource nodestatus ... 6
-      changeId = 0L,
-      orgId = TESTORGS(1).orgId,
-      id = TESTNODES(0).id,
-      category = "org",
-      public = "false",
-      resource = "nodestatus",
-      operation = "deleted",
-      lastUpdated = ApiTime.nowUTCTimestamp
-    ),
-    ResourceChangeRow(  //resource nodeagreements + op createdmodified -- 7
-      changeId = 0L,
-      orgId = TESTORGS(0).orgId,
-      id = TESTNODES(0).id.split("/")(1), //want the id without the org part
-      category = "node",
-      public = "true",
-      resource = "nodeagreements",
-      operation = "created/modified",
-      lastUpdated = ApiTime.nowUTCTimestamp
-    ),
-    ResourceChangeRow(  //resource agbotagreements + op createdmodified -- 8
-      changeId = 0L,
-      orgId = TESTORGS(0).orgId,
-      id = TESTNODES(0).id,
-      category = "mgmtpolicy",
-      public = "true",
-      resource = "agbotagreements",
-      operation = "created/modified",
-      lastUpdated = ApiTime.nowUTCTimestamp
-    ),
-    ResourceChangeRow( //agbot success -- 9
-      changeId = 0L,
-      orgId = TESTORGS(0).orgId,
-      id = TESTNODES(0).id,
-      category = "mgmtpolicy",
-      public = "false",
-      resource = "org",
-      operation = "created",
-      lastUpdated = ApiTime.nowUTCTimestamp
-    )
+    // old -- 0
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(0).orgId,
+                      id = TESTNODES(0).id,
+                      category = "node",
+                      public = "true",
+                      resource = "org",
+                      operation = "created",
+                      lastUpdated = ApiTime.pastUTCTimestamp(3600)), //1 hour ago
+    // other org, not public -- 1
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(1).orgId,
+                      id = TESTNODES(0).id,
+                      category = "service",
+                      public = "false",
+                      resource = "agbot",
+                      operation = "created",
+                      lastUpdated = ApiTime.nowUTCTimestamp),
+    // node category, id of other node -- 2
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(0).orgId,
+                      id = TESTNODES(1).id,
+                      category = "node",
+                      public = "false",
+                      resource = "agbotagreements",
+                      operation = "deleted",
+                      lastUpdated = ApiTime.nowUTCTimestamp),
+    // mgmtpolicy -- 3
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(0).orgId,
+                      id = TESTNODES(1).id,
+                      category = "mgmtpolicy",
+                      public = "false",
+                      resource = "nodeagreements",
+                      operation = "deleted",
+                      lastUpdated = ApiTime.nowUTCTimestamp),
+    // other org, public -- 4
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(1).orgId,
+                      id = TESTNODES(1).id,
+                      category = "mgmtpolicy",
+                      public = "true",
+                      resource = "node",
+                      operation = "deleted",
+                      lastUpdated = ApiTime.nowUTCTimestamp),
+    // resource nodemsgs -- 5
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(1).orgId,
+                      id = TESTNODES(0).id,
+                      category = "service",
+                      public = "true",
+                      resource = "nodemsgs",
+                      operation = "deleted",
+                      lastUpdated = ApiTime.nowUTCTimestamp),
+    // resource nodestatus ... 6
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(1).orgId,
+                      id = TESTNODES(0).id,
+                      category = "org",
+                      public = "false",
+                      resource = "nodestatus",
+                      operation = "deleted",
+                      lastUpdated = ApiTime.nowUTCTimestamp),
+    // resource nodeagreements + op createdmodified -- 7
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(0).orgId,
+                      id = TESTNODES(0).id.split("/")(1), //want the id without the org part
+                      category = "node",
+                      public = "true",
+                      resource = "nodeagreements",
+                      operation = "created/modified",
+                      lastUpdated = ApiTime.nowUTCTimestamp),
+    // resource agbotagreements + op createdmodified -- 8
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(0).orgId,
+                      id = TESTNODES(0).id,
+                      category = "mgmtpolicy",
+                      public = "true",
+                      resource = "agbotagreements",
+                      operation = "created/modified",
+                      lastUpdated = ApiTime.nowUTCTimestamp),
+    // agbot success -- 9
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(0).orgId,
+                      id = TESTNODES(0).id,
+                      category = "mgmtpolicy",
+                      public = "false",
+                      resource = "org",
+                      operation = "created",
+                      lastUpdated = ApiTime.nowUTCTimestamp),
+    // 10
+    ResourceChangeRow(changeId = 0L,
+                      orgId = TESTORGS(0).orgId,
+                      id = "nodegroup0",
+                      category = "ha_group",
+                      public = "false",
+                      resource = "ha_group",
+                      operation = "modified",
+                      lastUpdated = ApiTime.nowUTCTimestamp)
   )
 
   var lastChangeId: Long = 0L //will be set in beforeAll()

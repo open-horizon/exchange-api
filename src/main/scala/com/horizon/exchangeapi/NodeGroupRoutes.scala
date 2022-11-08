@@ -5,7 +5,7 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.Route
 import slick.jdbc.PostgresProfile.api._
 
-import javax.ws.rs.{DELETE, GET, POST, PUT, Path}
+import jakarta.ws.rs.{DELETE, GET, PUT, POST, Path}
 import scala.concurrent.ExecutionContext
 import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.model.headers.CacheDirectives.public

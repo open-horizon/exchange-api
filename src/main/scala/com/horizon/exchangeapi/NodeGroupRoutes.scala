@@ -87,7 +87,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
           nodeGroup <- nodeGroupQuery.result // will be empty if wrong group is provided
           nodesNotOwned <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
           removedNodes <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).map(_.node).result
-          
+
           _ <- {
             if (nodesNotOwned.isEmpty &&
                 nodeGroup.nonEmpty) {
@@ -115,7 +115,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             else DBIO.successful(())
           }
         } yield (nodeGroup, nodesNotOwned)
-        
+
         db.run(deleteQuery.transactionally.asTry).map({
           case Success(result) =>
             if (result._1.isEmpty) {
@@ -348,28 +348,28 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             if (reqBody.members.isDefined)
               reqBody.members.get.distinct.map(a => orgid + "/" + a) //don't want duplicate nodes in list, and need to pre-pend orgId to match id in Node table
             else Seq.empty[String]
-          
+
           val nodeGroupQuery = NodeGroupTQ.filter(_.organization === orgid).filter(_.name === name)
           val nodesQuery = if (ident.isAdmin) NodesTQ.getAllNodes(orgid) else NodesTQ.getAllNodes(orgid).filter(_.owner === ident.identityString)
-          
+
           val queries = for {
             _ <- {
               if (reqBody.members.isEmpty && reqBody.description.isEmpty) DBIO.failed(new BadInputException(ExchMsg.translate("no.valid.node.group.attribute.specified")))
               else DBIO.successful(())
             }
-            
+
             nodeGroup <- nodeGroupQuery.result
             _ <- {
               if (nodeGroup.isEmpty) DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("node.group.not.found", orgid + "/" + name)))
               else DBIO.successful(())
             }
-            
+
             nodesCallerDoesntOwn <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
             _ <- {
               if (nodesCallerDoesntOwn.nonEmpty) DBIO.failed(new AccessDeniedException(ExchMsg.translate("node.group.access.denied")))
               else DBIO.successful(())
             }
-            
+
             _ <- {
               NodeGroupRow(
                 if (reqBody.description.isDefined) reqBody.description.get else nodeGroup.head.description,
@@ -395,7 +395,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             
             oldNodes <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).map(_.node).result
             nodesChanged = members.filterNot(oldNodes.contains(_)) ++ oldNodes.filterNot(members.contains(_))
-            
+
             _ <- {
               if (reqBody.members.isDefined) {
                 DBIO.seq(
@@ -424,7 +424,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
                                 resource = ResChangeResource.NODEGROUP,
                                 operation = ResChangeOperation.MODIFIED).insert
           } yield ()
-          
+
           db.run(queries.transactionally.asTry).map({
             case Success(result) =>
               logger.debug(s"PUT /orgs/$orgid/hagroups/$name update successful")
@@ -507,20 +507,20 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             if (reqBody.members.nonEmpty)
               reqBody.members.distinct.map(a => orgid + "/" + a) //don't want duplicate nodes in list, and need to pre-pend orgId to match id in Node table
             else Seq.empty[String]
-          
+
           val queries = for {
             nodeGroup <- nodeGroupQuery.result //should be empty if POST
-            
+
             nodesInOtherGroups <- NodeGroupAssignmentTQ.filterNot(_.group in nodeGroupQuery.map(_.group)).filter(_.node inSet members).result //empty if no nodes in list are in other groups
-            
+
             ownedNodesInList <- nodesQuery.filter(_.id inSet members).result //if caller owns all new nodes, length should equal length of 'members'
-            
+
             skipGroupAssignment: Boolean =
               if (nodeGroup.nonEmpty)
                 true
               else
                 false
-            
+
             _ <- {
               if (nodeGroup.isEmpty && nodesInOtherGroups.isEmpty && (ownedNodesInList.length == members.size)) {
                 val action = reqBody.getDbUpsertGroup(orgid, name, reqBody.description)
@@ -535,9 +535,9 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               }
               else DBIO.successful(())
             }
-            
+
             nodeGroupId <- nodeGroupQuery.result
-            
+
             _ <- {
               if (skipGroupAssignment == false &&
                   nodeGroupId.nonEmpty) {
@@ -557,7 +557,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               else DBIO.successful(())
             }
           } yield (nodeGroup, nodesInOtherGroups, ownedNodesInList, nodeGroupId)
-          
+
           db.run(queries.transactionally.asTry).map({
             case Success(result) =>
               if (result._1.nonEmpty) {

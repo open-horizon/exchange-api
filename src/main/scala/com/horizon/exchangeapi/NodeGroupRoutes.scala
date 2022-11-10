@@ -386,13 +386,13 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               if (reqBody.members.isDefined && nodesInOtherGroups.nonEmpty) DBIO.failed(new AlreadyExistsException(ExchMsg.translate("node.group.conflict")))
               else DBIO.successful(())
             }
-            
+
             ownedNodesInList <- nodesQuery.filter(_.id inSet members).result //if caller owns all new nodes, length should equal length of 'members'
             _ <- {
               if (reqBody.members.isDefined && (ownedNodesInList.length != members.length)) DBIO.failed(new AccessDeniedException(ExchMsg.translate("node.group.node.access.denied")))
               else DBIO.successful(())
             }
-            
+
             oldNodes <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).map(_.node).result
             nodesChanged = members.filterNot(oldNodes.contains(_)) ++ oldNodes.filterNot(members.contains(_))
 

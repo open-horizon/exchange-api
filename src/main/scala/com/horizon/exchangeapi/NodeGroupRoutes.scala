@@ -4,22 +4,25 @@ import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.Route
 import slick.jdbc.PostgresProfile.api._
+import jakarta.ws.rs.{DELETE, GET, POST, PUT, Path}
 
-import jakarta.ws.rs.{DELETE, GET, PUT, POST, Path}
-import scala.concurrent.{ExecutionContext}
+import scala.concurrent.ExecutionContext
 import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
+import com.horizon.exchangeapi.ApiTime.fixFormatting
 import com.horizon.exchangeapi.auth.{AccessDeniedException, AlreadyExistsException, BadInputException, DBProcessingError, ResourceNotFoundException}
-import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupAssignments, PostPutNodeGroupsRequest, NodeGroupRow, NodeGroupTQ, Nodes, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
+import com.horizon.exchangeapi.tables.{NodeGroup, NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupAssignments, NodeGroupRow, NodeGroupTQ, Nodes, NodesTQ, PostPutNodeGroupsRequest, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChanges, ResourceChangesTQ}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
+import org.checkerframework.checker.units.qual.C
 import org.json4s.{DefaultFormats, Formats}
-import slick.lifted.Rep
+import slick.dbio.Effect
+import slick.lifted.{Compiled, Rep}
 
 import java.sql.Timestamp
 import scala.collection.immutable.{List, Set}
@@ -36,7 +39,7 @@ final case class PutNodeGroupsRequest(members: Option[Seq[String]], description:
 }
 
 /** Implementation for all of the /orgs/{orgid}/hagroups routes */
-@Path("/v1/orgs/{orgid}/hagroups")
+@Path("/v1/orgs/{org}/hagroups")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "hagroup")
 trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -47,15 +50,17 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
 
   def nodeGroupRoutes: Route =
     deleteNodeGroup ~
+    deleteNodeFromNodeGroup ~
     getNodeGroup ~
     getAllNodeGroup ~
     putNodeGroup ~
-    postNodeGroup
+    postNodeGroup ~
+    postNodeToNodeGroup
 
 
-  /* ====== DELETE /orgs/{orgid}/hagroups/{name} ================================ */
+  /* ====== DELETE /orgs/{org}/hagroups/{hagroup} ================================ */
   @DELETE
-  @Path("{name}")
+  @Path("{hagroup}")
   @Operation(
     summary = "Deletes a Node Group",
     description = "Deletes a Highly Available Node Group by name",
@@ -126,10 +131,88 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
       }) // end of complete
     } // end of exchAuth
   }
-
-  /* ====== GET /orgs/{orgid}/hagroups/{name} ================================ */
+  
+  /* ====== DELETE /orgs/{org}/hagroups/{hagroup}/nodes/{node} ================================ */
+  @DELETE
+  @Path("{hagroup}/nodes/{node}")
+  @Operation(description = "Deletes a Node from a Highly Available Node Group",
+             parameters = Array(new Parameter(description = "Organization identifier.",
+                                              in = ParameterIn.PATH,
+                                              name = "org"),
+                                new Parameter(description = "Node Group identifier",
+                                              in = ParameterIn.PATH,
+                                              name = "hagroup"),
+                                new Parameter(description = "Node identifier",
+                                              in = ParameterIn.PATH,
+                                              name = "node")),
+             responses = Array(new responses.ApiResponse(description = "deleted",
+                                                         responseCode = "204"),
+                               new responses.ApiResponse(description = "invalid credentials",
+                                                         responseCode = "401"),
+                               new responses.ApiResponse(description = "access denied",
+                                                         responseCode = "403"),
+                               new responses.ApiResponse(description = "not found",
+                                                         responseCode = "404")),
+             summary = "Deletes a Node from a Node Group")
+  def deleteNodeFromNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment / "nodes" / Segment) & delete) { (org, hagroup, node) =>
+    logger.debug(s"Doing DELETE /orgs/$org/hagroups/$hagroup/nodes/$node")
+    val compositeId: String = OrgAndId(org, node).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      complete({
+        val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
+        val nodeGroupQuery: Query[NodeGroup, NodeGroupRow, Seq] =
+          NodeGroupTQ.filter(_.name === hagroup)
+                     .filter(_.organization === org)
+        val changeRecords: Seq[ResourceChangeRow] =
+          Seq(ResourceChangeRow(category = ResChangeCategory.NODE.toString,
+                                changeId = 0L,
+                                id = node,
+                                lastUpdated = changeTimestamp,
+                                operation = ResChangeOperation.MODIFIED.toString,
+                                orgId = org,
+                                public = "false",
+                                resource = ResChangeResource.NODE.toString),
+              ResourceChangeRow(category = ResChangeCategory.NODEGROUP.toString,
+                                changeId = 0L,
+                                id = hagroup,
+                                lastUpdated = changeTimestamp,
+                                operation = ResChangeOperation.MODIFIED.toString,
+                                orgId = org,
+                                public = "false",
+                                resource = ResChangeResource.NODEGROUP.toString))
+        
+        val deleteQuery: DBIOAction[(Option[Int], Int, Int), NoStream, Effect.Write] =
+          for {
+            changeRecordsInserted <- ResourceChangesTQ ++= changeRecords
+            
+            nodeGroupsUpdated <- Compiled(nodeGroupQuery.map(_.lastUpdated)).update(fixFormatting(changeTimestamp.toString))
+            
+            nodeAssignmentsDeleted <- Compiled(NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group))
+                                      .filter(_.node === node))
+                                      .delete
+          } yield (changeRecordsInserted, nodeAssignmentsDeleted, nodeGroupsUpdated)
+        
+        db.run(deleteQuery.transactionally.asTry).map({
+          case Success(result) =>
+            if (result._1.isEmpty)
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("changes.not.created", (org + "/" + hagroup + "/" + node))))
+            else if (result._2 < 1)
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.group.node.not.found", (org + "/" + hagroup + "/" + node))))
+            else if (result._3 < 1)
+              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.group.not.found", (org + "/" + hagroup))))
+            else {
+              logger.debug("DELETE /orgs/" + org + "/hagroups/" + hagroup + "/nodes/" + node + " updated in changes table: " + result._1.getOrElse(0))
+              (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.node.deleted")))
+            }
+          case Failure(t) => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
+  
+  /* ====== GET /orgs/{org}/hagroups/{hagroup} ================================ */
   @GET
-  @Path("{name}")
+  @Path("{hagroup}")
   @Operation(
     summary = "Lists all members of the specified Node Group (HA Group)",
     description = "Returns the Node Group along with the member nodes that the caller has permission to view.",
@@ -196,8 +279,8 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
       })
     }
   }
-
-  /* ====== GET /orgs/{orgid}/hagroups ================================ */
+  
+  /* ====== GET /orgs/{org}/hagroups ================================ */
   @GET
   @Path("")
   @Operation(
@@ -280,10 +363,10 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
       })
     }
   }
-
-  /* ====== PUT /orgs/{orgid}/hagroups/{name} ================================ */
+  
+  /* ====== PUT /orgs/{org}/hagroups/{hagroup} ================================ */
   @PUT
-  @Path("{name}")
+  @Path("{hagroup}")
   @Operation(
     summary = "Update the nodes that belong to an existing Node Group (HA Group)",
     description = "Replaces the list of nodes that belong to the specified node group with the list of nodes provided in the request body.",
@@ -438,11 +521,10 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
       }
     }
   }
-//
-
-  /* ====== POST /orgs/{orgid}/hagroups/{name} ================================ */
+  
+  /* ====== POST /orgs/{org}/hagroups/{hagroup} ================================ */
   @POST
-  @Path("{name}")
+  @Path("{hagroup}")
   @Operation(
     summary = "Insert the nodes that belong to an existing Node Group (HA Group)",
     description = "Creates the list of nodes that belong to the specified node group with the list of nodes provided in the request body.",
@@ -576,7 +658,87 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
       } // end of validateWithMsg
     } // end of exchAuth
   }
-//
-
-
+  
+  /* ====== POST /orgs/{org}/hagroups/{hagroup}/nodes/{node} ================================ */
+  @POST
+  @Path("{hagroup}/nodes/{node}")
+  @Operation(description = "Appends to the list of nodes that belong to the specified node group.",
+             parameters = Array(new Parameter(description = "Organization identifier.",
+                                              in = ParameterIn.PATH,
+                                              name = "org"),
+                                new Parameter(description = "Node Group identifier.",
+                                              in = ParameterIn.PATH,
+                                              name = "hagroup"),
+                                new Parameter(description = "Node Group identifier.",
+                                              in = ParameterIn.PATH,
+                                              name = "node")),
+             responses = Array(new responses.ApiResponse(content = Array(new Content(mediaType = "application/json",
+                                                                                     schema = new Schema(implementation = classOf[ApiResponse]))),
+                                                         description = "resource created - response body:",
+                                                         responseCode = "201"),
+                               new responses.ApiResponse(description = "bad input",
+                                                         responseCode = "400"),
+                               new responses.ApiResponse(description = "invalid credentials",
+                                                         responseCode = "401"),
+                               new responses.ApiResponse(description = "access denied: node isn't owned by caller",
+                                                         responseCode = "403"),
+                               new responses.ApiResponse(description = "not found",
+                                                         responseCode = "404"),
+                               new responses.ApiResponse(description = "node already belongs to other group",
+                                                         responseCode = "409")),
+             summary = "Insert a Node into a High Availablity Node Group")
+  def postNodeToNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment / "nodes" / Segment) & post) { (org, hagroup, node) =>
+    val compositeId: String = OrgAndId(org, node).toString
+    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+      complete({
+        val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
+        val nodeGroupQuery: Query[NodeGroup, NodeGroupRow, Seq] =
+          NodeGroupTQ.filter(_.name === hagroup)
+                     .filter(_.organization === org)
+        val changeRecords: Seq[ResourceChangeRow] =
+          Seq(ResourceChangeRow(category = ResChangeCategory.NODE.toString,
+                                changeId = 0L,
+                                id = node,
+                                lastUpdated = changeTimestamp,
+                                operation = ResChangeOperation.MODIFIED.toString,
+                                orgId = org,
+                                public = "false",
+                                resource = ResChangeResource.NODE.toString),
+            ResourceChangeRow(category = ResChangeCategory.NODEGROUP.toString,
+                              changeId = 0L,
+                              id = hagroup,
+                              lastUpdated = changeTimestamp,
+                              operation = ResChangeOperation.MODIFIED.toString,
+                              orgId = org,
+                              public = "false",
+                              resource = ResChangeResource.NODEGROUP.toString))
+          
+        val insertNodeAssignment =
+          for {
+            priorAssignment <- NodeGroupAssignmentTQ.filter(_.node === compositeId).map(_.node).distinct.result.headOption
+            
+            nodeGroupID <- Compiled(nodeGroupQuery.map(_.group)).result.head
+            
+            _ <-
+              if (priorAssignment.isEmpty)
+                DBIO.seq(ResourceChangesTQ ++= changeRecords,
+                         Compiled(nodeGroupQuery.map(_.lastUpdated)).update(fixFormatting(changeTimestamp.toString)),
+                         NodeGroupAssignmentTQ += NodeGroupAssignmentRow(group = nodeGroupID, node = node))
+              else
+                DBIO.successful(())
+          } yield (priorAssignment)
+        
+        db.run(insertNodeAssignment.transactionally.asTry).map({
+          case Success(result) =>
+            if (result.isEmpty)
+              (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("", (org + "/" + hagroup + "/" + node))))
+            else {
+              logger.debug("DELETE /orgs/" + org + "/hagroups/" + hagroup + "/nodes/" + node + " updated in changes table: " + 2)
+              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.node.inserted")))
+            }
+          case Failure(t) => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.deleted", compositeId, t.toString)))
+        })
+      }) // end of complete
+    } // end of exchAuth
+  }
 }

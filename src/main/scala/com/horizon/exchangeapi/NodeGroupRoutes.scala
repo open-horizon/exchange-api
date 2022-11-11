@@ -6,12 +6,13 @@ import akka.http.scaladsl.server.Route
 import slick.jdbc.PostgresProfile.api._
 
 import jakarta.ws.rs.{DELETE, GET, PUT, POST, Path}
-import scala.concurrent.{ExecutionContext}
+import scala.concurrent.ExecutionContext
 import akka.http.scaladsl.model.ContentTypes
+import akka.http.scaladsl.model.headers.CacheDirectives.public
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import com.horizon.exchangeapi.auth.{AccessDeniedException, AlreadyExistsException, BadInputException, DBProcessingError, ResourceNotFoundException}
-import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupAssignments, PostPutNodeGroupsRequest, NodeGroupRow, NodeGroupTQ, Nodes, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
+import com.horizon.exchangeapi.tables.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupAssignments, NodeGroupRow, NodeGroupTQ, Nodes, NodesTQ, PostPutNodeGroupsRequest, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
@@ -24,6 +25,7 @@ import slick.lifted.Rep
 import java.sql.Timestamp
 import scala.collection.immutable.{List, Set}
 import scala.collection.mutable.ListBuffer
+import scala.util.matching.Regex
 import scala.util.{Failure, Success}
 
 /** Output format for GET /hagroups */
@@ -82,26 +84,32 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
         val nodeGroupQuery = NodeGroupTQ.filter(_.organization === orgid).filter(_.name === name)
         //I need to get all the nodes inside of a group... If all nodes from "query" is owned by the caller, then we can delete
         val deleteQuery = for {
-
           nodeGroup <- nodeGroupQuery.result // will be empty if wrong group is provided
           nodesNotOwned <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).filterNot(_.node in nodesQuery.map(_.id)).result //empty if caller owns all old nodes
-          oldNodes <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).map(_.node).result
+          removedNodes <- NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).map(_.node).result
 
           _ <- {
-            if (nodesNotOwned.isEmpty && nodeGroup.nonEmpty) {
+            if (nodesNotOwned.isEmpty &&
+                nodeGroup.nonEmpty) {
               val action = NodeGroupTQ.getNodeGroupName(orgid, name).delete
               DBIO.seq(
                 action,
-                ResourceChange(0L, orgid, name, ResChangeCategory.NODEGROUP, false, ResChangeResource.NODEGROUP, ResChangeOperation.DELETED).insert,
-                ResourceChangesTQ ++= oldNodes.map(a => ResourceChange(
-                  0L,
-                  orgid,
-                  a,
-                  ResChangeCategory.NODE,
-                  false,
-                  ResChangeResource.NODE,
-                  ResChangeOperation.MODIFIED
-                ).toResourceChangeRow)
+                ResourceChange(changeId = 0L,
+                               orgId = orgid,
+                               id = name,
+                               category = ResChangeCategory.NODEGROUP,
+                               public = false,
+                               resource = ResChangeResource.NODEGROUP,
+                               operation = ResChangeOperation.DELETED).insert,
+                ResourceChangesTQ ++=
+                removedNodes.map(node =>
+                    ResourceChange(changeId = 0L,
+                                   orgId = orgid,
+                                   id = ("[^/]+$".r findFirstIn node).getOrElse(""),
+                                   category = ResChangeCategory.NODE,
+                                   public = false,
+                                   resource = ResChangeResource.NODE,
+                                   operation = ResChangeOperation.MODIFIED).toResourceChangeRow)
               )
             }
             else DBIO.successful(())
@@ -393,30 +401,28 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
                 DBIO.seq(
                   NodeGroupAssignmentTQ.filter(_.group in nodeGroupQuery.map(_.group)).delete,
                   NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroup.head.group)),
-                  ResourceChangesTQ ++= nodesChanged.map(a => ResourceChange(
-                    0L,
-                    orgid,
-                    a,
-                    ResChangeCategory.NODE,
-                    false,
-                    ResChangeResource.NODE,
-                    ResChangeOperation.CREATEDMODIFIED
+                  ResourceChangesTQ ++=
+                    nodesChanged.map(node =>
+                      ResourceChange(changeId = 0L,
+                                     orgId = orgid,
+                                     id = ("[^/]+$".r findFirstIn node).getOrElse(""),
+                                     category = ResChangeCategory.NODE,
+                                     public = false,
+                                     resource = ResChangeResource.NODE,
+                                     operation = ResChangeOperation.MODIFIED
                   ).toResourceChangeRow)
                 )
               }
               else DBIO.successful(())
             }
-
-            _ <- ResourceChange(
-              0L,
-              orgid,
-              name,
-              ResChangeCategory.NODEGROUP,
-              false,
-              ResChangeResource.NODEGROUP,
-              ResChangeOperation.MODIFIED
-            ).insert
-
+            
+            _ <- ResourceChange(changeId = 0L,
+                                orgId = orgid,
+                                id = name,
+                                category = ResChangeCategory.NODEGROUP,
+                                public = false,
+                                resource = ResChangeResource.NODEGROUP,
+                                operation = ResChangeOperation.MODIFIED).insert
           } yield ()
 
           db.run(queries.transactionally.asTry).map({
@@ -518,17 +524,14 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             _ <- {
               if (nodeGroup.isEmpty && nodesInOtherGroups.isEmpty && (ownedNodesInList.length == members.size)) {
                 val action = reqBody.getDbUpsertGroup(orgid, name, reqBody.description)
-                DBIO.seq(
-                  action,
-                  ResourceChange(
-                    0L,
-                    orgid,
-                    name,
-                    ResChangeCategory.NODEGROUP,
-                    false,
-                    ResChangeResource.NODEGROUP,
-                    ResChangeOperation.CREATED).insert
-                )
+                DBIO.seq(action,
+                         ResourceChange(changeId = 0L,
+                                        orgId = orgid,
+                                        id = name,
+                                        category = ResChangeCategory.NODEGROUP,
+                                        public = false,
+                                        resource = ResChangeResource.NODEGROUP,
+                                        operation = ResChangeOperation.CREATED).insert)
               }
               else DBIO.successful(())
             }
@@ -536,18 +539,19 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
             nodeGroupId <- nodeGroupQuery.result
 
             _ <- {
-              if ((skipGroupAssignment == false) && (nodeGroupId.nonEmpty)) {
+              if (skipGroupAssignment == false &&
+                  nodeGroupId.nonEmpty) {
                 DBIO.seq(
                   NodeGroupAssignmentTQ ++= members.map(a => NodeGroupAssignmentRow(a, nodeGroupId.head.group)),
-                  ResourceChangesTQ ++= members.map(a => ResourceChange(
-                    0L,
-                    orgid,
-                    a,
-                    ResChangeCategory.NODE,
-                    false,
-                    ResChangeResource.NODE,
-                    ResChangeOperation.CREATEDMODIFIED
-                  ).toResourceChangeRow)
+                  ResourceChangesTQ ++=
+                    members.map(node =>
+                      ResourceChange(changeId = 0L,
+                                     orgId = orgid,
+                                     id = ("[^/]+$".r findFirstIn node).getOrElse(""),
+                                     category = ResChangeCategory.NODE,
+                                     public = false,
+                                     resource = ResChangeResource.NODE,
+                                     operation = ResChangeOperation.MODIFIED).toResourceChangeRow)
                 )
               }
               else DBIO.successful(())

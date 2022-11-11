@@ -435,6 +435,9 @@ Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.107.0
+- Issue 645: Fixed Node change records create from HA Routes using combination Node IDs (org/node) instead of separate IDs.
+
 ## Changes in 2.106.0
 - Dependency Updates.
     - sbt                    1.6.1 -> 1.7.1

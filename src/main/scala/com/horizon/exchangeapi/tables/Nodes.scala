@@ -332,14 +332,14 @@ object NodeErrorTQ extends TableQuery(new NodeErrors(_)) {
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
 //Node Groups for MCM
-final case class NodeGroupRow(description: String, group: Long, organization: String, lastUpdated: String, name: String) {
+final case class NodeGroupRow(description: Option[String], group: Long, organization: String, lastUpdated: String, name: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def update: DBIO[_] = (for { m <- NodeGroupTQ if m.group === group } yield m).update(this)
   def upsert: DBIO[_] = NodeGroupTQ.insertOrUpdate(this)
 }
 
 class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
-  def description = column[String]("description")
+  def description = column[Option[String]]("description")
   def group = column[Long]("group", O.AutoInc)
   def organization = column[String]("orgid")
   def lastUpdated = column[String]("lastUpdated")
@@ -380,17 +380,20 @@ object NodeGroupAssignmentTQ extends TableQuery(new NodeGroupAssignment(_)){
 
 final case class NodeGroupAssignments(node: String, group: String)
 
-final case class PostPutNodeGroupsRequest(members: Seq[String], description: String) {
-  require(members!=null && description!=null)
+final case class PostPutNodeGroupsRequest(description: Option[String], members: Option[Seq[String]]) {
   def getAnyProblem: Option[String] = None
-
+  
   // Note: write() handles correctly the case where the optional fields are None.
-  def getDbUpsertGroup(orgid: String, name: String, description: String): DBIO[_] =
+  def getDbUpsertGroup(description: Option[String],
+                       group: Long = 0L,
+                       lastUpdated: String = ApiTime.nowUTC,
+                       name: String,
+                       orgid: String): DBIO[_] =
     NodeGroupRow(description = description,
-      group = 0L,
-      organization = orgid,
-      lastUpdated = ApiTime.nowUTC,
-      name = name).upsert
+                 group = group,
+                 lastUpdated = lastUpdated,
+                 name = name,
+                 organization = orgid).upsert
 }
 
 //NMP Status tables

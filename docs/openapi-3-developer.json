@@ -8,14 +8,14 @@
       "name" : "Apache License Version 2.0",
       "url" : "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version" : "2.107.0"
+    "version" : "2.108.0"
   },
   "externalDocs" : {
     "description" : "Open-horizon ExchangeAPI",
     "url" : "https://github.com/open-horizon/exchange-api"
   },
   "servers" : [ {
-    "url" : "http://localhost:8083"
+    "url" : "http://localhost:8080"
   }, {
     "url" : "https://localhost:8083"
   } ],
@@ -238,7 +238,7 @@
     },
     "/v1/orgs/{orgid}/agbots/{id}/agreements/{agid}" : {
       "get" : {
-        "tags" : [ "agreement-bot/agreement" ],
+        "tags" : [ "agreement bot/agreement" ],
         "summary" : "Returns an agreement for an agbot",
         "description" : "Returns the agreement with the specified agid for the specified agbot id. Can be run by the owning user or the agbot.",
         "operationId" : "agbotGetAgreementRoute",
@@ -308,7 +308,7 @@
         }
       },
       "put" : {
-        "tags" : [ "agreement-bot/agreement" ],
+        "tags" : [ "agreement bot/agreement" ],
         "summary" : "Adds/updates an agreement of an agbot",
         "description" : "Adds a new agreement of an agbot to the exchange DB, or updates an existing agreement. This is called by the owning user or the agbot to give their information about the agreement.",
         "operationId" : "agbotPutAgreementRoute",
@@ -378,7 +378,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "agreement-bot/agreement" ],
+        "tags" : [ "agreement bot/agreement" ],
         "summary" : "Deletes an agreement of an agbot",
         "description" : "Deletes an agreement of an agbot. Can be run by the owning user or the agbot.",
         "operationId" : "agbotDeleteAgreementRoute",
@@ -425,7 +425,7 @@
     },
     "/v1/orgs/{orgid}/agbots/{id}/agreements" : {
       "get" : {
-        "tags" : [ "agreement-bot/agreement" ],
+        "tags" : [ "agreement bot/agreement" ],
         "summary" : "Returns all agreements this agbot is in",
         "description" : "Returns all agreements that this agbot is part of. Can be run by the owning user or the agbot.",
         "operationId" : "agbotGetAgreementsRoute",
@@ -487,7 +487,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "agreement-bot/agreement" ],
+        "tags" : [ "agreement bot/agreement" ],
         "summary" : "Deletes all agreements of an agbot",
         "description" : "Deletes all of the current agreements of an agbot. Can be run by the owning user or the agbot.",
         "operationId" : "agbotDeleteAgreementsRoute",
@@ -526,7 +526,7 @@
     },
     "/v1/orgs/{orgid}/agbots/{id}/businesspols/{buspolid}" : {
       "get" : {
-        "tags" : [ "agreement-bot/policy" ],
+        "tags" : [ "agreement bot/policy" ],
         "summary" : "Returns a business policy this agbot is serving",
         "description" : "Returns the business policy with the specified patid for the specified agbot id. The patid should be in the form businessPolOrgid_businessPol. Can be run by the owning user or the agbot.",
         "operationId" : "agbotGetBusPolRoute",
@@ -591,7 +591,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "agreement-bot/policy" ],
+        "tags" : [ "agreement bot/policy" ],
         "summary" : "Deletes a business policy of an agbot",
         "description" : "Deletes a business policy that this agbot was serving. Can be run by the owning user or the agbot.",
         "operationId" : "agbotDeleteBusPolRoute",
@@ -638,7 +638,7 @@
     },
     "/v1/orgs/{orgid}/agbots/{id}/businesspols" : {
       "get" : {
-        "tags" : [ "agreement-bot/policy" ],
+        "tags" : [ "agreement bot/policy" ],
         "summary" : "Returns all business policies served by this agbot",
         "description" : "Returns all business policies that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
         "operationId" : "agbotGetBusPolsRoute",
@@ -695,7 +695,7 @@
         }
       },
       "post" : {
-        "tags" : [ "agreement-bot/policy" ],
+        "tags" : [ "agreement bot/policy" ],
         "summary" : "Adds a business policy that the agbot should serve",
         "description" : "Adds a new business policy and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the business policy.",
         "operationId" : "agbotPostBusPolRoute",
@@ -754,7 +754,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "agreement-bot/policy" ],
+        "tags" : [ "agreement bot/policy" ],
         "summary" : "Deletes all business policies of an agbot",
         "description" : "Deletes all of the current business policies that this agbot was serving. Can be run by the owning user or the agbot.",
         "operationId" : "agbotDeleteBusPolsRoute",
@@ -793,7 +793,7 @@
     },
     "/v1/orgs/{orgid}/agbots/{id}/msgs/{msgid}" : {
       "get" : {
-        "tags" : [ "agreement-bot/message" ],
+        "tags" : [ "agreement bot/message" ],
         "summary" : "Returns A specific message that has been sent to this agreement-bot.",
         "description" : "Returns A specific message that has been sent to this agreement-bot. Deleted/post-TTL (Time To Live) messages will not be returned. Can be run by a user or the agbot.",
         "operationId" : "agbotGetMsgRoute",
@@ -848,7 +848,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "agreement-bot/message" ],
+        "tags" : [ "agreement bot/message" ],
         "summary" : "Deletes a msg of an agbot",
         "description" : "Deletes a message that was sent to an agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot.",
         "operationId" : "agbotDeleteMsgRoute",
@@ -895,7 +895,7 @@
     },
     "/v1/orgs/{orgid}/agbots/{id}/patterns/{patid}" : {
       "get" : {
-        "tags" : [ "agreement-bot/pattern" ],
+        "tags" : [ "agreement bot/pattern" ],
         "summary" : "Returns a pattern this agbot is serving",
         "description" : "Returns the pattern with the specified patid for the specified agbot id. The patid should be in the form patternOrgid_pattern. Can be run by the owning user or the agbot.",
         "operationId" : "agbotGetPatternRoute",
@@ -960,7 +960,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "agreement-bot/pattern" ],
+        "tags" : [ "agreement bot/pattern" ],
         "summary" : "Deletes a pattern of an agbot",
         "description" : "Deletes a pattern that this agbot was serving. Can be run by the owning user or the agbot.",
         "operationId" : "agbotDeletePatRoute",
@@ -1007,7 +1007,7 @@
     },
     "/v1/orgs/{orgid}/agbots/{id}/patterns" : {
       "get" : {
-        "tags" : [ "agreement-bot/pattern" ],
+        "tags" : [ "agreement bot/pattern" ],
         "summary" : "Returns all patterns served by this agbot",
         "description" : "Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
         "operationId" : "agbotGetPatternsRoute",
@@ -1070,7 +1070,7 @@
         }
       },
       "post" : {
-        "tags" : [ "agreement-bot/pattern" ],
+        "tags" : [ "agreement bot/pattern" ],
         "summary" : "Adds a pattern that the agbot should serve",
         "description" : "Adds a new pattern and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern.",
         "operationId" : "agbotPostPatRoute",
@@ -1129,7 +1129,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "agreement-bot/pattern" ],
+        "tags" : [ "agreement bot/pattern" ],
         "summary" : "Deletes all patterns of an agbot",
         "description" : "Deletes all of the current patterns that this agbot was serving. Can be run by the owning user or the agbot.",
         "operationId" : "agbotDeletePatsRoute",
@@ -1168,7 +1168,7 @@
     },
     "/v1/orgs/{orgid}/agbots/{id}" : {
       "get" : {
-        "tags" : [ "agreement-bot" ],
+        "tags" : [ "agreement bot" ],
         "summary" : "Returns an agbot",
         "description" : "Returns the agbot (Agreement Bot) with the specified id. Can be run by a user or the agbot.",
         "operationId" : "agbotGetRoute",
@@ -1235,7 +1235,7 @@
         }
       },
       "put" : {
-        "tags" : [ "agreement-bot" ],
+        "tags" : [ "agreement bot" ],
         "summary" : "Add/updates an agbot",
         "description" : "Adds a new agbot (Agreement Bot) to the exchange DB, or updates an existing agbot. This must be called by the user to add an agbot, and then can be called by that user or agbot to update itself.",
         "operationId" : "agbotPutRoute",
@@ -1297,7 +1297,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "agreement-bot" ],
+        "tags" : [ "agreement bot" ],
         "summary" : "Deletes an agbot",
         "description" : "Deletes an agbot (Agreement Bot), and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot.",
         "operationId" : "agbotDeleteRoute",
@@ -1334,7 +1334,7 @@
         }
       },
       "patch" : {
-        "tags" : [ "agreement-bot" ],
+        "tags" : [ "agreement bot" ],
         "summary" : "Updates 1 attribute of an agbot",
         "description" : "Updates some attributes of an agbot. This can be called by the user or the agbot.",
         "operationId" : "agbotPatchRoute",
@@ -1400,7 +1400,7 @@
     },
     "/v1/orgs/{orgid}/agbots/{id}/msgs" : {
       "get" : {
-        "tags" : [ "agreement-bot/message" ],
+        "tags" : [ "agreement bot/message" ],
         "summary" : "Returns all msgs sent to this agbot",
         "description" : "Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.",
         "operationId" : "agbotGetMsgsRoute",
@@ -1454,7 +1454,7 @@
         }
       },
       "post" : {
-        "tags" : [ "agreement-bot/message" ],
+        "tags" : [ "agreement bot/message" ],
         "summary" : "Sends a msg from a node to an agbot",
         "description" : "Sends a msg from a node to an agbot. The node must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any node.",
         "operationId" : "agbotPostMsgRoute",
@@ -1514,7 +1514,7 @@
     },
     "/v1/orgs/{orgid}/agbots/{id}/heartbeat" : {
       "post" : {
-        "tags" : [ "agreement-bot" ],
+        "tags" : [ "agreement bot" ],
         "summary" : "Tells the exchange this agbot is still operating",
         "description" : "Lets the exchange know this agbot is still active. Can be run by the owning user or the agbot.",
         "operationId" : "agbotHeartbeatRoute",
@@ -1560,7 +1560,7 @@
     },
     "/v1/orgs/{orgid}/agbots" : {
       "get" : {
-        "tags" : [ "agreement-bot" ],
+        "tags" : [ "agreement bot" ],
         "summary" : "Returns all agbots",
         "description" : "Returns all agbots (Agreement Bots). Can be run by any user.",
         "operationId" : "agbotsGetRoute",
@@ -1632,7 +1632,7 @@
     },
     "/v1/orgs/{orgid}/AgentFileVersion" : {
       "get" : {
-        "tags" : [ "agent-file-version" ],
+        "tags" : [ "agent file version" ],
         "summary" : "Get all agent file versions",
         "description" : "Get all agent certificate, configuration, and software file versions. Run by agreement bot",
         "operationId" : "getAgentConfigMgmt",
@@ -1677,7 +1677,7 @@
         }
       },
       "put" : {
-        "tags" : [ "agent-file-version" ],
+        "tags" : [ "agent file version" ],
         "summary" : "Put all agent file versions",
         "description" : "Put all agent certificate, configuration, and software file versions. Run by agreement bot",
         "operationId" : "putAgentConfigMgmt",
@@ -1731,7 +1731,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "agent-file-version" ],
+        "tags" : [ "agent file version" ],
         "summary" : "Delete all agent file versions",
         "description" : "Delete all agent certificate, configuration, and software file versions. Run by agreement bot",
         "operationId" : "deleteAgentConfigMgmt",
@@ -1765,7 +1765,7 @@
     },
     "/v1/orgs/{orgid}/business/policies/{policy}" : {
       "get" : {
-        "tags" : [ "policy" ],
+        "tags" : [ "deployment policy" ],
         "summary" : "Returns a business policy",
         "description" : "Returns the business policy with the specified id. Can be run by a user, node, or agbot.",
         "operationId" : "busPolGetRoute",
@@ -1850,7 +1850,7 @@
         }
       },
       "put" : {
-        "tags" : [ "policy" ],
+        "tags" : [ "deployment policy" ],
         "summary" : "Updates a business policy",
         "description" : "Updates a business policy resource. This can only be called by the user that created it.",
         "operationId" : "busPolPutRoute",
@@ -1961,7 +1961,7 @@
         }
       },
       "post" : {
-        "tags" : [ "policy" ],
+        "tags" : [ "deployment policy" ],
         "summary" : "Adds a business policy",
         "description" : "Creates a business policy resource. A business policy resource specifies the service that should be deployed based on the specified properties and constraints. This can only be called by a user.",
         "operationId" : "busPolPostRoute",
@@ -2071,7 +2071,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "policy" ],
+        "tags" : [ "deployment policy" ],
         "summary" : "Deletes a business policy",
         "description" : "Deletes a business policy. Can only be run by the owning user.",
         "operationId" : "busPolDeleteRoute",
@@ -2108,7 +2108,7 @@
         }
       },
       "patch" : {
-        "tags" : [ "policy" ],
+        "tags" : [ "deployment policy" ],
         "summary" : "Updates 1 attribute of a business policy",
         "description" : "Updates one attribute of a business policy. This can only be called by the user that originally created this business policy resource.",
         "operationId" : "busPolPatchRoute",
@@ -2221,7 +2221,7 @@
     },
     "/v1/orgs/{orgid}/business/policies/{policy}/search" : {
       "post" : {
-        "tags" : [ "policy" ],
+        "tags" : [ "deployment policy" ],
         "summary" : "Returns matching nodes for this business policy",
         "description" : "Returns the matching nodes for this business policy that do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node).",
         "operationId" : "busPolPostSearchRoute",
@@ -2296,7 +2296,7 @@
     },
     "/v1/orgs/{orgid}/business/policies" : {
       "get" : {
-        "tags" : [ "policy" ],
+        "tags" : [ "deployment policy" ],
         "summary" : "Returns all business policies",
         "description" : "Returns all business policy definitions in this organization. Can be run by any user, node, or agbot.",
         "operationId" : "busPolsGetRoute",
@@ -3234,14 +3234,14 @@
         }
       }
     },
-    "/v1/orgs/{orgid}/hagroups/{name}" : {
-      "get" : {
-        "tags" : [ "hagroup" ],
-        "summary" : "Lists all members of the specified Node Group (HA Group)",
-        "description" : "Returns the Node Group along with the member nodes that the caller has permission to view.",
-        "operationId" : "getNodeGroup",
+    "/v1/orgs/{org}/hagroups/{hagroup}/nodes/{node}" : {
+      "post" : {
+        "tags" : [ "high availability node group" ],
+        "summary" : "Insert a Node into a High Availablity Node Group",
+        "description" : "Appends to the list of nodes that belong to the specified node group.",
+        "operationId" : "postNodeToNodeGroup",
         "parameters" : [ {
-          "name" : "orgid",
+          "name" : "org",
           "in" : "path",
           "description" : "Organization identifier.",
           "required" : true,
@@ -3249,7 +3249,112 @@
             "type" : "string"
           }
         }, {
-          "name" : "name",
+          "name" : "hagroup",
+          "in" : "path",
+          "description" : "Node Group identifier.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "node",
+          "in" : "path",
+          "description" : "Node Group identifier.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "201" : {
+            "description" : "resource created - response body:",
+            "content" : {
+              "application/json" : {
+                "schema" : {
+                  "$ref" : "#/components/schemas/ApiResponse"
+                }
+              }
+            }
+          },
+          "400" : {
+            "description" : "bad input"
+          },
+          "401" : {
+            "description" : "invalid credentials"
+          },
+          "403" : {
+            "description" : "access denied: node isn't owned by caller"
+          },
+          "404" : {
+            "description" : "not found"
+          },
+          "409" : {
+            "description" : "node already belongs to other group"
+          }
+        }
+      },
+      "delete" : {
+        "tags" : [ "high availability node group" ],
+        "summary" : "Deletes a Node from a Node Group",
+        "description" : "Deletes a Node from a Highly Available Node Group",
+        "operationId" : "deleteNodeFromNodeGroup",
+        "parameters" : [ {
+          "name" : "org",
+          "in" : "path",
+          "description" : "Organization identifier.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "hagroup",
+          "in" : "path",
+          "description" : "Node Group identifier",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "node",
+          "in" : "path",
+          "description" : "Node identifier",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        } ],
+        "responses" : {
+          "204" : {
+            "description" : "deleted"
+          },
+          "401" : {
+            "description" : "invalid credentials"
+          },
+          "403" : {
+            "description" : "access denied"
+          },
+          "404" : {
+            "description" : "not found"
+          }
+        }
+      }
+    },
+    "/v1/orgs/{org}/hagroups/{hagroup}" : {
+      "get" : {
+        "tags" : [ "high availability node group" ],
+        "summary" : "Lists all members of the specified Node Group (HA Group)",
+        "description" : "Returns the Node Group along with the member nodes that the caller has permission to view.",
+        "operationId" : "getNodeGroup",
+        "parameters" : [ {
+          "name" : "org",
+          "in" : "path",
+          "description" : "Organization identifier.",
+          "required" : true,
+          "schema" : {
+            "type" : "string"
+          }
+        }, {
+          "name" : "hagroup",
           "in" : "path",
           "description" : "Node Group identifier.",
           "required" : true,
@@ -3287,12 +3392,12 @@
         }
       },
       "put" : {
-        "tags" : [ "hagroup" ],
+        "tags" : [ "high availability node group" ],
         "summary" : "Update the nodes that belong to an existing Node Group (HA Group)",
         "description" : "Replaces the list of nodes that belong to the specified node group with the list of nodes provided in the request body.",
         "operationId" : "putNodeGroup",
         "parameters" : [ {
-          "name" : "orgid",
+          "name" : "org",
           "in" : "path",
           "description" : "Organization identifier.",
           "required" : true,
@@ -3300,7 +3405,7 @@
             "type" : "string"
           }
         }, {
-          "name" : "name",
+          "name" : "hagroup",
           "in" : "path",
           "description" : "Node Group identifier.",
           "required" : true,
@@ -3351,12 +3456,12 @@
         }
       },
       "post" : {
-        "tags" : [ "hagroup" ],
+        "tags" : [ "high availability node group" ],
         "summary" : "Insert the nodes that belong to an existing Node Group (HA Group)",
         "description" : "Creates the list of nodes that belong to the specified node group with the list of nodes provided in the request body.",
         "operationId" : "postNodeGroup",
         "parameters" : [ {
-          "name" : "orgid",
+          "name" : "org",
           "in" : "path",
           "description" : "Organization identifier.",
           "required" : true,
@@ -3364,7 +3469,7 @@
             "type" : "string"
           }
         }, {
-          "name" : "name",
+          "name" : "hagroup",
           "in" : "path",
           "description" : "Node Group identifier.",
           "required" : true,
@@ -3415,12 +3520,12 @@
         }
       },
       "delete" : {
-        "tags" : [ "hagroup" ],
+        "tags" : [ "high availability node group" ],
         "summary" : "Deletes a Node Group",
         "description" : "Deletes a Highly Available Node Group by name",
         "operationId" : "deleteNodeGroup",
         "parameters" : [ {
-          "name" : "orgid",
+          "name" : "org",
           "in" : "path",
           "description" : "Organization identifier.",
           "required" : true,
@@ -3428,7 +3533,7 @@
             "type" : "string"
           }
         }, {
-          "name" : "name",
+          "name" : "hagroup",
           "in" : "path",
           "description" : "Node identifier",
           "required" : true,
@@ -3452,14 +3557,14 @@
         }
       }
     },
-    "/v1/orgs/{orgid}/hagroups" : {
+    "/v1/orgs/{org}/hagroups" : {
       "get" : {
-        "tags" : [ "hagroup" ],
+        "tags" : [ "high availability node group" ],
         "summary" : "Lists all members of all Node Groups (HA Groups)",
         "description" : "Returns all Node Groups in this org along with the member nodes that the caller has permission to view.",
         "operationId" : "getAllNodeGroup",
         "parameters" : [ {
-          "name" : "orgid",
+          "name" : "org",
           "in" : "path",
           "description" : "Organization identifier.",
           "required" : true,
@@ -3956,7 +4061,7 @@
     },
     "/v1/orgs/{orgid}/nodes/{id}/managementStatus/{mgmtpolicy}" : {
       "get" : {
-        "tags" : [ "node/management-policy" ],
+        "tags" : [ "node/management policy" ],
         "summary" : "Returns status for nodeid",
         "description" : "Returns the management status of the node (edge device) with the specified id. Can be run by that node, a user, or an agbot.",
         "operationId" : "nodeGetMgmtPolStatus",
@@ -4038,7 +4143,7 @@
         }
       },
       "put" : {
-        "tags" : [ "node/management-policy" ],
+        "tags" : [ "node/management policy" ],
         "summary" : "Adds/updates the status of the Management Policy running on the Node.",
         "description" : "Adds or updates the run time status of a Management Policy running on a Node. This is called by the Agreement Bot.",
         "operationId" : "nodePutMgmtPolStatus",
@@ -4114,7 +4219,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "node/management-policy" ],
+        "tags" : [ "node/management policy" ],
         "summary" : "Deletes the status of the Management Policy running on the Node",
         "description" : "Deletes the run time status of a Management Policy running on a Node. This is called by the Agreement Bot.",
         "operationId" : "nodeDeleteMgmtPolStatus",
@@ -4911,7 +5016,7 @@
     },
     "/v1/orgs/{orgid}/nodes/{id}/managementStatus" : {
       "get" : {
-        "tags" : [ "node/management-policy" ],
+        "tags" : [ "node/management policy" ],
         "summary" : "Returns status for nodeid",
         "description" : "Returns the management status of the node (edge device) with the specified id. Can be run by that node, a user, or an agbot.",
         "operationId" : "nodeGetAllMgmtPolStatus",
@@ -6397,7 +6502,7 @@
     },
     "/v1/orgs/{orgid}/patterns/{pattern}/keys/{keyid}" : {
       "get" : {
-        "tags" : [ "pattern/key" ],
+        "tags" : [ "deployment pattern/key" ],
         "summary" : "Returns a key/cert for this pattern",
         "description" : "Returns the signing public key/cert with the specified keyid for this pattern. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the pattern.",
         "operationId" : "patternGetKeyRoute",
@@ -6452,7 +6557,7 @@
         }
       },
       "put" : {
-        "tags" : [ "pattern/key" ],
+        "tags" : [ "deployment pattern/key" ],
         "summary" : "Adds/updates a key/cert for the pattern",
         "description" : "Adds a new signing public key/cert, or updates an existing key/cert, for this pattern. This can only be run by the pattern owning user.",
         "operationId" : "patternPutKeyRoute",
@@ -6518,7 +6623,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "pattern/key" ],
+        "tags" : [ "deployment pattern/key" ],
         "summary" : "Deletes a key of a pattern",
         "description" : "Deletes a key/cert for this pattern. This can only be run by the pattern owning user.",
         "operationId" : "patternDeleteKeyRoute",
@@ -6565,7 +6670,7 @@
     },
     "/v1/orgs/{orgid}/patterns/{pattern}/keys" : {
       "get" : {
-        "tags" : [ "pattern/key" ],
+        "tags" : [ "deployment pattern/key" ],
         "summary" : "Returns all keys/certs for this pattern",
         "description" : "Returns all the signing public keys/certs for this pattern. Can be run by any credentials able to view the pattern.",
         "operationId" : "patternGetKeysRoute",
@@ -6612,7 +6717,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "pattern/key" ],
+        "tags" : [ "deployment pattern/key" ],
         "summary" : "Deletes all keys of a pattern",
         "description" : "Deletes all of the current keys/certs for this pattern. This can only be run by the pattern owning user.",
         "operationId" : "patternDeleteKeysRoute",
@@ -6651,7 +6756,7 @@
     },
     "/v1/orgs/{orgid}/patterns/{pattern}" : {
       "get" : {
-        "tags" : [ "pattern" ],
+        "tags" : [ "deployment pattern" ],
         "summary" : "Returns a pattern",
         "description" : "Returns the pattern with the specified id. Can be run by a user, node, or agbot.",
         "operationId" : "patternGetRoute",
@@ -6757,7 +6862,7 @@
         }
       },
       "put" : {
-        "tags" : [ "pattern" ],
+        "tags" : [ "deployment pattern" ],
         "summary" : "Adds a pattern",
         "description" : "Creates a pattern resource. A pattern resource specifies all of the services that should be deployed for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. This can only be called by a user.",
         "operationId" : "patternPuttRoute",
@@ -6882,7 +6987,7 @@
         }
       },
       "post" : {
-        "tags" : [ "pattern" ],
+        "tags" : [ "deployment pattern" ],
         "summary" : "Adds a pattern",
         "description" : "Creates a pattern resource. A pattern resource specifies all of the services that should be deployed for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. This can only be called by a user.",
         "operationId" : "patternPostRoute",
@@ -7006,7 +7111,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "pattern" ],
+        "tags" : [ "deployment pattern" ],
         "summary" : "Deletes a pattern",
         "description" : "Deletes a pattern. Can only be run by the owning user.",
         "operationId" : "patternDeleteRoute",
@@ -7043,7 +7148,7 @@
         }
       },
       "patch" : {
-        "tags" : [ "pattern" ],
+        "tags" : [ "deployment pattern" ],
         "summary" : "Updates 1 attribute of a pattern",
         "description" : "Updates one attribute of a pattern. This can only be called by the user that originally created this pattern resource.",
         "operationId" : "patternPatchRoute",
@@ -7170,7 +7275,7 @@
     },
     "/v1/orgs/{orgid}/patterns/{pattern}/nodehealth" : {
       "post" : {
-        "tags" : [ "pattern" ],
+        "tags" : [ "deployment pattern" ],
         "summary" : "Returns agreement health of nodes of a particular pattern",
         "description" : "Returns the lastHeartbeat and agreement times for all nodes that are this pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
         "operationId" : "patternNodeHealthRoute",
@@ -7242,7 +7347,7 @@
     },
     "/v1/orgs/{orgid}/patterns/{pattern}/search" : {
       "post" : {
-        "tags" : [ "pattern" ],
+        "tags" : [ "deployment pattern" ],
         "summary" : "Returns matching nodes of a particular pattern",
         "description" : "Returns the matching nodes that are using this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node).",
         "operationId" : "patternPostSearchRoute",
@@ -7304,7 +7409,7 @@
     },
     "/v1/orgs/{orgid}/patterns" : {
       "get" : {
-        "tags" : [ "pattern" ],
+        "tags" : [ "deployment pattern" ],
         "summary" : "Returns all patterns",
         "description" : "Returns all pattern definitions in this organization. Can be run by any user, node, or agbot.",
         "operationId" : "patternsGetRoute",
@@ -7432,7 +7537,7 @@
     },
     "/v1/orgs/{orgid}/services/{service}/dockauths/{dockauthid}" : {
       "get" : {
-        "tags" : [ "service/docker-authorization" ],
+        "tags" : [ "service/docker authorization" ],
         "summary" : "Returns a docker image token for this service",
         "description" : "Returns the docker image authentication token with the specified dockauthid for this service. Can be run by any credentials able to view the service.",
         "operationId" : "serviceGetDockauthRoute",
@@ -7487,7 +7592,7 @@
         }
       },
       "put" : {
-        "tags" : [ "service/docker-authorization" ],
+        "tags" : [ "service/docker authorization" ],
         "summary" : "Updates a docker image token for the service",
         "description" : "Updates an existing docker image authentication token for this service. This can only be run by the service owning user.",
         "operationId" : "servicePutDockauthRoute",
@@ -7550,7 +7655,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "service/docker-authorization" ],
+        "tags" : [ "service/docker authorization" ],
         "summary" : "Deletes a docker image auth token of a service",
         "description" : "Deletes a docker image auth token for this service. This can only be run by the service owning user.",
         "operationId" : "serviceDeleteDockauthRoute",
@@ -7597,7 +7702,7 @@
     },
     "/v1/orgs/{orgid}/services/{service}/dockauths" : {
       "get" : {
-        "tags" : [ "service/docker-authorization" ],
+        "tags" : [ "service/docker authorization" ],
         "summary" : "Returns all docker image tokens for this service",
         "description" : "Returns all the docker image authentication tokens for this service. Can be run by any credentials able to view the service.",
         "operationId" : "serviceGetDockauthsRoute",
@@ -7651,7 +7756,7 @@
         }
       },
       "post" : {
-        "tags" : [ "service/docker-authorization" ],
+        "tags" : [ "service/docker authorization" ],
         "summary" : "Adds a docker image token for the service",
         "description" : "Adds a new docker image authentication token for this service. As an optimization, if a dockauth resource already exists with the same service, registry, username, and token, this method will just update that lastupdated field. This can only be run by the service owning user.",
         "operationId" : "servicePostDockauthRoute",
@@ -7710,7 +7815,7 @@
         }
       },
       "delete" : {
-        "tags" : [ "service/docker-authorization" ],
+        "tags" : [ "service/docker authorization" ],
         "summary" : "Deletes all docker image auth tokens of a service",
         "description" : "Deletes all of the current docker image auth tokens for this service. This can only be run by the service owning user.",
         "operationId" : "serviceDeleteDockauthsRoute",

@@ -1,6 +1,6 @@
 package com.horizon.exchangeapi.route.nodegroup
 
-import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetNodeGroupsResponse, HttpCode, Password, Role, TestDBConnection}
+import com.horizon.exchangeapi.{ApiTime, ApiUtils, GetNodeGroupsResponse, HttpCode, NodeGroupResp, Password, Role, TestDBConnection}
 import com.horizon.exchangeapi.tables.{AgbotRow, AgbotsTQ, NodeGroupAssignmentRow, NodeGroupAssignmentTQ, NodeGroupRow, NodeGroupTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
@@ -12,15 +12,15 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
-class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
+class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
 
-  private val ACCEPT = ("Accept","application/json")
+  private val ACCEPT: (String, String) = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
-  private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
+  private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val ROUTE = "/hagroups"
 
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORGADMINPASSWORD = "orgadminpassword"
@@ -135,7 +135,7 @@ class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
         arch               = "",
         id                 = TESTORGS(0).orgId + "/node1",
         heartbeatIntervals = "",
-        lastHeartbeat      = Some(ApiTime.nowUTC),
+        lastHeartbeat      = Option(ApiTime.nowUTC),
         lastUpdated        = ApiTime.nowUTC,
         msgEndPoint        = "",
         name               = "",
@@ -153,7 +153,7 @@ class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
         arch               = "",
         id                 = TESTORGS(0).orgId + "/node2",
         heartbeatIntervals = "",
-        lastHeartbeat      = Some(ApiTime.nowUTC),
+        lastHeartbeat      = Option(ApiTime.nowUTC),
         lastUpdated        = ApiTime.nowUTC,
         msgEndPoint        = "",
         name               = "",
@@ -171,7 +171,7 @@ class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
         arch               = "",
         id                 = TESTORGS(1).orgId + "/node3",
         heartbeatIntervals = "",
-        lastHeartbeat      = Some(ApiTime.nowUTC),
+        lastHeartbeat      = Option(ApiTime.nowUTC),
         lastUpdated        = ApiTime.nowUTC,
         msgEndPoint        = "",
         name               = "",
@@ -190,21 +190,21 @@ class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val TESTNODEGROUPS: Seq[NodeGroupRow] =
     Seq(
       NodeGroupRow(
-        description = "empty node group",
+        description = Option("empty node group"),
         group = 0, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
         lastUpdated = ApiTime.nowUTC,
         name = "TestGetAllNodeGroupsRoute_empty"
       ),
       NodeGroupRow(
-        description = "test node group",
+        description = Option("test node group"),
         group = 0, //gets automatically set by DB
         organization = TESTORGS(0).orgId,
         lastUpdated = ApiTime.nowUTC,
         name = "TestGetAllNodeGroupsRoute_main"
       ),
       NodeGroupRow(
-        description = "other node group",
+        description = Option("other node group"),
         group = 0, //gets automatically set by DB
         organization = TESTORGS(1).orgId,
         lastUpdated = ApiTime.nowUTC,
@@ -214,12 +214,12 @@ class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   //since 'group' is dynamically set when Node Groups are added to the DB, we must define NodeGroupAssignments after Node Groups are added (dynamically in beforeAll())
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORGADMINPASSWORD))
-  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + USERPASSWORD))
-  private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
-  private val AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val HUBADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORGADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORGADMINPASSWORD))
+  private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + USERPASSWORD))
+  private val NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
+  private val AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.getDb.run(
@@ -286,8 +286,8 @@ class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.length === 2)
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
-    val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
+    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
+    val mainGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(emptyGroup.name === TESTNODEGROUPS(0).name)
     assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
     assert(emptyGroup.members.isEmpty)
@@ -307,8 +307,8 @@ class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.length === 2)
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
-    val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
+    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
+    val mainGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(emptyGroup.name === TESTNODEGROUPS(0).name)
     assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
     assert(emptyGroup.members.isEmpty)
@@ -328,8 +328,8 @@ class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.length === 2)
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
-    val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
+    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
+    val mainGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(emptyGroup.name === TESTNODEGROUPS(0).name)
     assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
     assert(emptyGroup.members.isEmpty)
@@ -355,8 +355,8 @@ class TestGetAllNodeGroupsRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.length === 2)
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
-    val mainGroup = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
+    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
+    val mainGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
     assert(emptyGroup.name === TESTNODEGROUPS(0).name)
     assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
     assert(emptyGroup.members.isEmpty)

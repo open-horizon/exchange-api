@@ -2855,7 +2855,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management-policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management policy")
   def nodeGetAllMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus") & get) { (orgid, id) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId),Access.READ) { ident =>
@@ -2920,7 +2920,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management-policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management policy")
   def nodeGetMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & get) { (orgid, id, mgmtpolicy) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy")
     val compositeId: String = OrgAndId(orgid, id).toString
@@ -3012,7 +3012,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management-policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management policy")
   def nodePutMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & put & entity(as[PutNodeMgmtPolStatusRequest])) { (orgid, id, mgmtpolicy, reqBody) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TNode(compositeId), Access.WRITE) { _ =>
@@ -3101,7 +3101,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management-policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "node/management policy")
   def nodeDeleteMgmtPolStatus: Route = (path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) & delete) { (orgid, id, mgmtpolicy) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy")
     val compositeId: String = OrgAndId(orgid, id).toString

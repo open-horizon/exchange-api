@@ -1448,7 +1448,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker authorization")
   def serviceGetDockauthsRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths") & get) { (orgid, service) =>
     val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
@@ -1477,7 +1477,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker authorization")
   def serviceGetDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths" / Segment) & get) { (orgid, service, dockauthIdAsStr) =>
     val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.READ) { _ =>
@@ -1555,7 +1555,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker authorization")
   def servicePostDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths") & post & entity(as[PostPutServiceDockAuthRequest])) { (orgid, service, reqBody) =>
     val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
@@ -1621,7 +1621,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker authorization")
   def servicePutDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths" / Segment) & put & entity(as[PostPutServiceDockAuthRequest])) { (orgid, service, dockauthIdAsStr, reqBody) =>
     val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId),Access.WRITE) { _ =>
@@ -1675,7 +1675,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker authorization")
   def serviceDeleteDockauthsRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths") & delete) { (orgid, service) =>
     val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>
@@ -1729,7 +1729,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker-authorization")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "service/docker authorization")
   def serviceDeleteDockauthRoute: Route = (path("orgs" / Segment / "services" / Segment / "dockauths" / Segment) & delete) { (orgid, service, dockauthIdAsStr) =>
     val compositeId: String = OrgAndId(orgid, service).toString
     exchAuth(TService(compositeId), Access.WRITE) { _ =>

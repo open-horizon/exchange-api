@@ -3272,8 +3272,8 @@ class NodesSuite extends AnyFunSuite {
 
   //TEST NODE GROUP
   test("POST /orgs/"+orgid+"/hagroups/ng - create node group with node assigned to it") {
-    val input = PostPutNodeGroupsRequest(Seq(nodeId), "description")
-    val response = Http(URL+"/hagroups/ng").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val input: PostPutNodeGroupsRequest = PostPutNodeGroupsRequest(description = Option("description"), members = Option(Seq(nodeId)))
+    val response: HttpResponse[String] = Http(URL + "/hagroups/ng").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code)
     info("body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)

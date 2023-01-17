@@ -435,6 +435,9 @@ Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
     - detect if a pattern is updated with service that has userInput w/o default values, and give warning
     - Consider changing all creates to POST, and update (via put/patch) return codes to 200
 
+## Changes in 2.108.1
+- I18n Updates
+
 ## Changes in 2.108.0
 - Issue 644: Added POST and DELETE routes for adding and removing a single node assignment to a High Available Node Group.
 - Refactored initial HA Group routes.

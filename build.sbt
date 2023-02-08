@@ -66,7 +66,7 @@ lazy val root = (project in file("."))
       "com.typesafe.slick" %% "slick-hikaricp" % "[3.3.3]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       // "com.github.tminglei" %% "slick-pg" % "[0.20.4]",        // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
       "com.github.tminglei" %% "slick-pg_json4s" % "[0.20.4]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
-      "org.postgresql" % "postgresql" % "[42.5.1,)",
+      "org.postgresql" % "postgresql" % "[42.5.3,)",
       // "com.zaxxer" % "HikariCP" % "[3.4.5,)",
       // "org.slf4j" % "slf4j-simple" % "[1.7.25]",               // Version 1.7.35+ requires newer versions of slick and slick-hikaricp
       // "ch.qos.logback" % "logback-classic" % "1.3.0-alpha5",
@@ -134,7 +134,7 @@ lazy val root = (project in file("."))
                                     Cmd("LABEL", "summary=" ++ summary.value),
                                     Cmd("LABEL", "vendor=" ++ vendor.value),
                                     Cmd("LABEL", "version=" ++ version.value),
-                                    Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs && microdnf install -y --nodocs shadow-utils gettext java-17-openjdk openssl && microdnf clean all"),
+                                    Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs 1>/dev/null 2>&1 && microdnf install -y --nodocs shadow-utils gettext java-17-openjdk openssl 1>/dev/null 2>&1 && microdnf clean all"),
                                     Cmd("USER", "root"),
                                     Cmd("RUN", "id -u " ++ (Docker / daemonUser).value ++ " 1>/dev/null 2>&1 || ((getent group 1001 1>/dev/null 2>&1 || (type groupadd 1>/dev/null 2>&1 && groupadd -g 1001 " ++ (Docker / daemonGroup).value ++ " || addgroup -g 1001 -S " ++ (Docker / daemonGroup).value ++ ")) && (type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 1001 " ++ (Docker / daemonUser).value ++ " || adduser -S -u 1001 -G " ++ (Docker / daemonGroup).value ++ " " ++ (Docker / daemonUser).value ++ "))"),
                                     Cmd("WORKDIR", "/etc/horizon/exchange"),

@@ -331,6 +331,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.organization === "TestPostNodeGroup").result), AWAITDURATION)
     assert(nodeGroup.length === 1)
     
+    assert(nodeGroup.head.admin === true)
     assert(nodeGroup.head.description === requestBody.description)
     assert(INITIALTIMESTAMPSTRING < nodeGroup.head.lastUpdated)
     assert(nodeGroup.head.name === "king")
@@ -396,6 +397,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.organization === "TestPostNodeGroup").result), AWAITDURATION)
     assert(nodeGroup.length === 1)
     
+    assert(nodeGroup.head.admin === true)
     assert(nodeGroup.head.description === requestBody.description)
     assert(INITIALTIMESTAMPSTRING < nodeGroup.head.lastUpdated)
     assert(nodeGroup.head.name === "ng1")
@@ -428,6 +430,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.organization === "TestPostNodeGroup").result), AWAITDURATION)
     assert(nodeGroup.length === 1)
     
+    assert(nodeGroup.head.admin === true)
     assert(nodeGroup.head.description === requestBody.description)
     assert(INITIALTIMESTAMPSTRING < nodeGroup.head.lastUpdated)
     assert(nodeGroup.head.name === "ng2")
@@ -460,6 +463,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.organization === "TestPostNodeGroup").result), AWAITDURATION)
     assert(nodeGroup.length === 1)
     
+    assert(nodeGroup.head.admin === true)
     assert(nodeGroup.head.description === requestBody.description)
     assert(INITIALTIMESTAMPSTRING < nodeGroup.head.lastUpdated)
     assert(nodeGroup.head.name === "ng3")
@@ -473,6 +477,42 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     
     assert(changes.head.category === ResChangeCategory.NODEGROUP.toString)
     assert(changes.head.id === "ng3")
+    assert(INITIALTIMESTAMP < changes.last.lastUpdated)
+    assert(changes.head.orgId === TESTORGS.head.orgId)
+    assert(changes.head.operation === ResChangeOperation.CREATED.toString)
+    assert(changes.head.public === "false")
+    assert(changes.head.resource === ResChangeResource.NODEGROUP.toString)
+  }
+  
+  test("POST /orgs/" + TESTORGS.head.orgId + ROUTE + "ng4  -- 201 Ok - empty members array - u1") {
+    val members: Seq[String] = Seq()
+    val requestBody: PostPutNodeGroupsRequest =
+      PostPutNodeGroupsRequest(description = Option("This is a node group for a user"),
+                               members = Option(members))
+    
+    val request: HttpResponse[String] = Http(URL + "TestPostNodeGroup/hagroups/ng4").postData(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode("TestPostNodeGroup/u1:u1pw"))).asString
+    info("code: " + request.code)
+    info("body: " + request.body)
+    
+    assert(request.code === HttpCode.POST_OK.intValue)
+    
+    val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.organization === "TestPostNodeGroup").result), AWAITDURATION)
+    assert(nodeGroup.length === 1)
+    
+    assert(nodeGroup.head.admin === false)
+    assert(nodeGroup.head.description === requestBody.description)
+    assert(INITIALTIMESTAMPSTRING < nodeGroup.head.lastUpdated)
+    assert(nodeGroup.head.name === "ng4")
+    assert(nodeGroup.head.organization === TESTORGS.head.orgId)
+    
+    val nodeAssignments: Seq[NodeGroupAssignmentRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ.filter(_.group === nodeGroup.head.group).sortBy(_.node.asc.nullsLast).result), AWAITDURATION)
+    assert(nodeAssignments.length === members.length)
+    
+    val changes: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestPostNodeGroup").sortBy(_.category.asc.nullsLast).sortBy(_.id.asc.nullsLast).result), AWAITDURATION)
+    assert(changes.length === 1)
+    
+    assert(changes.head.category === ResChangeCategory.NODEGROUP.toString)
+    assert(changes.head.id === "ng4")
     assert(INITIALTIMESTAMP < changes.last.lastUpdated)
     assert(changes.head.orgId === TESTORGS.head.orgId)
     assert(changes.head.operation === ResChangeOperation.CREATED.toString)

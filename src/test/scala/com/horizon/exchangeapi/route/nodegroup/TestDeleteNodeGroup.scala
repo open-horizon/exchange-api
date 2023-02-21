@@ -34,12 +34,14 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                                                                              .toString)
   
   private val TESTNODEGROUPS: Seq[NodeGroupRow] =
-    Seq(NodeGroupRow(description   = Option(""),
+    Seq(NodeGroupRow(admin = false,
+                     description   = Option(""),
                      group         = 0L,
                      organization  = "TestDeleteNodeGroup",
                      lastUpdated   = INITIALTIMESTAMPSTRING,
                      name          = "king"),
-        NodeGroupRow(description   = Option(""),
+        NodeGroupRow(admin = false,
+                     description   = Option(""),
                      group         = 0L,
                      organization  = "TestDeleteNodeGroup1",
                      lastUpdated   = INITIALTIMESTAMPSTRING,
@@ -318,7 +320,8 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
 
   test("DELETE /orgs/TestDeleteNodeGroup/hagroups/TestDeleteNodeGroup_ng1 -- 403 access denied - attempt to delete node group without ownership- user") {
     val TESTNODEGROUP: Seq[NodeGroupRow] =
-      Seq(NodeGroupRow(description = None,
+      Seq(NodeGroupRow(admin = false,
+                       description = None,
                        group = 0L,
                        lastUpdated = INITIALTIMESTAMPSTRING,
                        name = "TestDeleteNodeGroup_ng1",
@@ -336,5 +339,26 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
       
         assert(response.code === HttpCode.ACCESS_DENIED.intValue)
       }, TESTNODEGROUP)
+  }
+  
+  test("DELETE /orgs/TestDeleteNodeGroup/hagroups/TestDeleteNodeGroup_ng1 -- 403 access denied - attempt to delete admin node group that contains my node - user") {
+    val TESTNODEGROUP: Seq[NodeGroupRow] =
+      Seq(NodeGroupRow(admin = true,
+                       description = None,
+                       group = 0L,
+                       lastUpdated = INITIALTIMESTAMPSTRING,
+                       name = "TestDeleteNodeGroup_ng2",
+                       organization = TESTORGS.head.orgId))
+    
+    fixtureNodeGroups(assignedTestNodeGroups => {
+      Await.ready(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ += NodeGroupAssignmentRow(group = assignedTestNodeGroups.head.group,
+                                                                                         node = TESTNODES(3).id)), AWAITDURATION)
+      
+      val response: HttpResponse[String] = Http(URL + TESTNODEGROUP.head.organization + "/hagroups/" + TESTNODEGROUP.head.name).method("delete").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode("TestDeleteNodeGroup/u1" + ":" + "u1pw"))).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    }, TESTNODEGROUP)
   }
 }

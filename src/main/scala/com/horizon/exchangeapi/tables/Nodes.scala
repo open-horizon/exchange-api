@@ -332,7 +332,12 @@ object NodeErrorTQ extends TableQuery(new NodeErrors(_)) {
 final case class NodeError(errors: List[Any], lastUpdated: String)
 
 //Node Groups for MCM
-final case class NodeGroupRow(description: Option[String], group: Long, organization: String, lastUpdated: String, name: String) {
+final case class NodeGroupRow(admin: Boolean = false,
+                              description: Option[String],
+                              group: Long,
+                              organization: String,
+                              lastUpdated: String,
+                              name: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   def update: DBIO[_] = (for { m <- NodeGroupTQ if m.group === group } yield m).update(this)
   def upsert: DBIO[_] = NodeGroupTQ.insertOrUpdate(this)
@@ -344,8 +349,9 @@ class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
   def organization = column[String]("orgid")
   def lastUpdated = column[String]("lastUpdated")
   def name = column[String]("name")
+  def admin = column[Boolean]("admin")
   //def lastUpdated = column[String]("lastUpdated")
-  def * = (description, group, organization, lastUpdated, name).<>(NodeGroupRow.tupled, NodeGroupRow.unapply)
+  def * = (admin, description, group, organization, lastUpdated, name).<>(NodeGroupRow.tupled, NodeGroupRow.unapply)
   def nodeGroupIdx = index("node_group_idx", (organization, name), unique = true)
   def pkNodeGroup = primaryKey("pk_node_group", group)
   def fkOrg = foreignKey("fk_organization", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)

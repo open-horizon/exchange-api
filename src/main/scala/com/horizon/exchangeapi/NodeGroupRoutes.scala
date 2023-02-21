@@ -36,7 +36,7 @@ import scala.util.matching.Regex
 import scala.util.{Failure, Success}
 
 /** Output format for GET /hagroups */
-final case class NodeGroupResp(name: String, description: String = "", members: Seq[String], lastUpdated: String)
+final case class NodeGroupResp(name: String, description: String = "", members: Seq[String], admin: Boolean, lastUpdated: String)
 final case class GetNodeGroupsResponse(nodeGroups: Seq[NodeGroupResp])
 
 /** Input format for POST/PUT /orgs/{orgid}/hagroups/<name> */
@@ -90,8 +90,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
       complete({
         val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
         val nodesQuery: Query[Nodes, NodeRow, Seq] =
-          if (ident.isAdmin ||
-              ident.role.equals(AuthRoles.Agbot))
+          if (ident.isAdmin)
             NodesTQ.getAllNodes(org)
           else
             NodesTQ.getAllNodes(org).filter(_.owner === ident.identityString)
@@ -101,6 +100,17 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
         
         val removeNodeGroup: DBIOAction[(Int, Option[Int], Seq[String], Int), NoStream, Effect.Read with Effect with Effect.Write] =
           for {
+            nodeGroupAdmin <- Compiled(nodeGroupQuery.map(_.admin)).result.headOption
+            
+            _ <-
+              if (nodeGroupAdmin.isEmpty)
+                DBIO.failed(new ResourceNotFoundException())
+              else if (!ident.isAdmin &&
+                       nodeGroupAdmin.getOrElse(false))
+                DBIO.failed(new AccessDeniedException())
+              else
+                DBIO.successful(())
+            
             assignedNodesNotOwned <-
               Compiled(NodeGroupAssignmentTQ.join(nodeGroupQuery.map(_.group))
                                             .on(_.group === _)
@@ -332,12 +342,22 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
           case Success(result) =>
             if (result.nonEmpty)
               if (result.head._2.isDefined)
-                (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(description = result.head._1.description.getOrElse(""),
+                (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(admin = result.head._1.admin,
+                                                                      description =
+                                                                        if (!ident.isAdmin && result.head._1.admin)
+                                                                          ""
+                                                                        else
+                                                                          result.head._1.description.getOrElse(""),
                                                                       lastUpdated = result.head._1.lastUpdated,
                                                                       members = result.map(_._2.get.node.split("/")(1)),
                                                                       name = result.head._1.name))))
               else
-                (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(description = result.head._1.description.getOrElse(""),
+                (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(admin = result.head._1.admin,
+                                                                      description =
+                                                                        if (!ident.isAdmin && result.head._1.admin)
+                                                                          ""
+                                                                        else
+                                                                          result.head._1.description.getOrElse(""),
                                                                       lastUpdated = result.head._1.lastUpdated,
                                                                       members = Seq.empty[String],
                                                                       name = result.head._1.name)))) //node group with no members
@@ -412,6 +432,7 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
         val queries: DBIOAction[(Seq[NodeGroupRow], Seq[NodeGroupAssignmentRow]), NoStream, Effect.Read] =
           for {
             nodeGroups <- Compiled(nodeGroupsQuery).result
+            
             nodeGroupAssignments <-
               Compiled(NodeGroupAssignmentTQ.filter(_.node in nodesQuery.map(_.id))
                                             .filter(_.group in nodeGroupsQuery.map(_.group))
@@ -425,12 +446,22 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               val response: ListBuffer[NodeGroupResp] = ListBuffer[NodeGroupResp]()
               for (nodeGroup <- result._1) {
                 if (assignmentMap.contains(nodeGroup.group))
-                  response += NodeGroupResp(description = nodeGroup.description.getOrElse(""),
+                  response += NodeGroupResp(admin = nodeGroup.admin,
+                                            description =
+                                              if (!ident.isAdmin && nodeGroup.admin)
+                                                ""
+                                              else
+                                                nodeGroup.description.getOrElse(""),
                                             lastUpdated = nodeGroup.lastUpdated,
                                             members = assignmentMap(nodeGroup.group).map(_.node.split("/")(1)),
                                             name = nodeGroup.name)
                 else
-                  response += NodeGroupResp(description = nodeGroup.description.getOrElse(""),
+                  response += NodeGroupResp(admin = nodeGroup.admin,
+                                            description =
+                                              if (!ident.isAdmin && nodeGroup.admin)
+                                                ""
+                                              else
+                                                nodeGroup.description.getOrElse(""),
                                             lastUpdated = nodeGroup.lastUpdated,
                                             members = Seq.empty[String],
                                             name = nodeGroup.name) //node group with no assignments
@@ -514,6 +545,17 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
           
           val syncNodeGroup: DBIOAction[(Seq[String], Option[Int], Seq[String], Seq[String]), NoStream, Effect.Write with Effect with Effect.Read] =
             for {
+              nodeGroupAdmin <- Compiled(nodeGroupQuery.map(_.admin)).result.headOption
+              
+              _ <-
+                if (nodeGroupAdmin.isEmpty)
+                  DBIO.failed(new ResourceNotFoundException())
+                else if (!ident.isAdmin &&
+                         nodeGroupAdmin.getOrElse(false))
+                  DBIO.failed(new AccessDeniedException())
+                else
+                  DBIO.successful(())
+            
               numNodeGroupsUpdated <-
                 if (reqBody.description.nonEmpty)
                   Compiled(nodeGroupQuery.map(nodeGroup => (nodeGroup.description, nodeGroup.lastUpdated)))
@@ -694,13 +736,13 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
+          val admin: Boolean = ident.isAdmin
           val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
           val nodeGroupQuery: Query[NodeGroup, NodeGroupRow, Seq] =
             NodeGroupTQ.filter(_.organization === org)
                        .filter(_.name === hagroup)
           val nodesQuery: Query[Nodes, NodeRow, Seq] =
-            if (ident.isAdmin ||
-                ident.isSuperUser)
+            if (admin)
               NodesTQ.getAllNodes(org)
             else
               NodesTQ.getAllNodes(org).filter(_.owner === ident.identityString)
@@ -716,7 +758,8 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
               // Automatically return the assigned node group identifier when creating a new Node Group.
               group <-
                 (NodeGroupTQ returning NodeGroupTQ.map(_.group)) +=
-                  NodeGroupRow(description = reqBody.description,
+                  NodeGroupRow(admin = admin,
+                               description = reqBody.description,
                                group = 0L,
                                organization = org,
                                lastUpdated = fixFormatting(changeTimestamp.toInstant
@@ -845,9 +888,15 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
   def postNodeToNodeGroup: Route = (path("orgs" / Segment / "hagroups" / Segment / "nodes" / Segment) & post) { (org, hagroup, node) =>
     logger.debug(s"Doing POST /orgs/$org/hagroups/$hagroup/nodes/$node")
     val compositeId: String = OrgAndId(org, node).toString
-    exchAuth(TNode(compositeId), Access.WRITE) { _ =>
+    exchAuth(TNode(compositeId), Access.WRITE) { ident =>
       complete({
         val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
+        val nodesQuery: Query[Nodes, NodeRow, Seq] =
+          if (ident.isAdmin ||
+              ident.role.equals(AuthRoles.Agbot))
+            NodesTQ.getAllNodes(org)
+          else
+            NodesTQ.getAllNodes(org).filter(_.owner === ident.identityString)
         val nodeGroupQuery: Query[NodeGroup, NodeGroupRow, Seq] =
           NodeGroupTQ.filter(_.name === hagroup)
                      .filter(_.organization === org)
@@ -869,44 +918,72 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
                                 public = "false",
                                 resource = ResChangeResource.NODEGROUP.toString))
           
-        val insertNodeAssignment: DBIOAction[(Option[Int], Int, Long, Int, Option[String]), NoStream, Effect.Read with Effect with Effect.Write] =
+        val insertNodeAssignment: DBIOAction[(Option[Int], Int, Option[Long], Int, Option[String]), NoStream, Effect.Read with Effect with Effect.Write] =
           for {
+            nodeGroupAdmin <- Compiled(nodeGroupQuery.map(_.admin)).result.headOption
+            
+            _ <-
+              if (nodeGroupAdmin.isEmpty)
+                DBIO.failed(new ResourceNotFoundException())
+              else if (!ident.isAdmin &&
+                       nodeGroupAdmin.getOrElse(false))
+                DBIO.failed(new AccessDeniedException())
+              else
+                DBIO.successful(())
+            
+            assignedNodesNotOwned <-
+              Compiled(NodeGroupAssignmentTQ.join(nodeGroupQuery.map(_.group))
+                                            .on(_.group === _)
+                                            .map(_._1.node)
+                                            .joinLeft(nodesQuery.map(_.id))
+                                            .on(_ === _)
+                                            .filter(_._2.isEmpty)
+                                            .length).result
+            
+            _ <-
+              if (!assignedNodesNotOwned.equals(0))
+                DBIO.failed(new AccessDeniedException())
+              else
+                DBIO.successful(())
+            
             priorAssignment <- Compiled(NodeGroupAssignmentTQ.filter(_.node === compositeId)
                                                              .map(_.node)
                                                              .distinct).result.headOption
-  
+            
             _ <-
               if (priorAssignment.nonEmpty)
                 DBIO.failed(new auth.AlreadyExistsException())
               else
                 DBIO.successful(())
-  
+            
             changeRecordsInserted <- ResourceChangesTQ ++= changeRecords
-  
+            
             _ <-
               if (changeRecordsInserted.isEmpty ||
                   !changeRecordsInserted.getOrElse(0).equals(2))
                 DBIO.failed(new IllegalStateException())
               else
                 DBIO.successful(())
-  
+            
             nodeGroupsUpdated <-
-              Compiled(nodeGroupQuery.map(_.lastUpdated))
+              Compiled(nodeGroupQuery.filterIf(!ident.isAdmin)(_.admin === false)
+                                     .map(_.lastUpdated))
                                      .update(fixFormatting(changeTimestamp.toInstant
                                                                           .atZone(ZoneId.of("UTC"))
                                                                           .withZoneSameInstant(ZoneId.of("UTC"))
                                                                           .toString))
-  
+            
             _ <-
               if (nodeGroupsUpdated.equals(0))
                 DBIO.failed(new ResourceNotFoundException())
               else
                 DBIO.successful(())
-  
-            nodeGroupID <- Compiled(nodeGroupQuery.map(_.group)).result.head
-
+            
+            nodeGroupID <- Compiled(nodeGroupQuery.filterIf(!ident.isAdmin)(_.admin === false)
+                                                  .map(_.group)).result.headOption
+            
             nodeAssignmentsInserted <-
-              NodeGroupAssignmentTQ += NodeGroupAssignmentRow(group = nodeGroupID,
+              NodeGroupAssignmentTQ += NodeGroupAssignmentRow(group = nodeGroupID.get,
                                                               node = compositeId)
             
             _ <-
@@ -920,6 +997,8 @@ trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {
           case Success(result) =>
             logger.debug("DELETE /orgs/" + org + "/hagroups/" + hagroup + "/nodes/" + node + " updated in changes table: " + result._1.getOrElse(-1))
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.node.inserted")))
+          case Failure(e: auth.AccessDeniedException) =>
+            (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.group.access.denied")))
           case Failure(e: auth.AlreadyExistsException) =>
             (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.node.conflict", (org + "/" + node))))
           case Failure(e: IllegalStateException) =>

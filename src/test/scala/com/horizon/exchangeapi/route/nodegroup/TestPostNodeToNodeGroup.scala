@@ -5,7 +5,7 @@ import com.horizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, PostPutUsersRequest
 import org.checkerframework.checker.units.qual.A
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization.write
-import org.scalatest.BeforeAndAfterAll
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc.PostgresProfile.api.{anyToShapedValue, columnExtensionMethods, columnToOrdered, longColumnType, queryDeleteActionExtensionMethods, queryInsertActionExtensionMethods, streamableQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType}
@@ -13,7 +13,7 @@ import slick.jdbc.PostgresProfile.api.{anyToShapedValue, columnExtensionMethods,
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
-class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
+class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAndAfterEach {
   private val ACCEPT: (String, String) = ("Content-Type", "application/json")
   private val CONTENT: (String, String) = ACCEPT
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
@@ -84,16 +84,24 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
                 token              = "",
                 userInput          = ""))
   private val TESTNODEGROUPS: Seq[NodeGroupRow] =
-    Seq(NodeGroupRow(description  = Option(""),
+    Seq(NodeGroupRow(admin = false,
+                     description  = Option(""),
                      group        = 0L,
-                     organization = TESTORGS.head.orgId,
                      lastUpdated  = INITIALTIMESTAMP,
-                     name         = "ng0"),
-        NodeGroupRow(description = Option(""),
+                     name         = "ng0",
+                     organization = TESTORGS.head.orgId),
+        NodeGroupRow(admin = false,
+                     description = Option(""),
                      group = 0L,
-                     organization = TESTORGS.head.orgId,
                      lastUpdated = INITIALTIMESTAMP,
-                     name = "ng1"))
+                     name = "ng1",
+                     organization = TESTORGS.head.orgId),
+        NodeGroupRow(admin = true,
+                     description = Option(""),
+                     group = 0L,
+                     lastUpdated = INITIALTIMESTAMP,
+                     name = "ng2",
+                     organization = TESTORGS.head.orgId))
   
   
   override def beforeAll(): Unit = {
@@ -118,6 +126,21 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
     
     DBCONNECTION.getDb.close()
   }
+  
+  override def afterEach(): Unit = {
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeToNodeGroup").delete), AWAITDURATION)
+  }
+  
+  // Nodes that are dynamically needed, specific to the test case.
+  def fixtureNodes(testCode: Seq[NodeRow] => Any, testData: Seq[NodeRow]): Any = {
+    try {
+      Await.result(DBCONNECTION.getDb.run(NodesTQ ++= testData), AWAITDURATION)
+      testCode(testData)
+    }
+    finally
+      Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
+  }
+  
   
   test("POST /orgs/someorg/hagroup/ng0/nodes/n1 -- 404 not found - Bad Organization") {
     val response: HttpResponse[String] = Http(URL + "someorg" + "/hagroups/" + TESTNODEGROUPS.head.name + "/nodes/" + TESTNODES.last.name).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -152,7 +175,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng1/n0 -- 409 Conflict - Add an assigned node to a different node group") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.last.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS(1).name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     
@@ -165,6 +188,64 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  }
+  
+  test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng2/n2 -- 403 access denied - Assigning a node to an admin owned node group - u1") {
+    val TESTNODES: Seq[NodeRow] =
+      Seq(NodeRow(arch = "",
+                  id = TESTORGS.head.orgId + "/n2",
+                  heartbeatIntervals = "",
+                  lastHeartbeat = Option(ApiTime.nowUTC),
+                  lastUpdated = INITIALTIMESTAMP,
+                  msgEndPoint = "",
+                  name = "n2",
+                  nodeType = "",
+                  orgid = TESTORGS.head.orgId,
+                  owner = TESTUSERS.last.username,
+                  pattern = "",
+                  publicKey = "",
+                  regServices = "",
+                  softwareVersions = "",
+                  token = "",
+                  userInput = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.last.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.username + ":u1pw"))).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      }, TESTNODES)
+  }
+  
+  test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng1/n3 -- 403 access denied - Assigning a node to a node group that contains nodes owned by another user - u1") {
+    val TESTNODES: Seq[NodeRow] =
+      Seq(NodeRow(arch = "",
+                  id = TESTORGS.head.orgId + "/n3",
+                  heartbeatIntervals = "",
+                  lastHeartbeat = Option(ApiTime.nowUTC),
+                  lastUpdated = INITIALTIMESTAMP,
+                  msgEndPoint = "",
+                  name = "n3",
+                  nodeType = "",
+                  orgid = TESTORGS.head.orgId,
+                  owner = TESTUSERS.last.username,
+                  pattern = "",
+                  publicKey = "",
+                  regServices = "",
+                  softwareVersions = "",
+                  token = "",
+                  userInput = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.head.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.username + ":u1pw"))).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      }, TESTNODES)
   }
   
   test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng0/n1 -- 201 OK - Default - root") {
@@ -201,5 +282,58 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
     assert(changeRecords.last.orgId     === TESTORGS.head.orgId)
     assert(changeRecords.last.public    === "false")
     assert(changeRecords.last.resource  === ResChangeResource.NODE.toString)
+  }
+  
+  test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng2/n2 -- 201 OK - Admin adding a node to an admin node group - root") {
+    val TESTNODES: Seq[NodeRow] =
+      Seq(NodeRow(arch = "",
+                  id = TESTORGS.head.orgId + "/n2",
+                  heartbeatIntervals = "",
+                  lastHeartbeat = Option(ApiTime.nowUTC),
+                  lastUpdated = INITIALTIMESTAMP,
+                  msgEndPoint = "",
+                  name = "n2",
+                  nodeType = "",
+                  orgid = TESTORGS.head.orgId,
+                  owner = TESTUSERS.last.username,
+                  pattern = "",
+                  publicKey = "",
+                  regServices = "",
+                  softwareVersions = "",
+                  token = "",
+                  userInput = ""))
+  
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.last.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+      
+        assert(response.code === HttpCode.POST_OK.intValue)
+      
+        val assignedNodes: Seq[(String, String, String)] = Await.result(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ.join(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).filter(_.name === TESTNODEGROUPS.last.name)).on(_.group === _.group).sortBy(_._1.node.asc.nullsLast).map(records => {(records._2.name, records._1.node, records._2.organization)}).result), AWAITDURATION)
+        assert(assignedNodes.size === 1)
+      
+        assert(assignedNodes.head._1 === TESTNODEGROUPS.last.name)
+        assert(assignedNodes.head._2 === TESTNODES.head.id)
+        assert(assignedNodes.head._3 === TESTNODEGROUPS.last.organization)
+      
+        val changeRecords: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeToNodeGroup").sortBy(_.category.asc.nullsLast).result), AWAITDURATION)
+        assert(changeRecords.size === 2)
+      
+        assert(changeRecords.head.category === ResChangeCategory.NODEGROUP.toString)
+        assert(changeRecords.head.id === TESTNODEGROUPS.last.name)
+        assert(changeRecords.head.operation === ResChangeOperation.MODIFIED.toString)
+        assert(changeRecords.head.orgId === TESTORGS.head.orgId)
+        assert(changeRecords.head.public === "false")
+        assert(changeRecords.head.resource === ResChangeResource.NODEGROUP.toString)
+      
+        assert(changeRecords.last.category === ResChangeCategory.NODE.toString)
+        assert(changeRecords.last.id === TESTNODES.head.name)
+        assert(changeRecords.last.operation === ResChangeOperation.MODIFIED.toString)
+        assert(changeRecords.last.orgId === TESTORGS.head.orgId)
+        assert(changeRecords.last.public === "false")
+        assert(changeRecords.last.resource === ResChangeResource.NODE.toString)
+    }, TESTNODES)
   }
 }

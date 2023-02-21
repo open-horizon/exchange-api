@@ -454,6 +454,35 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
       }, TESTNODEGROUP)
   }
   
+  test("PUT /orgs/" + TESTORGS.head.orgId + ROUTE + "TestPutNodeGroup_ng9" + " -- 403 access denied - add node to an admin node group - user") {
+    val TESTNODEGROUP: Seq[NodeGroupRow] =
+      Seq(NodeGroupRow(admin = true,
+                       description = None,
+                       group = 0L,
+                       lastUpdated = INITIALTIMESTAMPSTRING,
+                       name = "TestPutNodeGroup_ng9",
+                       organization = TESTORGS.head.orgId))
+                  
+    fixtureNodeGroups(
+      assignedTestNodeGroups => {
+        Await.ready(DBCONNECTION.getDb.run(
+          NodeGroupAssignmentTQ ++= Seq(NodeGroupAssignmentRow(group = assignedTestNodeGroups.head.group,
+                                                               node = TESTNODES.head.id),
+                                        NodeGroupAssignmentRow(group = assignedTestNodeGroups.head.group,
+                                                               node = TESTNODES(2).id))), AWAITDURATION)
+        
+        val requestBody: PutNodeGroupsRequest =
+          PutNodeGroupsRequest(description = None,
+                               members = Option(Seq(TESTNODES(1).id.split("/")(1))))
+        
+        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + ROUTE + TESTNODEGROUP.head.name).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(USERAUTH).asString
+        info("code: " + response.code)
+        info("body: " + response.body)
+        
+        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    }, TESTNODEGROUP)
+  }
+  
   test("PUT /orgs/" + TESTORGS.head.orgId + ROUTE + "TestPutNodeGroup_ng5" + " -- 409 conflict - add node that is assigned to another node group - root") {
     val TESTNODEGROUP: Seq[NodeGroupRow] =
       Seq(NodeGroupRow(description = None,
@@ -508,6 +537,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).filter(_.name === TESTNODEGROUP.head.name).result), AWAITDURATION)
         assert(nodeGroup.sizeIs == 1)
         
+        //assert(nodeGroup.head.admin === true)
         assert(nodeGroup.head.description === TESTNODEGROUP.head.description)
         assert(nodeGroup.head.group === assignedTestNodeGroups.head.group)
         assert(nodeGroup.head.lastUpdated !== TESTNODEGROUP.head.lastUpdated)
@@ -559,6 +589,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
       val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).filter(_.name === TESTNODEGROUP.head.name).result), AWAITDURATION)
       assert(nodeGroup.sizeIs == 1)
       
+      //assert(nodeGroup.head.admin === true)
       assert(nodeGroup.head.description !== TESTNODEGROUP.head.description)
       assert(nodeGroup.head.group === assignedTestNodeGroups.head.group)
       assert(nodeGroup.head.lastUpdated !== TESTNODEGROUP.head.lastUpdated)
@@ -638,6 +669,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).filter(_.name === TESTNODEGROUP.head.name).result), AWAITDURATION)
         assert(nodeGroup.sizeIs == 1)
         
+        //assert(nodeGroup.head.admin === false)
         assert(nodeGroup.head.description === TESTNODEGROUP.head.description)
         assert(nodeGroup.head.group === assignedTestNodeGroups.head.group)
         assert(nodeGroup.head.lastUpdated !== TESTNODEGROUP.head.lastUpdated)
@@ -660,7 +692,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         assert(changes.head.orgId === TESTORGS.head.orgId)
         assert(changes.head.public === "false")
         assert(changes.head.resource === ResChangeResource.NODEGROUP.toString)
-  
+        
         assert(changes.last.category === ResChangeCategory.NODE.toString)
         assert(changes.last.id === TESTNODES.head.id.split("/")(1))
         assert(INITIALTIMESTAMP < changes.last.lastUpdated)

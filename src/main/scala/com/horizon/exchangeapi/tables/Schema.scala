@@ -219,12 +219,14 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
                  NodeGroupAssignmentTQ.schema.create)
       case 50 => // v2.108.0
         DBIO.seq(sqlu"ALTER TABLE public.node_group ALTER COLUMN description DROP NOT NULL;")
+      case 51 =>
+        DBIO.seq(sqlu"ALTER TABLE public.node_group ADD 'admin' bool NOT NULL DEFAULT false;")
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }
   }
 
-  val latestSchemaVersion: Int = 50    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 51    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = "adding deployment, management, nodepolicyversion columns to nodepolicies table"
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

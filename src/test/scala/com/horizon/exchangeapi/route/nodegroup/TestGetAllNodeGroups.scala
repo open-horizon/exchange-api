@@ -62,58 +62,46 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
     )
 
   private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestGetAllNodeGroupsRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestGetAllNodeGroupsRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgAdmin",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORGADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "orgAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgUser",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "orgUser@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/orgUser",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = "",
-        admin       = false,
-        hubAdmin    = false,
-        email       = "orgUser@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(2).orgId + "/orgUser",
-        orgid       = TESTORGS(2).orgId,
-        hashedPw    = Password.hash(USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "orgUser@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      )
-    )
+    Seq(UserRow(admin       = false,
+                email       = "TestGetAllNodeGroupsRouteHubAdmin@ibm.com",
+                hashedPw    = Password.hash(HUBADMINPASSWORD),
+                hubAdmin    = true,
+                lastUpdated = ApiTime.nowUTC,
+                orgid       = "root",
+                updatedBy   = "root/root",
+                username    = "root/TestGetAllNodeGroupsRouteHubAdmin"),
+        UserRow(admin       = true,
+                email       = "orgAdmin@ibm.com",
+                hashedPw    = Password.hash(ORGADMINPASSWORD),
+                hubAdmin    = false,
+                lastUpdated = ApiTime.nowUTC,
+                orgid       = TESTORGS.head.orgId,
+                updatedBy   = "root/root",
+                username    = TESTORGS.head.orgId + "/orgAdmin"),
+        UserRow(admin       = false,
+                email       = "orgUser@ibm.com",
+                hashedPw    = Password.hash(USERPASSWORD),
+                hubAdmin    = false,
+                lastUpdated = ApiTime.nowUTC,
+                orgid       = TESTORGS.head.orgId,
+                updatedBy   = "root/root",
+                username    = TESTORGS.head.orgId + "/orgUser"),
+        UserRow(admin       = false,
+                email       = "orgUser@ibm.com",
+                hashedPw    = "",
+                hubAdmin    = false,
+                lastUpdated = ApiTime.nowUTC,
+                orgid       = TESTORGS(1).orgId,
+                updatedBy   = "root/root",
+                username    = TESTORGS(1).orgId + "/orgUser"),
+        UserRow(admin       = false,
+                email       = "orgUser@ibm.com",
+                hashedPw    = Password.hash(USERPASSWORD),
+                hubAdmin    = false,
+                lastUpdated = ApiTime.nowUTC,
+                orgid       = TESTORGS(2).orgId,
+                updatedBy   = "root/root",
+                username    = TESTORGS(2).orgId + "/orgUser"))
 
   private val TESTAGBOTS: Seq[AgbotRow] =
     Seq(
@@ -130,87 +118,112 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
     )
 
   private val TESTNODES: Seq[NodeRow] =
-    Seq(
-      NodeRow(
-        arch               = "",
-        id                 = TESTORGS(0).orgId + "/node1",
-        heartbeatIntervals = "",
-        lastHeartbeat      = Option(ApiTime.nowUTC),
-        lastUpdated        = ApiTime.nowUTC,
-        msgEndPoint        = "",
-        name               = "",
-        nodeType           = "",
-        orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username, //org admin
-        pattern            = "",
-        publicKey          = "",
-        regServices        = "",
-        softwareVersions   = "",
-        token              = Password.hash(NODETOKEN),
-        userInput          = ""
-      ),
-      NodeRow(
-        arch               = "",
-        id                 = TESTORGS(0).orgId + "/node2",
-        heartbeatIntervals = "",
-        lastHeartbeat      = Option(ApiTime.nowUTC),
-        lastUpdated        = ApiTime.nowUTC,
-        msgEndPoint        = "",
-        name               = "",
-        nodeType           = "",
-        orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(2).username, //org user
-        pattern            = "",
-        publicKey          = "",
-        regServices        = "",
-        softwareVersions   = "",
-        token              = "",
-        userInput          = ""
-      ),
-      NodeRow(
-        arch               = "",
-        id                 = TESTORGS(1).orgId + "/node3",
-        heartbeatIntervals = "",
-        lastHeartbeat      = Option(ApiTime.nowUTC),
-        lastUpdated        = ApiTime.nowUTC,
-        msgEndPoint        = "",
-        name               = "",
-        nodeType           = "",
-        orgid              = TESTORGS(1).orgId,
-        owner              = TESTUSERS(3).username, //org user
-        pattern            = "",
-        publicKey          = "",
-        regServices        = "",
-        softwareVersions   = "",
-        token              = "",
-        userInput          = ""
-      )
-    )
+    Seq(NodeRow(arch               = "",
+                id                 = TESTORGS(0).orgId + "/node1",
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "",
+                nodeType           = "",
+                orgid              = TESTORGS(0).orgId,
+                owner              = TESTUSERS(1).username, //org admin
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = Password.hash(NODETOKEN),
+                userInput          = ""),
+        NodeRow(arch               = "",
+                id                 = TESTORGS(0).orgId + "/node2",
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "",
+                nodeType           = "",
+                orgid              = TESTORGS(0).orgId,
+                owner              = TESTUSERS(2).username, //org user
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = "",
+                userInput          = ""),
+        NodeRow(arch               = "",
+                id                 = TESTORGS(1).orgId + "/node3",
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "",
+                nodeType           = "",
+                orgid              = TESTORGS(1).orgId,
+                owner              = TESTUSERS(3).username, //org user
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = "",
+                userInput          = ""),
+        NodeRow(arch               = "",
+                id                 = TESTORGS.head.orgId + "/node4",
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "",
+                nodeType           = "",
+                orgid              = TESTORGS.head.orgId,
+                owner              = TESTUSERS(2).username, //org user
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = "",
+                userInput          = ""),
+        NodeRow(arch = "",
+                id = TESTORGS.head.orgId + "/node5",
+                heartbeatIntervals = "",
+                lastHeartbeat = Option(ApiTime.nowUTC),
+                lastUpdated = ApiTime.nowUTC,
+                msgEndPoint = "",
+                name = "",
+                nodeType = "",
+                orgid = TESTORGS.head.orgId,
+                owner = TESTUSERS(1).username, //org admin
+                pattern = "",
+                publicKey = "",
+                regServices = "",
+                softwareVersions = "",
+                token = "",
+                userInput = ""))
 
   private val TESTNODEGROUPS: Seq[NodeGroupRow] =
-    Seq(
-      NodeGroupRow(
-        description = Option("empty node group"),
-        group = 0, //gets automatically set by DB
-        organization = TESTORGS(0).orgId,
-        lastUpdated = ApiTime.nowUTC,
-        name = "TestGetAllNodeGroupsRoute_empty"
-      ),
-      NodeGroupRow(
-        description = Option("test node group"),
-        group = 0, //gets automatically set by DB
-        organization = TESTORGS(0).orgId,
-        lastUpdated = ApiTime.nowUTC,
-        name = "TestGetAllNodeGroupsRoute_main"
-      ),
-      NodeGroupRow(
-        description = Option("other node group"),
-        group = 0, //gets automatically set by DB
-        organization = TESTORGS(1).orgId,
-        lastUpdated = ApiTime.nowUTC,
-        name = "TestGetAllNodeGroupsRoute_other"
-      )
-    )
+    Seq(NodeGroupRow(admin = false,
+                     description = Option("empty node group"),
+                     group = 0, //gets automatically set by DB
+                     lastUpdated = ApiTime.nowUTC,
+                     name = "TestGetAllNodeGroupsRoute_empty",
+                     organization = TESTORGS.head.orgId),
+        NodeGroupRow(admin = false,
+                     description = Option("test node group"),
+                     group = 0, //gets automatically set by DB
+                     lastUpdated = ApiTime.nowUTC,
+                     name = "TestGetAllNodeGroupsRoute_main",
+                     organization = TESTORGS.head.orgId),
+        NodeGroupRow(admin = false,
+                     description = Option("other node group"),
+                     group = 0, //gets automatically set by DB
+                     lastUpdated = ApiTime.nowUTC,
+                     name = "TestGetAllNodeGroupsRoute_other",
+                     organization = TESTORGS(1).orgId),
+        NodeGroupRow(admin = true,
+                     description = Option("admin node group"),
+                     group = 0, //gets automatically set by DB
+                     lastUpdated = ApiTime.nowUTC,
+                     name = "TestGetAllNodeGroupsRoute_admin",
+                     organization = TESTORGS.head.orgId))
 
   //since 'group' is dynamically set when Node Groups are added to the DB, we must define NodeGroupAssignments after Node Groups are added (dynamically in beforeAll())
 
@@ -230,24 +243,20 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
       (NodeGroupTQ ++= TESTNODEGROUPS)
     ), AWAITDURATION)
     val mainGroup: Long = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS(1).name).result), AWAITDURATION).head.group
+    val nodeGroupAdmin: Long = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.last.name).result), AWAITDURATION).head.group
     val TESTNODEGROUPASSIGNMENTS: Seq[NodeGroupAssignmentRow] =
-      Seq(
-        NodeGroupAssignmentRow(
-          group = mainGroup,
-          node = TESTNODES(0).id
-        ),
-        NodeGroupAssignmentRow(
-          group = mainGroup,
-          node = TESTNODES(1).id
-        ),
-        NodeGroupAssignmentRow(
-          group = mainGroup,
-          node = TESTNODES(2).id
-        )
-      )
-    Await.ready(DBCONNECTION.getDb.run(
-      NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS
-    ), AWAITDURATION)
+      Seq(NodeGroupAssignmentRow(group = mainGroup,
+                                 node = TESTNODES.head.id),
+          NodeGroupAssignmentRow(group = mainGroup,
+                                 node = TESTNODES(1).id),
+          NodeGroupAssignmentRow(group = mainGroup,
+                                 node = TESTNODES(2).id),
+          NodeGroupAssignmentRow(group = nodeGroupAdmin,
+                                 node = TESTNODES(3).id),
+          NodeGroupAssignmentRow(group = nodeGroupAdmin,
+                                 node = TESTNODES.last.id))
+    
+    Await.ready(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
@@ -277,94 +286,176 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.nodeGroups.isEmpty)
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as root -- 200 OK, all nodes included") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("GET /orgs/" + TESTORGS.head.orgId + ROUTE + " -- as root -- 200 OK, all nodes included") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
+    
     assert(response.code === HttpCode.OK.intValue)
+    
     val responseBody: GetNodeGroupsResponse = JsonMethods.parse(response.body).extract[GetNodeGroupsResponse]
-    assert(responseBody.nodeGroups.length === 2)
-    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
+    
+    assert(responseBody.nodeGroups.length === 3)
+    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS.head.name))
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
+    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS.last.name))
+    
+    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS.head.name).head
     val mainGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
-    assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
+    val nodeGroupAdmin: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS.last.name).head
+    
+    assert(emptyGroup.admin === TESTNODEGROUPS.head.admin)
+    assert(emptyGroup.description === TESTNODEGROUPS.head.description.get)
+    assert(emptyGroup.lastUpdated === TESTNODEGROUPS.head.lastUpdated)
     assert(emptyGroup.members.isEmpty)
-    assert(mainGroup.name === TESTNODEGROUPS(1).name)
+    assert(emptyGroup.name === TESTNODEGROUPS.head.name)
+    
+    assert(mainGroup.admin === TESTNODEGROUPS(1).admin)
+    assert(mainGroup.description === TESTNODEGROUPS(1).description.get)
     assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 2)
-    assert(mainGroup.members.contains(TESTNODES(0).id.split("/")(1)))
+    assert(mainGroup.members.contains(TESTNODES.head.id.split("/")(1)))
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
+    assert(mainGroup.name === TESTNODEGROUPS(1).name)
+  
+    assert(nodeGroupAdmin.admin === TESTNODEGROUPS.last.admin)
+    assert(nodeGroupAdmin.description === TESTNODEGROUPS.last.description.get)
+    assert(nodeGroupAdmin.lastUpdated === TESTNODEGROUPS.last.lastUpdated)
+    assert(nodeGroupAdmin.members.length === 2)
+    assert(nodeGroupAdmin.members.contains(TESTNODES(3).id.split("/")(1)))
+    assert(nodeGroupAdmin.members.contains(TESTNODES.last.id.split("/")(1)))
+    assert(nodeGroupAdmin.name === TESTNODEGROUPS.last.name)
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as org admin -- 200 OK, all nodes included") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(ORGADMINAUTH).asString
+  test("GET /orgs/" + TESTORGS.head.orgId + ROUTE + " -- as org admin -- 200 OK, all nodes included") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + ROUTE).headers(ACCEPT).headers(ORGADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
+  
     assert(response.code === HttpCode.OK.intValue)
+  
     val responseBody: GetNodeGroupsResponse = JsonMethods.parse(response.body).extract[GetNodeGroupsResponse]
-    assert(responseBody.nodeGroups.length === 2)
-    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
+  
+    assert(responseBody.nodeGroups.length === 3)
+    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS.head.name))
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
+    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS.last.name))
+  
+    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS.head.name).head
     val mainGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
-    assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
+    val nodeGroupAdmin: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS.last.name).head
+  
+    assert(emptyGroup.admin === TESTNODEGROUPS.head.admin)
+    assert(emptyGroup.description === TESTNODEGROUPS.head.description.get)
+    assert(emptyGroup.lastUpdated === TESTNODEGROUPS.head.lastUpdated)
     assert(emptyGroup.members.isEmpty)
-    assert(mainGroup.name === TESTNODEGROUPS(1).name)
+    assert(emptyGroup.name === TESTNODEGROUPS.head.name)
+  
+    assert(mainGroup.admin === TESTNODEGROUPS(1).admin)
+    assert(mainGroup.description === TESTNODEGROUPS(1).description.get)
     assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 2)
-    assert(mainGroup.members.contains(TESTNODES(0).id.split("/")(1)))
+    assert(mainGroup.members.contains(TESTNODES.head.id.split("/")(1)))
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
+    assert(mainGroup.name === TESTNODEGROUPS(1).name)
+  
+    assert(nodeGroupAdmin.admin === TESTNODEGROUPS.last.admin)
+    assert(nodeGroupAdmin.description === TESTNODEGROUPS.last.description.get)
+    assert(nodeGroupAdmin.lastUpdated === TESTNODEGROUPS.last.lastUpdated)
+    assert(nodeGroupAdmin.members.length === 2)
+    assert(nodeGroupAdmin.members.contains(TESTNODES(3).id.split("/")(1)))
+    assert(nodeGroupAdmin.members.contains(TESTNODES.last.id.split("/")(1)))
+    assert(nodeGroupAdmin.name === TESTNODEGROUPS.last.name)
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as user -- 200 OK, only owned nodes included") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(USERAUTH).asString
+  test("GET /orgs/" + TESTORGS.head.orgId + ROUTE + " -- as user -- 200 OK, only owned nodes included") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + ROUTE).headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
+    
     assert(response.code === HttpCode.OK.intValue)
+    
     val responseBody: GetNodeGroupsResponse = JsonMethods.parse(response.body).extract[GetNodeGroupsResponse]
-    assert(responseBody.nodeGroups.length === 2)
-    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
+    
+    assert(responseBody.nodeGroups.length === 3)
+    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS.head.name))
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
+    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS.last.name))
+    
+    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS.head.name).head
     val mainGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
-    assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
+    val nodeGroupAdmin: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS.last.name).head
+    
+    
+    assert(emptyGroup.admin === TESTNODEGROUPS.head.admin)
+    assert(emptyGroup.description === TESTNODEGROUPS.head.description.get)
+    assert(emptyGroup.lastUpdated === TESTNODEGROUPS.head.lastUpdated)
     assert(emptyGroup.members.isEmpty)
-    assert(mainGroup.name === TESTNODEGROUPS(1).name)
+    assert(emptyGroup.name === TESTNODEGROUPS.head.name)
+    
+    assert(mainGroup.admin === TESTNODEGROUPS(1).admin)
+    assert(mainGroup.description === TESTNODEGROUPS(1).description.get)
     assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 1)
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
+    assert(mainGroup.name === TESTNODEGROUPS(1).name)
+  
+    assert(nodeGroupAdmin.admin === TESTNODEGROUPS.last.admin)
+    assert(nodeGroupAdmin.description !== TESTNODEGROUPS.last.description.get)
+    assert(nodeGroupAdmin.description === "")
+    assert(nodeGroupAdmin.lastUpdated === TESTNODEGROUPS.last.lastUpdated)
+    assert(nodeGroupAdmin.members.length === 1)
+    assert(nodeGroupAdmin.members.contains(TESTNODES(3).id.split("/")(1)))
+    assert(nodeGroupAdmin.name === TESTNODEGROUPS.last.name)
   }
-
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as hub admin -- 403 access denied") {
+  
+  test("GET /orgs/" + TESTORGS.head.orgId + ROUTE + " -- as hub admin -- 403 access denied") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as agbot -- 200 OK, all nodes included") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(AGBOTAUTH).asString
+  test("GET /orgs/" + TESTORGS.head.orgId + ROUTE + " -- as agbot -- 200 OK, all nodes included") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + ROUTE).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
+  
     assert(response.code === HttpCode.OK.intValue)
+  
     val responseBody: GetNodeGroupsResponse = JsonMethods.parse(response.body).extract[GetNodeGroupsResponse]
-    assert(responseBody.nodeGroups.length === 2)
-    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(0).name))
+  
+    assert(responseBody.nodeGroups.length === 3)
+    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS.head.name))
     assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS(1).name))
-    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(0).name).head
+    assert(responseBody.nodeGroups.exists(_.name === TESTNODEGROUPS.last.name))
+  
+    val emptyGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS.head.name).head
     val mainGroup: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS(1).name).head
-    assert(emptyGroup.name === TESTNODEGROUPS(0).name)
-    assert(emptyGroup.lastUpdated === TESTNODEGROUPS(0).lastUpdated)
+    val nodeGroupAdmin: NodeGroupResp = responseBody.nodeGroups.filter(_.name === TESTNODEGROUPS.last.name).head
+  
+    assert(emptyGroup.admin === TESTNODEGROUPS.head.admin)
+    assert(emptyGroup.description === TESTNODEGROUPS.head.description.get)
+    assert(emptyGroup.lastUpdated === TESTNODEGROUPS.head.lastUpdated)
     assert(emptyGroup.members.isEmpty)
-    assert(mainGroup.name === TESTNODEGROUPS(1).name)
+    assert(emptyGroup.name === TESTNODEGROUPS.head.name)
+  
+    assert(mainGroup.admin === TESTNODEGROUPS(1).admin)
+    assert(mainGroup.description === TESTNODEGROUPS(1).description.get)
     assert(mainGroup.lastUpdated === TESTNODEGROUPS(1).lastUpdated)
     assert(mainGroup.members.length === 2)
-    assert(mainGroup.members.contains(TESTNODES(0).id.split("/")(1)))
+    assert(mainGroup.members.contains(TESTNODES.head.id.split("/")(1)))
     assert(mainGroup.members.contains(TESTNODES(1).id.split("/")(1)))
+    assert(mainGroup.name === TESTNODEGROUPS(1).name)
+  
+    assert(nodeGroupAdmin.admin === TESTNODEGROUPS.last.admin)
+    assert(nodeGroupAdmin.description !== TESTNODEGROUPS.last.description.get)
+    assert(nodeGroupAdmin.description === "")
+    assert(nodeGroupAdmin.lastUpdated === TESTNODEGROUPS.last.lastUpdated)
+    assert(nodeGroupAdmin.members.length === 2)
+    assert(nodeGroupAdmin.members.contains(TESTNODES(3).id.split("/")(1)))
+    assert(nodeGroupAdmin.members.contains(TESTNODES.last.id.split("/")(1)))
+    assert(nodeGroupAdmin.name === TESTNODEGROUPS.last.name)
   }
 
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as node -- 403 access denied") {

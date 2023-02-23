@@ -220,7 +220,7 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
       case 50 => // v2.108.0
         DBIO.seq(sqlu"ALTER TABLE public.node_group ALTER COLUMN description DROP NOT NULL;")
       case 51 =>
-        DBIO.seq(sqlu"ALTER TABLE public.node_group ADD 'admin' bool NOT NULL DEFAULT false;")
+        DBIO.seq(sqlu"ALTER TABLE public.node_group ADD admin bool NOT NULL DEFAULT false;")
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }

@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.109.2] - 2023-02-23
+- Issue 657: Added additional ddl clauses to the Exchange's schema upgrade path.
+
 ## [2.109.1] - 2023-02-23
 - Issue 657: Removed erroneous quotes around column name to be added to database.
 

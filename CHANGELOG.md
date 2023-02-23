@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.109.1] - 2023-02-23
+- Issue 657: Removed erroneous quotes around column name to be added to database.
+
 ## [2.109.0] - 20230-02-21
 - Issue 657: Restricted Users from adding Nodes generally to any available Node Group. To add a Node to a Node Group that Node Group must be empty, or only have the User's Nodes in the Group. Added a flag for Node Groups that were created by Organization Admins. Users may only remove their owned nodes from these groups, no other desructive operations are allowed.  
 

@@ -56,50 +56,50 @@ object ExchangeApiTables {
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val dropDB = DBIO.seq(
     /* these are no longer used, but just in case they are still here */
-    sqlu"drop table if exists node_group_assignment",
-    sqlu"drop table if exists node_group",
-    sqlu"drop table if exists agent_version_certificate",
-    sqlu"drop table if exists agent_version_configuration",
-    sqlu"drop table if exists agent_version_software",
-    sqlu"drop table if exists agent_version_last_updated",
-    sqlu"drop table if exists resourcekeys",
-    sqlu"drop table if exists resourceauths",
-    sqlu"drop table if exists resources",
-    sqlu"drop table if exists management_policy_status_node",
-    sqlu"drop table if exists managementpolicies cascade",
-    sqlu"drop table if exists search_offset_policy cascade",
-    sqlu"drop table if exists businesspolicies cascade",
-    sqlu"drop table if exists patternkeys cascade",
-    sqlu"drop table if exists patterns cascade",
-    sqlu"drop table if exists servicepolicies cascade",
-    sqlu"drop table if exists servicedockauths cascade",
-    sqlu"drop table if exists servicekeys cascade",
-    sqlu"drop table if exists services cascade", // no table depends on these
-    sqlu"drop table if exists nodemsgs cascade",
-    sqlu"drop table if exists agbotmsgs cascade", // these depend on both nodes and agbots
-    sqlu"drop table if exists agbotbusinesspols cascade",
-    sqlu"drop table if exists agbotpatterns cascade",
-    sqlu"drop table if exists agbotagreements cascade",
-    sqlu"drop table if exists agbots cascade",
-    sqlu"drop table if exists nodeagreements cascade",
-    sqlu"drop table if exists nodestatus cascade",
-    sqlu"drop table if exists nodeerror cascade",
-    sqlu"drop table if exists nodepolicies cascade",
+    sqlu"DROP TABLE IF EXISTS public.node_group_assignment",
+    sqlu"DROP TABLE IF EXISTS public.node_group",
+    sqlu"DROP TABLE IF EXISTS public.agent_version_certificate",
+    sqlu"DROP TABLE IF EXISTS public.agent_version_configuration",
+    sqlu"DROP TABLE IF EXISTS public.agent_version_software",
+    sqlu"DROP TABLE IF EXISTS public.agent_version_last_updated",
+    sqlu"DROP TABLE IF EXISTS public.resourcekeys",
+    sqlu"DROP TABLE IF EXISTS public.resourceauths",
+    sqlu"DROP TABLE IF EXISTS public.resources",
+    sqlu"DROP TABLE IF EXISTS public.management_policy_status_node",
+    sqlu"DROP TABLE IF EXISTS public.managementpolicies CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.search_offset_policy CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.businesspolicies CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.patternkeys CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.patterns CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.servicepolicies CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.servicedockauths CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.servicekeys CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.services CASCADE", // no table depends on these
+    sqlu"DROP TABLE IF EXISTS public.nodemsgs CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.agbotmsgs CASCADE", // these depend on both nodes and agbots
+    sqlu"DROP TABLE IF EXISTS public.agbotbusinesspols CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.agbotpatterns CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.agbotagreements CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.agbots CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.nodeagreements CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.nodestatus CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.nodeerror CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.nodepolicies CASCADE",
     /* these are no longer used, but just in case they are still there */
-    sqlu"drop table if exists properties cascade",
-    sqlu"drop table if exists nodemicros cascade",
-    sqlu"drop table if exists nodes cascade",
-    sqlu"drop table if exists resourcechanges cascade",
-    sqlu"drop table if exists users cascade",
-    sqlu"drop table if exists orgs cascade",
-    sqlu"drop table if exists schema cascade",
+    sqlu"DROP TABLE IF EXISTS public.properties CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.nodemicros CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.nodes CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.resourcechanges CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.users CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.orgs CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.schema CASCADE",
     // these are no longer used, but here just in case they are still hanging around
-    sqlu"drop table if exists microservicekeys cascade",
-    sqlu"drop table if exists microservices cascade",
-    sqlu"drop table if exists workloadkeys cascade",
-    sqlu"drop table if exists workloads cascade",
-    sqlu"drop table if exists blockchains cascade",
-    sqlu"drop table if exists bctypes cascade")
+    sqlu"DROP TABLE IF EXISTS public.microservicekeys CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.microservices CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.workloadkeys CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.workloads CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.blockchains CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.bctypes CASCADE")
 
   /** Upgrades the db schema, or inits the db if necessary. Called every start up. */
   def upgradeDb(db: Database)(implicit logger: LoggingAdapter, executionContext: ExecutionContext): Unit = {
@@ -110,22 +110,28 @@ object ExchangeApiTables {
     val upgradeResult: ApiResponse = Await.result(db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
       logger.debug("ExchangeApiTables.upgradeDb current schema result: " + xs.toString)
       xs match {
-        case Success(v) => if (v.nonEmpty) {
-          val schemaRow: SchemaRow = v.head
-          if (SchemaTQ.isLatestSchemaVersion(schemaRow.schemaVersion)) DBIO.failed(new Throwable(upgradeNotNeededMsg + schemaRow.schemaVersion)).asTry // db already at latest schema. I do not think there is a way to pass a msg thru the Success path
-          else {
-            logger.info("DB exists, but not at the current schema version. Upgrading the DB schema...")
-            SchemaTQ.getUpgradeActionsFrom(schemaRow.schemaVersion)(logger).transactionally.asTry
+        case Success(v) =>
+          if (v.nonEmpty) {
+            val schemaRow: SchemaRow = v.head
+          
+            if (SchemaTQ.isLatestSchemaVersion(schemaRow.schemaVersion))
+              DBIO.failed(new Throwable(upgradeNotNeededMsg + schemaRow.schemaVersion)).asTry // db already at latest schema. I do not think there is a way to pass a msg thru the Success path
+            else {
+              logger.info("DB exists, but not at the current schema version. Upgrading the DB schema...")
+              SchemaTQ.getUpgradeActionsFrom(schemaRow.schemaVersion)(logger).transactionally.asTry
+            }
           }
-        } else {
-          logger.debug("ExchangeApiTables.upgradeDb: success v was empty")
-          DBIO.failed(new Throwable(ExchMsg.translate("db.upgrade.error"))).asTry
-        }
-        case Failure(t) => if (t.getMessage.contains("""relation "schema" does not exist""")) {
-          logger.info("Schema table does not exist, initializing the DB...")
-          initDB.transactionally.asTry
-        } // init the db
-        else DBIO.failed(t).asTry // rethrow the error to the next step
+          else {
+            logger.debug("ExchangeApiTables.upgradeDb: success v was empty")
+            DBIO.failed(new Throwable(ExchMsg.translate("db.upgrade.error"))).asTry
+          }
+        case Failure(t) =>
+          if (t.getMessage.contains("""relation "schema" does not exist""")) {
+            logger.info("Schema table does not exist, initializing the DB...")
+            initDB.transactionally.asTry
+          } // init the db
+          else
+            DBIO.failed(t).asTry // rethrow the error to the next step
       }
     })).map({ xs =>
       logger.debug("ExchangeApiTables.upgradeDb: processing upgrade check, upgrade, or init db result") // dont want to display xs.toString because it will have a scary looking error in it in the case of the db already being at the latest schema

@@ -1,7 +1,7 @@
 /** Services routes for all of the /agbots api methods. */
 package com.horizon.exchangeapi
 
-import javax.ws.rs._
+import jakarta.ws.rs.{DELETE, GET, Path, PATCH, POST, PUT}
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
@@ -214,7 +214,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
   def agbotsGetRoute: Route = (path("orgs" / Segment / "agbots") & get & parameter("idfilter".?, "name".?, "owner".?)) { (orgid, idfilter, name, owner) =>
     logger.debug(s"Doing GET /orgs/$orgid/agbots")
     exchAuth(TAgbot(OrgAndId(orgid,"*").toString), Access.READ) { ident =>
@@ -272,7 +272,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
   def agbotGetRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & get & parameter("attribute".?)) { (orgid, id, attribute) =>
     logger.debug(s"Doing GET /orgs/$orgid/agbots/$id")
     val compositeId: String = OrgAndId(orgid, id).toString
@@ -363,7 +363,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
   def agbotPutRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & put & entity(as[PutAgbotsRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgid/agbots/$id")
     val compositeId: String = OrgAndId(orgid, id).toString
@@ -432,7 +432,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
   def agbotPatchRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & patch & entity(as[PatchAgbotsRequest])) { (orgid, id, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/agbots/$id")
     val compositeId: String = OrgAndId(orgid, id).toString
@@ -481,7 +481,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
   def agbotDeleteRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & delete) { (orgid, id) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/agbots/$id")
     val compositeId: String = OrgAndId(orgid, id).toString
@@ -526,7 +526,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
   def agbotHeartbeatRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "heartbeat") & post) { (orgid, id) =>
     logger.debug(s"Doing POST /orgs/$orgid/users/$id/heartbeat")
     val compositeId: String = OrgAndId(orgid, id).toString
@@ -591,7 +591,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/pattern")
   def agbotGetPatternsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns") & get) { (orgid, id) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -641,7 +641,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/pattern")
   def agbotGetPatternRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns" / Segment) & get) { (orgid, id, patId) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -703,7 +703,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(
           responseCode = "404", 
           description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/pattern")
   def agbotPostPatRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns") & post & entity(as[PostAgbotPatternRequest])) { (orgid, id, reqBody) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
@@ -751,7 +751,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/pattern")
   def agbotDeletePatsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -795,7 +795,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/pattern")
   def agbotDeletePatRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "patterns" / Segment) & delete) { (orgid, id, patId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -860,7 +860,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/policy")
   def agbotGetBusPolsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "businesspols") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -909,7 +909,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/policy")
   def agbotGetBusPolRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "businesspols" / Segment) & get) { (orgid, id, busPolId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -981,7 +981,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/policy")
   def agbotPostBusPolRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "businesspols") & post & entity(as[PostAgbotBusinessPolRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
@@ -1029,7 +1029,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/policy")
   def agbotDeleteBusPolsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "businesspols") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -1073,7 +1073,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/policy")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/policy")
   def agbotDeleteBusPolRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "businesspols" / Segment) & delete) { (orgid, id, busPolId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -1144,7 +1144,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
   def agbotGetAgreementsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "agreements") & get) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -1199,7 +1199,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
   def agbotGetAgreementRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment) & get) { (orgid, id, agrId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -1279,7 +1279,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
   def agbotPutAgreementRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment) & put & entity(as[PutAgbotAgreementRequest])) { (orgid, id, agrId, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.WRITE) { _ =>
@@ -1327,7 +1327,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
   def agbotDeleteAgreementsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "agreements") & delete) { (orgid, id) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -1371,7 +1371,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/agreement")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
   def agbotDeleteAgreementRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment) & delete) { (orgid, id, agrId) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>
@@ -1457,7 +1457,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/message")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/message")
   def agbotPostMsgRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs") & post & entity(as[PostAgbotsMsgsRequest])) { (orgid, id, reqBody) =>
     val compositeId = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.SEND_MSG_TO_AGBOT) { ident =>
@@ -1519,7 +1519,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/message")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/message")
   def agbotGetMsgsRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs") & get & parameter("maxmsgs".?)) { (orgid, id, maxmsgsStrOpt) =>
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId),Access.READ) { _ =>
@@ -1570,7 +1570,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
                                new responses.ApiResponse(description = "not found",
                                                          responseCode = "404")),
              summary = "Returns A specific message that has been sent to this agreement-bot.")
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/message")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/message")
   def agbotGetMsgRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs" / Segment) & get) {
     (orgid, id, msgid) =>
       val compositeId = OrgAndId(orgid, id).toString
@@ -1622,7 +1622,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement-bot/message")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/message")
   def agbotDeleteMsgRoute: Route = (path("orgs" / Segment / "agbots" / Segment / "msgs" / Segment) & delete) { (orgid, id, msgIdStr) =>
     val compositeId = OrgAndId(orgid,id).toString
     exchAuth(TAgbot(compositeId), Access.WRITE) { _ =>

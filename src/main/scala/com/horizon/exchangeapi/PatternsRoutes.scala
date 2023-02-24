@@ -1,7 +1,7 @@
 /** Services routes for all of the /orgs/{orgid}/patterns api methods. */
 package com.horizon.exchangeapi
 
-import javax.ws.rs._
+import jakarta.ws.rs.{DELETE, GET, Path, PATCH, POST, PUT}
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
@@ -228,7 +228,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
   def patternsGetRoute: Route = (path("orgs" / Segment / "patterns") & get & parameter("idfilter".?, "owner".?, "public".?, "label".?, "description".?)) { (orgid, idfilter, owner, public, label, description) =>
     exchAuth(TPattern(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
@@ -337,7 +337,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
   def patternGetRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & get & parameter("attribute".?)) { (orgid, pattern, attribute) =>
     val compositeId: String = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.READ) { _ =>
@@ -501,7 +501,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
   def patternPostRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & post & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
     val compositeId: String = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.CREATE) { ident =>
@@ -677,7 +677,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
   def patternPuttRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & put & entity(as[PostPutPatternRequest])) { (orgid, pattern, reqBody) =>
     val compositeId: String = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.WRITE) { ident =>
@@ -871,7 +871,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
   def patternPatchRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & patch & entity(as[PatchPatternRequest])) { (orgid, pattern, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgid/patterns/$pattern")
     val compositeId: String = OrgAndId(orgid, pattern).toString
@@ -980,7 +980,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
   def patternDeleteRoute: Route = (path("orgs" / Segment / "patterns" / Segment) & delete) { (orgid, pattern) =>
     logger.debug(s"Doing DELETE /orgs/$orgid/patterns/$pattern")
     val compositeId: String = OrgAndId(orgid, pattern).toString
@@ -1082,7 +1082,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
   def patternPostSearchRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "search") & post & entity(as[PostPatternSearchRequest])) { (orgid, pattern, reqBody) =>
     val compositeId: String = OrgAndId(orgid, pattern).toString
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) {agbot =>
@@ -1283,7 +1283,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
   def patternNodeHealthRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "nodehealth") & post & entity(as[PostNodeHealthRequest])) { (orgid, pattern, reqBody) =>
     exchAuth(TNode(OrgAndId(orgid,"*").toString), Access.READ) { _ =>
       validateWithMsg(reqBody.getAnyProblem) {
@@ -1328,7 +1328,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern/key")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
   def patternGetKeysRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "keys") & get) { (orgid, pattern) =>
     val compositeId: String = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId),Access.READ) { _ =>
@@ -1357,7 +1357,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern/key")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
   def patternGetKeyRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "keys" / Segment) & get) { (orgid, pattern, keyId) =>
     val compositeId: String = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId),Access.READ) { _ =>
@@ -1405,7 +1405,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern/key")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
   def patternPutKeyRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "keys" / Segment) & put) { (orgid, pattern, keyId) =>
     val compositeId: String = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId),Access.WRITE) { _ =>
@@ -1457,7 +1457,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern/key")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
   def patternDeleteKeysRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "keys") & delete) { (orgid, pattern) =>
     val compositeId: String = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.WRITE) { _ =>
@@ -1510,7 +1510,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  @io.swagger.v3.oas.annotations.tags.Tag(name = "pattern/key")
+  @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
   def patternDeleteKeyRoute: Route = (path("orgs" / Segment / "patterns" / Segment / "keys" / Segment) & delete) { (orgid, pattern, keyId) =>
     val compositeId: String = OrgAndId(orgid, pattern).toString
     exchAuth(TPattern(compositeId), Access.WRITE) { _ =>

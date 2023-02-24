@@ -9,6 +9,7 @@ import slick.sql.FixedSqlAction
 import com.horizon.exchangeapi.{ApiTime, ApiUtils}
 import com.horizon.exchangeapi.tables.ExchangePostgresProfile.api._
 import com.horizon.exchangeapi.tables.ResChangeCategory.Value
+import slick.lifted.CompilableLowPriority
 
 
 /** Contains the object representations of the DB tables related to orgs. */
@@ -189,7 +190,7 @@ class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcec
 }
 
 // Instance to access the ResourceChanges table
-object ResourceChangesTQ  extends TableQuery(new ResourceChanges(_)){
+object ResourceChangesTQ extends TableQuery(new ResourceChanges(_)) {
   def getChangeId(changeid: Long): Query[Rep[Long], Long, Seq] = this.filter(_.changeId === changeid).map(_.changeId)
   def getOrgid(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.orgId)
   def getId(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.id)

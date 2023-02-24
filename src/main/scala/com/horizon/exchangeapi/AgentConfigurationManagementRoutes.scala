@@ -5,7 +5,7 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.Route
 import slick.jdbc.PostgresProfile.api._
 
-import javax.ws.rs.{DELETE, GET, PUT, Path}
+import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import scala.concurrent.ExecutionContext
 import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
@@ -25,7 +25,7 @@ import scala.util.{Failure, Success}
 
 /** Implementation for all of the /orgs/{org}/AgentFileVersion routes */
 @Path("/v1/orgs/{orgid}/AgentFileVersion")
-@io.swagger.v3.oas.annotations.tags.Tag(name = "agent-file-version")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "agent file version")
 trait AgentConfigurationManagementRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database

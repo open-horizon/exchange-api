@@ -4,12 +4,13 @@ import akka.event.LoggingAdapter
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
-
 import com.horizon.exchangeapi.tables._
+import org.postgresql.util.PSQLException
+import slick.collection.heterogeneous.Zero.+
 
 import scala.concurrent.Await
 import scala.concurrent.duration._
-import scala.util.{ Failure, Success }
+import scala.util.{Failure, Success}
 
 /** The umbrella class for the DB tables. The specific table classes are in the tables subdir. */
 object ExchangeApiTables {
@@ -102,11 +103,129 @@ object ExchangeApiTables {
     sqlu"DROP TABLE IF EXISTS public.bctypes CASCADE")
 
   /** Upgrades the db schema, or inits the db if necessary. Called every start up. */
+  // The timeout exception that this can throw is handled by the caller of upgradeDb()
   def upgradeDb(db: Database)(implicit logger: LoggingAdapter, executionContext: ExecutionContext): Unit = {
     // Run this and wait for it, because we don't want any other initialization occurring until the db is right
     val upgradeNotNeededMsg = "DB schema does not need upgrading, it is already at the latest schema version: "
-
-    // The timeout exception that this can throw is handled by the caller of upgradeDb()
+    
+    val upgradeSchama =
+      for {
+        currentVersion <- Compiled(SchemaTQ.getSchemaRow).result
+        
+        _ <-
+          if (currentVersion.isEmpty) {
+            logger.debug("ExchangeApiTables.upgradeDb: current schema version was empty")
+            DBIO.failed(new Throwable(ExchMsg.translate("db.upgrade.error")))
+          }
+          else
+            DBIO.successful(())
+        
+        schemaRow: SchemaRow = currentVersion.head
+        
+        _ <-
+          if (SchemaTQ.isLatestSchemaVersion(schemaRow.schemaVersion))
+            DBIO.failed(new Throwable(upgradeNotNeededMsg + schemaRow.schemaVersion)) // db already at latest schema. I do not think there is a way to pass a msg thru the Success path
+          else
+            DBIO.successful(())
+        
+        schemaUpgrades <- {
+          logger.info("DB exists, but not at the current schema version. Upgrading the DB schema...")
+          SchemaTQ.getUpgradeActionsFrom(schemaRow.schemaVersion)(logger)
+        }
+      } yield()
+    
+    logger.debug("ExchangeApiTables.upgradeDb: processing upgrade check, upgrade, or init db result") // dont want to display xs.toString because it will have a scary looking error in it in the case of the db already being at the latest schema
+    val upgradeResult: ApiResponse =
+      Await.result(db.run(upgradeSchama.transactionally.asTry)
+                     .map({
+                        case Success(_) =>
+                          ApiResponse(ApiRespType.OK, ExchMsg.translate("db.upgraded.successfully"))
+                        case Failure(e: PSQLException) =>
+                          if (e.getServerErrorMessage.getMessage == """relation "schema" does not exist""") {
+                            logger.info("Schema table does not exist, initializing the DB...")
+                            ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))
+                          }
+                          else {
+                            // A PLSQL error occured during the upgrade process. Rollback to schema version the Exchange booted with.
+                            ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.upgraded", e.toString)) // we hit some problem
+                          }
+                        case Failure(t) =>
+                          if (t.getMessage.contains(upgradeNotNeededMsg))
+                            ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("already.exists"))
+                          else
+                            ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.upgraded", t.toString))
+                     }),
+                   Duration(ExchConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS)) // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete
+    
+    
+    val initializeSchema =
+      for {
+        _ <-
+          (SchemaTQ.schema ++
+           OrgsTQ.schema ++
+           UsersTQ.schema ++
+           ResourceChangesTQ.schema ++
+           NodesTQ.schema ++
+           NodeAgreementsTQ.schema ++
+           NodeStatusTQ.schema ++
+           NodeErrorTQ.schema ++
+           NodePolicyTQ.schema ++
+           AgbotsTQ.schema ++
+           AgbotAgreementsTQ.schema ++
+           AgbotPatternsTQ.schema ++
+           AgbotBusinessPolsTQ.schema ++
+           NodeMsgsTQ.schema ++
+           AgbotMsgsTQ.schema ++
+           ServicesTQ.schema ++
+           ServiceKeysTQ.schema ++
+           ServiceDockAuthsTQ.schema ++
+           ServicePolicyTQ.schema ++
+           PatternsTQ.schema ++
+           PatternKeysTQ.schema ++
+           BusinessPoliciesTQ.schema ++
+           SearchOffsetPolicyTQ.schema ++
+           ManagementPoliciesTQ.schema ++
+           NodeMgmtPolStatuses.schema ++
+           AgentCertificateVersionsTQ.schema ++
+           AgentConfigurationVersionsTQ.schema ++
+           AgentSoftwareVersionsTQ.schema ++
+           AgentVersionsChangedTQ.schema ++
+           NodeGroupTQ.schema ++
+           NodeGroupAssignmentTQ.schema).create
+        
+          _ <- SchemaTQ.getSetVersionAction
+      } yield()
+    
+    val initializeResult: ApiResponse = {
+      if (upgradeResult.code == ApiRespType.NOT_FOUND)
+        Await.result(db.run(initializeSchema.transactionally.asTry)
+                       .map({
+                         case Success(_) =>
+                           ApiResponse(ApiRespType.OK, ExchMsg.translate("db.upgraded.successfully"))
+                         case Failure(t) =>
+                           if (t.getMessage.contains(upgradeNotNeededMsg))
+                             ApiResponse(ApiRespType.OK, t.getMessage) // db already at latest schema
+                           else {
+                            ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.upgraded", t.toString))
+                         }
+                       }),
+                     Duration(ExchConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS))
+      else
+        ApiResponse(ApiRespType.OK, ExchMsg.translate("db.upgraded.successfully"))
+    }
+    
+    if (upgradeResult.code == ApiRespType.OK)
+      logger.info(upgradeResult.msg)
+    else if (upgradeResult.code == ApiRespType.ALREADY_EXISTS)
+      logger.info("DB table schema up-to-date")
+    else if (upgradeResult.code == ApiRespType.NOT_FOUND && initializeResult.code == ApiRespType.OK)
+      logger.info(initializeResult.msg)
+    else if (initializeResult.code != ApiRespType.OK)
+      logger.error("ERROR: failure to init db: " + initializeResult.msg)
+    else
+      logger.error("ERROR: failure to upgrade db: " + upgradeResult.msg)
+  }
+    /* The timeout exception that this can throw is handled by the caller of upgradeDb()
     val upgradeResult: ApiResponse = Await.result(db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
       logger.debug("ExchangeApiTables.upgradeDb current schema result: " + xs.toString)
       xs match {
@@ -136,13 +255,13 @@ object ExchangeApiTables {
     })).map({ xs =>
       logger.debug("ExchangeApiTables.upgradeDb: processing upgrade check, upgrade, or init db result") // dont want to display xs.toString because it will have a scary looking error in it in the case of the db already being at the latest schema
       xs match {
-        case Success(_) => ApiResponse(ApiRespType.OK, ExchMsg.translate("db.upgraded.successfully")) // cant tell the diff between these 2, they both return Success(())
-        case Failure(t) => if (t.getMessage.contains(upgradeNotNeededMsg)) ApiResponse(ApiRespType.OK, t.getMessage) // db already at latest schema
-        else ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.upgraded", t.toString)) // we hit some problem
+        case Success(_) =>
+          ApiResponse(ApiRespType.OK, ExchMsg.translate("db.upgraded.successfully")) // cant tell the diff between these 2, they both return Success(())
+        case Failure(t) =>
+          if (t.getMessage.contains(upgradeNotNeededMsg))
+            ApiResponse(ApiRespType.OK, t.getMessage) // db already at latest schema
+          else
+            ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.upgraded", t.toString)) // we hit some problem
       }
-    }), Duration(ExchConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS)) // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete
-    if (upgradeResult.code == ApiRespType.OK) logger.info(upgradeResult.msg)
-    else logger.error("ERROR: failure to init or upgrade db: " + upgradeResult.msg)
-  }
-
+    }), Duration(ExchConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS)) // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete */
 }

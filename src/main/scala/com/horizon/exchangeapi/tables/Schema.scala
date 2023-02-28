@@ -197,8 +197,7 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
                  sqlu"ALTER TABLE public.managementpolicies ADD COLUMN IF NOT EXISTS startwindow BIGINT NOT NULL DEFAULT 0")
       // NODE: IF ADDING A TABLE, DO NOT FORGET TO ALSO ADD IT TO ExchangeApiTables.initDB and dropDB
       case 45 => // v2.95.0
-        DBIO.seq(sqlu"DROP INDEX IF EXISTS pk_management_policy_status_node",
-                 NodeMgmtPolStatuses.schema.createIfNotExists)
+        DBIO.seq(NodeMgmtPolStatuses.schema.createIfNotExists)
       case 46 => // v2.96.0
         DBIO.seq(AgentCertificateVersionsTQ.schema.createIfNotExists,
                  AgentConfigurationVersionsTQ.schema.createIfNotExists,

@@ -1,6 +1,7 @@
 package com.horizon.exchangeapi
 
 import akka.event.LoggingAdapter
+import com.horizon.exchangeapi.ExchangeApiApp.system
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -218,12 +219,17 @@ object ExchangeApiTables {
       logger.info(upgradeResult.msg)
     else if (upgradeResult.code == ApiRespType.ALREADY_EXISTS)
       logger.info("DB table schema up-to-date")
-    else if (upgradeResult.code == ApiRespType.NOT_FOUND && initializeResult.code == ApiRespType.OK)
+    else if (upgradeResult.code == ApiRespType.NOT_FOUND &&
+             initializeResult.code == ApiRespType.OK)
       logger.info(initializeResult.msg)
-    else if (initializeResult.code != ApiRespType.OK)
+    else if (initializeResult.code != ApiRespType.OK) {
       logger.error("ERROR: failure to init db: " + initializeResult.msg)
-    else
+      system.terminate()
+    }
+    else {
       logger.error("ERROR: failure to upgrade db: " + upgradeResult.msg)
+      system.terminate()
+    }
   }
     /* The timeout exception that this can throw is handled by the caller of upgradeDb()
     val upgradeResult: ApiResponse = Await.result(db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>

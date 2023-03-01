@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.110.1] - 2023-03-01
+- Issue 662: Slick's schema.createIfNotExists function is not creating foreign keys. Reverting back to the simple create function.
+
 ## [2.110.0] - 2023-02-28
 - Issue 662:
   - Removed database schema change that was added in error.

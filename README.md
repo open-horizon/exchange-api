@@ -2,7 +2,8 @@
 
 ## Introduction
 
-The Management Hub component of Open Horizon provides a REST API for the Exchange Server.  The Exchange API provides API services for any exchange web UI (once CORS support is added), the Agent component running on edge nodes, and the Agreement Bot component.  To learn about how to install and use the code in this repo, visit the [exchange-api repo documentation page](https://open-horizon.github.io/docs/exchange-api/README/).
+The Management Hub component of Open Horizon provides a REST API for the Exchange Server.  The Exchange API provides API services for any exchange web UI (once CORS support is added), the Agent component running on edge nodes, and the Agreement Bot component.
+  To learn about how to install and use the code in this repo, visit the [exchange-api repo documentation page](https://open-horizon.github.io/docs/exchange-api/README/).
 
 ## Related repositories
 

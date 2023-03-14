@@ -81,16 +81,16 @@ services in the exchange.
 
 - Set the same exchange root password in your shell environment, for example:
 
-```bash
-export EXCHANGE_ROOTPW=myrootpw
-```
+  ```bash
+  export EXCHANGE_ROOTPW=myrootpw
+  ```
 
 - If someone hasn't done it already, create the TLS private key and certificate:
 
-```bash
-export EXCHANGE_KEY_PW=<pass-phrase>
-make gen-key
-```
+  ```bash
+  export EXCHANGE_KEY_PW=<pass-phrase>
+  make gen-key
+  ```
 
 - Otherwise, get files `exchangecert.pem`, `keypassword`, and `keystore` from the person who created them and put them in `./keys/etc`.
 

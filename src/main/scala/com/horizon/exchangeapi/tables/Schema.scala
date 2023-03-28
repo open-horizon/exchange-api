@@ -225,12 +225,16 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
         DBIO.seq(sqlu"ALTER TABLE public.node_group ALTER COLUMN description DROP NOT NULL;")
       case 51 => // v2.109.0
         DBIO.seq(sqlu"ALTER TABLE public.node_group ADD COLUMN IF NOT EXISTS admin BOOL NOT NULL DEFAULT FALSE;")
+      case 52 => // v2.111.0
+        DBIO.seq(sqlu"ALTER TABLE public.businesspolicies ADD COLUMN IF NOT EXISTS cluster_namespace varchar NULL;",
+                           sqlu"ALTER TABLE public.nodes ADD COLUMN IF NOT EXISTS cluster_namespace varchar NULL;",
+                           sqlu"ALTER TABLE public.patterns ADD COLUMN IF NOT EXISTS cluster_namespace varchar NULL;")
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }
   }
 
-  val latestSchemaVersion: Int = 51    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 52    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

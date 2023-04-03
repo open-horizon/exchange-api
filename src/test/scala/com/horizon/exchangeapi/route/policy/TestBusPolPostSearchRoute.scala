@@ -59,7 +59,8 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                           properties     = """[{"name":"purpose","value":"location"}]""",
                           service        = """{"name":"svc1","org":"TestPolicySearchPost","arch":"arm","serviceVersions":[{"version":"1.0.0"}],"nodeHealth":{"missing_heartbeat_interval":1800,"check_agreement_status":1800}}""",
                           userInput      = "",
-                          secretBinding  = ""))
+                          secretBinding  = "",
+                          clusterNamespace = None))
   private val TESTSERVICES: Seq[ServiceRow] =
     Seq(ServiceRow(arch                       = "arm",
                    clusterDeployment          = "",
@@ -326,7 +327,8 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                             properties     = """[{"name":"purpose","value":"location"}]""",
                             service        = """{"name":"svc1","org":"TestPolicySearchPost","arch":"*","serviceVersions":[{"version":"1.0.0"}],"nodeHealth":{"missing_heartbeat_interval":1800,"check_agreement_status":1800}}""",
                             userInput      = "",
-                            secretBinding = ""))
+                            secretBinding  = "",
+                            clusterNamespace = None))
     
     fixturePolicies(
       _ => {
@@ -376,7 +378,8 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                             properties     = """[{"name":"purpose","value":"location"}]""",
                             service        = """{"name":"svc1","org":"TestPolicySearchPost","arch":"","serviceVersions":[{"version":"1.0.0"}],"nodeHealth":{"missing_heartbeat_interval":1800,"check_agreement_status":1800}}""",
                             userInput      = "",
-                            secretBinding = ""))
+                            secretBinding  = "",
+                            clusterNamespace = None))
     
     fixturePolicies(
       _ => {

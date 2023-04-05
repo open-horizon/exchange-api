@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.112.0] - 2023-04-05
+- Issue 640: Added `clusterNamespace` attribute to Deployment Patterns.
+
 ## [2.111.0] - 2023-04-03
 - Issue 639: Added `clusterNamespace` attribute to Deployment Policies.
 

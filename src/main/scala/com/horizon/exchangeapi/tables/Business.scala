@@ -26,7 +26,7 @@ class BusinessPolicy(var owner: String,
                      var constraints: List[String],
                      var lastUpdated: String,
                      var created: String,
-                     var clusterNamespace: String) {
+                     var clusterNamespace: String = "") {
   def copy = new BusinessPolicy(clusterNamespace = clusterNamespace,
                                 constraints = constraints,
                                 created = created,
@@ -53,17 +53,16 @@ final case class BusinessPolicyRow(businessPolicy: String,
                                    constraints: String,
                                    lastUpdated: String,
                                    created: String,
-                                   clusterNamespace: Option[String]) {
+                                   clusterNamespace: Option[String] = None) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toBusinessPolicy: BusinessPolicy = {
     val bind: List[OneSecretBindingService] = if (secretBinding != "") read[List[OneSecretBindingService]](secretBinding) else List[OneSecretBindingService]()
     val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
     val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
-    val namespace: String = clusterNamespace.getOrElse("")
     val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     
-    new BusinessPolicy(clusterNamespace = namespace,
+    new BusinessPolicy(clusterNamespace = clusterNamespace.getOrElse(""),
                        constraints = con,
                        created = created,
                        description = description,

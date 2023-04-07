@@ -57,7 +57,7 @@ final case class PostPutBusinessPolicyRequest(label: String,
                                               secretBinding: Option[List[OneSecretBindingService]],
                                               properties: Option[List[OneProperty]],
                                               constraints: Option[List[String]],
-                                              clusterNamespace: Option[String]) {
+                                              clusterNamespace: Option[String] = None) {
   require(label != null &&
           service!=null &&
           service.name != null &&
@@ -138,7 +138,7 @@ final case class PatchBusinessPolicyRequest(label: Option[String],
                                             secretBinding:Option[List[OneSecretBindingService]] ,
                                             properties: Option[List[OneProperty]],
                                             constraints: Option[List[String]],
-                                            clusterNamespace: Option[String]) {
+                                            clusterNamespace: Option[String] = None) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -250,7 +250,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       ],
       "lastUpdated": "string",
       "created": "string",
-      "clusterNamespace": "MyCluster"
+      "clusterNamespace": "MyNamespace"
     }
   },
   "lastIndex": 0
@@ -337,7 +337,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       ],
       "lastUpdated": "string",
       "created": "string",
-      "clusterNamespace": "MyCluster"
+      "clusterNamespace": "MyNamespace"
     }
   },
   "lastIndex": 0
@@ -468,7 +468,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   "constraints": [
     "a == b"
   ],
-  "clusterNamespace": "MyCluster"
+  "clusterNamespace": "MyNamespace"
 }
 """
             )
@@ -640,7 +640,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   "constraints": [
     "a == b"
   ],
-  "clusterNamespace": "MyCluster"
+  "clusterNamespace": "MyNamespace"
 }
 """
           )
@@ -785,7 +785,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     "constraints": [
       "a == b"
       ],
-    "clusterNamespace": "MyCluster"
+    "clusterNamespace": "MyNamespace"
     }
   }
 """

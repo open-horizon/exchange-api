@@ -65,7 +65,14 @@ object PatternUtils {
 }
 
 /** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
-final case class PostPutPatternRequest(label: String, description: Option[String], public: Option[Boolean], services: List[PServices], userInput: Option[List[OneUserInputService]], secretBinding: Option[List[OneSecretBindingService]] ,agreementProtocols: Option[List[Map[String,String]]]) {
+final case class PostPutPatternRequest(label: String,
+                                       description: Option[String],
+                                       public: Option[Boolean],
+                                       services: List[PServices],
+                                       userInput: Option[List[OneUserInputService]],
+                                       secretBinding: Option[List[OneSecretBindingService]],
+                                       agreementProtocols: Option[List[Map[String,String]]],
+                                       clusterNamespace: Option[String] = None) {
   require(label!=null && services!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
 
@@ -80,22 +87,43 @@ final case class PostPutPatternRequest(label: String, description: Option[String
   // Note: write() handles correctly the case where the optional fields are None.
   def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
     // The nodeHealth field is optional, so fill in a default in each element of services if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
-    val hbDefault: Int = ExchConfig.getInt("api.defaults.pattern.missing_heartbeat_interval")
     val agrChkDefault: Int = ExchConfig.getInt("api.defaults.pattern.check_agreement_status")
-    val services2: Seq[PServices] = if (services.nonEmpty) {
-      services.map({ s =>
-        val nodeHealth2: Option[Map[String, Int]] = s.nodeHealth.orElse(Some(Map("missing_heartbeat_interval" -> hbDefault, "check_agreement_status" -> agrChkDefault)))
-        PServices(s.serviceUrl, s.serviceOrgid, s.serviceArch, s.agreementLess, s.serviceVersions, s.dataVerification, nodeHealth2)
-      })
-    } else {
-      services
-    }
     val agreementProtocols2: Option[List[Map[String, String]]] = agreementProtocols.orElse(Some(List(Map("name" -> "Basic"))))
-    PatternRow(pattern, orgid, owner, label, description.getOrElse(label), public.getOrElse(false), write(services2), write(userInput),write(secretBinding), write(agreementProtocols2),ApiTime.nowUTC)
+    val hbDefault: Int = ExchConfig.getInt("api.defaults.pattern.missing_heartbeat_interval")
+    val services2: Seq[PServices] =
+      if (services.nonEmpty) {
+        services.map({
+          s =>
+            val nodeHealth2: Option[Map[String, Int]] = s.nodeHealth.orElse(Some(Map("missing_heartbeat_interval" -> hbDefault, "check_agreement_status" -> agrChkDefault)))
+            PServices(s.serviceUrl, s.serviceOrgid, s.serviceArch, s.agreementLess, s.serviceVersions, s.dataVerification, nodeHealth2)
+        })
+      }
+      else
+        services
+    
+    PatternRow(agreementProtocols = write(agreementProtocols2),
+               clusterNamespace = clusterNamespace,
+               description = description.getOrElse(label),
+               label = label,
+               lastUpdated = ApiTime.nowUTC,
+               orgid = orgid,
+               owner = owner,
+               pattern = pattern,
+               public = public.getOrElse(false),
+               services = write(services2),
+               secretBinding = write(secretBinding),
+               userInput = write(userInput))
   }
 }
 
-final case class PatchPatternRequest(label: Option[String], description: Option[String], public: Option[Boolean], services: Option[List[PServices]], userInput: Option[List[OneUserInputService]], secretBinding:Option[List[OneSecretBindingService]] , agreementProtocols: Option[List[Map[String,String]]]) {
+final case class PatchPatternRequest(label: Option[String],
+                                     description: Option[String],
+                                     public: Option[Boolean],
+                                     services: Option[List[PServices]],
+                                     userInput: Option[List[OneUserInputService]],
+                                     secretBinding:Option[List[OneSecretBindingService]],
+                                     agreementProtocols: Option[List[Map[String,String]]],
+                                     clusterNamespace: Option[String] = None) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -108,13 +136,14 @@ final case class PatchPatternRequest(label: Option[String], description: Option[
   def getDbUpdate(pattern: String, orgid: String): (DBIO[_],String) = {
     val lastUpdated: String = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this pattern
-    label match { case Some(lab) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.label,d.lastUpdated)).update((pattern, lab, lastUpdated)), "label"); case _ => ; }
+    agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
+    clusterNamespace match { case Some(namespace) => return ((for { d <- PatternsTQ if d.clusterNamespace === namespace } yield (d.pattern,d.clusterNamespace,d.lastUpdated)).update((pattern, Option(namespace), lastUpdated)), "clusterNamespace"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.description,d.lastUpdated)).update((pattern, desc, lastUpdated)), "description"); case _ => ; }
+    label match { case Some(lab) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.label,d.lastUpdated)).update((pattern, lab, lastUpdated)), "label"); case _ => ; }
     public match { case Some(pub) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "public"); case _ => ; }
+    secretBinding match {case Some(bind) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.secretBinding,d.lastUpdated)).update((pattern, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
     services match { case Some(svc) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.services,d.lastUpdated)).update((pattern, write(svc), lastUpdated)), "services"); case _ => ; }
     userInput match { case Some(input) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.userInput,d.lastUpdated)).update((pattern, write(input), lastUpdated)), "userInput"); case _ => ; }
-    secretBinding match {case Some(bind) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.secretBinding,d.lastUpdated)).update((pattern, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
-    agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
     (null, null)
   }
 
@@ -139,7 +168,20 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
 
-  def patternsRoutes: Route = patternsGetRoute ~ patternGetRoute ~ patternPostRoute ~ patternPuttRoute ~ patternPatchRoute ~ patternDeleteRoute ~ patternPostSearchRoute ~ patternNodeHealthRoute ~ patternGetKeysRoute ~ patternGetKeyRoute ~ patternPutKeyRoute ~ patternDeleteKeysRoute ~ patternDeleteKeyRoute
+  def patternsRoutes: Route =
+    patternDeleteKeyRoute ~
+    patternDeleteKeysRoute ~
+    patternDeleteRoute ~
+    patternGetKeyRoute ~
+    patternGetKeysRoute ~
+    patternGetRoute ~
+    patternNodeHealthRoute ~
+    patternPatchRoute ~
+    patternPostRoute ~
+    patternPostSearchRoute ~
+    patternPutKeyRoute ~
+    patternPuttRoute ~
+    patternsGetRoute
 
   /* ====== GET /orgs/{orgid}/patterns ================================ */
   @GET
@@ -147,11 +189,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns all patterns", description = "Returns all pattern definitions in this organization. Can be run by any user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include patterns with this id (can include % for wildcard - the URL encoding for % is %25)"),
-      new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include patterns with this owner (can include % for wildcard - the URL encoding for % is %25)"),
-      new Parameter(name = "public", in = ParameterIn.QUERY, required = false, description = "Filter results to only include patterns with this public setting"),
-      new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include patterns with this label (can include % for wildcard - the URL encoding for % is %25)"),
-      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include patterns with this description (can include % for wildcard - the URL encoding for % is %25)")),
+      new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include deployment patterns with this id (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
+      new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include deployment patterns with this owner (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
+      new Parameter(name = "public", in = ParameterIn.QUERY, required = false, description = "Filter results to only include deployment patterns with this public setting"),
+      new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include deployment patterns with this label (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
+      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include deployment patterns with this description (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
+      new Parameter(name = "clusternamespace", in = ParameterIn.QUERY, required = false, description = "Filter results to only include deployment patterns with this cluster namespace (can include '%' for wildcard - the URL encoding for '%' is '%25')")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(
@@ -214,7 +257,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           "name": "Basic"
         }
       ],
-      "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]"
+      "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]",
+      "clusterNamespace": "MyNamespace"
     }
   },
   "lastIndex": 0
@@ -229,23 +273,24 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
-  def patternsGetRoute: Route = (path("orgs" / Segment / "patterns") & get & parameter("idfilter".?, "owner".?, "public".?, "label".?, "description".?)) { (orgid, idfilter, owner, public, label, description) =>
+  def patternsGetRoute: Route = (path("orgs" / Segment / "patterns") & get & parameter("idfilter".?, "owner".?, "public".?, "label".?, "description".?, "clusternamespace".?)) { (orgid, idfilter, owner, public, label, description, clusterNamespace) =>
     exchAuth(TPattern(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
         complete({
           //var q = PatternsTQ.subquery
           var q = PatternsTQ.getAllPatterns(orgid)
           // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
+          clusterNamespace.foreach(namespace => { if (namespace.contains("%")) q = q.filter(_.clusterNamespace like namespace) else q = q.filter(_.clusterNamespace === namespace) })
+          description.foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
           idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.pattern like id) else q = q.filter(_.pattern === id) })
+          label.foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
           owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
           public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
-          label.foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
-          description.foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
-
+          
           db.run(q.result).map({ list =>
             logger.debug("GET /orgs/"+orgid+"/patterns result size: "+list.size)
             val patterns: Map[String, Pattern] = list.filter(e => ident.getOrg == e.orgid || e.public || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.pattern -> e.toPattern).toMap
-            val code: StatusCode with Serializable = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            val code: StatusCode = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetPatternsResponse(patterns, 0))
           })
         }) // end of complete
@@ -323,7 +368,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
           "name": "Basic"
         }
       ],
-      "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]"
+      "lastUpdated": "2019-05-14T16:34:34.194Z[UTC]",
+      "clusterNamespace": "MyNamespace"
     }
   },
   "lastIndex": 0
@@ -359,7 +405,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             db.run(PatternsTQ.getPattern(compositeId).result).map({ list =>
               logger.debug("GET /orgs/" + orgid + "/patterns result size: " + list.size)
               val patterns: Map[String, Pattern] = list.map(e => e.pattern -> e.toPattern).toMap
-              val code: StatusCode with Serializable = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+              val code: StatusCode = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
               (code, GetPatternsResponse(patterns, 0))
             })
         }
@@ -466,7 +512,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "name": "Basic"
     }
-  ]
+  ],
+  "clusterNamespace": "MyNamespace"
 }
 """
             )
@@ -661,7 +708,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "name": "Basic"
     }
-  ]
+  ],
+  "clusterNamespace": "MyNamespace"
 }
 """
           )
@@ -855,7 +903,8 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     {
       "name": "Basic"
     }
-  ]
+  ],
+  "clusterNamespace": "MyNamespace"
 }
 """
           )

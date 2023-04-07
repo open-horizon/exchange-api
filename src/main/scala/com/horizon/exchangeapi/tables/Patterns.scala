@@ -20,19 +20,59 @@ final case class OneUserInputValue(name: String, value: Any)
 
 final case class OneSecretBindingService(serviceOrgid: String, serviceUrl: String, serviceArch: Option[String], serviceVersionRange: Option[String], secrets: List[Map[String, String]])
 // This is the pattern table minus the key - used as the data structure to return to the REST clients
-class Pattern(var owner: String, var label: String, var description: String, var public: Boolean, var services: List[PServices], var userInput: List[OneUserInputService], var secretBinding: List[OneSecretBindingService],var agreementProtocols: List[Map[String,String]], var lastUpdated: String) {
-  def copy = new Pattern(owner, label, description, public, services, userInput, secretBinding, agreementProtocols, lastUpdated)
+class Pattern(var owner: String,
+              var label: String,
+              var description: String,
+              var public: Boolean,
+              var services: List[PServices],
+              var userInput: List[OneUserInputService],
+              var secretBinding: List[OneSecretBindingService],
+              var agreementProtocols: List[Map[String,String]],
+              var lastUpdated: String,
+              var clusterNamespace: String = "") {
+  def copy =
+    new Pattern(agreementProtocols = agreementProtocols,
+                clusterNamespace = clusterNamespace,
+                description = description,
+                label = label,
+                lastUpdated = lastUpdated,
+                owner = owner,
+                public = public,
+                secretBinding = secretBinding,
+                services = services,
+                userInput = userInput)
 }
 
-final case class PatternRow(pattern: String, orgid: String, owner: String, label: String, description: String, public: Boolean, services: String, userInput: String, secretBinding: String, agreementProtocols: String, lastUpdated: String) {
+final case class PatternRow(pattern: String,
+                            orgid: String,
+                            owner: String,
+                            label: String,
+                            description: String,
+                            public: Boolean,
+                            services: String,
+                            userInput: String,
+                            secretBinding: String,
+                            agreementProtocols: String,
+                            lastUpdated: String,
+                            clusterNamespace: Option[String] = None) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toPattern: Pattern = {
-    val svc: List[PServices] = if (services == "") List[PServices]() else read[List[PServices]](services)
-    val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
-    val bind: List[OneSecretBindingService] = if (secretBinding != "") read[List[OneSecretBindingService]](secretBinding) else List[OneSecretBindingService]()
     val agproto: List[Map[String, String]] = if (agreementProtocols != "") read[List[Map[String,String]]](agreementProtocols) else List[Map[String,String]]()
-    new Pattern(owner, label, description, public, svc, input, bind, agproto,lastUpdated)
+    val bind: List[OneSecretBindingService] = if (secretBinding != "") read[List[OneSecretBindingService]](secretBinding) else List[OneSecretBindingService]()
+    val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
+    val svc: List[PServices] = if (services == "") List[PServices]() else read[List[PServices]](services)
+    
+    new Pattern(agreementProtocols = agproto,
+                clusterNamespace = clusterNamespace.getOrElse(""),
+                description = description,
+                label = label,
+                lastUpdated = lastUpdated,
+                owner = owner,
+                public = public,
+                secretBinding = bind,
+                services = svc,
+                userInput = input)
   }
 
   // update returns a DB action to update this row
@@ -55,8 +95,9 @@ class Patterns(tag: Tag) extends Table[PatternRow](tag, "patterns") {
   def secretBinding = column[String]("secretbinding")
   def agreementProtocols = column[String]("agreementProtocols")
   def lastUpdated = column[String]("lastupdated")
+  def clusterNamespace = column[Option[String]]("cluster_namespace")
   // this describes what you get back when you return rows from a query
-  def * = (pattern, orgid, owner, label, description, public, services, userInput,secretBinding, agreementProtocols, lastUpdated).<>(PatternRow.tupled, PatternRow.unapply)
+  def * = (pattern, orgid, owner, label, description, public, services, userInput,secretBinding, agreementProtocols, lastUpdated, clusterNamespace).<>(PatternRow.tupled, PatternRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -114,16 +155,17 @@ object PatternsTQ  extends TableQuery(new Patterns(_)){
   def getAttribute(pattern: String, attrName: String): Query[_,_,Seq] = {
     val filter = this.filter(_.pattern === pattern)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
-    attrName match {
-      case "owner" => filter.map(_.owner)
-      case "label" => filter.map(_.label)
+    attrName.toLowerCase() match {
+      case "agreementprotocols" => filter.map(_.agreementProtocols)
+      case "clusternamespace" => filter.map(_.clusterNamespace.getOrElse(""))
       case "description" => filter.map(_.description)
-      case "public" => filter.map(_.public)
-      case "services" => filter.map(_.services)
-      case "userInput" => filter.map(_.userInput)
-      case "secretBinding" => filter.map(_.secretBinding)
-      case "agreementProtocols" => filter.map(_.agreementProtocols)
+      case "label" => filter.map(_.label)
       case "lastUpdated" => filter.map(_.lastUpdated)
+      case "owner" => filter.map(_.owner)
+      case "public" => filter.map(_.public)
+      case "secretbinding" => filter.map(_.secretBinding)
+      case "services" => filter.map(_.services)
+      case "userinput" => filter.map(_.userInput)
       case _ => null
     }
   }

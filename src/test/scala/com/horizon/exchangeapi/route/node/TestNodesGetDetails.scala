@@ -57,7 +57,9 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 regServices = """[{"url":"NodesSuiteTests/horizon.sdr","numAgreements":1,"configState":"active","policy":"{json policy for n1 sdr}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"memory","value":"300","propType":"int","op":">="},{"name":"version","value":"1.0.0","propType":"version","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"dataVerification","value":"true","propType":"boolean","op":"="}]},{"url":"NodesSuiteTests/horizon.netspeed","numAgreements":1,"configState":"active","policy":"{json policy for n1 netspeed}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"version","value":"1.0.0","propType":"version","op":"in"}]}]""",
                 softwareVersions = """{"horizon":"3.2.1"}""",
                 token = "$2a$10$iXtbvxfSH8iN3LxPDlntEO7yLq6Wk4YhE4Tq4B7RtiqLfeHOaBE8q", // TestNodesGetDetails/n1:n1pw
-                userInput = """[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"horizon.sdr","serviceArch":"amd64","serviceVersionRange":"[0.0.0,INFINITY)","inputs":[{"name":"UI_STRING","value":"mystr - updated"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}]"""),
+                userInput = """[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"horizon.sdr","serviceArch":"amd64","serviceVersionRange":"[0.0.0,INFINITY)","inputs":[{"name":"UI_STRING","value":"mystr - updated"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}]""",
+                clusterNamespace = Option("namespace0")),
+                
         NodeRow(arch = "x86",
                 id = "TestNodesGetDetails/n2",
                 heartbeatIntervals = "",
@@ -73,7 +75,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 regServices = "",
                 softwareVersions = "",
                 token = "$2a$10$0EOlHl1mb2THvz3f/AnyWOV6ivUMItcQKLTzltNLmrdiLn.VCgavy",
-                userInput = ""),
+                userInput = "",
+                clusterNamespace = None),
         NodeRow(arch = "",
                 id = "TestNodesGetDetails/n3",
                 heartbeatIntervals = "",
@@ -89,7 +92,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 regServices = "",
                 softwareVersions = "",
                 token = "",
-                userInput = ""),
+                userInput = "",
+                clusterNamespace = Option("")),
         NodeRow(arch = "",
                 id = "TestNodesGetDetails2/n4",
                 heartbeatIntervals = "",
@@ -105,7 +109,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 regServices = "",
                 softwareVersions = "",
                 token = "",
-                userInput = ""))
+                userInput = "",
+                clusterNamespace = None))
   private val TESTNODEERRORS: Seq[NodeErrorRow] =
     Seq(NodeErrorRow(errors = """[{"record_id":"1","workload":{"url":"myservice"},"timestamp":"yesterday","hidden":false,"message":"test error 1","event_code":"500"},{"record_id":"2","workload":{"url":"myservice2"},"timestamp":"yesterday","hidden":true,"message":"test error 2","event_code":"404"}]""",
                      lastUpdated = ApiTime.nowUTC,
@@ -221,6 +226,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
            NODES(2).id === TESTNODES(2).id)
     
     assert(NODES(0).arch                  === Option(TESTNODES(0).arch))
+    assert(NODES(0).clusterNamespace      === TESTNODES(0).clusterNamespace)
     assert(NODES(0).connectivity          === Option(parse(TESTNODESTATUSES(0).connectivity).extract[Map[String, Boolean]]))
     assert(NODES(0).constraints           === Option(parse(TESTNODEPOLICIES(0).constraints).extract[List[String]]))
     assert(NODES(0).errors                === Option(parse(TESTNODEERRORS(0).errors).extract[List[Any]]))
@@ -245,7 +251,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(0).token                 === StrConstants.hiddenPw)
     assert(NODES(0).userInput             === Option(parse(TESTNODES(0).userInput).extract[List[OneUserInputService]]))
     
-    assert(NODES(2).errors                === None)
+    assert(NODES(1).errors                === None)
+    assert(NODES(1).clusterNamespace      === TESTNODES(1).clusterNamespace)
     assert(NODES(1).connectivity          === None)
     assert(NODES(1).constraints           === None)
     assert(NODES(1).lastUpdatedNodeError  === Option(TESTNODEERRORS(1).lastUpdated))
@@ -256,6 +263,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(1).services              === None)
     
     assert(NODES(2).arch                  === None)
+    assert(NODES(2).clusterNamespace      === TESTNODES(2).clusterNamespace)
     assert(NODES(2).connectivity          === None)
     assert(NODES(2).constraints           === None)
     assert(NODES(2).errors                === None)

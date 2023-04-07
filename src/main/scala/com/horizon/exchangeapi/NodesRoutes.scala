@@ -1,7 +1,7 @@
 /** Services routes for all of the /orgs/{orgid}/nodes api methods. */
 package com.horizon.exchangeapi
 
-import jakarta.ws.rs.{DELETE, GET, Path, PATCH, POST, PUT}
+import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
@@ -30,6 +30,7 @@ import scala.util.matching.Regex
 import org.json4s.{DefaultFormats, Formats}
 
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
+import scala.language.postfixOps
 
 
 //====== These are the input and output structures for /orgs/{orgid}/nodes routes. Swagger and/or json seem to require they be outside the trait.
@@ -72,7 +73,8 @@ case class NodeDetails(arch: Option[String] = None,
                        softwareVersions: Option[Map[String, String]] = None,
                        token: String = StrConstants.hiddenPw,
                        userInput: Option[List[OneUserInputService]] = None,
-                       ha_group: Option[String] = None)
+                       ha_group: Option[String] = None,
+                       clusterNamespace: Option[String] = None)
 
 // Tried this to have names on the tuple returned from the db, but didn't work...
 final case class PatternSearchHashElement(nodeType: String, publicKey: String, noAgreementYet: Boolean)
@@ -93,7 +95,14 @@ final case class PostServiceSearchRequest(orgid: String, serviceURL: String, ser
 }
 final case class PostServiceSearchResponse(nodes: scala.collection.Seq[(String, Option[String])])
 
-final case class NodeResponse(id: String, name: String, services: List[RegService], userInput: List[OneUserInputService], msgEndPoint: String, publicKey: String, arch: String)
+final case class NodeResponse(id: String,
+                              name: String,
+                              services: List[RegService],
+                              userInput: List[OneUserInputService],
+                              msgEndPoint: String,
+                              publicKey: String,
+                              arch: String,
+                              clusterNamespace: String)
 final case class PostSearchNodesResponse(nodes: List[NodeResponse], lastIndex: Int)
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
@@ -107,7 +116,8 @@ final case class PutNodesRequest(token: String,
                                  softwareVersions: Option[Map[String,String]],
                                  publicKey: String,
                                  arch: Option[String],
-                                 heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
+                                 heartbeatIntervals: Option[NodeHeartbeatIntervals],
+                                 clusterNamespace: Option[String] = None) {
   require(token!=null && name!=null && pattern!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
@@ -137,52 +147,75 @@ final case class PutNodesRequest(token: String,
   def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { NodesTQ.validateServiceIds(userInput.getOrElse(List())) }
 
   /** Get the db actions to insert or update all parts of the node */
-  def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] /*= Some(ApiTime.nowUTC)*/): DBIO[_] = {
+  def getDbUpsert(id: String,
+                  orgid: String,
+                  owner: String,
+                  hashedTok: String,
+                  lastHeartbeat: Option[String]): DBIO[_] = {
     // default new field configState in registeredServices
-    val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties, rs.version))
-    NodeRow(id,
-            orgid,
-            hashedTok,
-            name,
-            owner,
-            nodeType.getOrElse(NodeType.DEVICE.toString),
-            pattern,
-            write(rsvc2),
-            write(userInput),
-            msgEndPoint.getOrElse(""),
-            write(softwareVersions),
-            lastHeartbeat,
-            publicKey,
-            arch.getOrElse(""),
-            write(heartbeatIntervals),
-            ApiTime.nowUTC).upsert
+    val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))
+    
+    NodeRow(arch = arch.getOrElse(""),
+            clusterNamespace = clusterNamespace,
+            heartbeatIntervals = write(heartbeatIntervals),
+            id = id,
+            lastHeartbeat = lastHeartbeat,
+            lastUpdated = ApiTime.nowUTC,
+            msgEndPoint = msgEndPoint.getOrElse(""),
+            name = name,
+            nodeType = nodeType.getOrElse(NodeType.DEVICE.toString),
+            orgid = orgid,
+            owner = owner,
+            pattern = pattern,
+            publicKey = publicKey,
+            regServices = write(rsvc2),
+            softwareVersions = write(softwareVersions),
+            token = hashedTok,
+            userInput = write(userInput)).upsert
   }
 
   /** Get the db actions to update all parts of the node. This is run, instead of getDbUpsert(), when it is a node doing it,
    * because we can't let a node create new nodes. */
-  def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String, lastHeartbeat: Option[String] /*= Some(ApiTime.nowUTC)*/): DBIO[_] = {
+  def getDbUpdate(id: String,
+                  orgid: String,
+                  owner: String,
+                  hashedTok: String,
+                  lastHeartbeat: Option[String]): DBIO[_] = {
     // default new field configState in registeredServices
-    val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties, rs.version))
-    NodeRow(id,
-            orgid,
-            hashedTok,
-            name,
-            owner,
-            nodeType.getOrElse(NodeType.DEVICE.toString),
-            pattern,
-            write(rsvc2),
-            write(userInput),
-            msgEndPoint.getOrElse(""),
-            write(softwareVersions),
-            lastHeartbeat,
-            publicKey,
-            arch.getOrElse(""),
-            write(heartbeatIntervals),
-            ApiTime.nowUTC).update
+    val rsvc2: Seq[RegService] = registeredServices.getOrElse(List()).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))
+  
+    NodeRow(arch = arch.getOrElse(""),
+            clusterNamespace = clusterNamespace,
+            heartbeatIntervals = write(heartbeatIntervals),
+            id = id,
+            lastHeartbeat = lastHeartbeat,
+            lastUpdated = ApiTime.nowUTC,
+            msgEndPoint = msgEndPoint.getOrElse(""),
+            name = name,
+            nodeType = nodeType.getOrElse(NodeType.DEVICE.toString),
+            orgid = orgid,
+            owner = owner,
+            pattern = pattern,
+            publicKey = publicKey,
+            regServices = write(rsvc2),
+            softwareVersions = write(softwareVersions),
+            token = hashedTok,
+            userInput = write(userInput)).update
   }
 }
 
-final case class PatchNodesRequest(token: Option[String], name: Option[String], nodeType: Option[String], pattern: Option[String], registeredServices: Option[List[RegService]], userInput: Option[List[OneUserInputService]], msgEndPoint: Option[String], softwareVersions: Option[Map[String,String]], publicKey: Option[String], arch: Option[String], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
+final case class PatchNodesRequest(token: Option[String],
+                                   name: Option[String],
+                                   nodeType: Option[String],
+                                   pattern: Option[String],
+                                   registeredServices: Option[List[RegService]],
+                                   userInput: Option[List[OneUserInputService]],
+                                   msgEndPoint: Option[String],
+                                   softwareVersions: Option[Map[String,String]],
+                                   publicKey: Option[String],
+                                   arch: Option[String],
+                                   heartbeatIntervals: Option[NodeHeartbeatIntervals],
+                                   clusterNamespace: Option[String] = None) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -201,32 +234,54 @@ final case class PatchNodesRequest(token: Option[String], name: Option[String], 
     // find the 1st non-blank attribute and create a db action to update it for this node
     var dbAction: (DBIO[_], String) = (null, null)
     // nodeType intentionally missing from this 1st list of attributes, because we will default it if it is the only 1 not specified
-    if(token.isEmpty && softwareVersions.isDefined && registeredServices.isDefined && name.isDefined && pattern.isDefined && userInput.isDefined && msgEndPoint.isDefined && publicKey.isDefined && arch.isDefined){
+    if(token.isEmpty &&
+       softwareVersions.isDefined &&
+       registeredServices.isDefined &&
+       name.isDefined &&
+       pattern.isDefined &&
+       userInput.isDefined &&
+       msgEndPoint.isDefined &&
+       publicKey.isDefined &&
+       arch.isDefined) {
       dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.softwareVersions, d.regServices, d.name, d.nodeType, d.pattern, d.userInput, d.msgEndPoint, d.publicKey, d.arch, d.lastHeartbeat, d.lastUpdated)).update((id, write(softwareVersions), write(registeredServices), name.get, nodeType.getOrElse(NodeType.DEVICE.toString), pattern.get, write(userInput), msgEndPoint.get, publicKey.get, arch.get, Some(currentTime), currentTime)), "update all but token")
-    } else if (token.isDefined){
+    }
+    else if (token.isDefined){
       dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.token,d.lastHeartbeat, d.lastUpdated)).update((id, hashedPw, Some(currentTime), currentTime)), "token")
-    } else if (softwareVersions.isDefined){
+    }
+    else if (softwareVersions.isDefined){
       val swVersions: String = if (softwareVersions.nonEmpty) write(softwareVersions) else ""
-      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat, d.lastUpdated)).update((id, swVersions, Some(currentTime), currentTime)), "softwareVersions")
-    } else if (registeredServices.isDefined){
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.softwareVersions,d.lastHeartbeat, d.lastUpdated)).update((id, swVersions, Option(currentTime), currentTime)), "softwareVersions")
+    }
+    else if (registeredServices.isDefined){
       val regSvc: String = if (registeredServices.nonEmpty) write(registeredServices) else ""
-      dbAction =  ((for { d <- NodesTQ if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat, d.lastUpdated)).update((id, regSvc, Some(currentTime), currentTime)), "registeredServices")
-    } else if (name.isDefined){
-      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.name,d.lastHeartbeat, d.lastUpdated)).update((id, name.get, Some(currentTime), currentTime)), "name")
-    } else if (nodeType.isDefined){
-      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.nodeType,d.lastHeartbeat, d.lastUpdated)).update((id, nodeType.get, Some(currentTime), currentTime)), "nodeType")
-    } else if (pattern.isDefined){
-      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat, d.lastUpdated)).update((id, pattern.get, Some(currentTime), currentTime)), "pattern")
-    } else if (userInput.isDefined){
-      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat, d.lastUpdated)).update((id, write(userInput), Some(currentTime), currentTime)), "userInput")
-    } else if (msgEndPoint.isDefined){
-      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat, d.lastUpdated)).update((id, msgEndPoint.get, Some(currentTime), currentTime)), "msgEndPoint")
-    } else if (publicKey.isDefined){
-      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat, d.lastUpdated)).update((id, publicKey.get, Some(currentTime), currentTime)), "publicKey")
-    } else if (arch.isDefined){
-      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.arch,d.lastHeartbeat, d.lastUpdated)).update((id, arch.get, Some(currentTime), currentTime)), "arch")
-    } else if (heartbeatIntervals.isDefined){
-      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.heartbeatIntervals,d.lastHeartbeat, d.lastUpdated)).update((id, write(heartbeatIntervals), Some(currentTime), currentTime)), "heartbeatIntervals")
+      dbAction =  ((for { d <- NodesTQ if d.id === id } yield (d.id,d.regServices,d.lastHeartbeat, d.lastUpdated)).update((id, regSvc, Option(currentTime), currentTime)), "registeredServices")
+    }
+    else if (name.isDefined){
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.name,d.lastHeartbeat, d.lastUpdated)).update((id, name.get, Option(currentTime), currentTime)), "name")
+    }
+    else if (nodeType.isDefined){
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.nodeType,d.lastHeartbeat, d.lastUpdated)).update((id, nodeType.get, Option(currentTime), currentTime)), "nodeType")
+    }
+    else if (pattern.isDefined){
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.pattern,d.lastHeartbeat, d.lastUpdated)).update((id, pattern.get, Option(currentTime), currentTime)), "pattern")
+    }
+    else if (userInput.isDefined){
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.userInput,d.lastHeartbeat, d.lastUpdated)).update((id, write(userInput), Option(currentTime), currentTime)), "userInput")
+    }
+    else if (msgEndPoint.isDefined){
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat, d.lastUpdated)).update((id, msgEndPoint.get, Option(currentTime), currentTime)), "msgEndPoint")
+    }
+    else if (publicKey.isDefined){
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat, d.lastUpdated)).update((id, publicKey.get, Option(currentTime), currentTime)), "publicKey")
+    }
+    else if (arch.isDefined){
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.arch,d.lastHeartbeat, d.lastUpdated)).update((id, arch.get, Option(currentTime), currentTime)), "arch")
+    }
+    else if (heartbeatIntervals.isDefined){
+      dbAction = ((for { d <- NodesTQ if d.id === id } yield (d.id,d.heartbeatIntervals,d.lastHeartbeat, d.lastUpdated)).update((id, write(heartbeatIntervals), Option(currentTime), currentTime)), "heartbeatIntervals")
+    }
+    else if (clusterNamespace.isDefined) {
+      dbAction = ((for {d <- NodesTQ if d.id === id} yield (d.id, d.clusterNamespace, d.lastHeartbeat, d.lastUpdated)).update((id, clusterNamespace, Option(currentTime), currentTime)), "heartbeatIntervals")
     }
     dbAction
   }
@@ -510,7 +565,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "intervalAdjustment": 0
       },
       "ha_group": "groupName",
-      "lastUpdated": "string"
+      "lastUpdated": "string",
+      "clusterNamespace": "MyNamespace"
     }
   },
   "lastIndex": 0
@@ -525,22 +581,29 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def nodesGetRoute: Route = (path("orgs" / Segment / "nodes") & get & parameter("idfilter".?, "name".?, "owner".?, "arch".?, "nodetype".?)) { (orgid, idfilter, name, owner, arch, nodetype) =>
+  def nodesGetRoute: Route = (path("orgs" / Segment / "nodes") & get & parameter("idfilter".?, "name".?, "owner".?, "arch".?, "nodetype".?, "clusternamespace".?)) { (orgid, idfilter, name, owner, arch, nodetype, clusterNamespace) =>
     logger.debug(s"Doing GET /orgs/$orgid/nodes")
     exchAuth(TNode(OrgAndId(orgid,"#").toString), Access.READ) { ident =>
       validateWithMsg(GetNodesUtils.getNodesProblem(nodetype)) {
         complete({
           logger.debug(s"GET /orgs/$orgid/nodes identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
+          
           var q = NodesTQ.getAllNodes(orgid)
+  
+          arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
+          clusterNamespace.foreach(namespace => { if (namespace.contains("%")) q = q.filter(_.clusterNamespace like namespace) else q = q.filter(_.clusterNamespace === namespace) })
           idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id) })
           name.foreach(name => { if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name) })
 
-          if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) {
+          if (ident.isAdmin ||
+              ident.role.equals(AuthRoles.Agbot)) {
               owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-          } else q = q.filter(_.owner === ident.identityString)
+          }
+          else
+            q = q.filter(_.owner === ident.identityString)
 
           owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-          arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
+          
 
           if (nodetype.isDefined) {
             val nt: String = nodetype.get.toLowerCase
@@ -556,7 +619,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             logger.debug(s"GET /orgs/$orgid/nodes result size: ${result.size}")
             //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
             val nodes: Map[String, Node] = result.map(e => e._1.id -> e._1.toNode(ident.isSuperUser, e._2)).toMap
-            val code: StatusCode with Serializable = if (nodes.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            val code: StatusCode = if (nodes.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetNodesResponse(nodes, 0))
           })
         }) // end of complete
@@ -645,7 +708,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         "intervalAdjustment": 0
       },
       "ha_group": "groupName",
-      "lastUpdated": "string"
+      "lastUpdated": "string",
+      "clusterNamespace": "MyNamespace"
     }
   },
   "lastIndex": 0
@@ -764,7 +828,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     "minInterval": 10,
     "maxInterval": 120,
     "intervalAdjustment": 10
-  }
+  },
+  "clusterNamespace": "MyNamespace"
 }
 """
             )
@@ -809,7 +874,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     exchAuth(TNode(compositeId), Access.WRITE) { ident =>
       validateWithMsg(reqBody.getAnyProblem(id, noheartbeat)) {
         complete({
-          val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
+          val noHB: Boolean = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
           var orgLimitMaxNodes = 0
           var fivePercentWarning = false
           var hashedPw = ""
@@ -991,7 +1056,8 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     "minInterval": 10,
     "maxInterval": 120,
     "intervalAdjustment": 10
-  }
+  },
+  "clusterNamespace": "MyNamespace"
 }
 """
           )
@@ -1903,7 +1969,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         db.run(NodeAgreementsTQ.getAgreements(compositeId).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/agreements result size: ${list.size}")
           val agreements: Map[String, NodeAgreement] = list.map(e => e.agId -> e.toNodeAgreement).toMap
-          val code: StatusCode with Serializable = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val code: StatusCode = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetNodeAgreementsResponse(agreements, 0))
         })
       }) // end of complete
@@ -1960,7 +2026,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         db.run(NodeAgreementsTQ.getAgreement(compositeId, agrId).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/agreements/$agrId result size: ${list.size}")
           val agreements: Map[String, NodeAgreement] = list.map(e => e.agId -> e.toNodeAgreement).toMap
-          val code: StatusCode with Serializable = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+          val code: StatusCode = if (agreements.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
           (code, GetNodeAgreementsResponse(agreements, 0))
         })
       }) // end of complete
@@ -2332,7 +2398,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
             logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result size: "+list.size)
             //logger.debug("GET /orgs/"+orgid+"/nodes/"+id+"/msgs result: "+list.toString)
             val msgs: List[NodeMsg] = list.map(_.toNodeMsg).toList
-            val code: StatusCode with Serializable = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+            val code: StatusCode = if (msgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetNodeMsgsResponse(msgs, 0))
           })
         }) // end of complete
@@ -2656,6 +2722,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                          else
                                            node._1._1._1._1.token),
                                          node._1._1._1._1.userInput,
+                                         node._1._1._1._1.clusterNamespace,
                                          node._1._1._1._2,           // Node Errors (errors, lastUpdated)
                                          node._1._1._2,              // Node Policy (constraints, lastUpdated, properties)
                                          node._1._2,                 // Node Statuses (connectivity, lastUpdated, runningServices, services)
@@ -2670,58 +2737,58 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                              if(node._1.isEmpty)
                                                None
                                              else
-                                               Some(node._1),
+                                               Option(node._1),
                                              connectivity =
-                                               if(node._19.isEmpty ||
-                                                  node._19.get.connectivity.isEmpty)
+                                               if(node._20.isEmpty ||
+                                                  node._20.get.connectivity.isEmpty)
                                                  None
                                                else
-                                                 Some(read[Map[String, Boolean]](node._19.get.connectivity)),
+                                                 Option(read[Map[String, Boolean]](node._20.get.connectivity)),
                                              constraints =
-                                              if(node._18.isEmpty ||
-                                                 node._18.get.constraints.isEmpty)
+                                              if(node._19.isEmpty ||
+                                                 node._19.get.constraints.isEmpty)
                                                 None
                                               else
-                                                Some(read[List[String]](node._18.get.constraints)),
+                                                Option(read[List[String]](node._19.get.constraints)),
                                              errors =
-                                               if(node._17.isEmpty ||
-                                                  node._17.get.errors.isEmpty)
+                                               if(node._18.isEmpty ||
+                                                  node._18.get.errors.isEmpty)
                                                  None
                                                else
-                                                 Some(read[List[Any]](node._17.get.errors)),
+                                                 Option(read[List[Any]](node._18.get.errors)),
                                              id = node._2,
                                              heartbeatIntervals =
                                                if(node._3.isEmpty)
-                                                 Some(NodeHeartbeatIntervals(0, 0, 0))
+                                                 Option(NodeHeartbeatIntervals(0, 0, 0))
                                                else
-                                                 Some(read[NodeHeartbeatIntervals](node._3)),
+                                                 Option(read[NodeHeartbeatIntervals](node._3)),
                                              lastHeartbeat = node._4,
                                              lastUpdatedNode = node._5,
                                              lastUpdatedNodeError =
-                                               if(node._17.isDefined)
-                                                 Some(node._17.get.lastUpdated)
+                                               if(node._18.isDefined)
+                                                 Option(node._18.get.lastUpdated)
                                                else
                                                  None,
                                              lastUpdatedNodePolicy =
-                                              if(node._18.isDefined)
-                                                Some(node._18.get.lastUpdated)
+                                              if(node._19.isDefined)
+                                                Option(node._19.get.lastUpdated)
                                               else
                                                 None,
                                              lastUpdatedNodeStatus =
-                                               if(node._19.isDefined)
-                                                 Some(node._19.get.lastUpdated)
+                                               if(node._20.isDefined)
+                                                 Option(node._20.get.lastUpdated)
                                                else
                                                  None,
                                              msgEndPoint =
                                                if(node._6.isEmpty)
                                                  None
                                                else
-                                                 Some(node._6),
+                                                 Option(node._6),
                                              name =
                                                if(node._7.isEmpty)
                                                  None
                                                else
-                                                 Some(node._7),
+                                                 Option(node._7),
                                              nodeType =
                                                if(node._8.isEmpty)
                                                  "device"
@@ -2733,40 +2800,40 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                if(node._11.isEmpty)
                                                  None
                                                else
-                                                 Some(node._11),
+                                                 Option(node._11),
                                              properties =
-                                              if(node._18.isEmpty ||
-                                                 node._18.get.properties.isEmpty)
+                                              if(node._19.isEmpty ||
+                                                 node._19.get.properties.isEmpty)
                                                 None
                                               else
-                                                Some(read[List[OneProperty]](node._18.get.properties)),
+                                                Option(read[List[OneProperty]](node._19.get.properties)),
                                              publicKey =
                                                if(node._12.isEmpty)
                                                  None
                                                else
-                                                 Some(node._12),
+                                                 Option(node._12),
                                              registeredServices =
                                                if(node._13.isEmpty)
                                                  None
                                                else
-                                                 Some(read[List[RegService]](node._13).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties, rs.version))),
+                                                 Option(read[List[RegService]](node._13).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties, rs.version))),
                                              runningServices =
-                                               if(node._19.isEmpty ||
-                                                  node._19.get.services.isEmpty)
+                                               if(node._20.isEmpty ||
+                                                  node._20.get.services.isEmpty)
                                                  None
                                                else
-                                                 Some(node._19.get.runningServices),
+                                                 Option(node._20.get.runningServices),
                                              services =
-                                               if(node._19.isEmpty ||
-                                                  node._19.get.services.isEmpty)
+                                               if(node._20.isEmpty ||
+                                                  node._20.get.services.isEmpty)
                                                  None
                                                else
-                                                 Some(read[List[OneService]](node._19.get.services)),
+                                                 Option(read[List[OneService]](node._20.get.services)),
                                              softwareVersions =
                                                if(node._14.isEmpty)
                                                  None
                                                else
-                                                 Some(read[Map[String, String]](node._14)),
+                                                 Option(read[Map[String, String]](node._14)),
                                              token =
                                                if(node._15.isEmpty)
                                                  StrConstants.hiddenPw
@@ -2776,8 +2843,9 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                if(node._16.isEmpty)
                                                  None
                                                else
-                                                 Some(read[List[OneUserInputService]](node._16)),
-                                             ha_group = node._20)).toList)
+                                                 Option(read[List[OneUserInputService]](node._16)),
+                                             ha_group = node._21,
+                                             clusterNamespace = node._17)).toList)
                   } yield(nodes)
                 
                 db.run(getNodes.asTry).map({
@@ -2863,7 +2931,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         var q = NodeMgmtPolStatuses.getNodeMgmtPolStatuses(orgid + "/" + id).sortBy(_.policy.asc.nullsFirst)
         db.run(q.result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/managementStatus result size: "+list.size)
-          val code: StatusCode with Serializable =
+          val code: StatusCode =
             if(list.nonEmpty)
               StatusCodes.OK
             else
@@ -2928,7 +2996,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       complete({
         db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(compositeId, orgid + "/" + mgmtpolicy).result).map({ list =>
           logger.debug(s"GET /orgs/$orgid/nodes/$id/managementStatus/$mgmtpolicy status result size: ${list.size}")
-          val code: StatusCode with Serializable =
+          val code: StatusCode =
             if(list.nonEmpty)
               StatusCodes.OK
             else

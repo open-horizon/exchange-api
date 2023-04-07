@@ -1,4 +1,30 @@
 {
+  "akka": {
+    "http": {
+      "parsing": {
+        "parsing.max-header-name-length": 128
+      },
+      "server": {
+        "backlog": 100,
+        "bind-timeout": "1s",
+        "idle-timeout": "60s",
+        "linger-timeout": "1m",
+        "max-connections": "1024",
+        "pipelining-limit": 1,
+        "request-timeout": "45s",
+        "server-header": ""
+      }
+    }
+  },
+  "akka-http-cors": {
+    "allow-credentials": true,
+    "allow-generic-http-requests": false,
+    "allowed-headers": ["FOO"],
+    "allowed-methods": ["DELETE", "POST"],
+    "allowed-origins": ["http://abc123.com"],
+    "exposed-headers": ["Content-Type"],
+    "max-age": 0
+  },
   "api": {
     "acls": {
       "AdminUser": [
@@ -93,12 +119,12 @@
       ]
     },
     "akka": {
+      "akka.http.parsing.max-header-name-length": "128",
       "akka.http.server.backlog": "100",
       "akka.http.server.bind-timeout": "1s",
       "akka.http.server.idle-timeout": "60s",
       "akka.http.server.linger-timeout": "1m",
       "akka.http.server.max-connections": "1024",
-      "akka.http.server.parsing.max-header-name-length": "128",
       "akka.http.server.pipelining-limit": "1",
       "akka.http.server.request-timeout": "45s",
       "akka.http.server.server-header": ""

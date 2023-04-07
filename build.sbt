@@ -32,7 +32,7 @@ lazy val root = (project in file("."))
     akkaVersion                   := "[2.6.16]",
     description                   := "'Containerized exchange-api'",
     name                          := "amd64_exchange-api",
-    organization                  := "com.horizon",
+    organization                  := "org.openhorizon",
     release                       := versionFunc(),
     resolvers                     += Classpaths.typesafeReleases,
     scalaVersion                  := "2.13.10",
@@ -51,6 +51,7 @@ lazy val root = (project in file("."))
       // "com.typesafe.akka" %% "akka-http-spray-json" % "[10.2.1,)",
       "de.heikoseeberger" %% "akka-http-jackson" % "[1.39.2]",
       // "com.typesafe.akka" %% "akka-http-jackson" % "[10.2.1,)",    // Can not find any recent documentation on how to use this
+      "ch.megard" %% "akka-http-cors" % "[1.1.2]",
       
       "org.json4s" %% "json4s-native" % "4.0.6",
       "org.json4s" %% "json4s-jackson" % "4.0.6",

@@ -1,13 +1,11 @@
-package org.openhorizon.exchangeapi.table
+package com.horizon.exchangeapi.tables
 
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization.read
-import org.openhorizon.exchangeapi.{Role, StrConstants, Version, VersionRange, table}
-import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
-import slick.ast.ScalaBaseType.longType
+import com.horizon.exchangeapi.{ApiTime, ExchMsg, Role, StrConstants, Version, VersionRange, tables}
 import slick.dbio.{Effect, NoStream}
-import slick.jdbc.PostgresProfile.api.{DBIO, ForeignKeyAction, Query, Table, TableQuery, Tag, anyToShapedValue, booleanColumnExtensionMethods, booleanColumnType, columnExtensionMethods, intColumnType, queryInsertActionExtensionMethods, queryUpdateActionExtensionMethods, recordQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType, valueToConstColumn}
+import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Rep
 import slick.sql.FixedSqlAction
 
@@ -57,8 +55,8 @@ final case class NodeHeartbeatIntervals(minInterval: Int, maxInterval: Int, inte
 
 object NodeType extends Enumeration {
   type NodeType = Value
-  val DEVICE: Value = Value("device")
-  val CLUSTER: Value = Value("cluster")
+  val DEVICE: tables.NodeType.Value = Value("device")
+  val CLUSTER: tables.NodeType.Value = Value("cluster")
   def isDevice(str: String): Boolean = str == DEVICE.toString
   def isCluster(str: String): Boolean = str == CLUSTER.toString
   def containsString(str: String): Boolean = values.find(_.toString == str).orNull != null
@@ -66,8 +64,39 @@ object NodeType extends Enumeration {
 }
 
 // This is the node table minus the key - used as the data structure to return to the REST clients
-class Node(var token: String, var name: String, var owner: String, var nodeType: String, var pattern: String, var registeredServices: List[RegService], var userInput: List[OneUserInputService], var msgEndPoint: String, var softwareVersions: Map[String,String], var lastHeartbeat: String, var publicKey: String, var arch: String, var heartbeatIntervals: NodeHeartbeatIntervals, var ha_group: Option[String], var lastUpdated: String) {
-  def copy = new Node(token, name, owner, nodeType, pattern, registeredServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, ha_group, lastUpdated)
+class Node(var token: String,
+           var name: String,
+           var owner: String,
+           var nodeType: String,
+           var pattern: String,
+           var registeredServices: List[RegService],
+           var userInput: List[OneUserInputService],
+           var msgEndPoint: String,
+           var softwareVersions: Map[String,String],
+           var lastHeartbeat: String,
+           var publicKey: String,
+           var arch: String,
+           var heartbeatIntervals: NodeHeartbeatIntervals,
+           var ha_group: Option[String],
+           var lastUpdated: String,
+           var clusterNamespace: String = "") {
+  def copy =
+    new Node(arch = arch,
+             clusterNamespace = clusterNamespace,
+             ha_group = ha_group,
+             heartbeatIntervals = heartbeatIntervals,
+             lastHeartbeat = lastHeartbeat,
+             lastUpdated = lastUpdated,
+             msgEndPoint = msgEndPoint,
+             name = name,
+             nodeType = nodeType,
+             owner = owner,
+             pattern = pattern,
+             publicKey = publicKey,
+             registeredServices = registeredServices,
+             softwareVersions = softwareVersions,
+             token = token,
+             userInput = userInput)
 }
 
 final case class NodeRow(id: String,
@@ -85,25 +114,44 @@ final case class NodeRow(id: String,
                          publicKey: String,
                          arch: String,
                          heartbeatIntervals: String,
-                         lastUpdated: String) {
+                         lastUpdated: String,
+                         clusterNamespace: Option[String] = None) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toNode(superUser: Boolean, ha_group: Option[String]): Node = {
-    val tok: String = if (superUser) token else StrConstants.hiddenPw
+    val hbInterval: NodeHeartbeatIntervals = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
+    val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val nt: String = if (nodeType == "") NodeType.DEVICE.toString else nodeType
-    val swv: Map[String, String] = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
     val rsvc: List[RegService] = if (regServices != "") read[List[RegService]](regServices) else List[RegService]()
     // Default new configState attr if it doesnt exist. This ends up being called by GET nodes, GET nodes/id, and POST search/nodes
     val rsvc2: List[RegService] = rsvc.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version.orElse(Some(""))))
-    val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
-    val hbInterval: NodeHeartbeatIntervals = if (heartbeatIntervals != "") read[NodeHeartbeatIntervals](heartbeatIntervals) else NodeHeartbeatIntervals(0, 0, 0)
-    new Node(tok, name, owner, nt, pattern, rsvc2, input, msgEndPoint, swv, lastHeartbeat.orNull, publicKey, arch, hbInterval, ha_group, lastUpdated)
+    val swv: Map[String, String] = if (softwareVersions != "") read[Map[String,String]](softwareVersions) else Map[String,String]()
+    val tok: String = if (superUser) token else StrConstants.hiddenPw
+    
+    new Node(arch = arch,
+             clusterNamespace = clusterNamespace.getOrElse(""),
+             ha_group = ha_group,
+             heartbeatIntervals = hbInterval,
+             lastHeartbeat = lastHeartbeat.orNull,
+             lastUpdated = lastUpdated,
+             msgEndPoint = msgEndPoint,
+             name = name,
+             nodeType = nt,
+             owner = owner,
+             pattern = pattern,
+             publicKey = publicKey,
+             registeredServices = rsvc2,
+             softwareVersions = swv,
+             token = tok,
+             userInput = input)
   }
 
   def upsert: DBIO[_] = {
     //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
-    if (Role.isSuperUser(owner)) NodesTQ.map(d => (d.id, d.orgid, d.token, d.name, d.nodeType, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated)).insertOrUpdate((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated))
-    else NodesTQ.insertOrUpdate(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
+    if (Role.isSuperUser(owner))
+      NodesTQ.map(d => (d.id, d.orgid, d.token, d.name, d.nodeType, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated, d.clusterNamespace)).insertOrUpdate((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated, clusterNamespace))
+    else
+      NodesTQ.insertOrUpdate(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated, clusterNamespace))
   }
 
   def update: DBIO[_] = {
@@ -112,10 +160,10 @@ final case class NodeRow(id: String,
         for { 
           d <- NodesTQ if d.id === id
         } yield (d.id,d.orgid,d.token,d.name,d.nodeType,d.pattern,d.regServices,d.userInput,
-            d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated))
+            d.msgEndPoint,d.softwareVersions,d.lastHeartbeat,d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated, d.clusterNamespace))
             .update((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, 
-                lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated))
-    else (for { d <- NodesTQ if d.id === id } yield d).update(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated))
+                lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated, clusterNamespace))
+    else (for { d <- NodesTQ if d.id === id } yield d).update(NodeRow(id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated, clusterNamespace))
   }
 }
 
@@ -138,9 +186,10 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def arch = column[String]("arch")
   def heartbeatIntervals = column[String]("heartbeatintervals")
   def lastUpdated = column[String]("lastupdated")
+  def clusterNamespace = column[Option[String]]("cluster_namespace")
 
   // this describes what you get back when you return this.from a query
-  def * = (id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated).<>(NodeRow.tupled, NodeRow.unapply)
+  def * = (id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated, clusterNamespace).<>(NodeRow.tupled, NodeRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   //def patKey = foreignKey("pattern_fk", pattern, PatternsTQ)(_.pattern, onUpdate=ForeignKeyAction.Cascade)     // <- we can't make this a foreign key because it is optional
@@ -198,25 +247,26 @@ object NodesTQ  extends TableQuery(new Nodes(_)){
 
 
   /** Returns a query for the specified node attribute value. Returns null if an invalid attribute name is given. */
-  def getAttribute(id: String, attrName: String): Query[_,_,Seq] = {
+  def getAttribute(id: String, attrName: String): Query[_, _, Seq] = {
     val filter = this.filter(_.id === id)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
-    attrName match {
-      case "token" => filter.map(_.token)
-      case "name" => filter.map(_.name)
-      case "owner" => filter.map(_.owner)
-      case "nodeType" => filter.map(_.nodeType)
-      case "pattern" => filter.map(_.pattern)
-      case "regServices" => filter.map(_.regServices)
-      case "userInput" => filter.map(_.userInput)
-      case "msgEndPoint" => filter.map(_.msgEndPoint)
-      case "softwareVersions" => filter.map(_.softwareVersions)
-      case "lastHeartbeat" => filter.map(_.lastHeartbeat)
-      case "publicKey" => filter.map(_.publicKey)
+    attrName.toLowerCase() match {
       case "arch" => filter.map(_.arch)
-      case "heartbeatIntervals" => filter.map(_.heartbeatIntervals)
-      case "lastUpdated" => filter.map(_.lastUpdated)
+      case "clusternamespace" => filter.map(_.clusterNamespace.getOrElse(""))
       case "ha_group" => NodeGroupTQ.filter(_.group in NodeGroupAssignmentTQ.filter(_.node === id).map(_.group)).map(_.name)
+      case "heartbeatintervals" => filter.map(_.heartbeatIntervals)
+      case "lastheartbeat" => filter.map(_.lastHeartbeat)
+      case "lastupdated" => filter.map(_.lastUpdated)
+      case "msgendpoint" => filter.map(_.msgEndPoint)
+      case "name" => filter.map(_.name)
+      case "nodetype" => filter.map(_.nodeType)
+      case "owner" => filter.map(_.owner)
+      case "pattern" => filter.map(_.pattern)
+      case "publickey" => filter.map(_.publicKey)
+      case "regservices" => filter.map(_.regServices)
+      case "softwareversions" => filter.map(_.softwareVersions)
+      case "token" => filter.map(_.token)
+      case "userinput" => filter.map(_.userInput)
       case _ => null
     }
   }

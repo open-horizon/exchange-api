@@ -799,8 +799,8 @@ class PatternsSuite extends AnyFunSuite {
 
   test("GET /orgs/"+orgid+"/patterns - as node") {
     val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(NODEAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetPatternsResponse]
     assert(respObj.patterns.size === 2)
@@ -808,8 +808,8 @@ class PatternsSuite extends AnyFunSuite {
 
   test("GET /orgs/"+orgid+"/patterns - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetPatternsResponse]
     assert(respObj.patterns.size === 2)
@@ -817,8 +817,8 @@ class PatternsSuite extends AnyFunSuite {
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+" - as user") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetPatternsResponse]
     assert(respObj.patterns.size === 1)
@@ -1049,8 +1049,7 @@ class PatternsSuite extends AnyFunSuite {
   test("POST /orgs/IBM/patterns/"+ibmPattern+" - add "+ibmPattern+" as root") {
     val input = PostPutPatternRequest(ibmPattern, None, Some(true),
       List( PServices(ibmSvcUrl, "IBM", ibmSvcArch, None, List(PServiceVersions(ibmSvcVersion, None, None, None, None)), None, None )),
-      None, None, None
-    )
+      None, None, None, Option("ibmPattern"))
     val response = Http(IBMURL+"/patterns/"+ibmPattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1060,8 +1059,8 @@ class PatternsSuite extends AnyFunSuite {
 
   test("GET /orgs/IBM/patterns") {
     val response: HttpResponse[String] = Http(IBMURL+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetPatternsResponse]
     //assert(respObj.patterns.size === 2)  // cant test this because there could be other patterns in the IBM org
@@ -1073,8 +1072,8 @@ class PatternsSuite extends AnyFunSuite {
 
   test("GET /orgs/IBM/patterns/"+ibmPattern+" - as user") {
     val response: HttpResponse[String] = Http(IBMURL+"/patterns/"+ibmPattern).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetPatternsResponse]
     assert(respObj.patterns.size === 1)
@@ -1082,6 +1081,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(respObj.patterns.contains(ibmOrgPattern))
     val pt = respObj.patterns(ibmOrgPattern)     // the 2nd get turns the Some(val) into val
     assert(pt.label === ibmPattern)
+    assert(pt.clusterNamespace === "ibmPattern")
   }
 
   // the test to try to get an IBM pattern that doesn't exist is at the end when we are cleaning up

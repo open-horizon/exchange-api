@@ -45,8 +45,20 @@ object BusinessUtils {
 }
 
 /** Input format for POST/PUT /orgs/{orgid}/business/policies/<bus-pol-id> */
-final case class PostPutBusinessPolicyRequest(label: String, description: Option[String], service: BService, userInput: Option[List[OneUserInputService]],secretBinding: Option[List[OneSecretBindingService]], properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
-  require(label!=null && service!=null && service.name!=null && service.org!=null && service.arch!=null && service.serviceVersions!=null)
+final case class PostPutBusinessPolicyRequest(label: String,
+                                              description: Option[String],
+                                              service: BService,
+                                              userInput: Option[List[OneUserInputService]],
+                                              secretBinding: Option[List[OneSecretBindingService]],
+                                              properties: Option[List[OneProperty]],
+                                              constraints: Option[List[String]],
+                                              clusterNamespace: Option[String] = None) {
+  require(label != null &&
+          service!=null &&
+          service.name != null &&
+          service.org != null &&
+          service.arch != null &&
+          service.serviceVersions != null)
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = { BusinessUtils.getAnyProblem(service) }
@@ -57,23 +69,71 @@ final case class PostPutBusinessPolicyRequest(label: String, description: Option
   // The nodeHealth field is optional, so fill in a default in service if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
   def defaultNodeHealth(service: BService): BService = {
     if (service.nodeHealth.nonEmpty) return service
-    val hbDefault: Int = ExchConfig.getInt("api.defaults.businessPolicy.missing_heartbeat_interval")
     val agrChkDefault: Int = ExchConfig.getInt("api.defaults.businessPolicy.check_agreement_status")
+    val hbDefault: Int = ExchConfig.getInt("api.defaults.businessPolicy.missing_heartbeat_interval")
     val nodeHealth2: Option[Map[String, Int]] = Some(Map("missing_heartbeat_interval" -> hbDefault, "check_agreement_status" -> agrChkDefault)) // provide defaults for node health
-    BService(service.name, service.org, service.arch, service.serviceVersions, nodeHealth2)
+   
+    BService(arch = service.arch,
+             name = service.name,
+             nodeHealth = nodeHealth2,
+             org = service.org,
+             serviceVersions = service.serviceVersions)
   }
 
   // Note: write() handles correctly the case where the optional fields are None.
-  def getDbInsert(businessPolicy: String, orgid: String, owner: String): DBIO[_] = {
-    BusinessPolicyRow(businessPolicy, orgid, owner, label, description.getOrElse(label), write(defaultNodeHealth(service)), write(userInput),write(secretBinding), write(properties), write(constraints), ApiTime.nowUTC, ApiTime.nowUTC).insert
+  def getDbInsert(businessPolicy: String,
+                  orgid: String,
+                  owner: String): DBIO[_] = {
+    BusinessPolicyRow(businessPolicy = businessPolicy,
+                      clusterNamespace = clusterNamespace,
+                      constraints = write(constraints),
+                      created = ApiTime.nowUTC,
+                      description = description.getOrElse(label),
+                      label = label,
+                      lastUpdated = ApiTime.nowUTC,
+                      orgid = orgid,
+                      owner = owner,
+                      properties = write(properties),
+                      secretBinding = write(secretBinding),
+                      service = write(defaultNodeHealth(service)),
+                      userInput = write(userInput)).insert
   }
 
   def getDbUpdate(businessPolicy: String, orgid: String, owner: String): DBIO[_] = {
-    BusinessPolicyRow(businessPolicy, orgid, owner, label, description.getOrElse(label), write(defaultNodeHealth(service)), write(userInput),write(secretBinding),write(properties), write(constraints), ApiTime.nowUTC, "").update
+    (for {
+       deploymentPolicy <-
+         BusinessPoliciesTQ.filter(_.businessPolicy === businessPolicy)
+                           .map(policy =>
+                             (policy.clusterNamespace,
+                              policy.constraints,
+                              policy.description,
+                              policy.label,
+                              policy.lastUpdated,
+                              policy.properties,
+                              policy.secretBinding,
+                              policy.service,
+                              policy.userInput))
+     } yield(deploymentPolicy))
+      .update((clusterNamespace,
+                write(constraints),
+                description.getOrElse(label),
+                label,
+                ApiTime.nowUTC,
+                write(properties),
+                write(secretBinding),
+                write(defaultNodeHealth(service)),
+                write(userInput)))
   }
 }
 
-final case class PatchBusinessPolicyRequest(label: Option[String], description: Option[String], service: Option[BService], userInput: Option[List[OneUserInputService]],secretBinding:Option[List[OneSecretBindingService]] , properties: Option[List[OneProperty]], constraints: Option[List[String]]) {
+final case class PatchBusinessPolicyRequest(label: Option[String],
+                                            description: Option[String],
+                                            service: Option[BService],
+                                            userInput: Option[List[OneUserInputService]],
+                                            secretBinding:Option[List[OneSecretBindingService]] ,
+                                            properties: Option[List[OneProperty]],
+                                            constraints: Option[List[String]],
+                                            clusterNamespace: Option[String] = None) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -86,13 +146,14 @@ final case class PatchBusinessPolicyRequest(label: Option[String], description: 
   def getDbUpdate(businessPolicy: String, orgid: String): (DBIO[_],String) = {
     val lastUpdated: String = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this businessPolicy
-    label match { case Some(lab) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.label,d.lastUpdated)).update((businessPolicy, lab, lastUpdated)), "label"); case _ => ; }
+    clusterNamespace match { case Some(namespace) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.clusterNamespace,d.lastUpdated)).update((businessPolicy, Option(namespace), lastUpdated)), "clusterNamespace"); case _ => ; }
+    constraints match { case Some(con) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.constraints,d.lastUpdated)).update((businessPolicy, write(con), lastUpdated)), "constraints"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.description,d.lastUpdated)).update((businessPolicy, desc, lastUpdated)), "description"); case _ => ; }
+    label match { case Some(lab) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.label,d.lastUpdated)).update((businessPolicy, lab, lastUpdated)), "label"); case _ => ; }
+    properties match { case Some(prop) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.properties,d.lastUpdated)).update((businessPolicy, write(prop), lastUpdated)), "properties"); case _ => ; }
+    secretBinding match {case Some(bind) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.secretBinding,d.lastUpdated)).update((businessPolicy, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
     service match { case Some(svc) => return ((for {d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.service,d.lastUpdated)).update((businessPolicy, write(svc), lastUpdated)), "service"); case _ => ; }
     userInput match { case Some(input) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.userInput,d.lastUpdated)).update((businessPolicy, write(input), lastUpdated)), "userInput"); case _ => ; }
-    secretBinding match {case Some(bind) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.secretBinding,d.lastUpdated)).update((businessPolicy, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
-    properties match { case Some(prop) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.properties,d.lastUpdated)).update((businessPolicy, write(prop), lastUpdated)), "properties"); case _ => ; }
-    constraints match { case Some(con) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.constraints,d.lastUpdated)).update((businessPolicy, write(con), lastUpdated)), "constraints"); case _ => ; }
     (null, null)
   }
 }
@@ -137,10 +198,11 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns all business policies", description = "Returns all business policy definitions in this organization. Can be run by any user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include business policies with this id (can include % for wildcard - the URL encoding for % is %25)"),
-      new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include business policies with this owner (can include % for wildcard - the URL encoding for % is %25)"),
-      new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include business policies with this label (can include % for wildcard - the URL encoding for % is %25)"),
-      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include business policies with this description (can include % for wildcard - the URL encoding for % is %25)")),
+      new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Identifier (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
+      new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Owner (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
+      new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Label (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
+      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Description (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
+      new Parameter(name = "clusternamespace", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Cluster Namespace (can include % for wilcard - the URL encoding for '%' is '%25')")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(
@@ -182,7 +244,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         "a == b"
       ],
       "lastUpdated": "string",
-      "created": "string"
+      "created": "string",
+      "clusterNamespace": "MyNamespace"
     }
   },
   "lastIndex": 0
@@ -198,16 +261,17 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment policy")
-  def busPolsGetRoute: Route = (path("orgs" / Segment / "business" / "policies") & get & parameter("idfilter".?, "owner".?, "label".?, "description".?)) { (orgid, idfilter, owner, label, description) =>
+  def busPolsGetRoute: Route = (path("orgs" / Segment / "business" / "policies") & get & parameter("idfilter".?, "owner".?, "label".?, "description".?, "clusternamespace".?)) { (orgid, idfilter, owner, label, description, clusterNamespace) =>
     exchAuth(TBusiness(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
       complete({
         var q = BusinessPoliciesTQ.getAllBusinessPolicies(orgid)
         // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
-        idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.businessPolicy like id) else q = q.filter(_.businessPolicy === id) })
-        owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-        label.foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
+        clusterNamespace.foreach(namespace => { if (namespace.contains("%")) q = q.filter(_.clusterNamespace like namespace) else q = q.filter(_.clusterNamespace === namespace) })
         description.foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
-
+        idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.businessPolicy like id) else q = q.filter(_.businessPolicy === id) })
+        label.foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
+        owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+        
         db.run(q.result).map({ list =>
           logger.debug("GET /orgs/"+orgid+"/business/policies result size: "+list.size)
           val businessPolicy: Map[String, BusinessPolicy] = list.filter(e => ident.getOrg == e.orgid || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
@@ -267,7 +331,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         "a == b"
       ],
       "lastUpdated": "string",
-      "created": "string"
+      "created": "string",
+      "clusterNamespace": "MyNamespace"
     }
   },
   "lastIndex": 0
@@ -397,7 +462,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   ],
   "constraints": [
     "a == b"
-  ]
+  ],
+  "clusterNamespace": "MyNamespace"
 }
 """
             )
@@ -568,7 +634,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   ],
   "constraints": [
     "a == b"
-  ]
+  ],
+  "clusterNamespace": "MyNamespace"
 }
 """
           )
@@ -712,7 +779,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     ],
     "constraints": [
       "a == b"
-      ]
+      ],
+    "clusterNamespace": "MyNamespace"
     }
   }
 """

@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.112.0] - 2023-04-07
+- Issue 640: Added `clusterNamespace` attribute to Deployment Patterns.
+- Issue 641: Added `clusterNamespace` attribute to Nodes.
+
+## [2.111.0] - 2023-04-03
+- Issue 639: Added `clusterNamespace` attribute to Deployment Policies.
+
+## [2.110.1] - 2023-03-01
+- Issue 662: Slick's schema.createIfNotExists function is not creating foreign keys. Reverting back to the simple create function.
+
+## [2.110.0] - 2023-02-28
+- Issue 662:
+  - Removed database schema change that was added in error.
+  - Reworked the schema upgrade function to fully roll back to the schema version at boot when encountering an error.
+
 ## [2.109.2] - 2023-02-23
 - Issue 657: Added additional ddl clauses to the Exchange's schema upgrade path.
 

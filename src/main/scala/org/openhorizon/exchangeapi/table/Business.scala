@@ -16,25 +16,94 @@ final case class BService(name: String, org: String, arch: String, serviceVersio
 final case class BServiceVersions(version: String, priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
 
 // This is the businesspolicies table minus the key - used as the data structure to return to the REST clients
-class BusinessPolicy(var owner: String, var label: String, var description: String, var service: BService, var userInput: List[OneUserInputService],var secretBinding: List[OneSecretBindingService], var properties: List[OneProperty], var constraints: List[String], var lastUpdated: String, var created: String) {
-  def copy = new BusinessPolicy(owner, label, description, service, userInput,secretBinding, properties, constraints, lastUpdated, created)
+class BusinessPolicy(var owner: String,
+                     var label: String,
+                     var description: String,
+                     var service: BService,
+                     var userInput: List[OneUserInputService],
+                     var secretBinding: List[OneSecretBindingService],
+                     var properties: List[OneProperty],
+                     var constraints: List[String],
+                     var lastUpdated: String,
+                     var created: String,
+                     var clusterNamespace: String = "") {
+  def copy = new BusinessPolicy(clusterNamespace = clusterNamespace,
+                                constraints = constraints,
+                                created = created,
+                                description = description,
+                                label = label,
+                                lastUpdated = lastUpdated,
+                                owner = owner,
+                                properties = properties,
+                                secretBinding = secretBinding,
+                                service = service,
+                                userInput = userInput)
 }
 
 // Note: if you add fields to this, you must also add them the update method below
-final case class BusinessPolicyRow(businessPolicy: String, orgid: String, owner: String, label: String, description: String, service: String, userInput: String, secretBinding: String,properties: String, constraints: String, lastUpdated: String, created: String) {
+final case class BusinessPolicyRow(businessPolicy: String,
+                                   orgid: String,
+                                   owner: String,
+                                   label: String,
+                                   description: String,
+                                   service: String,
+                                   userInput: String,
+                                   secretBinding: String,
+                                   properties: String,
+                                   constraints: String,
+                                   lastUpdated: String,
+                                   created: String,
+                                   clusterNamespace: Option[String] = None) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toBusinessPolicy: BusinessPolicy = {
-    val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val bind: List[OneSecretBindingService] = if (secretBinding != "") read[List[OneSecretBindingService]](secretBinding) else List[OneSecretBindingService]()
-    val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
     val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
-    new BusinessPolicy(owner, label, description, read[BService](service), input,bind, prop, con, lastUpdated, created)
+    val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
+    val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
+    
+    new BusinessPolicy(clusterNamespace = clusterNamespace.getOrElse(""),
+                       constraints = con,
+                       created = created,
+                       description = description,
+                       label = label,
+                       lastUpdated = lastUpdated,
+                       owner = owner,
+                       properties = prop,
+                       secretBinding = bind,
+                       service = read[BService](service),
+                       userInput = input)
   }
 
   // update returns a DB action to update this row
   //todo: we should not update the 'created' field, but we also don't want to list out all of the other fields, because it is error prone
-  def update: DBIO[_] = (for { m <- BusinessPoliciesTQ if m.businessPolicy === businessPolicy } yield (m.businessPolicy,m.orgid,m.owner,m.label,m.description,m.service,m.userInput,m.secretBinding,m.properties,m.constraints,m.lastUpdated)).update((businessPolicy,orgid,owner,label,description,service,userInput,secretBinding,properties,constraints,lastUpdated))
+  def update: DBIO[_] =
+    (for {
+       m <- BusinessPoliciesTQ if m.businessPolicy === businessPolicy
+     } yield (m.businessPolicy,
+              m.orgid,
+              m.owner,
+              m.label,
+              m.description,
+              m.service,
+              m.userInput,
+              m.secretBinding,
+              m.properties,
+              m.constraints,
+              m.lastUpdated,
+              m.clusterNamespace))
+      .update((businessPolicy,
+               orgid,
+               owner,
+               label,
+               description,
+               service,
+               userInput,
+               secretBinding,
+               properties,
+               constraints,
+               lastUpdated,
+               clusterNamespace))
 
   // insert returns a DB action to insert this row
   def insert: DBIO[_] = BusinessPoliciesTQ += this
@@ -54,8 +123,9 @@ class BusinessPolicies(tag: Tag) extends Table[BusinessPolicyRow](tag, "business
   def constraints = column[String]("constraints")
   def lastUpdated = column[String]("lastupdated")
   def created = column[String]("created")
+  def clusterNamespace = column[Option[String]]("cluster_namespace")
   // this describes what you get back when you return rows from a query
-  def * = (businessPolicy, orgid, owner, label, description, service, userInput,secretBinding, properties, constraints, lastUpdated, created).<>(BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
+  def * = (businessPolicy, orgid, owner, label, description, service, userInput,secretBinding, properties, constraints, lastUpdated, created, clusterNamespace).<>(BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -94,31 +164,32 @@ object BusinessPoliciesTQ extends TableQuery(new BusinessPolicies(_)) {
 
   def getAllBusinessPolicies(orgid: String): Query[BusinessPolicies, BusinessPolicyRow, Seq] = this.filter(_.orgid === orgid)
   def getBusinessPolicy(businessPolicy: String): Query[BusinessPolicies, BusinessPolicyRow, Seq] = if (businessPolicy.contains("%")) this.filter(_.businessPolicy like businessPolicy) else this.filter(_.businessPolicy === businessPolicy)
-  def getOwner(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.owner)
-  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
-  def getLabel(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.label)
   def getDescription(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.description)
+  def getLabel(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.label)
+  def getLastUpdated(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.lastUpdated)
+  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
+  def getOwner(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.owner)
+  def getSecretBindings(businessPolicy: String): Query[Rep[String],String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.secretBinding)
   def getService(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.service)
   def getServiceFromString(service: String): BService = read[BService](service)
   def getUserInput(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.userInput)
-  def getSecretBindings(businessPolicy: String): Query[Rep[String],String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.secretBinding)
-  def getLastUpdated(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.lastUpdated)
 
   /** Returns a query for the specified businessPolicy attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(businessPolicy: String, attrName: String): Query[_,_,Seq] = {
     val filter = this.filter(_.businessPolicy === businessPolicy)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
-    attrName match {
-      case "owner" => filter.map(_.owner)
-      case "label" => filter.map(_.label)
-      case "description" => filter.map(_.description)
-      case "service" => filter.map(_.service)
-      case "userInput" => filter.map(_.userInput)
-      case "secretBinding" => filter.map(_.secretBinding)
-      case "properties" => filter.map(_.properties)
+    attrName.toLowerCase match {
+      case "clusternamespace" => filter.map(_.clusterNamespace.getOrElse(""))
       case "constraints" => filter.map(_.constraints)
-      case "lastUpdated" => filter.map(_.lastUpdated)
       case "created" => filter.map(_.created)
+      case "description" => filter.map(_.description)
+      case "label" => filter.map(_.label)
+      case "lastupdated" => filter.map(_.lastUpdated)
+      case "owner" => filter.map(_.owner)
+      case "properties" => filter.map(_.properties)
+      case "secretbinding" => filter.map(_.secretBinding)
+      case "service" => filter.map(_.service)
+      case "userinput" => filter.map(_.userInput)
       case _ => null
     }
   }

@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.admin
+package org.openhorizon.exchangeapi.route.administration
 
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite

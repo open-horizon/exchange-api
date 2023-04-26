@@ -37,12 +37,13 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Route}
 import akka.stream.{ActorMaterializer, Materializer}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
-import org.openhorizon.exchangeapi.route.admin.{AdminRoutes, HashPassword, Reload}
+import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
+import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
 import org.openhorizon.exchangeapi.table
-import org.openhorizon.exchangeapi.table.{AgbotMsgsTQ, NodeMsgsTQ, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.{AgbotMsgsTQ, ExchangePostgresProfile, NodeMsgsTQ, ResourceChangesTQ}
 import com.typesafe.config.ConfigFactory
 import org.json4s._
-import org.openhorizon.exchangeapi.route.agreementbot.AgbotsRoutes
+import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.deploymentpattern.PatternsRoutes
 import org.openhorizon.exchangeapi.route.deploymentpolicy.BusinessRoutes
 import org.openhorizon.exchangeapi.route.managementpolicy.ManagementPoliciesRoutes
@@ -51,7 +52,6 @@ import org.openhorizon.exchangeapi.route.nodegroup.NodeGroupRoutes
 import org.openhorizon.exchangeapi.route.organization.OrgsRoutes
 import org.openhorizon.exchangeapi.route.service.ServicesRoutes
 import org.openhorizon.exchangeapi.route.user.UsersRoutes
-import org.openhorizon.exchangeapi.table.NodeMsgsTQ
 import slick.jdbc.TransactionIsolation.Serializable
 
 import java.io.{FileInputStream, InputStream}
@@ -86,54 +86,44 @@ object ExchangeApiConstants {
 */
 
 
-
-/*trait CORSHandler {
-
-  private val corsResponseHeaders = List(
-    `Access-Control-Allow-Origin`.*,
-    `Access-Control-Allow-Credentials`(true),
-    `Access-Control-Allow-Headers`("Origin", "Authorization", "Content-Type", "X-Requested-With", "X-Auth-Token")
-  )
-  //this directive adds access control headers to normal responses
-  private def addAccessControlHeaders: Directive0 = {
-    respondWithHeaders(corsResponseHeaders)
-  }
-  //this handles preflight OPTIONS requests.
-  private def preflightRequestHandler: Route = options {
-    complete(HttpResponse(StatusCodes.OK).withHeaders(`Access-Control-Allow-Methods`(OPTIONS, PATCH, POST, PUT, GET, DELETE)))
-  }
-  // Wrap the Route with this method to enable adding of CORS headers
-  def corsHandler(r: Route): Route = addAccessControlHeaders {
-    preflightRequestHandler ~ r
-  }
-  // Helper method to add CORS headers to HttpResponse
-  // preventing duplication of CORS headers across code
-  def addCORSHeaders(response: HttpResponse): HttpResponse =
-    response.withHeaders(corsResponseHeaders)
-}
-
-class CORS extends CORSHandler {} */
-
 /**
  * Main akka server for the Exchange REST API.
  */
 object ExchangeApiApp extends App
-  with NodeGroupRoutes
-  with AgentConfigurationManagementRoutes
   with AdminRoutes
-  with AgbotsRoutes
+  with AgentConfigurationManagementRoutes
+  with Agreement
+  with Agreements
+  with AgreementBot
+  with AgreementBots
   with BusinessRoutes
   with CatalogRoutes
+  with ClearAuthCache
+  with Configuration
+  with DeploymentPattern
+  with DeploymentPatterns
+  with DeploymentPolicy
+  with DeploymentPolicies
+  with DropDatabase
+  with Heartbeat
   with HashPassword
+  with InitializeDatabase
   with ManagementPoliciesRoutes
+  with Message
+  with Messages
+  with NodeGroupRoutes
   with NodesRoutes
+  with OrganizationStatus
   with OrgsRoutes
   with PatternsRoutes
   with Reload
   with ServicesRoutes
+  with Status
   with SwaggerUiService
-  with UsersRoutes {
-
+  with Token
+  with UsersRoutes
+  with Version {
+  
   // An example of using Spray to marshal/unmarshal json. We chose not to use it because it requires an implicit be defined for every class that needs marshalling
   //protected implicit val jsonFormats: Formats = DefaultFormats
   //implicit val formats = Serialization.formats(NoTypeHints)     // needed for serializing the softwareVersions map to a string (and back)
@@ -146,6 +136,7 @@ object ExchangeApiApp extends App
   // Set up ActorSystem and other dependencies here
   println(s"Running with java arguments: ${ApiUtils.getJvmArgs}")
   ExchConfig.load() // get config file, normally in /etc/horizon/exchange/config.json
+  //val something = ConfigFactory.load("config.json")
   //(ExchangeApi.serviceHost, ExchangeApi.servicePort) = ExchConfig.getHostAndPort  // <- scala does not support this
   ExchConfig.getHostAndPort match {
     case (h, pe, pu) =>
@@ -153,17 +144,22 @@ object ExchangeApiApp extends App
       ExchangeApi.servicePortEncrypted = pe
       ExchangeApi.servicePortUnencrypted = pu
   }
-  //val cors = new CORS()
 
   //val actorConfig = ConfigFactory.parseString("akka.loglevel=" + ExchConfig.getLogLevel)
-  implicit val system: ActorSystem = ActorSystem("actors", ConfigFactory.load().withFallback(ExchConfig.getAkkaConfig))  // includes the loglevel
+  implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)  // includes the loglevel
   implicit val executionContext: ExecutionContext = system.dispatcher
   ExchangeApi.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit
 
   implicit val logger: LoggingAdapter = Logging(system, "ExchApi")
   ExchangeApi.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
   ExchConfig.createRootInCache()
-
+  
+  // Check common overwritten Akka configuration parameters
+  logger.debug("akka.corrdinated-shutdown:  " + system.settings.config.getConfig("akka.coordinated-shutdown").toString)
+  logger.debug("akka.loglevel: " + system.settings.config.getString("akka.loglevel"))
+  logger.debug("akka.http.parsing: " + system.settings.config.getConfig("akka.http.parsing").toString)
+  logger.debug("akka.http.server: " + system.settings.config.getConfig("akka.http.server").toString)
+  
   // Set a custom exception handler. See https://doc.akka.io/docs/akka-http/current/routing-dsl/exception-handling.html#exception-handling
   implicit def myExceptionHandler: ExceptionHandler =
     ExceptionHandler {
@@ -179,35 +175,31 @@ object ExchangeApiApp extends App
     }
 
   // Set a custom rejection handler. See https://doc.akka.io/docs/akka-http/current/routing-dsl/rejections.html#customizing-rejection-handling
-  /*implicit def myRejectionHandler: RejectionHandler =
+  implicit def myRejectionHandler: RejectionHandler =
     RejectionHandler.newBuilder()
-      // this handles all of our rejections
-      .handle {
-        case r: ExchangeRejection =>
-          complete((r.httpCode, r.toApiResp))
-      }
-      // we never use this one, because our AuthRejection extends ExchangeRejection above
-      .handle {
-        case AuthorizationFailedRejection =>
-          complete((StatusCodes.Forbidden, "forbidden"))
-      }
-      .handle {
-        case ValidationRejection(msg, _) =>
-          complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
-      }
-      // this comes from the entity() directive when parsing the request body failed
-      .handle {
-        case MalformedRequestContentRejection(msg, _) =>
-          complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
-      }
-      // do not know when this is run
-      //.handleAll[MethodRejection] { methodRejections =>
-      //  val names: Seq[String] = methodRejections.map(_.supported.name)
-      //  complete((StatusCodes.MethodNotAllowed, s"method not supported: ${names mkString " or "}"))
-      //}
-      // this seems to be called when the route requested does not exist
-      .handleNotFound { complete((StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "unrecognized route"))) }
-      .result()*/
+                    // this handles all of our rejections
+                    .handle {
+                      case r: ExchangeRejection =>
+                        complete((r.httpCode, r.toApiResp))
+                      // we never use this one, because our AuthRejection extends ExchangeRejection above
+                      case AuthorizationFailedRejection =>
+                        complete((StatusCodes.Forbidden, "forbidden"))
+                      case ValidationRejection(msg, _) =>
+                        complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
+                      // this comes from the entity() directive when parsing the request body failed
+                      case MalformedRequestContentRejection(msg, _) =>
+                        complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
+                      case MalformedQueryParamRejection(parameterName, errorMsg, _) =>
+                        complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.int.for.name", parameterName))))
+                    }
+                    // do not know when this is run
+                    // .handleAll[MethodRejection] { methodRejections =>
+                    //   val names: Seq[String] = methodRejections.map(_.supported.name)
+                    //   complete((StatusCodes.MethodNotAllowed, s"method not supported: ${names mkString " or "}"))
+                    // }
+                    // this seems to be called when the route requested does not exist
+                    .handleNotFound { complete((StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "unrecognized route"))) }
+                    .result()
 
   // Set a custom logging of requests and responses. See https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/debugging-directives/logRequestResult.html
   val basicAuthRegex = new Regex("^Basic ?(.*)$")
@@ -255,34 +247,51 @@ object ExchangeApiApp extends App
   lazy val routes: Route =
     DebuggingDirectives.logRequestResult(requestResponseLogging _) {
       pathPrefix("v1") {
-        respondWithDefaultHeaders(//`Cache-Control`(Seq(`max-age`(0), `must-revalidate`, `no-cache`, `no-store`)),
+        respondWithDefaultHeaders(`Cache-Control`(Seq(`max-age`(0), `must-revalidate`, `no-cache`, `no-store`)),
                                   // RawHeader("Content-Type", "application/json"/*; charset=UTF-8"*/),
                                   RawHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"), // 2 years
-                                  //RawHeader("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization"),
                                   RawHeader("X-Content-Type-Options", "nosniff"),
                                   RawHeader("X-XSS-Protection", "1; mode=block")) {
           handleExceptions(myExceptionHandler) {
-            handleRejections(corsRejectionHandler) { //corsRejectionHandler.withFallback(myRejectionHandler)
+            handleRejections(corsRejectionHandler.withFallback(myRejectionHandler)) {
               cors() {
                 handleExceptions(myExceptionHandler) {
-                  handleRejections(corsRejectionHandler) {
+                  handleRejections(corsRejectionHandler.withFallback(myRejectionHandler)) {
                     agentConfigurationManagementRoutes ~
                     adminRoutes ~
-                    agbotsRoutes ~
+                    agreement ~
+                    agreements ~
+                    agreementBot ~
+                    agreementBots ~
                     businessRoutes ~
                     catalogRoutes ~
+                    clearAuthCache ~
+                    configuration ~
+                    deploymentPatternAgreementBot ~
+                    deploymentPatternsAgreementBot ~
+                    deploymentPoliciesAgreementBot ~
+                    deploymentPolicyAgreementBot ~
+                    dropDB ~
                     hashPW ~
+                    heartbeatAgreementBot ~
+                    initializeDB ~
                     managementPoliciesRoutes ~
+                    messageAgreementBot ~
+                    messagesAgreementBot ~
                     nodesRoutes ~
                     nodeGroupRoutes ~
+                    organizationStatus ~
                     orgsRoutes ~
                     patternsRoutes ~
                     reload ~
                     servicesRoutes ~
+                    status ~
                     SwaggerDocService.routes ~
                     swaggerUiRoutes ~
                     testRoute ~
-                    usersRoutes
+                    token ~
+                    usersRoutes ~
+                    version
                   }
                 }
               }
@@ -291,6 +300,7 @@ object ExchangeApiApp extends App
         }
       }
     }
+
   // Load the db backend. The db access info must be in config.json
   // https://www.mchange.com/projects/c3p0/#configuration_properties
   

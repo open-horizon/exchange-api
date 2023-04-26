@@ -24,123 +24,12 @@ import scala.util._
 
 //====== These are the input and output structures for /agbots routes. Swagger and/or json seem to require they be outside the trait.
 
-/** Output format for GET /orgs/{orgid}/agbots */
-final case class GetAgbotsResponse(agbots: Map[String,Agbot], lastIndex: Int)
-final case class GetAgbotAttributeResponse(attribute: String, value: String)
-
-/** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */
-final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[String], publicKey: String) {
-  require(token!=null && name!=null && publicKey!=null)
-  protected implicit val jsonFormats: Formats = DefaultFormats
-  def getAnyProblem: Option[String] = {
-    if (token == "") Option(ExchMsg.translate("token.specified.cannot.be.blank"))
-    // if (!NodeAgbotTokenValidation.isValid(token)) {
-    //   if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
-    //   else return Some(ExchMsg.translate("invalid.password"))
-    // }
-    else None
-  }
-
-  /** Get the db queries to insert or update the agbot */
-  def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).upsert
-
-  /** Get the db queries to update the agbot */
-  def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).update
-}
-
-final case class PatchAgbotsRequest(token: Option[String], name: Option[String], msgEndPoint: Option[String], publicKey: Option[String]) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
-  def getAnyProblem: Option[String] = {
-    if (token.isDefined && token.get == "") Option(ExchMsg.translate("token.cannot.be.empty.string"))
-    // if (token.isDefined && !NodeAgbotTokenValidation.isValid(token.get)) {
-    //   if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
-    //   else return Some(ExchMsg.translate("invalid.password"))
-    // }
-    //else if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
-    else None
-  }
-
-  /** Returns a tuple of the db action to update parts of the agbot, and the attribute name being updated. */
-  def getDbUpdate(id: String, orgid: String, hashedTok: String): (DBIO[_],String) = {
-    val lastHeartbeat: String = ApiTime.nowUTC
-    //somday: support updating more than 1 attribute
-    // find the 1st attribute that was specified in the body and create a db action to update it for this agbot
-    token match {
-      case Some(_) =>
-        //val tok = if (Password.isHashed(token2)) token2 else Password.hash(token2)
-        return ((for { d <- AgbotsTQ if d.id === id } yield (d.id,d.token,d.lastHeartbeat)).update((id, hashedTok, lastHeartbeat)), "token")
-      case _ => ;
-    }
-    name match { case Some(name2) => return ((for { d <- AgbotsTQ if d.id === id } yield (d.id,d.name,d.lastHeartbeat)).update((id, name2, lastHeartbeat)), "name"); case _ => ; }
-    msgEndPoint match { case Some(msgEndPoint2) => return ((for { d <- AgbotsTQ if d.id === id } yield (d.id,d.msgEndPoint,d.lastHeartbeat)).update((id, msgEndPoint2, lastHeartbeat)), "msgEndPoint"); case _ => ; }
-    publicKey match { case Some(publicKey2) => return ((for { d <- AgbotsTQ if d.id === id } yield (d.id,d.publicKey,d.lastHeartbeat)).update((id, publicKey2, lastHeartbeat)), "publicKey"); case _ => ; }
-    (null, null)
-  }
-}
-
-
-/** Output format for GET /orgs/{orgid}/agbots/{id}/patterns */
-final case class GetAgbotPatternsResponse(patterns: Map[String,AgbotPattern])
-
-/** Input format for POST /orgs/{orgid}/agbots/{id}/patterns */
-final case class PostAgbotPatternRequest(patternOrgid: String, pattern: String, nodeOrgid: Option[String]) {
-  require(patternOrgid!=null && pattern!=null)
-  def toAgbotPattern: AgbotPattern = AgbotPattern(patternOrgid, pattern, nodeOrgid.getOrElse(patternOrgid), ApiTime.nowUTC)
-  def toAgbotPatternRow(agbotId: String, patId: String): AgbotPatternRow = AgbotPatternRow(patId, agbotId, patternOrgid, pattern, nodeOrgid.getOrElse(patternOrgid), ApiTime.nowUTC)
-  def formId: String = patternOrgid + "_" + pattern + "_" + nodeOrgid.getOrElse(patternOrgid)
-  def getAnyProblem: Option[String] = None
-}
-
-
-/** Output format for GET /orgs/{orgid}/agbots/{id}/businesspols */
-final case class GetAgbotBusinessPolsResponse(businessPols: Map[String,AgbotBusinessPol])
-
-/** Input format for POST /orgs/{orgid}/agbots/{id}/businesspols */
-final case class PostAgbotBusinessPolRequest(businessPolOrgid: String, businessPol: String, nodeOrgid: Option[String]) {
-  require(businessPolOrgid!=null && businessPol!=null)
-  def toAgbotBusinessPol: AgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)
-  def toAgbotBusinessPolRow(agbotId: String, busPolId: String): AgbotBusinessPolRow = AgbotBusinessPolRow(busPolId, agbotId, businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)
-  def formId: String = businessPolOrgid + "_" + businessPol + "_" + nodeOrgid.getOrElse(businessPolOrgid)
-  def getAnyProblem: Option[String] = {
-    val nodeOrg: String = nodeOrgid.getOrElse(businessPolOrgid)
-    if (nodeOrg != businessPolOrgid) Option(ExchMsg.translate("node.org.must.equal.bus.pol.org"))
-    else None
-  }
-}
-
-/** Output format for GET /orgs/{orgid}/agbots/{id}/agreements */
-final case class GetAgbotAgreementsResponse(agreements: Map[String,AgbotAgreement], lastIndex: Int)
-
-/** Input format for PUT /orgs/{orgid}/agbots/{id}/agreements/<agreement-id> */
-final case class PutAgbotAgreementRequest(service: AAService, state: String) {
-  require(service!=null && state!=null)
-  def getAnyProblem: Option[String] = None
-
-  def toAgbotAgreementRow(agbotId: String, agrId: String): AgbotAgreementRow = {
-    AgbotAgreementRow(agrId, agbotId, service.orgid, service.pattern, service.url, state, ApiTime.nowUTC, "")
-  }
-}
-
 //final case class PostAgbotsIsRecentDataRequest(secondsStale: Int, agreementIds: List[String])     // the strings in the list are agreement ids
 //final case class PostAgbotsIsRecentDataElement(agreementId: String, recentData: Boolean)
 
-/** Input body for POST /orgs/{orgid}/agreements/confirm */
-final case class PostAgreementsConfirmRequest(agreementId: String) {
-  require(agreementId!=null)
-}
-
-
-/** Input body for POST /orgs/{orgid}/agbots/{id}/msgs */
-final case class PostAgbotsMsgsRequest(message: String, ttl: Int) {
-  require(message!=null)
-}
-
-/** Response for GET /orgs/{orgid}/agbots/{id}/msgs */
-final case class GetAgbotMsgsResponse(messages: List[AgbotMsg], lastIndex: Int)
-
 
 /** Implementation for all of the /agbots routes */
-@Path("/v1/orgs/{orgid}/agbots")
+//@Path("/v1/orgs/{organization}/agbots")
 trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -148,33 +37,34 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
 
-  def agbotsRoutes: Route = agbotDeleteAgreementRoute ~
-                            agbotDeleteAgreementsRoute ~
-                            agbotDeleteBusPolRoute ~
-                            agbotDeleteBusPolsRoute ~
-                            agbotDeleteMsgRoute ~
-                            agbotDeletePatRoute ~
-                            agbotDeletePatsRoute ~
-                            agbotDeleteRoute ~
-                            agbotGetAgreementRoute ~
-                            agbotGetAgreementsRoute ~
-                            agbotGetBusPolRoute ~
-                            agbotGetBusPolsRoute ~
-                            agbotGetMsgRoute ~
-                            agbotGetMsgsRoute ~
-                            agbotGetPatternRoute ~
-                            agbotGetPatternsRoute ~
-                            agbotGetRoute ~
-                            agbotHeartbeatRoute ~
-                            agbotPatchRoute ~
-                            agbotPostBusPolRoute ~
-                            agbotPostMsgRoute ~
-                            agbotPostPatRoute ~
-                            agbotPutAgreementRoute ~
-                            agbotPutRoute ~
-                            agbotsGetRoute
+  //def agbotsRoutes: Route = //agbotDeleteAgreementRoute ~
+                            //agbotDeleteAgreementsRoute ~
+                            //agbotDeleteBusPolRoute ~
+                            //agbotDeleteBusPolsRoute ~
+                            //agbotDeleteMsgRoute ~
+                            //agbotDeletePatRoute ~
+                            //agbotDeletePatsRoute ~
+                            //agbotDeleteRoute ~
+                            //agbotGetAgreementRoute ~
+                            //agbotGetAgreementsRoute ~
+                            //agbotGetBusPolRoute ~
+                            //agbotGetBusPolsRoute ~
+                            //agbotGetMsgRoute ~
+                            //agbotGetMsgsRoute ~
+                            //agbotGetPatternRoute ~
+                            //agbotGetPatternsRoute ~
+                            //agbotGetRoute ~
+                            //agbotHeartbeatRoute ~
+                            //agbotPatchRoute ~
+                            //agbotPostBusPolRoute ~
+                            //agbotPostMsgRoute ~
+                            //agbotPostPatRoute ~
+                            //agbotPutAgreementRoute ~
+                            //agbotPutRoute ~
+                            //agbotsGetRoute
   
-  /* ====== GET /orgs/{orgid}/agbots ================================ */
+  /*
+  /* ====== GET /orgs/{organization}/agbots ================================ */
   @GET
   @Path("")
   @Operation(summary = "Returns all agbots", description = "Returns all agbots (Agreement Bots). Can be run by any user.",
@@ -232,7 +122,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/agbots/{id} ================================ */
+  /* ====== GET /orgs/{organization}/agbots/{id} ================================ */
   @GET
   @Path("{id}")
   @Operation(summary = "Returns an agbot", description = "Returns the agbot (Agreement Bot) with the specified id. Can be run by a user or the agbot.",
@@ -271,7 +161,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
-  def agbotGetRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & get & parameter("attribute".?)) { (orgid, id, attribute) =>
+  def agbotGetRoute: Route = (path("orgs" / Segment / "agbots" / Segment) & get & parameter("attribute".?)) {(orgid, id, attribute) =>
     logger.debug(s"Doing GET /orgs/$orgid/agbots/$id")
     val compositeId: String = OrgAndId(orgid, id).toString
     exchAuth(TAgbot(compositeId), Access.READ) { ident =>
@@ -300,7 +190,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PUT /orgs/{orgid}/agbots/{id} ===============================
+  // =========== PUT /orgs/{organization}/agbots/{id} ===============================
   @PUT
   @Path("{id}")
   @Operation(
@@ -402,7 +292,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PATCH /orgs/{orgid}/agbots/{id} ===============================
+  // =========== PATCH /orgs/{organization}/agbots/{id} ===============================
   @PATCH
   @Path("{id}")
   @Operation(summary = "Updates 1 attribute of an agbot", description = "Updates some attributes of an agbot. This can be called by the user or the agbot.",
@@ -467,7 +357,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/agbots/{id} ===============================
+  // =========== DELETE /orgs/{organization}/agbots/{id} ===============================
   @DELETE
   @Path("{id}")
   @Operation(summary = "Deletes an agbot", description = "Deletes an agbot (Agreement Bot), and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot.",
@@ -510,8 +400,9 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       }) // end of complete
     } // end of exchAuth
   }
+   */
 
-  // =========== POST /orgs/{orgid}/agbots/{id}/heartbeat ===============================
+  /*// =========== POST /orgs/{organization}/agbots/{agreementbot}/heartbeat ===============================
   @POST
   @Path("{id}/heartbeat")
   @Operation(summary = "Tells the exchange this agbot is still operating", description = "Lets the exchange know this agbot is still active. Can be run by the owning user or the agbot.",
@@ -545,11 +436,12 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
         })
       }) // end of complete
     } // end of exchAuth
-  }
+  }*/
 
+  /*
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  /* ====== GET /orgs/{orgid}/agbots/{id}/patterns ================================ */
+  /* ====== GET /orgs/{organization}/agbots/{agreementbot}/patterns ================================ */
   @GET
   @Path("{id}/patterns")
   @Operation(summary = "Returns all patterns served by this agbot", description = "Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
@@ -604,7 +496,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/agbots/{id}/patterns/{patid} ================================ */
+  /* ====== GET /orgs/{organization}/agbots/{agreementbot}/patterns/{patid} ================================ */
   @GET
   @Path("{id}/patterns/{patid}")
   @Operation(summary = "Returns a pattern this agbot is serving", description = "Returns the pattern with the specified patid for the specified agbot id. The patid should be in the form patternOrgid_pattern. Can be run by the owning user or the agbot.",
@@ -654,7 +546,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== POST /orgs/{orgid}/agbots/{id}/patterns ===============================
+  // =========== POST /orgs/{organization}/agbots/{agreementbot}/patterns ===============================
   @POST
   @Path("{id}/patterns")
   @Operation(
@@ -737,7 +629,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/agbots/{id}/patterns ===============================
+  // =========== DELETE /orgs/{organization}/agbots/{agreementbot}/patterns ===============================
   @DELETE
   @Path("{id}/patterns")
   @Operation(summary = "Deletes all patterns of an agbot", description = "Deletes all of the current patterns that this agbot was serving. Can be run by the owning user or the agbot.",
@@ -780,7 +672,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/agbots/{id}/patterns/{patid} ===============================
+  // =========== DELETE /orgs/{organization}/agbots/{agreementbot}/patterns/{patid} ===============================
   @DELETE
   @Path("{id}/patterns/{patid}")
   @Operation(summary = "Deletes a pattern of an agbot", description = "Deletes a pattern that this agbot was serving. Can be run by the owning user or the agbot.",
@@ -822,10 +714,12 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       }) // end of complete
     } // end of exchAuth
   }
+   */
 
+  /*
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  /* ====== GET /orgs/{orgid}/agbots/{id}/businesspols ================================ */
+  /* ====== GET /orgs/{organization}/agbots/{agreementbot}/businesspols ================================ */
   @GET
   @Path("{id}/businesspols")
   @Operation(summary = "Returns all business policies served by this agbot", description = "Returns all business policies that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
@@ -873,7 +767,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/agbots/{id}/businesspols/{buspolid} ================================ */
+  /* ====== GET /orgs/{organization}/agbots/{agreementbot}/businesspols/{buspolid} ================================ */
   @GET
   @Path("{id}/businesspols/{buspolid}")
   @Operation(summary = "Returns a business policy this agbot is serving", description = "Returns the business policy with the specified patid for the specified agbot id. The patid should be in the form businessPolOrgid_businessPol. Can be run by the owning user or the agbot.",
@@ -922,7 +816,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== POST /orgs/{orgid}/agbots/{id}/businesspols ===============================
+  // =========== POST /orgs/{organization}/agbots/{agreementbot}/businesspols ===============================
   @POST
   @Path("{id}/businesspols")
   @Operation(
@@ -1015,7 +909,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/agbots/{id}/businesspols ===============================
+  // =========== DELETE /orgs/{organization}/agbots/{agreementbot}/businesspols ===============================
   @DELETE
   @Path("{id}/businesspols")
   @Operation(summary = "Deletes all business policies of an agbot", description = "Deletes all of the current business policies that this agbot was serving. Can be run by the owning user or the agbot.",
@@ -1058,7 +952,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/agbots/{id}/businesspols/{buspolid} ===============================
+  // =========== DELETE /orgs/{organization}/agbots/{agreementbot}/businesspols/{buspolid} ===============================
   @DELETE
   @Path("{id}/businesspols/{buspolid}")
   @Operation(summary = "Deletes a business policy of an agbot", description = "Deletes a business policy that this agbot was serving. Can be run by the owning user or the agbot.",
@@ -1100,10 +994,12 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       }) // end of complete
     } // end of exchAuth
   }
+   */
 
+  /*
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  /* ====== GET /orgs/{orgid}/agbots/{id}/agreements ================================ */
+  /* ====== GET /orgs/{organization}/agbots/{agreementbot}/agreements ================================ */
   @GET
   @Path("{id}/agreements")
   @Operation(summary = "Returns all agreements this agbot is in", description = "Returns all agreements that this agbot is part of. Can be run by the owning user or the agbot.",
@@ -1157,7 +1053,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/agbots/{id}/agreements/{agid} ================================ */
+  /* ====== GET /orgs/{organization}/agbots/{agreementbot}/agreements/{agid} ================================ */
   @GET
   @Path("{id}/agreements/{agid}")
   @Operation(summary = "Returns an agreement for an agbot", description = "Returns the agreement with the specified agid for the specified agbot id. Can be run by the owning user or the agbot.",
@@ -1212,7 +1108,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PUT /orgs/{orgid}/agbots/{id}/agreements/{agid} ===============================
+  // =========== PUT /orgs/{organization}/agbots/{agreementbot}/agreements/{agid} ===============================
   @PUT
   @Path("{id}/agreements/{agid}")
   @Operation(
@@ -1313,7 +1209,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/agbots/{id}/agreements ===============================
+  // =========== DELETE /orgs/{organization}/agbots/{agreementbot}/agreements ===============================
   @DELETE
   @Path("{id}/agreements")
   @Operation(summary = "Deletes all agreements of an agbot", description = "Deletes all of the current agreements of an agbot. Can be run by the owning user or the agbot.",
@@ -1356,7 +1252,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/agbots/{id}/agreements/{agid} ===============================
+  // =========== DELETE /orgs/{organization}/agbots/{agreementbot}/agreements/{agid} ===============================
   @DELETE
   @Path("{id}/agreements/{agid}")
   @Operation(summary = "Deletes an agreement of an agbot", description = "Deletes an agreement of an agbot. Can be run by the owning user or the agbot.",
@@ -1398,8 +1294,12 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       }) // end of complete
     } // end of exchAuth
   }
+   */
+  
+  /*
+  // ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  // =========== POST /orgs/{orgid}/agbots/{id}/msgs ===============================
+  // =========== POST /orgs/{organization}/agbots/{agreementbot}/msgs ===============================
   @POST
   @Path("{id}/msgs")
   @Operation(
@@ -1481,13 +1381,13 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
         }).flatMap({
           case Success(v) =>
             // Add the resource to the resourcechanges table
-            logger.debug("POST /orgs/{orgid}/agbots/" + id + "/msgs write row result: " + v)
+            logger.debug("POST /orgs/{organization}/agbots/" + id + "/msgs write row result: " + v)
             msgNum = v.toString
             ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTMSGS, ResChangeOperation.CREATED).insert.asTry
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
-            logger.debug("POST /orgs/{orgid}/agbots/" + id + "/msgs updated in changes table: " + v)
+            logger.debug("POST /orgs/{organization}/agbots/" + id + "/msgs updated in changes table: " + v)
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, "agbot msg " + msgNum + " inserted"))
           case Failure(t: DBProcessingError) =>
             t.toComplete
@@ -1501,7 +1401,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/agbots/{id}/msgs ================================ */
+  /* ====== GET /orgs/{organization}/agbots/{agreementbot}/msgs ================================ */
   @GET
   @Path("{id}/msgs")
   @Operation(summary = "Returns all msgs sent to this agbot", description = "Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.",
@@ -1540,7 +1440,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
   
-  /* ====== GET /orgs/{orgid}/agbots/{id}/msgs/{msgid} ================================ */
+  /* ====== GET /orgs/{organization}/agbots/{agreementbot}/msgs/{msgid} ================================ */
   @GET
   @Path("{id}/msgs/{msgid}")
   @Operation(description = "Returns A specific message that has been sent to this agreement-bot. Deleted/post-TTL (Time To Live) messages will not be returned. Can be run by a user or the agbot.",
@@ -1607,7 +1507,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/agbots/{id}/msgs/{msgid} ===============================
+  // =========== DELETE /orgs/{organization}/agbots/{agreementbot}/msgs/{msgid} ===============================
   @DELETE
   @Path("{id}/msgs/{msgid}")
   @Operation(summary = "Deletes a msg of an agbot", description = "Deletes a message that was sent to an agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot.",
@@ -1642,5 +1542,6 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       }) // end of complete
     } // end of exchAuth
   }
+   */
 
 }

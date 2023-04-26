@@ -221,6 +221,7 @@ object ExchConfig {
   // The syntax called CONF is typesafe's superset of json that allows comments, etc. See https://github.com/typesafehub/config#using-hocon-the-json-superset. Strict json would be ConfigSyntax.JSON.
   val configOpts: ConfigParseOptions = ConfigParseOptions.defaults().setSyntax(ConfigSyntax.CONF).setAllowMissing(false)
   var config: Config = ConfigFactory.parseResources(configResourceName, configOpts) // these are the default values, this file is bundled in the jar
+  var configUser: Config = _
 
   //var defaultExecutionContext: ExecutionContext = _ // this gets set early by ExchangeApiApp
   implicit def executionContext: ExecutionContext = ExchangeApi.defaultExecutionContext
@@ -233,7 +234,8 @@ object ExchConfig {
   def load(): Unit = {
     val f = new File(configFileName)
     if (f.isFile) { // checks if it exists and is a regular file
-      config = ConfigFactory.parseFile(f, configOpts).withFallback(config) // uses the defaults for anything not specified in the external config file
+      configUser = ConfigFactory.parseFile(f, configOpts)
+      config = configUser.withFallback(config) // uses the defaults for anything not specified in the external config file
       println("Using config file " + configFileName)
     } else {
       println("Config file " + configFileName + " not found. Running with defaults suitable for local development.")
@@ -290,16 +292,26 @@ object ExchConfig {
       case _ => (host, portEncrypted, portUnencrypted)
     }
   }
-
+  
+  
   // Get relevant values from our config file to create the akka config
+  /*
+   * Akka has a better way of handling application configuration, unfortunately the project also needs to be
+   * backwards-compatible with this custom method of handling configuration. Primarily has an impact on the
+   * configurations for akka-core and akka-http (this method).
+   */
   def getAkkaConfig: Config = {
     var akkaConfig: Map[String, ConfigValue] = config.getObject("api.akka").asScala.toMap
-    akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.loglevel" -> ConfigValueFactory.fromAnyRef(ExchConfig.getLogLevel))
     val secondsToWait: Int = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete")
+  
     akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.coordinated-shutdown.phases.service-unbind.timeout" -> ConfigValueFactory.fromAnyRef(s"${secondsToWait}s"))
-    printf("Running with akka config: %s\n", akkaConfig.toString())
-    //ConfigFactory.parseMap(Map("akka.loglevel" -> ExchConfig.getLogLevel).asJava, "akka overrides")
-    ConfigFactory.parseMap(akkaConfig.asJava, "akka overrides")
+    akkaConfig = akkaConfig ++ Map[scala.Predef.String,ConfigValue]("akka.loglevel" -> ConfigValueFactory.fromAnyRef(ExchConfig.getLogLevel))
+    
+    // printf("Running with akka config: %s\n", akkaConfig.toString())
+    
+    // Highest priority to lowest priority.
+    configUser.withFallback(ConfigFactory.parseMap(akkaConfig.asJava))
+              .withFallback(ConfigFactory.parseResources("config.json"))
   }
 
   // Put the root user in the auth cache in case the db has not been inited yet and they need to be able to run POST /admin/initdb

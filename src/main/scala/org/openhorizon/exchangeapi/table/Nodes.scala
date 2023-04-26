@@ -1,9 +1,10 @@
-package com.horizon.exchangeapi.tables
+package org.openhorizon.exchangeapi.table
 
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization.read
-import com.horizon.exchangeapi.{ApiTime, ExchMsg, Role, StrConstants, Version, VersionRange, tables}
+import org.openhorizon.exchangeapi.{Role, Version, VersionRange}
+import org.openhorizon.exchangeapi.{ApiTime, ExchMsg, StrConstants}
 import slick.dbio.{Effect, NoStream}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Rep
@@ -55,8 +56,8 @@ final case class NodeHeartbeatIntervals(minInterval: Int, maxInterval: Int, inte
 
 object NodeType extends Enumeration {
   type NodeType = Value
-  val DEVICE: tables.NodeType.Value = Value("device")
-  val CLUSTER: tables.NodeType.Value = Value("cluster")
+  val DEVICE: NodeType.Value = Value("device")
+  val CLUSTER: NodeType.Value = Value("cluster")
   def isDevice(str: String): Boolean = str == DEVICE.toString
   def isCluster(str: String): Boolean = str == CLUSTER.toString
   def containsString(str: String): Boolean = values.find(_.toString == str).orNull != null

@@ -1,5 +1,5 @@
 /** Services routes for all of the /admin api methods. */
-package org.openhorizon.exchangeapi.route.admin
+package org.openhorizon.exchangeapi.route.administration
 
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
@@ -20,53 +20,9 @@ import java.util.Properties
 import scala.concurrent.ExecutionContext
 import scala.util._
 
-/** Input body for POST /admin/hashpw */
-final case class AdminHashpwRequest(password: String) {
-  require(password!=null)
-}
-final case class AdminHashpwResponse(hashedPassword: String)
 
 //final case class AdminLogLevelRequest(loggingLevel: String)
 
-final case class AdminConfigRequest(varPath: String, value: String) {
-  require(varPath!=null && value!=null)
-}
-
-final case class AdminDropdbTokenResponse(token: String)
-
-final case class GetAdminStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfNodeMsgs: Int, numberOfAgbots: Int, numberOfAgbotAgreements: Int, numberOfAgbotMsgs: Int, dbSchemaVersion: Int)
-class AdminStatus() {
-  var msg: String = ""
-  var numberOfUsers: Int = 0
-  var numberOfNodes: Int = 0
-  var numberOfNodeAgreements: Int = 0
-  var numberOfNodeMsgs: Int = 0
-  var numberOfAgbots: Int = 0
-  var numberOfAgbotAgreements: Int = 0
-  var numberOfAgbotMsgs: Int = 0
-  var dbSchemaVersion: Int = 0
-  def toGetAdminStatusResponse: GetAdminStatusResponse = GetAdminStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements, numberOfNodeMsgs, numberOfAgbots, numberOfAgbotAgreements, numberOfAgbotMsgs, dbSchemaVersion)
-}
-
-final case class GetAdminOrgStatusResponse(msg: String, nodes: Map[String, Int])
-class AdminOrgStatus(){
-  var msg: String = ""
-  var nodesByOrg : Map[String, Int] = null
-  def toGetAdminOrgStatusResponse: GetAdminOrgStatusResponse = GetAdminOrgStatusResponse(msg, nodesByOrg)
-}
-
-/** Case class for request body for deleting some of the IBM changes route */
-final case class DeleteIBMChangesRequest(resources: List[String]) {
-  def getAnyProblem: Option[String] = {
-    if (resources.isEmpty) Some("resources list cannot be empty")
-    else None
-  }
-}
-
-/** Case class for request body for deleting some of the org changes in the resourcechanges table */
-final case class DeleteOrgChangesRequest(resources: List[String]) {
-  def getAnyProblem: Option[String] = None
-}
 
 /** Implementation for all of the /admin routes */
 @Path("/v1/admin")
@@ -78,10 +34,21 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
 
-  def adminRoutes: Route = adminGetDbTokenRoute ~ adminDropDbRoute ~ adminInitDbRoute ~ adminGetVersionRoute ~ adminGetStatusRoute ~ adminGetOrgStatusRoute ~ adminConfigRoute ~ adminClearCacheRoute ~ adminDeleteOrgChangesRoute
+  def adminRoutes: Route = /*adminReloadRoute ~
+                           adminHashPwRoute ~
+                           adminGetDbTokenRoute ~
+                           adminDropDbRoute ~
+                           adminInitDbRoute ~
+                           adminGetVersionRoute ~
+                           adminGetStatusRoute ~
+                           adminGetOrgStatusRoute ~
+                           adminConfigRoute ~
+                           adminClearCacheRoute ~*/
+                           adminDeleteOrgChangesRoute
 
+  /*
   // =========== POST /admin/reload ===============================
-  /*@POST
+  @POST
   @Path("reload")
   @Operation(summary = "Tells the exchange reread its config file", description = """Directs the exchange server to reread /etc/horizon/exchange/config.json and continue running with those new settings. Can only be run by the root user.""",
     responses = Array(
@@ -97,10 +64,10 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("reload.successful")))
       }) // end of complete
     } // end of exchAuth
-  }*/
+  }
 
   // =========== POST /admin/hashpw ===============================
-  /*@POST
+  @POST
   @Path("hashpw")
   @Operation(
     summary = "Returns a bcrypted hash of a password",
@@ -145,7 +112,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
         (HttpCode.POST_OK, AdminHashpwResponse(Password.hash(reqBody.password)))
       }) // end of complete
     } // end of exchAuth
-  }*/
+  }
 
   /* =========== POST /admin/loglevel ===============================
   @POST
@@ -380,6 +347,7 @@ trait AdminRoutes extends JacksonSupport with AuthenticationSupport {
       }) // end of complete
     } // end of exchAuth
   }
+   */
 
   /* ====== DELETE /orgs/<orgid>/changes/cleanup ================================ */
   // This route is just for unit testing as a way to clean up the changes table once testing has completed

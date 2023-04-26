@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.113.0] - 2023-04-26
+- Issue 637 - Added CORS support. Can be configurated via the Exchange's config.json file.
+- Changed Java package path to the prefix org.openhorizon.
+- Moved source handling routing to new sub-package org.openhorizon.route..
+  - AdminRoutes and AgbotRoutes have been further sub-divided based on rest resource.
+- Deprecated custom methods for handling Akka configuration parameters in favor of framework defaults.
+  - Backwards compatibility is still maintained.
+
 ## [2.112.0] - 2023-04-07
 - Issue 640: Added `clusterNamespace` attribute to Deployment Patterns.
 - Issue 641: Added `clusterNamespace` attribute to Nodes.

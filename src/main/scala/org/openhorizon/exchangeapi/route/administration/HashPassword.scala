@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.admin
+package org.openhorizon.exchangeapi.route.administration
 
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
@@ -15,6 +15,8 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 
+@Path("/v1/admin/hashpw")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "administration")
 trait HashPassword extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -24,7 +26,6 @@ trait HashPassword extends JacksonSupport with AuthenticationSupport {
   
   // =========== POST /admin/hashpw ===============================
   @POST
-  @Path("hashpw")
   @Operation(summary = "Returns a bcrypted hash of a password",
              description = "Takes the password specified in the request body, bcrypts it with a random salt, and returns the result. This can be useful if you want to specify root's hash pw in the config file instead of the clear pw.",
              requestBody =
@@ -48,23 +49,24 @@ trait HashPassword extends JacksonSupport with AuthenticationSupport {
                                                description = "invalid credentials"),
                      new responses.ApiResponse(responseCode = "403",
                                                description = "access denied")))
-  private val postHashPW: Route =
-    post {
-      logger.debug("Doing POST /admin/hashpw")
-      entity(as[AdminHashpwRequest]) {
-        reqBody =>
-          complete({
-            (HttpCode.POST_OK, AdminHashpwResponse(Password.hash(reqBody.password)))
-          })
+  def postHashPW: Route = {
+    entity(as[AdminHashpwRequest]) {
+      reqBody =>
+        logger.debug("Doing POST /admin/hashpw")
+        complete({
+          (HttpCode.POST_OK, AdminHashpwResponse(Password.hash(reqBody.password)))
+        })
       }
-    }
+  }
   
   
   val hashPW: Route =
-    pathPrefix("admin" / "hashpw") {
-      exchAuth(TAction(), Access.UTILITIES) {
-        _ =>
-          postHashPW
+    path("admin" / "hashpw") {
+      post {
+        exchAuth(TAction(), Access.UTILITIES) {
+          _ =>
+            postHashPW
+        }
       }
     }
 }

@@ -1,11 +1,11 @@
-package com.horizon.exchangeapi
+package org.openhorizon.exchangeapi
 
 import akka.event.LoggingAdapter
-import com.horizon.exchangeapi.ExchangeApiApp.system
+import org.openhorizon.exchangeapi.ExchangeApiApp.system
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
-import com.horizon.exchangeapi.tables._
+import org.openhorizon.exchangeapi.table.{AgbotAgreementsTQ, AgbotBusinessPolsTQ, AgbotMsgsTQ, AgbotPatternsTQ, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, BusinessPoliciesTQ, ManagementPoliciesTQ, NodeAgreementsTQ, NodeErrorTQ, NodeGroupAssignmentTQ, NodeGroupTQ, NodeMgmtPolStatuses, NodeMsgsTQ, NodePolicyTQ, NodeStatusTQ, NodesTQ, OrgsTQ, PatternKeysTQ, PatternsTQ, ResourceChangesTQ, SchemaRow, SchemaTQ, SearchOffsetPolicyTQ, ServiceDockAuthsTQ, ServiceKeysTQ, ServicePolicyTQ, ServicesTQ, UsersTQ}
 import org.postgresql.util.PSQLException
 import slick.collection.heterogeneous.Zero.+
 

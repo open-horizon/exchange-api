@@ -1,10 +1,11 @@
 package org.openhorizon.exchangeapi
 
-import org.openhorizon.exchangeapi.route.admin.{DeleteOrgChangesRequest, GetAdminOrgStatusResponse}
+import org.openhorizon.exchangeapi.route.administration.{DeleteOrgChangesRequest, GetAdminOrgStatusResponse}
 
 import scala.util.matching.Regex
 import org.json4s.DefaultFormats
-import org.openhorizon.exchangeapi.route.admin.{AdminHashpwResponse, GetAdminOrgStatusResponse, GetAdminStatusResponse}
+import org.openhorizon.exchangeapi.route.administration.{AdminHashpwResponse, GetAdminOrgStatusResponse, GetAdminStatusResponse}
+import org.openhorizon.exchangeapi.table.OrgRow
 
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
@@ -23,7 +24,7 @@ import org.openhorizon.exchangeapi.ApiUtils
 import org.openhorizon.exchangeapi.HttpCode
 import org.openhorizon.exchangeapi.Password
 import org.openhorizon.exchangeapi.Role
-import org.openhorizon.exchangeapi.route.admin.{AdminHashpwRequest, AdminHashpwResponse, GetAdminStatusResponse}
+import org.openhorizon.exchangeapi.route.administration.{AdminHashpwRequest, AdminHashpwResponse, GetAdminStatusResponse}
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.route.deploymentpattern.PostPutPatternRequest
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
@@ -69,6 +70,16 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   implicit val FORMATS            = DefaultFormats // Brings in default date formats etc.
 
+  val TESTORGS: Seq[OrgRow] =
+    Seq(OrgRow(description = "AdminSuite Test Organization",
+               heartbeatIntervals = "",
+               label = "",
+               lastUpdated = ApiTime.nowUTC,
+               limits = "",
+               orgId = "admin",
+               orgType = "",
+               tags = None))
+  
   override def beforeAll(): Unit = {
     Http(URL + "/orgs/" + ORGS(0)).postData(write(PostPutOrgRequest(None, (ORGS(0)), "AdminSuite Test Organization", None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
 

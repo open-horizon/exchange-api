@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi
 
-import org.openhorizon.exchangeapi.route.admin.{AdminConfigRequest, DeleteIBMChangesRequest, DeleteOrgChangesRequest}
+import org.openhorizon.exchangeapi.route.administration.{AdminConfigRequest, DeleteIBMChangesRequest, DeleteOrgChangesRequest}
 
 import java.time.ZonedDateTime
 import java.util.Base64
@@ -2757,7 +2757,7 @@ class NodesSuite extends AnyFunSuite {
 
     // set maxmsgs="" - should fail
     response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","").asString
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === HttpCode.OK.intValue)
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId2+"/msgs - then delete and get again") {

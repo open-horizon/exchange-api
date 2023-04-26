@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi
 
-import org.openhorizon.exchangeapi.route.admin.{AdminConfigRequest, DeleteIBMChangesRequest, DeleteOrgChangesRequest}
+import org.openhorizon.exchangeapi.route.administration.{AdminConfigRequest, DeleteIBMChangesRequest, DeleteOrgChangesRequest}
 import org.scalatest.funsuite.AnyFunSuite
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner

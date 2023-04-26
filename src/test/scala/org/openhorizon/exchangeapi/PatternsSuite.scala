@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi
 import java.time._
 import akka.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi._
-import org.openhorizon.exchangeapi.route.admin.{DeleteIBMChangesRequest, DeleteOrgChangesRequest}
+import org.openhorizon.exchangeapi.route.administration.{DeleteIBMChangesRequest, DeleteOrgChangesRequest}
 import org.openhorizon.exchangeapi.table._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._

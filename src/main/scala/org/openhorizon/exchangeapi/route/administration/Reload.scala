@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.admin
+package org.openhorizon.exchangeapi.route.administration
 
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
@@ -17,7 +17,7 @@ import java.util.Properties
 import scala.concurrent.ExecutionContext
 import scala.util._
 
-@Path("/v1/admin")
+@Path("/v1/admin/reload")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "administration")
 trait Reload extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -28,7 +28,6 @@ trait Reload extends JacksonSupport with AuthenticationSupport {
   
   // =========== POST /admin/reload ===============================
   @POST
-  @Path("reload")
   @Operation(description = """Directs the exchange server to reread /etc/horizon/exchange/config.json and continue running with those new settings. Can only be run by the root user.""",
              responses =
                Array(
@@ -43,21 +42,22 @@ trait Reload extends JacksonSupport with AuthenticationSupport {
                                            responseCode = "403")),
              summary = "Tells the exchange reread its config file")
   //val postReload: Route = (path("admin" / "reload") & post) {
-  private val postReload: Route =
-    post {
-      logger.debug("Doing POST /admin/reload")
+  def postReload: Route = {
+    logger.debug("Doing POST /admin/reload")
       complete({
         ExchConfig.reload()
         (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("reload.successful")))
       }) // end of complete
-    }
+  }
   
   
   val reload: Route =
-    pathPrefix("admin" / "reload") {
-      exchAuth(TAction(), Access.ADMIN) {
-        _ =>
-          postReload
+    path("admin" / "reload") {
+      post {
+        exchAuth(TAction(), Access.ADMIN) {
+          _ =>
+            postReload
+        }
       }
     }
 }

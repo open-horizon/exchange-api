@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi
 
 import org.openhorizon.exchangeapi._
-import org.openhorizon.exchangeapi.route.admin.DeleteOrgChangesRequest
+import org.openhorizon.exchangeapi.route.administration.DeleteOrgChangesRequest
 import org.openhorizon.exchangeapi.table.{PServiceVersions, PServices}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._

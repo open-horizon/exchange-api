@@ -1,5 +1,5 @@
 /** Services routes for all of the /orgs/{orgid}/nodes api methods. */
-package com.horizon.exchangeapi
+package org.openhorizon.exchangeapi.route.node
 
 import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import akka.actor.ActorSystem
@@ -8,7 +8,7 @@ import akka.http.scaladsl.model._
 import akka.http.scaladsl.model.headers.CacheDirectives.public
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import com.horizon.exchangeapi.auth._
+import org.openhorizon.exchangeapi.auth._
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -17,7 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
-import com.horizon.exchangeapi.tables._
+import org.openhorizon.exchangeapi.table.{NodeErrorTQ, NodesTQ, OneUserInputService, PatternsTQ, _}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.Serialization.{read, write}
@@ -28,6 +28,7 @@ import scala.util._
 import scala.util.control.Breaks._
 import scala.util.matching.Regex
 import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthRoles, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Nth, OrgAndId, Password, StrConstants, TNode}
 
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.language.postfixOps
@@ -908,6 +909,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                 else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
                 DBIO.failed(new Throwable(errStr)).asTry
               }
+              
             case Failure(t) => DBIO.failed(t).asTry
           })
           .flatMap({

@@ -64,8 +64,8 @@ object AuthenticationSupport {
   val loginConfig: Configuration = new Configuration {
     override def getAppConfigurationEntry(name: String): Array[AppConfigurationEntry] = {
       Array[AppConfigurationEntry](
-        new AppConfigurationEntry("com.horizon.exchangeapi.auth.IbmCloudModule", AppConfigurationEntry.LoginModuleControlFlag.SUFFICIENT, new util.HashMap[String, String]()),
-        new AppConfigurationEntry("com.horizon.exchangeapi.auth.Module", AppConfigurationEntry.LoginModuleControlFlag.SUFFICIENT, new util.HashMap[String, String]()))
+        new AppConfigurationEntry("org.openhorizon.exchangeapi.auth.IbmCloudModule", AppConfigurationEntry.LoginModuleControlFlag.SUFFICIENT, new util.HashMap[String, String]()),
+        new AppConfigurationEntry("org.openhorizon.exchangeapi.auth.Module", AppConfigurationEntry.LoginModuleControlFlag.SUFFICIENT, new util.HashMap[String, String]()))
     }
   }
 

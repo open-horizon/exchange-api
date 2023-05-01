@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.114.0] - 2023-05-01
+- Issue 639: Moved top-level attribute clusterNamespace to a sub-attribute under service for Deployment Policies.
+
 ## [2.113.0] - 2023-04-26
 - Issue 637 - Added CORS support. Can be configurated via the Exchange's config.json file.
 - Changed Java package path to the prefix org.openhorizon.

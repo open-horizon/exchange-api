@@ -162,8 +162,8 @@ class BusinessSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" before service exists - should fail") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, None,
-      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None ),
-      None, None, None, None, None
+      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None, None ),
+      None, None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -179,8 +179,8 @@ class BusinessSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update business policy that is not there yet - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy", None,
-      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None, None, None, None
+      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None, None),
+      None, None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -190,8 +190,8 @@ class BusinessSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - with no service versions - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy", None,
-      BService(svcurl, orgid, svcarch, List(), None),
-      None, None, None, None, None
+      BService(svcurl, orgid, svcarch, List(), None, None),
+      None, None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -200,9 +200,9 @@ class BusinessSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" with invalid svc ref in userInput") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc"),
-      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None ),
+      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None, None),
       Some(List( OneUserInputService(orgid, svcurl, None, Some("[9.9.9,9.9.9]"), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      None, None, None, None
+      None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -211,12 +211,11 @@ class BusinessSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" as user") {
     val input: PostPutBusinessPolicyRequest = PostPutBusinessPolicyRequest(businessPolicy, Option("desc"),
-      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Option(Map("priority_value" -> 50)), Option(Map("lifecycle" -> "immediate")))), Option(Map("check_agreement_status" -> 120)) ),
+      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Option(Map("priority_value" -> 50)), Option(Map("lifecycle" -> "immediate")))), Option(Map("check_agreement_status" -> 120)), Option("namespace")),
       Option(List(OneUserInputService(orgid, svcurl, Option(svcarch), Option(svcversion), List(OneUserInputValue("UI_STRING", "mystr"), OneUserInputValue("UI_INT", 5), OneUserInputValue("UI_BOOLEAN", true))))),
       Option(List(OneSecretBindingService(orgid, svcurl, Option(svcarch), Option(svcversion), List(Map("servicesecret1" -> "vaultsecret1"))))),
       Option(List(OneProperty("purpose", None, "location"))),
-      Option(List("a == b")),
-      Option("namespace")
+      Option(List("a == b"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -287,12 +286,11 @@ class BusinessSuite extends AnyFunSuite {
     val input: PostPutBusinessPolicyRequest =
       PostPutBusinessPolicyRequest(businessPolicy3,
                                    Option("desc"),
-                                   BService(svcurl, orgid, "", List(BServiceVersions(svcversion, Option(Map("priority_value" -> 50)), Option(Map("lifecycle" -> "immediate")))), Option(Map("check_agreement_status" -> 120)) ),
+                                   BService(svcurl, orgid, "", List(BServiceVersions(svcversion, Option(Map("priority_value" -> 50)), Option(Map("lifecycle" -> "immediate")))), Option(Map("check_agreement_status" -> 120)), Option("namespace2")),
                                    Option(List(OneUserInputService(orgid, svcurl, Option(svcarch), Option(svcversion), List(OneUserInputValue("UI_STRING", "mystr"), OneUserInputValue("UI_INT", 5), OneUserInputValue("UI_BOOLEAN", true))))),
                                    Option(List(OneSecretBindingService(orgid, svcurl, Option(svcarch), Option(svcversion), List(Map("servicesecret" -> "vaultsecret"))))),
                                    Option(List(OneProperty("purpose", None, "location"))),
-                                   Option(List("a == b")),
-                                   Option("namespace2"))
+                                   Option(List("a == b")))
     val response: HttpResponse[String] = Http(URL + "/business/policies/" + businessPolicy3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -321,12 +319,11 @@ class BusinessSuite extends AnyFunSuite {
     val input: PostPutBusinessPolicyRequest =
       PostPutBusinessPolicyRequest(businessPolicy4,
                                    Option("desc"),
-                                   BService(svcurl, orgid, "*", List(BServiceVersions(svcversion, Option(Map("priority_value" -> 50)), Option(Map("lifecycle" -> "immediate")))), Option(Map("check_agreement_status" -> 120)) ),
+                                   BService(svcurl, orgid, "*", List(BServiceVersions(svcversion, Option(Map("priority_value" -> 50)), Option(Map("lifecycle" -> "immediate")))), Option(Map("check_agreement_status" -> 120)), Option("namespace4")),
                                    Option(List(OneUserInputService(orgid, svcurl, None, None, List(OneUserInputValue("UI_STRING", "mystr"), OneUserInputValue("UI_INT", 5), OneUserInputValue("UI_BOOLEAN", true))))),
                                    Option(List(OneSecretBindingService(orgid, svcurl, None, None, List(Map("service-secret1" -> "vault-secret1"))))),
                                    Option(List(OneProperty("purpose", None, "location"))),
-                                   Option(List("a == b")),
-                                   Option("namespace4"))
+                                   Option(List("a == b")))
     val response: HttpResponse[String] = Http(URL + "/business/policies/" + businessPolicy4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -359,8 +356,8 @@ class BusinessSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy+" - add "+businessPolicy+" again - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy", None,
-      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None, None, None, None
+      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None, None),
+      None, None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -369,10 +366,10 @@ class BusinessSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as same user, w/o priority, upgradePolicy, nodeHealth, secretbinding ") {
     val input = PostPutBusinessPolicyRequest(businessPolicy, Some("desc updated"),
-      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
+      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None, Option("namespace5")),
       Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(List( OneSecretBindingService(orgid,svcurl, None, None, List(Map("servicesecret1"->"vaultsecretupdated"))))),
-      Some(List(OneProperty("purpose",None,"location2"))), Some(List("a == c")), Option("namespace5")
+      Some(List(OneProperty("purpose",None,"location2"))), Some(List("a == c"))
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -406,8 +403,8 @@ class BusinessSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as 2nd user - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy", Some("desc"),
-      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None, None, None, None
+      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None, None),
+      None, None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -416,8 +413,8 @@ class BusinessSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy+" - update as agbot - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy", None,
-      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None, None, None, None
+      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None, None),
+      None, None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -435,8 +432,8 @@ class BusinessSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - add "+businessPolicy2+" as node - should fail") {
     val input = PostPutBusinessPolicyRequest("Bad BusinessPolicy2", None,
-      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None, None, None, None
+      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None, None),
+      None, None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -445,8 +442,8 @@ class BusinessSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - add "+businessPolicy2+" as 2nd user") {
     val input = PostPutBusinessPolicyRequest(businessPolicy2, None,
-      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None),
-      None, None, None, None, None
+      BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None, None),
+      None, None, None, None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -720,8 +717,8 @@ class BusinessSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - update "+businessPolicy2+" referencing service in other org") {
     val input = PostPutBusinessPolicyRequest(businessPolicy2, None,
-      BService(svcurl2, orgid2, svcarch2, List(BServiceVersions(svcversion2, None, None)), None),
-      None, None, None ,None, None
+      BService(svcurl2, orgid2, svcarch2, List(BServiceVersions(svcversion2, None, None)), None, None),
+      None, None, None ,None
     )
     val response = Http(URL+"/business/policies/"+businessPolicy2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

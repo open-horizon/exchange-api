@@ -12,8 +12,16 @@ import scala.collection.mutable.ListBuffer
 
 /** Contains the object representations of the DB tables related to business policies. */
 
-final case class BService(name: String, org: String, arch: String, serviceVersions: List[BServiceVersions], nodeHealth: Option[Map[String,Int]])
-final case class BServiceVersions(version: String, priority: Option[Map[String,Int]], upgradePolicy: Option[Map[String,String]])
+final case class BService(name: String,
+                          org: String,
+                          arch: String,
+                          serviceVersions: List[BServiceVersions],
+                          nodeHealth: Option[Map[String,Int]],
+                          clusterNamespace: Option[String] = None)
+
+final case class BServiceVersions(version: String,
+                                  priority: Option[Map[String,Int]],
+                                  upgradePolicy: Option[Map[String,String]])
 
 // This is the businesspolicies table minus the key - used as the data structure to return to the REST clients
 class BusinessPolicy(var owner: String,
@@ -25,10 +33,8 @@ class BusinessPolicy(var owner: String,
                      var properties: List[OneProperty],
                      var constraints: List[String],
                      var lastUpdated: String,
-                     var created: String,
-                     var clusterNamespace: String = "") {
-  def copy = new BusinessPolicy(clusterNamespace = clusterNamespace,
-                                constraints = constraints,
+                     var created: String) {
+  def copy = new BusinessPolicy(constraints = constraints,
                                 created = created,
                                 description = description,
                                 label = label,
@@ -52,8 +58,7 @@ final case class BusinessPolicyRow(businessPolicy: String,
                                    properties: String,
                                    constraints: String,
                                    lastUpdated: String,
-                                   created: String,
-                                   clusterNamespace: Option[String] = None) {
+                                   created: String) {
    protected implicit val jsonFormats: Formats = DefaultFormats
 
   def toBusinessPolicy: BusinessPolicy = {
@@ -61,9 +66,10 @@ final case class BusinessPolicyRow(businessPolicy: String,
     val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
     val input: List[OneUserInputService] = if (userInput != "") read[List[OneUserInputService]](userInput) else List[OneUserInputService]()
     val prop: List[OneProperty] = if (properties != "") read[List[OneProperty]](properties) else List[OneProperty]()
+    val serv: BService = read[BService](service)
     
-    new BusinessPolicy(clusterNamespace = clusterNamespace.getOrElse(""),
-                       constraints = con,
+    
+    new BusinessPolicy(constraints = con,
                        created = created,
                        description = description,
                        label = label,
@@ -71,7 +77,7 @@ final case class BusinessPolicyRow(businessPolicy: String,
                        owner = owner,
                        properties = prop,
                        secretBinding = bind,
-                       service = read[BService](service),
+                       service = serv.copy(clusterNamespace = serv.clusterNamespace.orElse(Option(""))),  // Agent cannot read null values. Substitute in an empty string. Writing None, reading "".
                        userInput = input)
   }
 
@@ -90,8 +96,7 @@ final case class BusinessPolicyRow(businessPolicy: String,
               m.secretBinding,
               m.properties,
               m.constraints,
-              m.lastUpdated,
-              m.clusterNamespace))
+              m.lastUpdated))
       .update((businessPolicy,
                orgid,
                owner,
@@ -102,8 +107,7 @@ final case class BusinessPolicyRow(businessPolicy: String,
                secretBinding,
                properties,
                constraints,
-               lastUpdated,
-               clusterNamespace))
+               lastUpdated))
 
   // insert returns a DB action to insert this row
   def insert: DBIO[_] = BusinessPoliciesTQ += this
@@ -123,9 +127,8 @@ class BusinessPolicies(tag: Tag) extends Table[BusinessPolicyRow](tag, "business
   def constraints = column[String]("constraints")
   def lastUpdated = column[String]("lastupdated")
   def created = column[String]("created")
-  def clusterNamespace = column[Option[String]]("cluster_namespace")
   // this describes what you get back when you return rows from a query
-  def * = (businessPolicy, orgid, owner, label, description, service, userInput,secretBinding, properties, constraints, lastUpdated, created, clusterNamespace).<>(BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
+  def * = (businessPolicy, orgid, owner, label, description, service, userInput,secretBinding, properties, constraints, lastUpdated, created).<>(BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
   def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }
@@ -179,7 +182,6 @@ object BusinessPoliciesTQ extends TableQuery(new BusinessPolicies(_)) {
     val filter = this.filter(_.businessPolicy === businessPolicy)
     // According to 1 post by a slick developer, there is not yet a way to do this properly dynamically
     attrName.toLowerCase match {
-      case "clusternamespace" => filter.map(_.clusterNamespace.getOrElse(""))
       case "constraints" => filter.map(_.constraints)
       case "created" => filter.map(_.created)
       case "description" => filter.map(_.description)

@@ -51,8 +51,7 @@ final case class PostPutBusinessPolicyRequest(label: String,
                                               userInput: Option[List[OneUserInputService]],
                                               secretBinding: Option[List[OneSecretBindingService]],
                                               properties: Option[List[OneProperty]],
-                                              constraints: Option[List[String]],
-                                              clusterNamespace: Option[String] = None) {
+                                              constraints: Option[List[String]]) {
   require(label != null &&
           service!=null &&
           service.name != null &&
@@ -74,6 +73,7 @@ final case class PostPutBusinessPolicyRequest(label: String,
     val nodeHealth2: Option[Map[String, Int]] = Some(Map("missing_heartbeat_interval" -> hbDefault, "check_agreement_status" -> agrChkDefault)) // provide defaults for node health
    
     BService(arch = service.arch,
+             clusterNamespace = service.clusterNamespace,
              name = service.name,
              nodeHealth = nodeHealth2,
              org = service.org,
@@ -85,7 +85,6 @@ final case class PostPutBusinessPolicyRequest(label: String,
                   orgid: String,
                   owner: String): DBIO[_] = {
     BusinessPolicyRow(businessPolicy = businessPolicy,
-                      clusterNamespace = clusterNamespace,
                       constraints = write(constraints),
                       created = ApiTime.nowUTC,
                       description = description.getOrElse(label),
@@ -104,8 +103,7 @@ final case class PostPutBusinessPolicyRequest(label: String,
        deploymentPolicy <-
          BusinessPoliciesTQ.filter(_.businessPolicy === businessPolicy)
                            .map(policy =>
-                             (policy.clusterNamespace,
-                              policy.constraints,
+                             (policy.constraints,
                               policy.description,
                               policy.label,
                               policy.lastUpdated,
@@ -114,15 +112,14 @@ final case class PostPutBusinessPolicyRequest(label: String,
                               policy.service,
                               policy.userInput))
      } yield(deploymentPolicy))
-      .update((clusterNamespace,
-                write(constraints),
-                description.getOrElse(label),
-                label,
-                ApiTime.nowUTC,
-                write(properties),
-                write(secretBinding),
-                write(defaultNodeHealth(service)),
-                write(userInput)))
+      .update((write(constraints),
+               description.getOrElse(label),
+               label,
+               ApiTime.nowUTC,
+               write(properties),
+               write(secretBinding),
+               write(defaultNodeHealth(service)),
+               write(userInput)))
   }
 }
 
@@ -132,8 +129,7 @@ final case class PatchBusinessPolicyRequest(label: Option[String],
                                             userInput: Option[List[OneUserInputService]],
                                             secretBinding:Option[List[OneSecretBindingService]] ,
                                             properties: Option[List[OneProperty]],
-                                            constraints: Option[List[String]],
-                                            clusterNamespace: Option[String] = None) {
+                                            constraints: Option[List[String]]) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem: Option[String] = {
@@ -146,7 +142,6 @@ final case class PatchBusinessPolicyRequest(label: Option[String],
   def getDbUpdate(businessPolicy: String, orgid: String): (DBIO[_],String) = {
     val lastUpdated: String = ApiTime.nowUTC
     // find the 1st attribute that was specified in the body and create a db action to update it for this businessPolicy
-    clusterNamespace match { case Some(namespace) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.clusterNamespace,d.lastUpdated)).update((businessPolicy, Option(namespace), lastUpdated)), "clusterNamespace"); case _ => ; }
     constraints match { case Some(con) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.constraints,d.lastUpdated)).update((businessPolicy, write(con), lastUpdated)), "constraints"); case _ => ; }
     description match { case Some(desc) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.description,d.lastUpdated)).update((businessPolicy, desc, lastUpdated)), "description"); case _ => ; }
     label match { case Some(lab) => return ((for { d <- BusinessPoliciesTQ if d.businessPolicy === businessPolicy } yield (d.businessPolicy,d.label,d.lastUpdated)).update((businessPolicy, lab, lastUpdated)), "label"); case _ => ; }
@@ -201,8 +196,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Identifier (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
       new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Owner (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
       new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Label (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
-      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Description (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
-      new Parameter(name = "clusternamespace", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Cluster Namespace (can include % for wilcard - the URL encoding for '%' is '%25')")),
+      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Description (can include '%' for wildcard - the URL encoding for '%' is '%25')")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(
@@ -229,7 +223,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         "nodeHealth": {
           "missing_heartbeat_interval": 600,
           "check_agreement_status": 120
-        }
+        },
+        "clusterNamespace": "MyNamespace"
       },
       "userInput": [],
       "secretBinding": [],
@@ -244,8 +239,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         "a == b"
       ],
       "lastUpdated": "string",
-      "created": "string",
-      "clusterNamespace": "MyNamespace"
+      "created": "string"
     }
   },
   "lastIndex": 0
@@ -261,26 +255,43 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment policy")
-  def busPolsGetRoute: Route = (path("orgs" / Segment / "business" / "policies") & get & parameter("idfilter".?, "owner".?, "label".?, "description".?, "clusternamespace".?)) { (orgid, idfilter, owner, label, description, clusterNamespace) =>
-    exchAuth(TBusiness(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
-      complete({
-        var q = BusinessPoliciesTQ.getAllBusinessPolicies(orgid)
-        // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
-        clusterNamespace.foreach(namespace => { if (namespace.contains("%")) q = q.filter(_.clusterNamespace like namespace) else q = q.filter(_.clusterNamespace === namespace) })
-        description.foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
-        idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.businessPolicy like id) else q = q.filter(_.businessPolicy === id) })
-        label.foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
-        owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-        
-        db.run(q.result).map({ list =>
-          logger.debug("GET /orgs/"+orgid+"/business/policies result size: "+list.size)
-          val businessPolicy: Map[String, BusinessPolicy] = list.filter(e => ident.getOrg == e.orgid || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
-          val code: StatusCode = if (businessPolicy.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-          (code, GetBusinessPoliciesResponse(businessPolicy, 0))
-        })
-      }) // end of complete
-  } // end of exchAuth
-  }
+  def busPolsGetRoute: Route =
+    path("orgs" / Segment / "business" / "policies") {
+      orgid =>
+        get {
+          parameter("idfilter".?, "owner".?, "label".?, "description".?) {
+            (idfilter,
+             owner,
+             label,
+             description) =>
+              exchAuth(TBusiness(OrgAndId(orgid, "*").toString), Access.READ) {
+                ident =>
+                  complete({
+                    var q = BusinessPoliciesTQ.getAllBusinessPolicies(orgid) // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
+                    description.foreach(desc => {
+                      if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc)
+                    })
+                    idfilter.foreach(id => {
+                      if (id.contains("%")) q = q.filter(_.businessPolicy like id) else q = q.filter(_.businessPolicy === id)
+                    })
+                    label.foreach(lab => {
+                      if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab)
+                    })
+                    owner.foreach(owner => {
+                      if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner)
+                    })
+                    
+                    db.run(q.result).map({ list =>
+                      logger.debug("GET /orgs/" + orgid + "/business/policies result size: " + list.size)
+                      val businessPolicy: Map[String, BusinessPolicy] = list.filter(e => ident.getOrg == e.orgid || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
+                      val code: StatusCode = if (businessPolicy.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
+                      (code, GetBusinessPoliciesResponse(businessPolicy, 0))
+                    })
+                  })
+              }
+          }
+        }
+    }
 
   /* ====== GET /orgs/{orgid}/business/policies/{policy} ================================ */
   @GET
@@ -316,7 +327,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         "nodeHealth": {
           "missing_heartbeat_interval": 600,
           "check_agreement_status": 120
-        }
+        },
+        "clusterNamespace": "MyNamespace"
       },
       "userInput": [],
       "secretBinding": [],
@@ -331,8 +343,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         "a == b"
       ],
       "lastUpdated": "string",
-      "created": "string",
-      "clusterNamespace": "MyNamespace"
+      "created": "string"
     }
   },
   "lastIndex": 0
@@ -425,7 +436,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     "nodeHealth": {
       "missing_heartbeat_interval": 600,
       "check_agreement_status": 120
-    }
+    },
+    "clusterNamespace": "MyNamespace"
   },
   "userInput": [
     {
@@ -462,8 +474,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   ],
   "constraints": [
     "a == b"
-  ],
-  "clusterNamespace": "MyNamespace"
+  ]
 }
 """
             )
@@ -597,7 +608,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     "nodeHealth": {
       "missing_heartbeat_interval": 600,
       "check_agreement_status": 120
-    }
+    },
+    "clusterNamespace": "MyNamespace"
   },
   "userInput": [
     {
@@ -634,8 +646,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   ],
   "constraints": [
     "a == b"
-  ],
-  "clusterNamespace": "MyNamespace"
+  ]
 }
 """
           )
@@ -744,46 +755,45 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       "missing_heartbeat_interval": 600,
       "check_agreement_status": 120
     },
-    "userInput": [
-      {
-        "serviceOrgid": "IBM",
-        "serviceUrl": "ibm.cpu2msghub",
-        "serviceArch": "",
-        "serviceVersionRange": "[0.0.0,INFINITY)",
-        "inputs": [
-          {
-            "name": "foo",
-            "value": "bar"
-          }
-        ]
-      }
-    ],
-    "secretBinding": [
-     {
-       "serviceOrgid": "string",
-        "serviceUrl": "string",
-        "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-         "secrets": [
-            {"<service-secret-name1>": "<vault-secret-name1>"},
-            {"<service-secret-name2>": "<vault-secret-name2>"}
-         ]
-     }
-    ],
-    "properties": [
-      {
-        "name": "mypurpose",
-        "value": "myservice-testing",
-        "type": "string"
-      }
-    ],
-    "constraints": [
-      "a == b"
-      ],
     "clusterNamespace": "MyNamespace"
+  },
+  "userInput": [
+    {
+      "serviceOrgid": "IBM",
+      "serviceUrl": "ibm.cpu2msghub",
+      "serviceArch": "",
+      "serviceVersionRange": "[0.0.0,INFINITY)",
+      "inputs": [
+        {
+          "name": "foo",
+          "value": "bar"
+        }
+      ]
     }
-  }
-"""
+  ],
+  "secretBinding": [
+    {
+      "serviceOrgid": "string",
+      "serviceUrl": "string",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        {"<service-secret-name1>": "<vault-secret-name1>"},
+        {"<service-secret-name2>": "<vault-secret-name2>"}
+      ]
+    }
+  ],
+  "properties": [
+    {
+      "name": "mypurpose",
+      "value": "myservice-testing",
+      "type": "string"
+    }
+  ],
+  "constraints": [
+    "a == b"
+  ]
+}"""
           )
         ),
         mediaType = "application/json",

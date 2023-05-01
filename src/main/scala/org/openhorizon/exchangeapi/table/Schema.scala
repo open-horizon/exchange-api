@@ -227,7 +227,8 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
       case 51 => // v2.109.0
         DBIO.seq(sqlu"ALTER TABLE public.node_group ADD COLUMN IF NOT EXISTS admin BOOL NOT NULL DEFAULT FALSE;")
       case 52 => // v2.111.0
-        DBIO.seq(sqlu"ALTER TABLE public.nodes ADD COLUMN IF NOT EXISTS cluster_namespace varchar NULL;",
+        DBIO.seq(sqlu"ALTER TABLE public.businesspolicies ADD COLUMN IF NOT EXISTS cluster_namespace varchar NULL;",
+                 sqlu"ALTER TABLE public.nodes ADD COLUMN IF NOT EXISTS cluster_namespace varchar NULL;",
                  sqlu"ALTER TABLE public.patterns ADD COLUMN IF NOT EXISTS cluster_namespace varchar NULL;")
       case 53 => // v2.113.0
         DBIO.seq(sqlu"""UPDATE public.businesspolicies SET service = regexp_replace(service, '}}$$', '},"clusterNamespace": "' || cluster_namespace || '"}') WHERE cluster_namespace NOTNULL AND service NOT LIKE '%},"clusterNamespace": "%"}';""",

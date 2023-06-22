@@ -5,6 +5,7 @@ on:
     branches:
       - master
       - v2.87
+      - v2.110
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -26,9 +27,11 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - uses: actions/checkout@v3
-      - uses: olafurpg/setup-scala@v13
-        with:
-          java-version: openjdk@1.17
+      
+      # Setup Scala
+      # Comes from open source action: https://github.com/coursier/setup-action
+      - name: Setup Scala
+        uses: coursier/setup-action@v1
 
       - name: Create Docker Env
         run: |

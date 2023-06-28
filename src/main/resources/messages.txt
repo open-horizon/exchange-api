@@ -365,6 +365,7 @@ service.policy.not.found=policy for service ''{0}'' not found
 service.updated=service updated
 services.configstate.org.not.specified=Org attribute not detailed for specific url or version in request body.
 services.configstate.url.not.specified=Version cannot be found if url attribute is not specified.
+services.not.found=the following referenced services do exist {0}
 status.added.or.updated=status added or update
 token.cannot.be.empty.string=the token can not be set to the empty string
 token.must.not.be.blank=the token specified must not be blank

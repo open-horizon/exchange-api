@@ -271,8 +271,8 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "testPutNodeGroupRoute").delete andThen
-                                       OrgsTQ.filter(_.orgid startsWith "testPutNodeGroupRoute").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPutNodeGroupRoute").delete andThen
+                                       OrgsTQ.filter(_.orgid startsWith "TestPutNodeGroupRoute").delete), AWAITDURATION)
     
     DBCONNECTION.getDb.close()
   }

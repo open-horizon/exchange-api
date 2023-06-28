@@ -21,7 +21,12 @@ import org.openhorizon.exchangeapi.route.organization.{AllNodeErrorsInOrgResp, G
 import org.openhorizon.exchangeapi.route.service.PostPutServiceRequest
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
 import org.openhorizon.exchangeapi.table.{ContainerStatus, NAService, NodeError, NodeHeartbeatIntervals, NodePolicy, NodeStatus, NodeType, OneService, PostPutNodeGroupsRequest, RegService}
+import org.scalatest.BeforeAndAfterAll
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc.PostgresProfile.api._
+
+import scala.concurrent.{Await, Future}
+import scala.concurrent.duration.{Duration, DurationInt}
 
 
 /**
@@ -33,8 +38,8 @@ import scalaj.http.{Http, HttpResponse}
  * clear and detailed tutorial of FunSuite: http://doc.scalatest.org/1.9.1/index.html#org.scalatest.FunSuite
  */
 @RunWith(classOf[JUnitRunner])
-class NodesSuite extends AnyFunSuite {
-
+class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
+  
   val localUrlRoot = "http://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
   val runningLocally = (urlRoot == localUrlRoot)
@@ -134,151 +139,171 @@ class NodesSuite extends AnyFunSuite {
   val orgservice = authpref+service
   val orgid3 = "NodeSuitTestsOrgMaxNodes"
   val orgsList = List(orgid, orgid2, orgid3)
-
-  implicit val formats = DefaultFormats.withLong // Brings in default date formats etc.
-
+  
+  private val AWAITDURATION: Duration = 15.seconds
+  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  
+  implicit val formats: Formats = DefaultFormats.withLong // Brings in default date formats etc.
+  
   // Operators: test, ignore, pending
-
+  
+  // Teardown test harness.
+  override def afterAll(): Unit = {
+    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(record =>
+                                                                ((record.orgId startsWith "NodesSuiteTests") || (record.orgId startsWith "NodeSuit") ||
+                                                                  (record.category === ResChangeCategory.SERVICE.toString &&
+                                                                   record.orgId === "IBM" &&
+                                                                   record.id === (ibmService + "_" + svcversion2 + "_" + svcarch2)))).delete andThen
+                                       OrgsTQ.filter(_.orgid startsWith "NodesSuiteTests").delete andThen
+                                       ServicesTQ.filter(_.service === "IBM/" + ibmService + "_" + svcversion2 + "_" + svcarch2).delete), AWAITDURATION)
+    
+    DBCONNECTION.getDb.close()
+  }
+  
+  
   /** Delete all the test orgs */
   def deleteAllOrgs() = {
     for (u <- List(URL, URL2)) {
-      val response = Http(u).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
+      val response = Http(u).method("DELETE").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE " + u +", code: " + response.code + ", response.body: " + response.body)
       assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
     }
   }
-
+  
   def patchNodePublicKey(nodeid: String, publicKey: String): Unit = {
-    val jsonInput = """{ "publicKey": """"+publicKey+"""" }"""
-    val response = Http(URL + "/nodes/" + nodeid).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("PATCH "+nodeid+", code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    val result: Int = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === nodeid).map(_.publicKey).update(publicKey)), AWAITDURATION)
+    
+    // val jsonInput = """{ "publicKey": """"+publicKey+"""" }"""
+    // val response = Http(URL + "/nodes/" + nodeid).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    // info("PATCH "+nodeid+", code: "+response.code+", response.body: "+response.body)
+    // assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   def patchNodePattern(nodeid: String, pattern: String): Unit = {
-    val jsonInput = """{ "pattern": """"+pattern+"""" }"""
-    val response = Http(URL + "/nodes/" + nodeid).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("PATCH "+nodeid+", code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    val result: Int = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === nodeid).map(_.pattern).update(pattern)), AWAITDURATION)
+    
+    // val jsonInput = """{ "pattern": """"+pattern+"""" }"""
+    // val response = Http(URL + "/nodes/" + nodeid).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    // info("PATCH "+nodeid+", code: "+response.code+", response.body: "+response.body)
+    // assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   /** Patches all of the nodes to have a pattern or blank out the pattern (for business policy and node health searches) */
   def patchAllNodePatterns(pattern: String): Unit = {
     // Can not change the pattern when the publicKey is set, so have to blank it first, and then restore it afterward
-    for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
+    for (i <- List((orgid + "/" + nodeId),(orgid + "/" + nodeId2),(orgid + "/" + nodeId3),(orgid + "/" + nodeId4))) {
       patchNodePublicKey(i, "")
     }
-
-    for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
+    
+    for (i <- List((orgid + "/" + nodeId),(orgid + "/" + nodeId2),(orgid + "/" + nodeId3),(orgid + "/" + nodeId4))) {
       patchNodePattern(i, pattern)
     }
-
-    for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
+    
+    for (i <- List((orgid + "/" + nodeId),(orgid + "/" + nodeId2),(orgid + "/" + nodeId3),(orgid + "/" + nodeId4))) {
       patchNodePublicKey(i, nodePubKey)
     }
   }
-
+  
   def putNodeTestAgreement(nodeid: String, noHeartbeat: Boolean = false): Unit ={
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), None, "signed")
     val agUrl = URL + "/nodes/" + nodeid + "/agreements/testagreement" + nodeid
     val response =
-      if (noHeartbeat) Http(agUrl).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
-      else Http(agUrl).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      if (noHeartbeat) Http(agUrl).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
+      else Http(agUrl).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("PUT "+nodeid+"/agreements/testagreement" + nodeid + ", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   def deleteNodeTestAgreement(nodeid: String): Unit ={
-    val response = Http(URL + "/nodes/" + nodeid + "/agreements/testagreement" + nodeid).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL + "/nodes/" + nodeid + "/agreements/testagreement" + nodeid).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("DELETE "+nodeid + "/agreements/testagreement" + nodeid + ", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
-
+  
   def putNodeTestPolicy(nodeid: String, noHeartbeat: Boolean = false): Unit ={
     val input = PutNodePolicyRequest(Some(nodeid+" policy"), Some(nodeid+" policy desc"), Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")), None, None, None)
-    val response = 
-      if (noHeartbeat) Http(URL + "/nodes/" + nodeid + "/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
-      else Http(URL + "/nodes/" + nodeid + "/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response =
+      if (noHeartbeat) Http(URL + "/nodes/" + nodeid + "/policy").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
+      else Http(URL + "/nodes/" + nodeid + "/policy").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("PUT "+nodeid+"/policy, code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   def deleteNodeTestPolicy(nodeid: String): Unit ={
-    val response = Http(URL + "/nodes/" + nodeid + "/policy").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL + "/nodes/" + nodeid + "/policy").method("DELETE").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("DELETE "+nodeid+"/policy, code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
-
+  
   /** Patches all of the nodes to have a test policy and agreement (for business policy search) */
   def putAllNodePolicyAndAgreements(): Unit = {
     // Add agreements
     for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
       putNodeTestAgreement(i)
     }
-
+    
     for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
       putNodeTestPolicy(i)
     }
   }
-
+  
   def deleteAllNodePolicyAndAgreements(agreement: String): Unit ={
     for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
       deleteNodeTestAgreement(i)
     }
-
+    
     for (i <- List(nodeId,nodeId2,nodeId3,nodeId4)) {
       deleteNodeTestPolicy(i)
     }
   }
-
-
+  
   /** Calculated the changedSince arg for business pol search, given seconds ago. */
   def changedSinceAgo(secondsAgo: Long) = {ApiTime.nowSeconds - secondsAgo}
-
+  
   //~~~~~ Create org, user, service, pattern ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+  
   // Delete all the test orgs (and everything under them), in case they exist from a previous run.
   test("Begin - DELETE all test orgs") {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllOrgs()
   }
-
+  
   test("POST /orgs/"+orgid+" - create org to use for this test suite") {
     val input = PostPutOrgRequest(None, "My Org", "desc", None, None, None)
-    val response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
-
+  
   test("POST /orgs/"+orgid2+" - create 2nd org to use for this test suite") {
     val input = PostPutOrgRequest(None, "My 2nd Org", "desc", None, None, None)
-    val response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL2).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
-
-  test("POST /orgs/" + orgid + "/users/" + user + " - normal") {
-    Http(URL + "/users/" + user).postData(write(PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    
-    Http(URL + "/users/u2").postData(write(PostPutUsersRequest("u2pw", admin = false, Some(false), "u2@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
   
-    Http(URL + "/users/u3").postData(write(PostPutUsersRequest("u3pw", admin = true, Some(false), "u3@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+  test("POST /orgs/" + orgid + "/users/" + user + " - normal") {
+    Http(URL + "/users/" + user).postData(write(PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com"))).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    
+    Http(URL + "/users/u2").postData(write(PostPutUsersRequest("u2pw", admin = false, Some(false), "u2@hotmail.com"))).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    
+    Http(URL + "/users/u3").postData(write(PostPutUsersRequest("u3pw", admin = true, Some(false), "u3@hotmail.com"))).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     
     assert(true)
   }
-
+  
   test("POST /orgs/"+orgid2+"/users/"+user+" - normal") {                //val compositeId = OrgAndId(orgid,id).toString
     val input = PostPutUsersRequest(pw, admin = false, Some(false), user+"@hotmail.com")
-    val response = Http(URL2+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL2+"/users/"+user).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - before pattern exists - should fail") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", None, compositePatid,
       None,
       None, None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, None)
-    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
@@ -287,34 +312,34 @@ class NodesSuite extends AnyFunSuite {
   //   val input = PutNodesRequest("bad token", "rpi"+nodeId+"-norm", None, "",
   //     None,
   //     None, None, None, nodePubKey, None, None)
-  //   val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+  //   val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
   //   info("code: "+response.code)
   //   assert(response.code === HttpCode.BAD_INPUT.intValue)
   //   if (ExchMsg.getLang.contains("en")) assert(response.body.contains("Tokens must be at least 15 characters in length and contain at least one digit, one uppercase English alphabet letter, and one lowercase English alphabet letter"))
   // }
-
+  
   test("POST /orgs/"+orgid+"/services - add "+svcid+" so pattern can reference it") {
-
+    
     val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion, svcarch, "multiple", None, None, None, Some(""), Some(""), None, None, None)
-    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/services").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/services - add "+svcid2+" so pattern can reference it") {
     val input = PostPutServiceRequest("test-service", None, public = false, None, NETSPEEDSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, Some(""), Some(""), None, None, None)
-    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/services").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
-
+  
   test("POST /orgs/IBM/services - add " + ibmService + " to be used in search later") {
     val input = PostPutServiceRequest("test-service", None, public = false, None, ibmService, svcversion2, svcarch2, "multiple", None, None, None, Some(""), Some(""), None, None, None)
-    val response = Http(urlRoot + "/v1/orgs/IBM/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(urlRoot + "/v1/orgs/IBM/services").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/patterns/"+patid+" - so nodes can reference it") {
     val input = PostPutPatternRequest(patid, None, None,
       List(
@@ -324,83 +349,83 @@ class NodesSuite extends AnyFunSuite {
       ),
       None, None, None
     )
-    val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr+" - add "+businessPolicySdr+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicySdr, Some("desc"),
       BService(SDRSPEC_URL, orgid, "*", List(BServiceVersions(svcversion, None, None)), None, None),
       None, None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
-    val response = Http(URL+"/business/policies/"+businessPolicySdr).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/business/policies/"+businessPolicySdr).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicySdr2+" - add "+businessPolicySdr2+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicySdr2, Some("desc"),
       BService(SDRSPEC_URL, orgid, "", List(BServiceVersions(svcversion, None, None)), None, None),
       None, None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
-    val response = Http(URL+"/business/policies/"+businessPolicySdr2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/business/policies/"+businessPolicySdr2).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
-
+  
   test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicySdr2+" - delete "+businessPolicySdr2+" to not interfere with tests") {
-    val response = Http(URL+"/business/policies/"+businessPolicySdr2).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/business/policies/"+businessPolicySdr2).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/business/policies/"+businessPolicyNS+" - add "+businessPolicyNS+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPolicyNS, Some("desc"),
       BService(NETSPEEDSPEC_URL, orgid, "amd64", List(BServiceVersions(svcversion, None, None)), None, None),
       None, None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
     )
-    val response = Http(URL+"/business/policies/"+businessPolicyNS).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/business/policies/"+businessPolicyNS).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
-
+  
   //~~~~~ Create nodes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+  
   ExchConfig.load()
-
+  
   test("PUT /orgs/"+orgid+"/nodes/iamapikey - add node with id iamapikey - should fail") {
     val input = PutNodesRequest(nodeToken, "bad", None, "", None, None, None, None, "", None, None)
-    val response = Http(URL+"/nodes/iamapikey").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/iamapikey").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/iamtoken - add node with id iamapikey - should fail") {
     val input = PutNodesRequest(nodeToken, "bad", None, "", None, None, None, None, "", None, None)
-    val response = Http(URL+"/nodes/iamapikey").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/iamapikey").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add node with invalid svc ref in userInput - should fail") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", None, compositePatid, None,
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, Some("[9.9.9,9.9.9]"), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, None, nodePubKey, None, None)
-    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - add node with invalid nodeType - should fail") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", Some("badtype"), compositePatid, None,
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, Some("[9.9.9,9.9.9]"), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, None, nodePubKey, None, None)
-    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
+  
   test("PUT /orgs/" + orgid + "/nodes/" + nodeId + " - add normal node as user, but with no pattern yet") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", None, "",
       Some(List(
@@ -416,16 +441,16 @@ class NodesSuite extends AnyFunSuite {
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, Some(NodeHeartbeatIntervals(5,15,2)))
-    val response = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " was created and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -434,19 +459,19 @@ class NodesSuite extends AnyFunSuite {
     assert(parsedBody.changes.size <= maxRecords)
     assert(parsedBody.mostRecentChangeId != 0)
     assert(!parsedBody.hitMaxRecords)
-    assert(parsedBody.exchangeVersion == ExchangeApi.adminVersion().toString)
+    assert(parsedBody.exchangeVersion == ExchangeApi.adminVersion())
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - try to set pattern when publicKey already exists - should fail") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", None, compositePatid,
       None, None, None, None, nodePubKey, None, None)
-    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
+  
   test("PUT /orgs/" + orgid + "/nodes/" + nodeId + " - normal - update as user") {
-    patchNodePublicKey(nodeId, "")   // 1st blank the publicKey so we are allowed to set the pattern
+    patchNodePublicKey(orgid + "/" + nodeId, "")   // 1st blank the publicKey so we are allowed to set the pattern
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal-user", None, compositePatid,
       Some(List(
         RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId+" pws}",List(
@@ -461,12 +486,12 @@ class NodesSuite extends AnyFunSuite {
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, Some(Map("horizon"->"3.2.3")), "OLDNODEABC", None, None)
-    val response = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   // this is the last update of nodeId before the GET checks
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+" - normal update - as node") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-normal", None, compositePatid,
@@ -484,19 +509,22 @@ class NodesSuite extends AnyFunSuite {
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(""), Some(Map("horizon"->"3.2.1")), nodePubKey, Some("amd64"), Some(NodeHeartbeatIntervals(6,15,2)))
-    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+" - add node in 2nd org") {
+    Http(urlRoot + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(ROOTAUTH).asString
+    
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", None, compositePatid, None, None, None, None, nodePubKey, None, None)
-    val response = Http(URL2+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
+    
+    val response = Http(URL2 + "/nodes/" + nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code)
     info("body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+" - node with higher memory 400, and version 2.0.0") {
     val input = PutNodesRequest(nodeToken2, "rpi"+nodeId2+"-mem-400-vers-2", Some("cluster"), compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2+" sdr}",List(
       Prop("arch","arm","string","in"),
@@ -504,11 +532,11 @@ class NodesSuite extends AnyFunSuite {
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
       Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, nodePubKey, Some("amd64"), None)
-    val response = Http(URL+"/nodes/"+nodeId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId2).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId3+" - netspeed-amd64, but no publicKey at 1st") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId3+"-netspeed-amd64", None, compositePatid, Some(List(RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId3+" netspeed}",List(
       Prop("arch","amd64","string","in"),
@@ -516,24 +544,24 @@ class NodesSuite extends AnyFunSuite {
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
       Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "", Some("amd64"), None)
-    val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad integer property") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId4+"-bad-int", Some("device"), compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId4+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400MB","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, nodePubKey, Some("arm"), None)
-    val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
     val putDevResp = parse(response.body).extract[ApiResponse]
     assert(putDevResp.code === ApiRespType.BAD_INPUT)
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad body format") {
     val badJsonInput = """{
       "token": "foo",
@@ -555,31 +583,31 @@ class NodesSuite extends AnyFunSuite {
       ],
       "softwareVersions": {}
     }"""
-    val response = Http(URL+"/nodes/"+nodeId4).postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId4).postData(badJsonInput).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue)     // for now this is what is returned when the json-to-scala conversion fails
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId4+" - bad svc url, but this is currently allowed") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId4+"-bad-url", Some("device"), compositePatid, Some(List(RegService(NOTTHERESPEC,1,Some("active"),"{json policy for "+nodeId4+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, nodePubKey, Some("arm"), None)
-    val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - add an agbot so we can test it viewing nodes") {
     val input = PutAgbotsRequest(agbotToken, agbotId+"name", None, "AGBOTABC")
-    val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   //~~~~~ Get nodes (and some post configState) ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+  
   test("GET /orgs/" + orgid + "/nodes - user 1") {
     // val response: HttpResponse[String] = Http(URL+"/v1/nodes").headers(("Accept","application/json")).param("id","a").param("token","a").asString
     val response: HttpResponse[String] = Http(URL+"/nodes").headers(ACCEPT).headers(USERAUTH).asString
@@ -589,7 +617,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.body.contains("arch"))
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 4)
-
+    
     assert(getDevResp.nodes.contains(orgnodeId))
     var dev = getDevResp.nodes(orgnodeId)
     assert(dev.name === "rpi"+nodeId+"-normal")
@@ -631,7 +659,7 @@ class NodesSuite extends AnyFunSuite {
     assert((inpElem !== null) && (inpElem.value === 5))
     inpElem = inp.find(u => u.name=="UI_BOOLEAN").orNull
     assert((inpElem !== null) && (inpElem.value === true))
-
+    
     assert(getDevResp.nodes.contains(orgnodeId2))
     dev = getDevResp.nodes(orgnodeId2)
     assert(dev.name === "rpi"+nodeId2+"-mem-400-vers-2")
@@ -647,7 +675,7 @@ class NodesSuite extends AnyFunSuite {
     assert(dev.softwareVersions.size === 0)
     assert(dev.arch === "amd64")
     assert(!dev.lastUpdated.isEmpty)
-
+    
     assert(getDevResp.nodes.contains(orgnodeId3))
     dev = getDevResp.nodes(orgnodeId3)
     assert(dev.name === "rpi"+nodeId3+"-netspeed-amd64")
@@ -660,14 +688,14 @@ class NodesSuite extends AnyFunSuite {
     assert(dev.arch === "amd64")
     assert(!dev.lastUpdated.isEmpty)
   }
-
+  
   test("GET /orgs/" + orgid + "/nodes - user 2") {
     val response: HttpResponse[String] = Http(URL+"/nodes").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(orgid + "/u2:u2pw"))).asString
     info("code: " + response.code)
     info("response.body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue && parse(response.body).extract[GetNodesResponse].nodes.size === 0)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes - filter for devices") {
     val response: HttpResponse[String] = Http(URL + "/nodes").headers(ACCEPT).headers(USERAUTH).param("nodetype","device").asString
     info("code: " + response.code)
@@ -677,7 +705,7 @@ class NodesSuite extends AnyFunSuite {
     assert(devs.size === 3)
     assert(devs.contains(orgnodeId) && devs.contains(orgnodeId3) && devs.contains(orgnodeId4))
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes - filter for clusters") {
     val response: HttpResponse[String] = Http(URL + "/nodes").headers(ACCEPT).headers(USERAUTH).param("nodetype","cluster").asString
     info("code: " + response.code)
@@ -687,13 +715,13 @@ class NodesSuite extends AnyFunSuite {
     assert(devs.size === 1)
     assert(devs.contains(orgnodeId2))
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes - filter for invalid nodetype - should fail") {
     val response: HttpResponse[String] = Http(URL + "/nodes").headers(ACCEPT).headers(USERAUTH).param("nodetype","badtype").asString
     info("code: " + response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId3+" - update arch to test") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId3+"-netspeed-amd64", None, compositePatid, Some(List(RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId3+" netspeed}",List(
       Prop("arch","amd64","string","in"),
@@ -701,11 +729,11 @@ class NodesSuite extends AnyFunSuite {
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
       Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "", Some("test"), None)
-    val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId3+" - verify arch updated to test") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId3).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -715,7 +743,7 @@ class NodesSuite extends AnyFunSuite {
     val dev = getDevResp.nodes(orgnodeId3)
     assert(dev.arch === "test")
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId3+" - update arch to amd64") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId3+"-netspeed-amd64", None, compositePatid, Some(List(RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeId3+" netspeed}",List(
       Prop("arch","amd64","string","in"),
@@ -723,11 +751,11 @@ class NodesSuite extends AnyFunSuite {
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
       Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "", Some("amd64"), None)
-    val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId3).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId3+" - verify arch updated to amd64") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId3).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -737,28 +765,28 @@ class NodesSuite extends AnyFunSuite {
     val dev = getDevResp.nodes(orgnodeId3)
     assert(dev.arch === "amd64")
   }
-
+  
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - invalid config state - should fail") {
     val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "foo", Some(""))
-    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - nonexistant url - should return not found") {
     val input = PostNodeConfigStateRequest(orgid, NOTTHERESPEC_URL, "suspended", Some(""))
-    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - nonexistant org - should return not found") {
     val input = PostNodeConfigStateRequest(orgnotthere, SDRSPEC_URL, "suspended", Some(""))
-    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify none of the bad POSTs above changed the node") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -769,7 +797,7 @@ class NodesSuite extends AnyFunSuite {
     assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("active")))
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
   }
-
+  
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of sdr reg svc and test lastUpdated field changed") {
     val response1: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response1.code)
@@ -778,12 +806,12 @@ class NodesSuite extends AnyFunSuite {
     assert(getDevResp.nodes.contains(orgnodeId))
     val dev = getDevResp.nodes(orgnodeId)
     val initialLastUpdated = dev.lastUpdated
-
+    
     val input = PostNodeConfigStateRequest(orgid, SDRSPEC_URL, "suspended", Some(""))
-    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
-
+    
     val response2: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response2.code)
     assert(response2.code === HttpCode.OK.intValue)
@@ -793,18 +821,18 @@ class NodesSuite extends AnyFunSuite {
     val newLastUpdated = dev2.lastUpdated
     assert(newLastUpdated > initialLastUpdated)
   }
-
+  
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " services_configstate was created and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "services_configstate")}))
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify sdr reg svc was suspended") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -815,15 +843,15 @@ class NodesSuite extends AnyFunSuite {
     assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("suspended")))
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
   }
-
+  
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of netspeed reg svc") {
     val input = PostNodeConfigStateRequest(orgid, NETSPEEDSPEC_URL, "suspended", Some(""))
-    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     info("body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify netspeed reg svc was suspended") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -852,20 +880,20 @@ class NodesSuite extends AnyFunSuite {
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(""), Some(Map("horizon"->"3.2.1")), nodePubKey, Some("amd64"), Some(NodeHeartbeatIntervals(6,15,2)))
-    val response = Http(URL+"/nodes/"+nodeId9).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId9).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     info("body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/nodes/"+nodeId9+"/services_configstate - filter on specific version") {
     val input = PostNodeConfigStateRequest(orgid, NETSPEEDSPEC_URL, "suspended", Some("1.0.0"))
-    val response = Http(URL+"/nodes/"+nodeId9+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId9+"/services_configstate").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     info("body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId9+" - verify filter on version worked") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId9).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -877,21 +905,21 @@ class NodesSuite extends AnyFunSuite {
     //info("regser: " + dev.registeredServices)
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("suspended") && m.version.contains("1.0.0")))
   }
-
+  
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId9+" - cleanup node") {
-    val response = Http(URL + "/nodes/" + nodeId9).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL + "/nodes/" + nodeId9).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     info("body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - change config state of all reg svcs back to active") {
     val input = PostNodeConfigStateRequest("", "", "active", Some(""))
-    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify all reg svcs back to active") {
     // this test also verifies that the wildcard version works
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
@@ -904,14 +932,14 @@ class NodesSuite extends AnyFunSuite {
     assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("active")))
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
   }
-
+  
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/services_configstate - verify version isn't required") {
     val input = """{"org": "", "url": "", "configState": "active" }"""
-    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/services_configstate").postData(input).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - verify all reg svcs still active after no version in post body") {
     // this test verifies no version in request body is treated as wildcard version
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(USERAUTH).asString
@@ -924,7 +952,7 @@ class NodesSuite extends AnyFunSuite {
     assert(dev.registeredServices.exists(m => m.url == SDRSPEC && m.configState.contains("active")))
     assert(dev.registeredServices.exists(m => m.url == NETSPEEDSPEC && m.configState.contains("active")))
   }
-
+  
   test("GET /orgs/" + orgid + "/nodes - filter owner and name") {
     val response: HttpResponse[String] = Http(URL + "/nodes").headers(ACCEPT).headers(USERAUTH).param("owner", orgid + "/" + user).param("name","rpi%netspeed%amd64").asString
     info("code: " + response.code)
@@ -934,7 +962,7 @@ class NodesSuite extends AnyFunSuite {
     assert(getDevResp.nodes.size === 1)
     assert(getDevResp.nodes.contains(orgnodeId3))
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes - filter owner and idfilter") {
     val response: HttpResponse[String] = Http(URL+"/nodes").headers(ACCEPT).headers(USERAUTH).param("owner",orgid+"/"+user).param("idfilter",orgid+"/n%").asString
     info("code: "+response.code)
@@ -947,7 +975,7 @@ class NodesSuite extends AnyFunSuite {
     assert(getDevResp.nodes.contains(orgnodeId3))
     assert(getDevResp.nodes.contains(orgnodeId4))
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes - bad creds") {
     // val response: HttpResponse[String] = Http(URL+"/v1/nodes").headers(("Accept","application/json")).param("id","a").param("token","a").asString
     val response: HttpResponse[String] = Http(URL+"/nodes").headers(ACCEPT).headers(BADAUTH).asString
@@ -955,7 +983,7 @@ class NodesSuite extends AnyFunSuite {
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BADCREDS.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes - by agbot") {
     val response: HttpResponse[String] = Http(URL+"/nodes").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -964,13 +992,13 @@ class NodesSuite extends AnyFunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 4)
   }
-
+  
   test("GET /orgs/"+orgid+" - "+nodeId+" should be able to read his own org") {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
   }
-
+  
   test("PUT /orgs/" + orgid + "/nodes/" + nodeId8 + " - Should not set lastHeartbeat") {
     // Try to create new node with no lastHeartbeat, but with bad noheartbeat value - should fail
     var nodeRequest = PutNodesRequest(nodeToken, 
@@ -992,27 +1020,27 @@ class NodesSuite extends AnyFunSuite {
                                               nodePubKey, 
                                               Some("amd64"), 
                                               None)
-    var response: HttpResponse[String] = Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","tru").asString
+    var response: HttpResponse[String] = Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","tru").asString
     assert(response.code === HttpCode.BAD_INPUT.intValue)
-
+    
     // Create new node as user with no lastHeartbeat
-    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
+    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
     assert(Option(parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8).lastHeartbeat).isEmpty)
-
+    
     // Create an agreement for this node with the option to not update the node's lastHeartbeat, and confirm lastHeartbeat is still not set
     putNodeTestAgreement(nodeId8, noHeartbeat=true)
     assert(Option(parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8).lastHeartbeat).isEmpty)
     deleteNodeTestAgreement(nodeId8)  // clean up agreement
-
+    
     // Create a node policy for this node with the option to not update the node's lastHeartbeat, and confirm lastHeartbeat is still not set
     putNodeTestPolicy(nodeId8, noHeartbeat=true)
     assert(Option(parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8).lastHeartbeat).isEmpty)
     deleteNodeTestPolicy(nodeId8)  // clean up policy
-
+    
     // Delete node, then create with heartbeat
-    response = Http(URL + "/nodes/" + nodeId8).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    response = Http(URL + "/nodes/" + nodeId8).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     assert(response.code === HttpCode.DELETED.intValue)
-    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     val heartbeat: Option[String] = Option(parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8).lastHeartbeat)
     assert(heartbeat.nonEmpty)
     
@@ -1036,31 +1064,31 @@ class NodesSuite extends AnyFunSuite {
                                   nodePubKey, 
                                   Some("x86"), 
                                   None)
-    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
+    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).param("noheartbeat","true").asString
     var node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
     assert(node.arch === "x86")
     assert(Option(node.lastHeartbeat).get === heartbeat.get)
     
     // Update the node as a node with changing lastHeartbeat
-    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE8AUTH).asString
+    Http(URL + "/nodes/" + nodeId8).postData(write(nodeRequest)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODE8AUTH).asString
     node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
     val heartbeat2: Option[String] = Option(node.lastHeartbeat)
     assert(heartbeat2.get !== heartbeat.get)
-
+    
     // Create an agreement for this node with changing the node's lastHeartbeat, and confirm lastHeartbeat is different
     putNodeTestAgreement(nodeId8)
     node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
     val heartbeat3: Option[String] = Option(node.lastHeartbeat)
     assert(heartbeat3.get !== heartbeat2.get)
     deleteNodeTestAgreement(nodeId8)  // clean up agreement
-
+    
     // Create a node polciy for this node with changing the node's lastHeartbeat, and confirm lastHeartbeat is different
     putNodeTestPolicy(nodeId8)
     node = parse(Http(URL + "/nodes/" + nodeId8).headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString.body).extract[GetNodesResponse].nodes(orgnodeId8)
     assert(Option(node.lastHeartbeat).get !== heartbeat3.get)
     deleteNodeTestPolicy(nodeId8)  // clean up policy
   }
-
+  
   test("GET /orgs/" + orgid + "/status - verify number of registered nodes") {
     val response: HttpResponse[String] = Http(URL + "/status").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code)
@@ -1069,15 +1097,15 @@ class NodesSuite extends AnyFunSuite {
     val getUserResp = parse(response.body).extract[GetOrgStatusResponse]
     assert(getUserResp.numberOfRegisteredNodes === 4)
   }
-
+  
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat") {
-    val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("POST").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val devResp = parse(response.body).extract[ApiResponse]
     assert(devResp.code === ApiRespType.OK)
   }
-
+  
   test("GET /orgs/" + orgid + "/nodes/ " + nodeId + " - user 1") {
     val response: HttpResponse[String] = Http(URL + "/nodes/" + nodeId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
@@ -1085,16 +1113,16 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.OK.intValue)
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 1)
-
+    
     assert(getDevResp.nodes.contains(orgnodeId))
     val dev = getDevResp.nodes(orgnodeId)
     assert(dev.name === "rpi" + nodeId + "-normal")
-
+    
     // Verify the lastHeartbeat from the POST heartbeat above is within a few seconds of now. Format is: 2016-09-29T13:04:56.850Z[UTC]
     val now: Long = System.currentTimeMillis / 1000     // seconds since 1/1/1970
     val lastHb = ZonedDateTime.parse(dev.lastHeartbeat).toEpochSecond
     assert(now - lastHb <= 5)    // should not now be more than 5 seconds from the time the heartbeat was done above. This value needs to be generous, because the tests run slowly in travis.
-
+    
     assert(dev.registeredServices.length === 2)
     val svc: RegService = dev.registeredServices.find(m => m.url==SDRSPEC).orNull
     assert(svc !== null)
@@ -1105,10 +1133,10 @@ class NodesSuite extends AnyFunSuite {
     assert(archProp.value === "arm")
     var memProp = svc.properties.find(p => p.name=="memory").orNull
     assert((memProp !== null) && (memProp.value === "300"))
-
+    
     assert(dev.registeredServices.find(m => m.url==NETSPEEDSPEC) !== None)
   }
-
+  
   test("GET /orgs/" + orgid + "/nodes/ " + nodeId + " - user 2") {
     val response: HttpResponse[String] = Http(URL + "/nodes/" + nodeId).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(orgid + "/u2:u2pw"))).asString
     info("code: " + response.code)
@@ -1116,7 +1144,7 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
     assert(response.body.contains("does not have authorization: READ_ALL_NODES"))
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - as node") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
@@ -1125,7 +1153,7 @@ class NodesSuite extends AnyFunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 1)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - as node - encoded") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(ENCODEDAUTH).asString
     info("code: "+response.code)
@@ -1137,7 +1165,7 @@ class NodesSuite extends AnyFunSuite {
     val dev = getDevResp.nodes(orgnodeId)
     assert(dev.name === "rpi"+nodeId+"-normal")
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -1146,7 +1174,7 @@ class NodesSuite extends AnyFunSuite {
     val getDevResp = parse(response.body).extract[GetNodesResponse]
     assert(getDevResp.nodes.size === 1)
   }
-
+  
   /* no longer supported
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - as node, with token in URL parms, but no id") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId+"?token="+nodeToken).headers(ACCEPT).asString
@@ -1166,90 +1194,90 @@ class NodesSuite extends AnyFunSuite {
     assert(getDevResp.nodes.size === 1)
   }
   */
-
+  
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - userInput with an invalid svc ref") {
     val jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+SDRSPEC_URL+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
-    val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
+  
   // TODO: Put back Token Validation test
   // test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - with bad token -- should fail") {
   //   var jsonInput = """{ "token": "bad token" }"""
-  //   var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+  //   var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
   //   info("code: "+response.code+", response.body: "+response.body)
   //   assert(response.code === HttpCode.BAD_INPUT.intValue)
   // }
-
+  
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - userInput without actually specifying 'userInput' ") {
     val jsonInput = """[{"inputs": [{"name": "var1","value": "someString"}, {"name": "var2", "value": 5},{"name": "var3", "value": 22.2}], "serviceArch": "amd64", "serviceOrgid": "IBM", "serviceUrl": "ibm.gps", "serviceVersionRange": "[2.2.0,INFINITY)"}]""".stripMargin
-    val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
     //assert(response.body.contains("invalid input"))
   }
-
+  
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - try to go from blank pattern to nonblank pattern - should fail") {
-    patchNodePattern(nodeId, "")    // First blank out the pattern
-
+    patchNodePattern((orgid + "/" +nodeId), "")    // First blank out the pattern
+    
     // Now try to set the pattern - should fail
     val jsonInput = """{ "pattern": """"+compositePatid+"""" }"""
-    val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
-
+    
     // Restore the pattern
-    patchNodePublicKey(nodeId, "")
-    patchNodePattern(nodeId, compositePatid)
-    patchNodePublicKey(nodeId, nodePubKey)
+    patchNodePublicKey(orgid + "/" + nodeId, "")
+    patchNodePattern(orgid + "/" + nodeId, compositePatid)
+    patchNodePublicKey(orgid + "/" + nodeId, nodePubKey)
   }
 
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - as node") {
     var jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
-    var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
-
+    
     jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+SDRSPEC_URL+"""", "serviceArch": """"+svcarch+"""", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
-    response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
-
+    
     jsonInput = """{ "heartbeatIntervals": { "minInterval": 6, "maxInterval": 15, "intervalAdjustment": 2 } }"""
-    response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " was updated via PATCH and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.MODIFIED.toString) && (y.resource == "node")}))
   }
-
+  
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - as node with whitespace") {
     var jsonInput = """   { "publicKey": """"+nodePubKey+"""" }    """
-    var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
-
+    
     jsonInput =
       """
         { "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+SDRSPEC_URL+"""", "serviceArch": """"+svcarch+"""", "serviceVersionRange": """"+ALL_VERSIONS+
         """", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }
 
           """
-    response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - as node, check patch by getting that 1 attr") {
     var response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId+"?attribute=publicKey").headers(ACCEPT).headers(NODEAUTH).asString
     //info("code: "+response.code)
@@ -1258,7 +1286,7 @@ class NodesSuite extends AnyFunSuite {
     val getNodeResp = parse(response.body).extract[GetNodeAttributeResponse]
     assert(getNodeResp.attribute === "publicKey")
     assert(getNodeResp.value === nodePubKey)
-
+    
     response = Http(URL+"/nodes/"+nodeId).headers(ACCEPT).headers(NODEAUTH).param("attribute","userInput").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
@@ -1277,7 +1305,7 @@ class NodesSuite extends AnyFunSuite {
     assert((inpElem !== null) && (inpElem.value === 7))
     inpElem = inp.find(u => u.name=="UI_BOOLEAN").orNull
     assert((inpElem !== null) && (inpElem.value === true))
-
+    
     response = Http(URL+"/nodes/"+nodeId+"?attribute=heartbeatIntervals").headers(ACCEPT).headers(NODEAUTH).asString
     //info("code: "+response.code)
     info("code: "+response.code+", response.body: "+response.body)
@@ -1286,8 +1314,8 @@ class NodesSuite extends AnyFunSuite {
     assert(respObj2.attribute === "heartbeatIntervals")
     val hbIntervals = parse(respObj2.value).extract[NodeHeartbeatIntervals]
     assert(hbIntervals.minInterval === 6)
-}
-
+  }
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId4 + " testing lastUpdated field") {
     // first get the node and store the previous lastUpdated
     var response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
@@ -1298,13 +1326,13 @@ class NodesSuite extends AnyFunSuite {
     var dev = getDevResp.nodes(orgnodeId4)
     assert(!dev.lastUpdated.isEmpty)
     var prevLastUpdated = dev.lastUpdated
-
+    
     // patch the node so that the lastUpdated field gets updated
     val jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
-    response = Http(URL+"/nodes/"+nodeId4).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    response = Http(URL+"/nodes/"+nodeId4).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
-
+    
     // get the node again and verify that the new lastUpdated field is greater than the old one
     response = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1315,7 +1343,7 @@ class NodesSuite extends AnyFunSuite {
     assert(!dev.lastUpdated.isEmpty)
     assert(dev.lastUpdated >  prevLastUpdated)
     prevLastUpdated = dev.lastUpdated
-
+    
     putNodeTestPolicy(nodeId4)
     // get the node again and verify that the new lastUpdated field is greater than the old one
     response = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
@@ -1327,7 +1355,7 @@ class NodesSuite extends AnyFunSuite {
     assert(!dev.lastUpdated.isEmpty)
     assert(dev.lastUpdated >  prevLastUpdated)
     prevLastUpdated = dev.lastUpdated
-
+    
     putNodeTestAgreement(nodeId4)
     // get the node again and verify that the new lastUpdated field is greater than the old one
     response = Http(URL+"/nodes/"+nodeId4).headers(ACCEPT).headers(USERAUTH).asString
@@ -1339,13 +1367,13 @@ class NodesSuite extends AnyFunSuite {
     assert(!dev.lastUpdated.isEmpty)
     assert(dev.lastUpdated >  prevLastUpdated)
   }
-
+  
   //~~~~~ Pattern search and nodehealth ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - as agbot - should not find "+nodeId3+" because no publicKey") {
-    info("heartbeat: " + Http(URL + "/nodes/" + nodeId + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
-    info("heartbeat: " + Http(URL2 + "/nodes/" + nodeId + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH2).asString)
-    info("heartbeat: " + Http(URL + "/nodes/" + nodeId2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
-    info("heartbeat: " + Http(URL + "/nodes/" + nodeId4 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
+    info("heartbeat: " + Http(URL + "/nodes/" + nodeId + "/heartbeat").method("POST").headers(ACCEPT).headers(USERAUTH).asString)
+    info("heartbeat: " + Http(URL2 + "/nodes/" + nodeId + "/heartbeat").method("POST").headers(ACCEPT).headers(USERAUTH2).asString)
+    info("heartbeat: " + Http(URL + "/nodes/" + nodeId2 + "/heartbeat").method("POST").headers(ACCEPT).headers(USERAUTH).asString)
+    info("heartbeat: " + Http(URL + "/nodes/" + nodeId4 + "/heartbeat").method("POST").headers(ACCEPT).headers(USERAUTH).asString)
     
     val input = PostPatternSearchRequest(arch = None,
                                          nodeOrgids = Some(List(orgid, orgid2)),
@@ -1365,7 +1393,7 @@ class NodesSuite extends AnyFunSuite {
     assert(nodes.find(_.id == orgnodeId2).get.nodeType === NodeType.CLUSTER.toString)
     assert(nodes.find(_.id == orgnodeId4).get.nodeType === NodeType.DEVICE.toString)
   }
-
+  
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+PWSSPEC+" which is not in the pattern, so should fail") {
     val input = PostPatternSearchRequest(arch = None,
                                          nodeOrgids = None,
@@ -1376,9 +1404,9 @@ class NodesSuite extends AnyFunSuite {
     //info("code: "+response.code)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, with blank time, and both orgs - should find all nodes") {
-    info("Heartbeat: " + Http(URL + "/nodes/" + nodeId3 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
+    info("Heartbeat: " + Http(URL + "/nodes/" + nodeId3 + "/heartbeat").method("POST").headers(ACCEPT).headers(USERAUTH).asString)
     
     val input = PostNodeHealthRequest("", Some(List(orgid,orgid2)))
     val response = Http(URL+"/patterns/"+patid+"/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -1390,7 +1418,7 @@ class NodesSuite extends AnyFunSuite {
     assert(nodes.size === 6)
     assert(nodes.contains(orgnodeId) && nodes.contains(orgnodeId2) && nodes.contains(orgnodeId3) && nodes.contains(orgnodeId4))
   }
-
+  
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, with current time - should get no nodes") {
     //Thread.sleep(500)    // delay 0.5 seconds so no agreements will be current
     val currentTime = ApiTime.futureUTC(100000)   // sometimes there is a mismatch between the exch svr time and this client's time
@@ -1404,19 +1432,18 @@ class NodesSuite extends AnyFunSuite {
     val nodes = postResp.nodes
     assert(nodes.size === 0)
   }
-
+  
   //~~~~~ Business policy search ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
+  
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId3+" - add publicKey so it will be found") {
     val jsonInput = """{ "publicKey": "NODE3ABC" }"""
-    val response = Http(URL + "/nodes/" + nodeId3).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL + "/nodes/" + nodeId3).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     assert(response.code === HttpCode.PUT_OK.intValue)
-  
+    
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
   }
-
+  
   //~~~~~ Node health search ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with blank time - should find all nodes") {
     val input = PostNodeHealthRequest("", None)
     val response = Http(URL+"/search/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -1428,7 +1455,7 @@ class NodesSuite extends AnyFunSuite {
     assert(nodes.size === 4)
     assert(nodes.contains(orgnodeId) && nodes.contains(orgnodeId2) && nodes.contains(orgnodeId3) && nodes.contains(orgnodeId4))
   }
-
+  
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with current time - should get no nodes") {
     //Thread.sleep(500)    // delay 0.5 seconds so no agreements will be current
     val input = PostNodeHealthRequest(ApiTime.futureUTC(100000), None)
@@ -1441,13 +1468,12 @@ class NodesSuite extends AnyFunSuite {
     val nodes = postResp.nodes
     assert(nodes.size === 0)
   }
-
+  
   //~~~~~ Node status ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
     val oneService = OneService("agreementid", "testService", orgid, "0.0.1", "arm", List[ContainerStatus](), None, Some("active"))
     val input = PutNodeStatusRequest(Some(Map[String,Boolean]("something.network" -> true)), List[OneService](oneService))
-    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -1455,7 +1481,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodestatus added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -1466,7 +1492,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " can't see nodestatus changes") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -1476,7 +1502,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
-    val response = Http(URL+"/nodes/"+nodeId+"/status").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/status").method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getResp = parse(response.body).extract[NodeStatus]
@@ -1487,7 +1513,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node") {
-    val response = Http(URL+"/nodes/"+nodeId+"/status").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/status").method("DELETE").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
@@ -1495,7 +1521,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodestatus deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -1504,7 +1530,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/status - as node - should not be there") {
-    val response = Http(URL+"/nodes/"+nodeId+"/status").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/status").method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
@@ -1513,7 +1539,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
     val input = """{ "errors": [{ "record_id":"1", "message":"test error 1", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }] }"""
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("POST DATA: " + write(input))
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1522,7 +1548,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/" + orgid + "/changes - verify " + nodeId + " nodeerrors added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL + "/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL + "/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -1531,7 +1557,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getResp = parse(response.body).extract[NodeError]
@@ -1544,14 +1570,14 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node with 2 errors") {
     val input = """{ "errors": [{ "record_id":"1", "message":"test error 1", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }, { "record_id":"2", "message":"test error 2", "event_code":"404", "hidden":true, "workload":{"url":"myservice2"}, "timestamp":"yesterday" }] }"""
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("POST DATA: " + write(input))
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node with 2 errors") {
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getResp = parse(response.body).extract[NodeError]
@@ -1566,7 +1592,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as user with 2 errors") {
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("get").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("GET").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getResp = parse(response.body).extract[NodeError]
@@ -1581,7 +1607,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/search/nodes/error/all - should show 1 node ") {
-    val response = Http(URL+"/search/nodes/error/all").method("get").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/search/nodes/error/all").method("GET").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
@@ -1623,14 +1649,14 @@ class NodesSuite extends AnyFunSuite {
 
  test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/errors - as node with 2 errors") {
     val input = """{ "errors": [{ "record_id":"1", "message":"test error 1", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }, { "record_id":"2", "message":"test error 2", "event_code":"404", "hidden":true, "workload":{"url":"myservice2"}, "timestamp":"yesterday" }] }"""
-    val response = Http(URL+"/nodes/"+nodeId2+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId2+"/errors").postData(input).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("POST DATA: " + write(input))
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("GET /orgs/"+orgid+"/search/nodes/error/all - should show 2 nodes") {
-    val response = Http(URL+"/search/nodes/error/all").method("get").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/search/nodes/error/all").method("GET").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
@@ -1642,7 +1668,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/search/nodes/error/all - as agbot") {
-    val response = Http(URL+"/search/nodes/error/all").method("get").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/search/nodes/error/all").method("GET").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
@@ -1654,13 +1680,13 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node") {
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("DELETE").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId2+"/errors - as node") {
-    val response = Http(URL+"/nodes/"+nodeId2+"/errors").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId2+"/errors").method("DELETE").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
@@ -1668,7 +1694,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodeerrors deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -1677,7 +1703,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node - should not be there") {
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
@@ -1692,7 +1718,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes/error/ - as agbot, no input body, also no errors") {
-    val response = Http(URL+"/search/nodes/error").method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/search/nodes/error").method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     info("response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
@@ -1701,7 +1727,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node, empty list as errors") {
     val input = """{ "errors": [] }"""
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("POST DATA: " + write(input))
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1717,7 +1743,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/search/nodes/error/all - as agbot should show no errors") {
-    val response = Http(URL+"/search/nodes/error/all").method("get").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/search/nodes/error/all").method("GET").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val postResp = parse(response.body).extract[AllNodeErrorsInOrgResp]
@@ -1726,7 +1752,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as node, adding the error again") {
     val input = """{ "errors": [{ "record_id":"1", "message":"test error 1", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }] }"""
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("POST DATA: " + write(input))
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1734,7 +1760,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId2+"/errors - add error to another node") {
     val input = """{ "errors": [{ "record_id":"2", "message":"test error 2", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }] }"""
-    val response = Http(URL+"/nodes/"+nodeId2+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId2+"/errors").postData(input).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
     info("POST DATA: " + write(input))
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -1753,7 +1779,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("POST /orgs/"+orgid+"/search/nodes/error/ - as agbot, list should have 2 nodes, no input body") {
-    val response = Http(URL+"/search/nodes/error").method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/search/nodes/error").method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     info("response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -1764,13 +1790,13 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/errors - as first node again") {
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").method("DELETE").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId2+"/errors - as second node") {
-    val response = Http(URL+"/nodes/"+nodeId2+"/errors").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId2+"/errors").method("DELETE").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
@@ -1783,19 +1809,19 @@ class NodesSuite extends AnyFunSuite {
     assert(response.code === HttpCode.NOT_FOUND.intValue)
     //assert(response.body.isEmpty)
   }
-
+  
   //~~~~~ Node policy ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node. First test backward compatibility with no label, description, deployment, management, nodePolicyVersion") {
     val input = PutNodePolicyRequest(None, None, Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")), None, None, None)
-    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {
     val input = PutNodePolicyRequest(Some(nodeId+" policy"), Some(nodeId+" policy desc"), Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")), Some(PropertiesAndConstraints(Some(List(OneProperty("depprop",None,"depval"))), Some(List("c == d")))), Some(PropertiesAndConstraints(Some(List(OneProperty("mgmtprop",None,"mgmtval"))), Some(List("e == f")))), None)
-    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -1803,7 +1829,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodepolicy added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -1812,7 +1838,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {
-    val response = Http(URL+"/nodes/"+nodeId+"/policy").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getResp = parse(response.body).extract[NodePolicy]
@@ -1829,7 +1855,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node") {
-    val response = Http(URL+"/nodes/"+nodeId+"/policy").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").method("DELETE").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
@@ -1837,7 +1863,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodepolicy deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -1846,20 +1872,20 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+"/policy - as node - should not be there") {
-    val response = Http(URL+"/nodes/"+nodeId+"/policy").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - use type `list of strings`") {
     val input = PutNodePolicyRequest(Some(nodeId+" policy"), Some(nodeId+" policy desc"), Some(List(OneProperty("purpose",Some("list of strings"),"testing"))), Some(List("a == b")), None, None, None)
-    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" delete policy and test lastUpdated field changed") {
-    var response = Http(URL+"/nodes/"+nodeId).method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    var response = Http(URL+"/nodes/"+nodeId).method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     var getDevResp = parse(response.body).extract[GetNodesResponse]
@@ -1869,12 +1895,12 @@ class NodesSuite extends AnyFunSuite {
     val prevLastUpdated = dev.lastUpdated
 
     // delete the node policy
-    response = Http(URL+"/nodes/"+nodeId+"/policy").method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    response = Http(URL+"/nodes/"+nodeId+"/policy").method("DELETE").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
 
     // validate the lastUpdated field is updated
-    response = Http(URL+"/nodes/"+nodeId).method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    response = Http(URL+"/nodes/"+nodeId).method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     getDevResp = parse(response.body).extract[GetNodesResponse]
@@ -1883,12 +1909,12 @@ class NodesSuite extends AnyFunSuite {
     assert(!dev.lastUpdated.isEmpty)
     assert(dev.lastUpdated >  prevLastUpdated)
   }
-
+  
   //~~~~~ Node agreements, and more searches and nodehealth ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - create sdr agreement, as node") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
-    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -1896,7 +1922,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " agreement added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -1908,7 +1934,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " agreement creation not seen by agbot") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -1919,14 +1945,14 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update sdr agreement as node") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "finalized")
-    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - update sdr agreement as user") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "negotiating")
-    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -1958,7 +1984,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+"/agreements/"+agreementId2+" - create agreement for node in 2nd org, with short old style url") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), Some(NAgrService(orgid,patid,SDRSPEC)), "signed")
-    val response = Http(URL2+"/nodes/"+nodeId+"/agreements/"+agreementId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
+    val response = Http(URL2+"/nodes/"+nodeId+"/agreements/"+agreementId2).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -2027,7 +2053,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/9951 - add 2nd agreement - pws - as node") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,"pws"))), Some(NAgrService(orgid,patid,"pws")), "signed")
-    val response = Http(URL+"/nodes/"+nodeId+"/agreements/9951").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/agreements/9951").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -2105,9 +2131,9 @@ class NodesSuite extends AnyFunSuite {
   
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
   }
-
+  
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - sdr") {
-    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).method("delete").headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).method("DELETE").headers(ACCEPT).headers(NODEAUTH).asString
     info("DELETE "+agreementId+", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
@@ -2115,21 +2141,21 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " agreement deleted and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == nodeId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "nodeagreements")}))
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - netspeed") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,NETSPEEDSPEC_URL))), Some(NAgrService(orgid,patid,NETSPEEDSPEC)), "signed")
-    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+NETSPEEDSPEC+" - with "+nodeId+" in agreement") {
     patchAllNodePatterns(compositePatid)      // put pattern back in nodes so we can search for pattern nodes
     val input = PostPatternSearchRequest(arch = None,
@@ -2164,9 +2190,9 @@ class NodesSuite extends AnyFunSuite {
   
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" delete agreement and test lastUpdated field changed") {
-    var response = Http(URL+"/nodes/"+nodeId).method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    var response = Http(URL+"/nodes/"+nodeId).method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     var getDevResp = parse(response.body).extract[GetNodesResponse]
@@ -2176,12 +2202,12 @@ class NodesSuite extends AnyFunSuite {
     val prevLastUpdated = dev.lastUpdated
 
     // delete the node policy
-    response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).method("delete").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
 
     // validate the lastUpdated field is updated
-    response = Http(URL+"/nodes/"+nodeId).method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    response = Http(URL+"/nodes/"+nodeId).method("GET").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     getDevResp = parse(response.body).extract[GetNodesResponse]
@@ -2193,11 +2219,11 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/agreements/"+agreementId+" - netspeed put agreement back for later tests") {
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,NETSPEEDSPEC_URL))), Some(NAgrService(orgid,patid,NETSPEEDSPEC)), "signed")
-    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/agreements/"+agreementId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   //~~~~~ Staleness tests ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - all nodes stale") {
@@ -2218,7 +2244,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/heartbeat - so this node won't be stale for pattern search") {
     //nodeHealthLastTime = ApiTime.nowUTC     // saving this for the nodehealth call in the next test
-    val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("post").headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/heartbeat").method("POST").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val devResp = parse(response.body).extract[ApiResponse]
@@ -2269,7 +2295,7 @@ class NodesSuite extends AnyFunSuite {
     val agreement = "testAg01" + nodeId2
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), None, "signed")
     info(write(input))
-    val response = Http(URL + "/nodes/" + nodeId2 + "/agreements/" + agreement).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL + "/nodes/" + nodeId2 + "/agreements/" + agreement).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info(URL + "/nodes/" + nodeId2 + "/agreements/" + agreement)
     info(response.headers.toString())
     info("PUT "+nodeId2+"/agreements/" + agreement + ", code: "+response.code+", response.body: "+response.body)
@@ -2279,7 +2305,7 @@ class NodesSuite extends AnyFunSuite {
   test("PUT /nodes/" + nodeId3 + "/agreements/notthesameAg"+nodeId3){
     val agreement = "notthesameAg" + nodeId3
     val input = PutNodeAgreementRequest(Some(List(NAService(orgid,SDRSPEC_URL))), None, "signed")
-    val response = Http(URL + "/nodes/"+nodeId3+"/agreements/" + agreement).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL + "/nodes/"+nodeId3+"/agreements/" + agreement).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("PUT "+nodeId3+"/agreements/notthesameAg" + nodeId3 + ", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -2317,20 +2343,20 @@ class NodesSuite extends AnyFunSuite {
 
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId2+" - patching public key so this node won't be stale for non-pattern search") {
     val jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
-    val response = Http(URL + "/nodes/" + nodeId2).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL + "/nodes/" + nodeId2).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("PATCH "+nodeId2+", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
+  
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/policy - so this node won't be stale either") {
     val input = PutNodePolicyRequest(Some(nodeId+" policy"), Some(nodeId+" policy desc"), Some(List(OneProperty("purpose",None,"testing"))), Some(List("a == b")), None, None, None)
-    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/policy").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
   
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId3+" - explicit delete of "+nodeId3) {
-    var response = Http(URL+"/nodes/"+nodeId3).method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    var response = Http(URL+"/nodes/"+nodeId3).method("DELETE").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
 
@@ -2343,7 +2369,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId3 + " node deleted") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -2353,7 +2379,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as user so we can grab it from /changes route") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
-    val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/services").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
@@ -2364,7 +2390,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid2+"/services - add public "+service+" as root in second org to check that its in response") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = true, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
-    val response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL2+"/services").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
@@ -2373,7 +2399,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+" - update node as root, but with no pattern yet") {
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-new", None, "", None, None, None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, Some(NodeHeartbeatIntervals(5,15,2)))
-    val response = Http(URL2+"/nodes/"+nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL2+"/nodes/"+nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -2381,7 +2407,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " doesn't see changes from other nodes but still sees normal changes") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -2396,7 +2422,7 @@ class NodesSuite extends AnyFunSuite {
     val time = ApiTime.pastUTC(secondsAgo)
     val testMaxRecords = 3
     val input = ResourceChangesRequest(0L, Some(time), testMaxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -2412,13 +2438,13 @@ class NodesSuite extends AnyFunSuite {
 
       // Change the maxAgreements config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxAgreements", "1")
-      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
 
       // Now try adding another agreement - expect it to be rejected
       val input = PutNodeAgreementRequest(Some(List(NAService(orgid,"netspeed"))), Some(NAgrService(orgid,patid,"netspeed")), "signed")
-      response = Http(URL+"/nodes/"+nodeId+"/agreements/9952").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+      response = Http(URL+"/nodes/"+nodeId+"/agreements/9952").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
       val respObj = parse(response.body).extract[ApiResponse]
@@ -2426,14 +2452,14 @@ class NodesSuite extends AnyFunSuite {
 
       // Restore the maxAgreements config value in the svr
       configInput = AdminConfigRequest("api.limits.maxAgreements", origMaxAgreements.toString)
-      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
     }
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId+"/agreements - all agreements") {
-    val response = Http(URL+"/nodes/"+nodeId+"/agreements").method("delete").headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/agreements").method("DELETE").headers(ACCEPT).headers(USERAUTH).asString
     info("DELETE agreements, code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
@@ -2441,7 +2467,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " all agreements deleted") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -2465,7 +2491,7 @@ class NodesSuite extends AnyFunSuite {
 
       // Change the maxNodes config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxNodes", "2")
-      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
 
@@ -2474,7 +2500,7 @@ class NodesSuite extends AnyFunSuite {
         Prop("arch","arm","string","in"),
         Prop("version","1.0.0","version","in"),
         Prop("agreementProtocols",agProto,"list","in")), Some("")))), None, None, None, nodePubKey, None, None)
-      response = Http(URL+"/nodes/"+nodeId5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+      response = Http(URL+"/nodes/"+nodeId5).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.ACCESS_DENIED.intValue)
       val respObj = parse(response.body).extract[ApiResponse]
@@ -2482,31 +2508,31 @@ class NodesSuite extends AnyFunSuite {
 
       // Restore the maxNodes config value in the svr
       configInput = AdminConfigRequest("api.limits.maxNodes", origMaxNodes.toString)
-      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
     }
   }
-
+  
   //~~~~~ Node messages ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId2+" - add a 2nd agbot so we can test msgs") {
     val input = PutAgbotsRequest(agbotToken2, agbotId2+"name", None, "AGBOT2ABC")
-    val response = Http(URL+"/agbots/"+agbotId2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId2).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"foo/msgs - Send a msg from agbot1 to nonexistant node, should fail") {
     val input = PostNodesMsgsRequest("{msg1 from agbot1 to node1}", 300)
-    val response = Http(URL+"/nodes/"+nodeId+"foo/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"foo/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/msgs - Send a msg from agbot1 to node1") {
     val input = PostNodesMsgsRequest("{msg1 from agbot1 to node1}", 300)
-    val response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
@@ -2516,7 +2542,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " msg added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -2527,7 +2553,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " doesn't see nodemsgs") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -2538,7 +2564,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/msgs - short ttl so it will expire") {
     val input = PostNodesMsgsRequest("{msg1 from agbot1 to node1 with 1 second ttl}", 1)
-    val response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
@@ -2547,7 +2573,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/msgs - 2nd msg from agbot1 to node1") {
     val input = PostNodesMsgsRequest("{msg2 from agbot1 to node1}", 300)
-    val response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
@@ -2556,7 +2582,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId+"/msgs - from agbot2 to node1") {
     val input = PostNodesMsgsRequest("{msg1 from agbot2 to node1}", 300)
-    val response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOT2AUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
@@ -2565,7 +2591,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/nodes/"+nodeId2+"/msgs - from agbot2 to node2") {
     val input = PostNodesMsgsRequest("{msg1 from agbot2 to node2}", 300)
-    val response = Http(URL+"/nodes/"+nodeId2+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOT2AUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId2+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
@@ -2574,7 +2600,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("GET /orgs/" + orgid + "/nodes/" + nodeId + "/msgs") {
 //    Thread.sleep(1100)    // delay 1.1 seconds so 1 of the msgs will expire -- TAKEN OUT as node msg deletion was moved to a process that runs at a configurable interval
-    val response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL + "/nodes/" + nodeId + "/msgs").method("GET").headers(ACCEPT).headers(NODEAUTH).asString
     assert(response.code === HttpCode.OK.intValue)
     val resp = parse(response.body).extract[GetNodeMsgsResponse]
     assert(resp.messages.size === 4)
@@ -2595,7 +2621,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("GET /orgs/" + orgid + "/nodes/" + nodeId + "/msgs - check maxmsgs query parameter") {
-    var response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","2").asString
+    var response = Http(URL + "/nodes/" + nodeId + "/msgs").method("GET").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","2").asString
     assert(response.code === HttpCode.OK.intValue)
     var resp = parse(response.body).extract[GetNodeMsgsResponse]
     assert(resp.messages.size === 2)
@@ -2603,22 +2629,22 @@ class NodesSuite extends AnyFunSuite {
     // the 2nd msg may be the msg with short ttl, or the msg after that, so we aren't checking that one
 
     // set maxmsgs=0, which is the same as no limit
-    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","0").asString
+    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("GET").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","0").asString
     assert(response.code === HttpCode.OK.intValue)
     resp = parse(response.body).extract[GetNodeMsgsResponse]
     assert(resp.messages.size === 3 || resp.messages.size === 4)
 
     // set maxmsgs=bad - should fail
-    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","bad").asString
+    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("GET").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","bad").asString
     assert(response.code === HttpCode.BAD_INPUT.intValue)
 
     // set maxmsgs="" - should fail
-    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("get").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","").asString
+    response = Http(URL + "/nodes/" + nodeId + "/msgs").method("GET").headers(ACCEPT).headers(NODEAUTH).param("maxmsgs","").asString
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/nodes/"+nodeId2+"/msgs - then delete and get again") {
-    var response = Http(URL+"/nodes/"+nodeId2+"/msgs").method("get").headers(ACCEPT).headers(NODE2AUTH).asString
+    var response = Http(URL+"/nodes/"+nodeId2+"/msgs").method("GET").headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val resp = parse(response.body).extract[GetNodeMsgsResponse]
@@ -2629,38 +2655,37 @@ class NodesSuite extends AnyFunSuite {
     assert(msg.agbotPubKey === "AGBOT2ABC")
     val msgId = msg.msgId
 
-    response = Http(URL+"/nodes/"+nodeId2+"/msgs/"+msgId).method("delete").headers(ACCEPT).headers(NODE2AUTH).asString
+    response = Http(URL+"/nodes/"+nodeId2+"/msgs/"+msgId).method("DELETE").headers(ACCEPT).headers(NODE2AUTH).asString
     info("DELETE "+msgId+", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
 
     info("POST /orgs/"+orgid+"/changes - verify " + nodeId2 + " msg deleted and not stored")
     val time = ApiTime.pastUTC(secondsAgo)
     val resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    response = Http(URL+"/changes").postData(write(resInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    response = Http(URL+"/changes").postData(write(resInput)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(!parsedBody.changes.exists(y => {(y.id == nodeId2) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "nodemsgs")}))
 
-    response = Http(URL+"/nodes/"+nodeId2+"/msgs").method("get").headers(ACCEPT).headers(NODE2AUTH).asString
+    response = Http(URL+"/nodes/"+nodeId2+"/msgs").method("GET").headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
     val resp2 = parse(response.body).extract[GetNodeMsgsResponse]
     assert(resp2.messages.size === 0)
   }
-
-
+  
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"foo/msgs from node1 to nonexistant agbot, should fail") {
     val input = PostAgbotsMsgsRequest("{msg1 from node1 to agbot1}", 300)
-    val response = Http(URL+"/agbots/"+agbotId+"foo/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId+"foo/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs from node1 to agbot1") {
     val input = PostAgbotsMsgsRequest("{msg1 from node1 to agbot1}", 300)
-    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
@@ -2670,7 +2695,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " msg added and stored") {
     val time = ApiTime.pastUTC(secondsAgo)
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -2680,7 +2705,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - short ttl so it will expire") {
     val input = PostAgbotsMsgsRequest("{msg1 from node1 to agbot1 with 1 second ttl}", 1)
-    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
@@ -2689,16 +2714,16 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - 2nd msg from node1 to agbot1") {
     val input = PostAgbotsMsgsRequest("{msg2 from node1 to agbot1}", 300)
-    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
     assert(resp.code === ApiRespType.OK)
   }
-
+  
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - from node2 to agbot1") {
     val input = PostAgbotsMsgsRequest("{msg1 from node2 to agbot1}", 300)
-    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
@@ -2707,7 +2732,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId2+"/msgs - from node2 to agbot2") {
     val input = PostAgbotsMsgsRequest("{msg1 from node2 to agbot2}", 300)
-    val response = Http(URL+"/agbots/"+agbotId2+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId2+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
@@ -2716,7 +2741,7 @@ class NodesSuite extends AnyFunSuite {
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/msgs") {
 //    Thread.sleep(1100)    // delay 1.1 seconds so 1 of the msgs will expire -- TAKEN OUT as agbot msg deletion was moved to a process that runs at a configurable interval
-    val response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId+"/msgs").method("GET").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val resp = parse(response.body).extract[GetAgbotMsgsResponse]
@@ -2736,9 +2761,9 @@ class NodesSuite extends AnyFunSuite {
     assert(msg.nodeId === orgnodeId2)
     assert(msg.nodePubKey === nodePubKey)
   }
-
+  
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/msgs - check maxmsgs query parameter") {
-    var response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","2").asString
+    var response = Http(URL+"/agbots/"+agbotId+"/msgs").method("GET").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","2").asString
     assert(response.code === HttpCode.OK.intValue)
     var resp = parse(response.body).extract[GetAgbotMsgsResponse]
     assert(resp.messages.size === 2)
@@ -2746,22 +2771,24 @@ class NodesSuite extends AnyFunSuite {
     // the 2nd msg may be the msg with short ttl, or the msg after that, so we aren't checking that one
 
     // set maxmsgs=0, which is the same as no limit
-    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","0").asString
+    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("GET").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","0").asString
     assert(response.code === HttpCode.OK.intValue)
     resp = parse(response.body).extract[GetAgbotMsgsResponse]
     assert(resp.messages.size === 3 || resp.messages.size === 4)
 
     // set maxmsgs=bad - should fail
-    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","bad").asString
+    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("GET").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","bad").asString
     assert(response.code === HttpCode.BAD_INPUT.intValue)
 
     // set maxmsgs="" - should fail
-    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","").asString
+    response = Http(URL+"/agbots/"+agbotId+"/msgs").method("GET").headers(ACCEPT).headers(AGBOTAUTH).param("maxmsgs","").asString
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
   }
-
+  
   test("GET /orgs/"+orgid+"/agbots/"+agbotId2+"/msgs - then delete and get again") {
-    var response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("get").headers(ACCEPT).headers(AGBOT2AUTH).asString
+    var response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("GET").headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val resp = parse(response.body).extract[GetAgbotMsgsResponse]
@@ -2772,14 +2799,14 @@ class NodesSuite extends AnyFunSuite {
     assert(msg.nodePubKey === nodePubKey)
     val msgId = msg.msgId
 
-    response = Http(URL+"/agbots/"+agbotId2+"/msgs/"+msgId).method("delete").headers(ACCEPT).headers(AGBOT2AUTH).asString
+    response = Http(URL+"/agbots/"+agbotId2+"/msgs/"+msgId).method("DELETE").headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("DELETE "+msgId+", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
 
     info("POST /orgs/"+orgid+"/changes - verify " + agbotId2 + " msg deleted and not stored")
     var time = ApiTime.pastUTC(secondsAgo)
     var resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    response = Http(URL+"/changes").postData(write(resInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    response = Http(URL+"/changes").postData(write(resInput)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -2789,7 +2816,7 @@ class NodesSuite extends AnyFunSuite {
     info("POST /orgs/"+orgid+"/changes - verify " + agbotId2 + " msg deletion not seen by agbots in changes table")
     time = ApiTime.pastUTC(secondsAgo)
     resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
-    response = Http(URL+"/changes").postData(write(resInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    response = Http(URL+"/changes").postData(write(resInput)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -2797,13 +2824,13 @@ class NodesSuite extends AnyFunSuite {
     assert(!parsedBody.changes.exists(y => {(y.id == agbotId2) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotmsgs")}))
     assert(!parsedBody.changes.exists(y => {(y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotmsgs")}))
 
-    response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("get").headers(ACCEPT).headers(AGBOT2AUTH).asString
+    response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("GET").headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
     val resp2 = parse(response.body).extract[GetAgbotMsgsResponse]
     assert(resp2.messages.size === 0)
   }
-
+  
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+" - with low maxMessagesInMailbox") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
@@ -2812,13 +2839,13 @@ class NodesSuite extends AnyFunSuite {
 
       // Change the maxMessagesInMailbox config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", "3")
-      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
 
       // Now try adding another msg - expect it to be rejected
       var input = PostAgbotsMsgsRequest("{msg1 from node1 to agbot1}", 300)
-      response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+      response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.BAD_GW.intValue)
       var apiResp = parse(response.body).extract[ApiResponse]
@@ -2826,13 +2853,13 @@ class NodesSuite extends AnyFunSuite {
 
       // But we should still be able to send a msg to agbot2, because his mailbox isn't full yet
       input = PostAgbotsMsgsRequest("{msg1 from node1 to agbot2}", 300)
-      response = Http(URL+"/agbots/"+agbotId2+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+      response = Http(URL+"/agbots/"+agbotId2+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.POST_OK.intValue)
       apiResp = parse(response.body).extract[ApiResponse]
       assert(apiResp.code === ApiRespType.OK)
 
-      response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("get").headers(ACCEPT).headers(AGBOT2AUTH).asString
+      response = Http(URL+"/agbots/"+agbotId2+"/msgs").method("GET").headers(ACCEPT).headers(AGBOT2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.OK.intValue)
       val resp = parse(response.body).extract[GetAgbotMsgsResponse]
@@ -2840,7 +2867,7 @@ class NodesSuite extends AnyFunSuite {
 
       // Restore the maxMessagesInMailbox config value in the svr
       configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", origMaxMessagesInMailbox.toString)
-      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
     }
@@ -2854,13 +2881,13 @@ class NodesSuite extends AnyFunSuite {
 
       // Change the maxMessagesInMailbox config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", "3")
-      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
 
       // Now try adding another msg - expect it to be rejected
       var input = PostNodesMsgsRequest("{msg1 from agbot1 to node1}", 300)
-      response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+      response = Http(URL+"/nodes/"+nodeId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.BAD_GW.intValue)
       var apiResp = parse(response.body).extract[ApiResponse]
@@ -2868,13 +2895,13 @@ class NodesSuite extends AnyFunSuite {
 
       // But we should still be able to send a msg to node2, because his mailbox isn't full yet
       input = PostNodesMsgsRequest("{msg1 from agbot1 to node2}", 300)
-      response = Http(URL+"/nodes/"+nodeId2+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+      response = Http(URL+"/nodes/"+nodeId2+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.POST_OK.intValue)
       apiResp = parse(response.body).extract[ApiResponse]
       assert(apiResp.code === ApiRespType.OK)
 
-      response = Http(URL+"/nodes/"+nodeId2+"/msgs").method("get").headers(ACCEPT).headers(NODE2AUTH).asString
+      response = Http(URL+"/nodes/"+nodeId2+"/msgs").method("GET").headers(ACCEPT).headers(NODE2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.OK.intValue)
       val resp = parse(response.body).extract[GetNodeMsgsResponse]
@@ -2882,16 +2909,16 @@ class NodesSuite extends AnyFunSuite {
 
       // Restore the maxMessagesInMailbox config value in the svr
       configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", origMaxMessagesInMailbox.toString)
-      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
     }
   }
-
+  
   // Test for agbot msgs not being deleted when node is
   // add n7
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId7+" - normal - update as user") {
-    patchNodePublicKey(nodeId7, "")   // 1st blank the publicKey so we are allowed to set the pattern
+    patchNodePublicKey(orgid + "/" + nodeId7, "")   // 1st blank the publicKey so we are allowed to set the pattern
     val input = PutNodesRequest(nodeToken, "rpi"+nodeId7+"-normal-user", None, compositePatid,
       Some(List(
         RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId7+" pws}",List(
@@ -2906,7 +2933,7 @@ class NodesSuite extends AnyFunSuite {
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, None)
-    val response = Http(URL+"/nodes/"+nodeId7).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId7).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -2914,7 +2941,7 @@ class NodesSuite extends AnyFunSuite {
   // send a message from n7 to agbot1
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/msgs from n7 to agbot1") {
     val input = PostAgbotsMsgsRequest("{msg from n7 to agbot1}", 300)
-    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODE7AUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId+"/msgs").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODE7AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val resp = parse(response.body).extract[ApiResponse]
@@ -2923,14 +2950,14 @@ class NodesSuite extends AnyFunSuite {
 
   // delete n7
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId7) {
-    val response = Http(URL+"/nodes/"+nodeId7).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId7).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
   // verify agbot1 can still grab that message
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/msgs -- test "+agbotId+" can still grab messages from "+nodeId7+" after deletion") {
-    val response = Http(URL+"/agbots/"+agbotId+"/msgs").method("get").headers(ACCEPT).headers(AGBOTAUTH).asString
+    val response = Http(URL+"/agbots/"+agbotId+"/msgs").method("GET").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val resp = parse(response.body).extract[GetAgbotMsgsResponse]
@@ -2955,7 +2982,7 @@ class NodesSuite extends AnyFunSuite {
       ),
       None, None, None
     )
-    val response = Http(URL+"/patterns/"+searchPattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL+"/patterns/"+searchPattern).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
@@ -2964,7 +2991,7 @@ class NodesSuite extends AnyFunSuite {
     val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus](), None, None)
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus](), None, None)
     val input = PutNodeStatusRequest(Some(Map[String,Boolean]("something.network" -> true)), List[OneService](oneService, oneService2))
-    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -2973,7 +3000,7 @@ class NodesSuite extends AnyFunSuite {
     val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus](), None, None)
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus](), None, None)
     val input = PutNodeStatusRequest(Some(Map[String,Boolean]("something.network" -> true)), List[OneService](oneService, oneService2))
-    val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -3033,7 +3060,7 @@ class NodesSuite extends AnyFunSuite {
     val oneService = OneService("agreementid", SDRSPEC_URL, orgid, svcversion, svcarch, List[ContainerStatus](), None, None)
     val oneService2 = OneService("agreementid2", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), None, None)
     val input = PutNodeStatusRequest(Some(Map[String,Boolean]("something.network" -> true)), List[OneService](oneService, oneService2))
-    val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId2+"/status").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODE2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -3052,7 +3079,7 @@ class NodesSuite extends AnyFunSuite {
     val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), None, None)
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, orgid, svcversion2, svcarch2, List[ContainerStatus](), None, None)
     val input = PutNodeStatusRequest(Some(Map[String,Boolean]("something.network" -> true)), List[OneService](oneService, oneService2))
-    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -3101,7 +3128,7 @@ class NodesSuite extends AnyFunSuite {
     val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), None, None)
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, "FakeOrganization", svcversion2, svcarch2, List[ContainerStatus](), None, None)
     val input = PutNodeStatusRequest(Some(Map[String,Boolean]("something.network" -> true)), List[OneService](oneService, oneService2))
-    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -3121,7 +3148,7 @@ class NodesSuite extends AnyFunSuite {
     val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), Some(json1), None)
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, "FakeOrganization", svcversion2, svcarch2, List[ContainerStatus](), Some(json2), None)
     val input = PutNodeStatusRequest(Some(Map[String,Boolean]("something.network" -> true)), List[OneService](oneService, oneService2))
-    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -3132,7 +3159,7 @@ class NodesSuite extends AnyFunSuite {
     val oneService = OneService("agreementid", ibmService, "IBM", svcversion2, svcarch2, List[ContainerStatus](), Some(json1), None)
     val oneService2 = OneService("agreementid2", NETSPEEDSPEC_URL, "FakeOrganization", svcversion2, svcarch2, List[ContainerStatus](), Some(json2), None)
     val input = PutNodeStatusRequest(None, List[OneService](oneService, oneService2))
-    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/status").postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -3153,23 +3180,21 @@ class NodesSuite extends AnyFunSuite {
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(""), Some(Map("horizon"->"3.2.3")), Some(nodePubKey), Some("amd64"), None)
-    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
-    assert(response.body.contains("update all but token"))
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - patch node w/o token and not using PatchNodesRequest class") {
     val input = """{"name":"rpin1-update","pattern":"","registeredServices":[{"url":"NodesSuiteTests/something.horizon.pws","numAgreements":1,"configState":"active","policy":"{json policy for n1 pws}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"version","value":"1.0.0","propType":"version","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"dataVerification","value":"true","propType":"boolean","op":"="}]},{"url":"NodesSuiteTests/something.horizon.netspeed","numAgreements":1,"configState":"active","policy":"{json policy for n1 netspeed}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"cpus","value":"2","propType":"int","op":">="},{"name":"version","value":"1.0.0","propType":"version","op":"in"}]}],"userInput":[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"something.horizon.sdr","inputs":[{"name":"UI_STRING","value":"mystr"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}],"msgEndPoint":"","softwareVersions":{"horizon":"3.2.3"},"publicKey":"NODEABC","arch":"amd64"}"""
-    val response = Http(URL+"/nodes/"+nodeId).postData(input).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(input).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
-    assert(response.body.contains("update all but token"))
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/nodes/"+nodeId+"/errors - add an error to later grab it from the changes route") {
     val input = """{ "errors": [{ "record_id":"1", "message":"test error 1", "event_code":"500", "hidden":false, "workload":{"url":"myservice"}, "timestamp":"yesterday" }] }"""
-    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("put").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId+"/errors").postData(input).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("POST DATA: " + write(input))
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -3193,7 +3218,7 @@ class NodesSuite extends AnyFunSuite {
   // make a hubadmin
   test("POST /orgs/root/users/" + hubadmin ) {
     val input = PostPutUsersRequest(pw, admin = false, Some(true), hubadmin + "@hotmail.com")
-    val response = Http(urlRootOrg + "/users/" + hubadmin).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(urlRootOrg + "/users/" + hubadmin).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
@@ -3203,7 +3228,7 @@ class NodesSuite extends AnyFunSuite {
     val limits = OrgLimits(20)
     // orgType, label, description, tags, limits, heartbeatIntervals
     val input = PostPutOrgRequest(None, "My Org", "desc", None, Some(limits), None)
-    val response = Http(urlRoot+"/v1/orgs/"+orgid3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code == HttpCode.POST_OK.intValue)
   }
@@ -3211,7 +3236,7 @@ class NodesSuite extends AnyFunSuite {
   // make a user in the org
   test("POST /orgs/" + orgid3 + "/users/" + user + " - normal") {
     val input = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
-    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/users/" + user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/users/" + user).postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
   }
@@ -3220,7 +3245,7 @@ class NodesSuite extends AnyFunSuite {
   test("PUT /orgs/" + orgid3 + "/nodes/ - adding 19 nodes for low org maxNodes test") {
     for( i <- 1 to 19) {
       val input = PutNodesRequest(nodeToken, "test" + i, None, "", None, None, None, None, nodePubKey, Some("amd64"), None)
-      val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + i).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
+      val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + i).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
       info("code: " + response.code)
       info("body: " + response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
@@ -3229,7 +3254,7 @@ class NodesSuite extends AnyFunSuite {
   // make another node to put you within 5% of limit
   test("PUT /orgs/" + orgid3 + "/nodes/ - adding the 20th node for low org maxNodes test") {
     val input = PutNodesRequest(nodeToken, "test" + 20, None, "", None, None, None, None, nodePubKey, Some("amd64"), None)
-    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + 20).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + 20).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -3239,7 +3264,7 @@ class NodesSuite extends AnyFunSuite {
   // make another node so you're now over limit and it should fail
   test("PUT /orgs/" + orgid3 + "/nodes/ - trying to add 21st node with org maxNodes of 20") {
     val input = PutNodesRequest(nodeToken, "test" + 21, None, "", None, None, None, None, nodePubKey, Some("amd64"), None)
-    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + 21).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + 21).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
@@ -3251,7 +3276,7 @@ class NodesSuite extends AnyFunSuite {
     val limits = OrgLimits(0)
     // orgType, label, description, tags, limits, heartbeatIntervals
     val input = PatchOrgRequest(None, None, None, None, Some(limits), None)
-    val response = Http(urlRoot+"/v1/orgs/"+orgid3).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3).postData(write(input)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code == HttpCode.POST_OK.intValue)
   }
@@ -3259,7 +3284,7 @@ class NodesSuite extends AnyFunSuite {
   // make another node, verify it works
   test("PUT /orgs/" + orgid3 + "/nodes/ - trying to add 21st node with org maxNodes of 0") {
     val input = PutNodesRequest(nodeToken, "test" + 21, None, "", None, None, None, None, nodePubKey, Some("amd64"), None)
-    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + 21).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3 + "/nodes/" + nodeId + 21).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ORG3USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -3267,14 +3292,14 @@ class NodesSuite extends AnyFunSuite {
 
   // delete the org
   test("DELETE /orgs/" + orgid3) {
-    val response = Http(urlRoot+"/v1/orgs/"+orgid3).method("delete").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
+    val response = Http(urlRoot+"/v1/orgs/"+orgid3).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code == HttpCode.DELETED.intValue)
   }
 
   // delete the hubadmin
   test("DELETE /orgs/root/users/" + hubadmin ) {
-    val response = Http(urlRootOrg + "/users/" + hubadmin).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(urlRootOrg + "/users/" + hubadmin).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
@@ -3329,7 +3354,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId) {
-    val response = Http(URL+"/nodes/"+nodeId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   }
@@ -3338,7 +3363,7 @@ class NodesSuite extends AnyFunSuite {
   // What is going on here is the resources are created with 1 user, then updated with another. When the org is deleted, the resource goes away, but the cache entry doesn't go away for 5 minutes.
   // If the test suite is run again within that time frame, the 1st create above will find the cache entry and think it is owned by another user and return 403.
   test("DELETE /orgs/"+orgid2+"/nodes/"+nodeId) {
-    val response = Http(URL2+"/nodes/"+nodeId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL2+"/nodes/"+nodeId).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
   } */
@@ -3346,7 +3371,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " was deleted and logged as deleted also that node error change is there") {
     val time = ApiTime.pastUTC(60)
     val input = ResourceChangesRequest(0L, Some(time), 1000, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.POST_OK.intValue)
     assert(!response.body.isEmpty)
@@ -3356,7 +3381,7 @@ class NodesSuite extends AnyFunSuite {
   }
 
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeId + " try to delete again -- should fail") {
-    val response = Http(URL+"/nodes/"+nodeId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     info("headers: "+response.headers)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
@@ -3365,7 +3390,7 @@ class NodesSuite extends AnyFunSuite {
   test("POST /orgs/"+orgid+"/changes - verify response when no new changes in db") {
     val time = ApiTime.futureUTC(30)
     val input = ResourceChangesRequest(0L, Some(time), 1000, None)
-    val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code)
     info("body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
@@ -3374,25 +3399,23 @@ class NodesSuite extends AnyFunSuite {
     assert(parsedBody.changes.isEmpty)
     assert(!parsedBody.exchangeVersion.isEmpty)
   }
-
   //~~~~~ Break down ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-  test("Cleanup - DELETE everything") {
-    Http(urlRoot + "/v1/orgs/IBM/services/" + ibmService + "_" + svcversion2 + "_" + svcarch2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    
-    Http(urlRoot + "/v1/orgs/IBM/changes/cleanup").postData(write(DeleteIBMChangesRequest(List(ibmService + "_" + svcversion2 + "_" + svcarch2)))).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    
-    deleteAllOrgs()
-    
-    assert(true)
-  }
-
-  test("Cleanup -- DELETE org changes") {
-    for (org <- orgsList){
-      val input = DeleteOrgChangesRequest(List())
-      val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+  /*
+    test("Cleanup - DELETE everything") {
+      Http(urlRoot + "/v1/orgs/IBM/services/" + ibmService + "_" + svcversion2 + "_" + svcarch2).method("DELETE").headers(ACCEPT).headers(ROOTAUTH).asString
+      
+      Http(urlRoot + "/v1/orgs/IBM/changes/cleanup").postData(write(DeleteIBMChangesRequest(List(ibmService + "_" + svcversion2 + "_" + svcarch2)))).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      
+      assert(true)
     }
-  }
+  
+    test("Cleanup -- DELETE org changes") {
+      for (org <- orgsList){
+        val input = DeleteOrgChangesRequest(List())
+        val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("DELETE").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("code: "+response.code+", response.body: "+response.body)
+        assert(response.code === HttpCode.DELETED.intValue)
+      }
+    }
+   */
 }

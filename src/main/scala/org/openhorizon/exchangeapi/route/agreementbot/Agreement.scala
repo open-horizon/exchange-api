@@ -4,7 +4,7 @@ import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
-import akka.http.scaladsl.server.Route
+import akka.http.scaladsl.server.{PathMatchers, Route}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}

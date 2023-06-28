@@ -2,6 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.115.0] - 2023-06-28
+- Issue 675: Patch /orgs/<organization>/nodes/<node> No longer allows setting the Node's token if a public key is set.
+  - Added a new database table to handle Service querying and matching.
+- pattern and userInput are now User archetype authorization scoped.
+- Reorganized the Node resource source.
+- postgresql           42.5.3 -> 42.6.0
+- SBT                  1.8.2  -> 1.9.0
+- swagger-scala-module 2.8.2  -> 2.11.0
+- Swagger UI           4.15.5 -> 5.1.0
+
 ## [2.114.0] - 2023-05-01
 - Issue 639: Moved top-level attribute clusterNamespace to a sub-attribute under service for Deployment Policies.
 

@@ -2,6 +2,7 @@ package org.openhorizon.exchangeapi
 
 import akka.event.LoggingAdapter
 import org.openhorizon.exchangeapi.ExchangeApiApp.system
+import org.openhorizon.exchangeapi.table.service.SearchServiceTQ
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -50,6 +51,7 @@ object ExchangeApiTables {
       ++ AgentVersionsChangedTQ.schema
       ++ NodeGroupTQ.schema
       ++ NodeGroupAssignmentTQ.schema
+      ++ SearchServiceTQ.schema
     ).create,
     SchemaTQ.getSetVersionAction)
 
@@ -58,6 +60,7 @@ object ExchangeApiTables {
   //val delete = DBIO.seq(sqlu"drop table orgs", sqlu"drop table workloads", sqlu"drop table mmicroservices", sqlu"drop table blockchains", sqlu"drop table bctypes", sqlu"drop table devmsgs", sqlu"drop table agbotmsgs", sqlu"drop table agbotagreements", sqlu"drop table agbots", sqlu"drop table devagreements", sqlu"drop table properties", sqlu"drop table microservices", sqlu"drop table nodes", sqlu"drop table users")
   val dropDB = DBIO.seq(
     /* these are no longer used, but just in case they are still here */
+    sqlu"DROP TABLE IF EXISTS public.search_service",
     sqlu"DROP TABLE IF EXISTS public.node_group_assignment",
     sqlu"DROP TABLE IF EXISTS public.node_group",
     sqlu"DROP TABLE IF EXISTS public.agent_version_certificate",
@@ -192,7 +195,8 @@ object ExchangeApiTables {
            AgentSoftwareVersionsTQ.schema ++
            AgentVersionsChangedTQ.schema ++
            NodeGroupTQ.schema ++
-           NodeGroupAssignmentTQ.schema).create
+           NodeGroupAssignmentTQ.schema ++
+           SearchServiceTQ.schema).create
         
           _ <- SchemaTQ.getSetVersionAction
       } yield()

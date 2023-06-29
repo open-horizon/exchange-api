@@ -47,7 +47,7 @@ import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.deploymentpattern.PatternsRoutes
 import org.openhorizon.exchangeapi.route.deploymentpolicy.BusinessRoutes
 import org.openhorizon.exchangeapi.route.managementpolicy.ManagementPoliciesRoutes
-import org.openhorizon.exchangeapi.route.node.NodesRoutes
+import org.openhorizon.exchangeapi.route.node.{Node, Nodes, NodesRoutes}
 import org.openhorizon.exchangeapi.route.nodegroup.NodeGroupRoutes
 import org.openhorizon.exchangeapi.route.organization.OrgsRoutes
 import org.openhorizon.exchangeapi.route.service.ServicesRoutes
@@ -111,6 +111,8 @@ object ExchangeApiApp extends App
   with ManagementPoliciesRoutes
   with Message
   with Messages
+  with Node
+  with Nodes
   with NodeGroupRoutes
   with NodesRoutes
   with OrganizationStatus
@@ -278,6 +280,8 @@ object ExchangeApiApp extends App
                     managementPoliciesRoutes ~
                     messageAgreementBot ~
                     messagesAgreementBot ~
+                    node ~
+                    nodes ~
                     nodesRoutes ~
                     nodeGroupRoutes ~
                     organizationStatus ~

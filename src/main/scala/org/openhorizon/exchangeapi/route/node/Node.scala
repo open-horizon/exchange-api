@@ -18,11 +18,11 @@ import org.openhorizon.exchangeapi.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.ExchangeApiApp.{exchAuth, validateWithMsg}
 import org.openhorizon.exchangeapi.auth.{AccessDeniedException, BadInputException, DBProcessingError, ResourceNotFoundException}
 import org.openhorizon.exchangeapi.table.service.{SearchServiceKey, SearchServiceTQ}
-import org.openhorizon.exchangeapi.table.{NodeGroupAssignmentTQ, NodeGroupTQ, NodeType, NodesTQ, OrgLimits, OrgsTQ, PatternsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ, ServicesTQ}
+import org.openhorizon.exchangeapi.table.{NodeGroupAssignmentTQ, NodeGroupTQ, NodeType, NodesTQ, OrgLimits, OrgsTQ, PatternRow, Patterns, PatternsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ, ServicesTQ}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthRoles, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Identity, Nth, OrgAndId, Password, TNode, VersionRange}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
-import slick.lifted.Compiled
+import slick.lifted.{Compiled, CompiledExecutable}
 
 import java.sql.Timestamp
 import java.time.ZoneId
@@ -334,13 +334,13 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 val vaildAttribute: String =
                   attributeExistence.filter(attribute => attribute._2).head._1
                 
-                val getPatternBase =
+                val getPatternBase: Query[Patterns, PatternRow, Seq] =
                   PatternsTQ.filter(_.pattern === reqBody.pattern)
                 
-                val matchingPatterns =
+                val matchingPatterns: CompiledExecutable[Rep[Int], Int] =
                   if (identity.isSuperUser)
                     Compiled(getPatternBase.map(_.pattern).length)
-                  else if (identity.isAdmin || identity.role.equals(AuthRoles.Agbot))
+                  else
                     Compiled(getPatternBase.filter(pattern => pattern.public || pattern.orgid === organization)
                                            .map(pattern => (pattern.orgid, pattern.public))
                                            .join(NodesTQ.filter(_.id === resource)
@@ -348,19 +348,6 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                                         .map(_.orgid))
                                            .on((pattern, node) => (pattern._1 === node || pattern._2))
                                            .map(_._1)
-                                           .length)
-                  else
-                    Compiled(getPatternBase.map(pattern => (pattern.orgid, pattern.owner, pattern.public))
-                                           .join(NodesTQ.filter(_.id === resource)
-                                                        .filter(node => (node.pattern =!= "" ||
-                                                                         (node.pattern === "" && node.publicKey === "")))
-                                                        .map(node => (node.orgid, node.owner)))
-                                           .on(
-                                             (pattern, node) =>
-                                               ((pattern._1 === node._1 &&
-                                                 pattern._2 === node._2)||
-                                                pattern._3))
-                                           .map(_._2._1)
                                            .length)
                 
                 val servicesToSearch: Seq[SearchServiceKey] = {
@@ -378,42 +365,10 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     Seq()
                 }
                 
-                val authorizedServices = {
-                  if (identity.role.equals(AuthRoles.Node))
-                    NodesTQ.filter(_.id === resource)
-                           .map(node => (node.orgid, node.owner))
-                           .join (ServicesTQ.map(
-                                              service =>
-                                                (service.arch,
-                                                 service.orgid,
-                                                 service.owner,
-                                                 service.public,
-                                                 service.url,
-                                                 service.version)))
-                           .on(
-                             (node, service) =>
-                               (node._1 === service._2 &&
-                                node._2 === service._3) ||
-                               service._4)
-                           .map(
-                             service =>
-                               (service._2._1,
-                                service._2._2,
-                                service._2._5,
-                                service._2._6))
-                  else
-                    ServicesTQ.filterIf(!identity.isSuperUser &&
-                                        identity.isAdmin) (
-                      service =>
-                        (service.orgid === organization ||
-                         service.public))
-                              .filterIf(!(identity.isAdmin ||
-                                          identity.isSuperUser ||
-                                          identity.isHubAdmin ||
-                                          identity.role.equals(AuthRoles.Agbot))) (
+                val authorizedServices: Query[(Rep[String], Rep[String], Rep[String], Rep[String]), (String, String, String, String), Seq] =
+                    ServicesTQ.filterIf(!identity.isSuperUser) (
                                 service =>
-                                  ((service.orgid === organization &&
-                                    service.owner === identity.identityString) ||
+                                  (service.orgid === organization ||
                                    service.public))
                               .map(
                                 service =>
@@ -421,12 +376,11 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                    service.orgid,
                                    service.url,
                                    service.version))
-                }
                 
-                val patchNode =
+                val patchNode: DBIOAction[Unit, NoStream, Effect.Read with Effect with Effect.Write] =
                   for {
                     matchedPatterns <-
-                      if (vaildAttribute == "pattern")
+                      if (vaildAttribute == "pattern" && reqBody.pattern.get.nonEmpty)
                         matchingPatterns.result
                       else
                         DBIO.successful(1)
@@ -435,7 +389,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     // already using a Deployment Policy.
                     _ <-
                       if (matchedPatterns == 0)
-                        DBIO.failed(new BadInputException())
+                        DBIO.failed(new BadInputException(ExchMsg.translate("pattern.not.in.exchange")))
                       else
                         DBIO.successful(())
                     
@@ -451,7 +405,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     // Do not allow setting the Node's Token if its Public Key is already set.
                     _ <-
                       if (unsetPublicKeys == 0)
-                        DBIO.failed(new IllegalStateException("abc"))
+                        DBIO.failed(new IllegalStateException(ExchMsg.translate("node.public.key.not.token", resource)))
                       else
                         DBIO.successful(())
                     

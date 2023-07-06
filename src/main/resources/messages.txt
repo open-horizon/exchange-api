@@ -253,6 +253,7 @@ node.policy.not.deleted=policy for node ''{0}'' not deleted: {1}
 node.policy.not.found=policy for node ''{0}'' not found
 node.policy.not.inserted.or.updated=policy for node ''{0}'' not inserted or updated: {1}
 node.policy.not.updated=policy for node ''{0}'' not updated: {1}
+node.public.key.not.token=public key is set for node ''{0}'', cannot set a token
 node.services.updated=registeredServices of node ''{0}'' updated
 node.status.deleted=node status deleted
 node.status.not.deleted=status for node ''{0}'' not deleted: {1}

@@ -64,6 +64,14 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                limits             = "",
                orgId              = "TestNodePatch2",
                orgType            = "",
+               tags               = None),
+        OrgRow(description        = "",
+               heartbeatIntervals = "",
+               label              = "",
+               lastUpdated        = ApiTime.nowUTC,
+               limits             = "",
+               orgId              = "TestNodePatch3@somecomp.com",
+               orgType            = "",
                tags               = None))
   private val TESTPATTERNS: Seq[PatternRow] =
     Seq(PatternRow(agreementProtocols = "",
@@ -214,27 +222,27 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                    sharable                   = "",
                    url                        = "TestNodePatch2.service2",
                    userInput                  = "",
-                   version                    = "4.5.6")/*,
+                   version                    = "4.5.6"),
         ServiceRow(arch                       = "amd64",
                    clusterDeployment          = "",
                    clusterDeploymentSignature = "",
                    deployment                 = "",
                    deploymentSignature        = "",
-                   description                = "",
+                   description                = "test service",
                    documentation              = "",
                    imageStore                 = "",
-                   label                      = "",
+                   label                      = "test",
                    lastUpdated                = ApiTime.nowUTC,
                    matchHardware              = "",
-                   orgid                      = "myorg",
-                   owner                      = "root/root",
+                   orgid                      = "TestNodePatch3@somecomp.com",
+                   owner                      = "TestNodePatch3@somecomp.com/e2edevadmin",
                    public                     = false,
                    requiredServices           = "",
-                   service                    = "myorg/mydufus-perfhznmodel100.helloworld_1.0.2_amd64",
-                   sharable                   = "",
-                   url                        = "mydufus-perfhznmodel100.helloworld",
-                   userInput                  = "",
-                   version                    = "1.0.2")*/)
+                   service                    = "TestNodePatch3@somecomp.com/bluehorizon.network-services-testservice_1.0.0_amd64",
+                   sharable                   = "multiple",
+                   url                        = "https://bluehorizon.network/services/testservice",
+                   userInput                  = """[{"name":"var1","label":"","type":"string"},{"name":"var2","label":"","type":"int"},{"name":"var3","label":"","type":"float"},{"name":"var4","label":"","type":"list of strings"},{"name":"var5","label":"","type":"string","defaultValue":"foo"}]""",
+                   version                    = "1.0.0"))
   private val TESTUSERS: Seq[UserRow] =
     Seq(UserRow(admin       = false,
                 email       = "",
@@ -259,7 +267,23 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                 lastUpdated = ApiTime.nowUTC,
                 orgid       = "TestNodePatch2",
                 updatedBy   = "",
-                username    = "TestNodePatch2/u1"))
+                username    = "TestNodePatch2/u1"),
+        UserRow(admin       = true,
+                email       = "",
+                hashedPw    = Password.fastHash("adminpw"),
+                hubAdmin    = false,
+                lastUpdated = ApiTime.nowUTC,
+                orgid       = "TestNodePatch3@somecomp.com",
+                updatedBy   = "",
+                username    = "TestNodePatch3@somecomp.com/e2edevadmin"),
+        UserRow(admin       = false,
+                email       = "",
+                hashedPw    = Password.fastHash("userpw"),
+                hubAdmin    = false,
+                lastUpdated = ApiTime.nowUTC,
+                orgid       = "TestNodePatch3@somecomp.com",
+                updatedBy   = "",
+                username    = "TestNodePatch3@somecomp.com/user"))
   
   
   override def beforeAll(): Unit = {
@@ -283,6 +307,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
       testCode(testData)
     } finally Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
   }
+  
   
   test("PATCH /v1/orgs/" + "somerog" + "/nodes/" + "n2" + " -- 404 not found - bad organization - root") {
     val input: PatchNodesRequest =
@@ -2714,6 +2739,81 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         info("Body: " + response.body)
         
         assert(response.code === HttpCode.POST_OK.intValue)
+      }, testnodes)
+  }
+  
+  test("PATCH /v1/orgs/" + "TestNodePatch3@somecomp.com" + "/nodes/" + "an12345" + " -- 201 ok - userInput - user") {
+    val input: PatchNodesRequest =
+      PatchNodesRequest(arch = None,
+                        clusterNamespace = None,
+                        heartbeatIntervals = None,
+                        msgEndPoint = None,
+                        token = None,
+                        name = None,
+                        nodeType = None,
+                        pattern = None,
+                        publicKey = None,
+                        registeredServices = None,
+                        softwareVersions = None,
+                        userInput =
+                          Option(List(
+                            OneUserInputService(inputs =
+                                                  List(OneUserInputValue(name = "var1", value = "aString"),
+                                                       OneUserInputValue(name = "var2", value = 5),
+                                                       OneUserInputValue(name = "var3", value = 10.2),
+                                                       OneUserInputValue(name = "var4", value = Seq("abc","123")),
+                                                       OneUserInputValue(name = "var5", value = "override")),
+                                                serviceArch = Option("amd64"),
+                                                serviceOrgid = "TestNodePatch3@somecomp.com",
+                                                serviceUrl = "https://bluehorizon.network/services/testservice",
+                                                serviceVersionRange = Option("[0.0.0,INFINITY)")))))
+    val testnodes: Seq[NodeRow] =
+      Seq(NodeRow(arch               = "",
+                  id                 = "TestNodePatch3@somecomp.com/an12345",
+                  heartbeatIntervals = "",
+                  lastHeartbeat      = None,
+                  lastUpdated        = ApiTime.nowUTC,
+                  msgEndPoint        = "",
+                  name               = "",
+                  nodeType           = "",
+                  orgid              = "TestNodePatch3@somecomp.com",
+                  owner              = "TestNodePatch3@somecomp.com/user",
+                  pattern            = "",
+                  publicKey          = "",
+                  regServices        = "",
+                  softwareVersions   = "",
+                  token              = "",
+                  userInput          = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + "TestNodePatch3@somecomp.com" + "/nodes/" + "an12345").postData(write(input)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode("TestNodePatch3@somecomp.com" + "/" + "user" + ":" + "userpw"))).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.POST_OK.intValue)
+        
+        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        assert(node.userInput.nonEmpty)
+        
+        val userInputs: Seq[OneUserInputService] = parse(node.userInput).extract[Seq[OneUserInputService]]
+        assert(userInputs.length === 1)
+        
+        assert(userInputs.head.inputs.length       === 5)
+        assert(userInputs.head.inputs(0).name      === input.userInput.get.head.inputs(0).name)
+        assert(userInputs.head.inputs(0).value     === input.userInput.get.head.inputs(0).value)
+        assert(userInputs.head.inputs(1).name      === input.userInput.get.head.inputs(1).name)
+        assert(userInputs.head.inputs(1).value     === input.userInput.get.head.inputs(1).value)
+        assert(userInputs.head.inputs(2).name      === input.userInput.get.head.inputs(2).name)
+        assert(userInputs.head.inputs(2).value     === input.userInput.get.head.inputs(2).value)
+        assert(userInputs.head.inputs(3).name      === input.userInput.get.head.inputs(3).name)
+        assert(userInputs.head.inputs(3).value     === input.userInput.get.head.inputs(3).value)
+        assert(userInputs.head.inputs(4).name      === input.userInput.get.head.inputs(4).name)
+        assert(userInputs.head.inputs(4).value     === input.userInput.get.head.inputs(4).value)
+        assert(userInputs.head.serviceArch         === input.userInput.get.head.serviceArch)
+        assert(userInputs.head.serviceOrgid        === input.userInput.get.head.serviceOrgid)
+        assert(userInputs.head.serviceUrl          === input.userInput.get.head.serviceUrl)
+        assert(userInputs.head.serviceVersionRange === input.userInput.get.head.serviceVersionRange)
       }, testnodes)
   }
   

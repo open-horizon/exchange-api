@@ -355,7 +355,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     reqBody.userInput.get.map(
                       service =>
                         SearchServiceKey(architecture = (if (service.serviceArch.isEmpty || service.serviceArch.get == "") "%" else service.serviceArch.get),
-                                         domain = ("""[$!*,;/?@&~=%]""".r.replaceAllIn(("""^[A-Za-z0-9+.-]*?://""".r.replaceFirstIn(service.serviceUrl, "")), "-")),
+                                         domain = service.serviceUrl,
                                          organization = service.serviceOrgid,
                                          session = session,
                                          version = VersionRange(service.serviceVersionRange.getOrElse("[0,1]")).singleVersion.getOrElse("%").toString))

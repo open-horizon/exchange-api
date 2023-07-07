@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.115.2] - 2023-07-07
+- Issue 675: Removed extra regular expressions modifying searched Service's URL.
+
 ## [2.115.1] - 2023-07-06
 - Issue 675: Fixed User and Node access to searching all Patterns and Services within the Node's Organization.
 - Corrected error messages.

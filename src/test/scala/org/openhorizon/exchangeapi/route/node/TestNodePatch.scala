@@ -670,7 +670,49 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   // ---------- token
-  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 400 bad input - token - root") {
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 400 bad input - token - empty token - root") {
+    val input: PatchNodesRequest =
+      PatchNodesRequest(arch = None,
+                        clusterNamespace = None,
+                        heartbeatIntervals = None,
+                        msgEndPoint = None,
+                        token = Option(""),
+                        name = None,
+                        nodeType = None,
+                        pattern = None,
+                        publicKey = None,
+                        registeredServices = None,
+                        softwareVersions = None,
+                        userInput = None)
+    val testnodes: Seq[NodeRow] =
+      Seq(NodeRow(arch               = "",
+                  id                 = "TestNodePatch/n2",
+                  heartbeatIntervals = "",
+                  lastHeartbeat      = None,
+                  lastUpdated        = ApiTime.nowUTC,
+                  msgEndPoint        = "",
+                  name               = "",
+                  nodeType           = "",
+                  orgid              = "TestNodePatch",
+                  owner              = "TestNodePatch/u1",
+                  pattern            = "",
+                  publicKey          = "",
+                  regServices        = "",
+                  softwareVersions   = "",
+                  token              = "token",
+                  userInput          = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + "TestNodePatch" + "/nodes/" + "n2").postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.BAD_INPUT.intValue)
+      }, testnodes)
+  }
+  
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 400 bad input - token - public key set - root") {
     val input: PatchNodesRequest =
       PatchNodesRequest(arch = None,
                         clusterNamespace = None,
@@ -758,7 +800,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
       }, testnodes)
   }
   
-  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 400 bad input - token - node") {
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 400 bad input - token - public key set- node") {
     val input: PatchNodesRequest =
       PatchNodesRequest(arch = None,
                         clusterNamespace = None,
@@ -843,48 +885,6 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(Password.check(plainPw = input.token.get, hashedPw = node.token) === true)
-      }, testnodes)
-  }
-  
-  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 403 unauthorized- token - user") {
-    val input: PatchNodesRequest =
-      PatchNodesRequest(arch = None,
-                        clusterNamespace = None,
-                        heartbeatIntervals = None,
-                        msgEndPoint = None,
-                        token = Option("n2tok"),
-                        name = None,
-                        nodeType = None,
-                        pattern = None,
-                        publicKey = None,
-                        registeredServices = None,
-                        softwareVersions = None,
-                        userInput = None)
-    val testnodes: Seq[NodeRow] =
-      Seq(NodeRow(arch               = "",
-                  id                 = "TestNodePatch/n2",
-                  heartbeatIntervals = "",
-                  lastHeartbeat      = None,
-                  lastUpdated        = ApiTime.nowUTC,
-                  msgEndPoint        = "",
-                  name               = "",
-                  nodeType           = "",
-                  orgid              = "TestNodePatch",
-                  owner              = "TestNodePatch/u1",
-                  pattern            = "",
-                  publicKey          = "",
-                  regServices        = "",
-                  softwareVersions   = "",
-                  token              = "",
-                  userInput          = ""))
-    
-    fixtureNodes(
-      _ => {
-        val response: HttpResponse[String] = Http(URL + "TestNodePatch" + "/nodes/" + "n2").postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-        info("Code: " + response.code)
-        info("Body: " + response.body)
-        
-        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
       }, testnodes)
   }
   
@@ -2105,7 +2105,49 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   // ---------- publicKey
-  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 201 ok - publicKey - root") {
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 400 bad input - publicKey - update - root") {
+    val input: PatchNodesRequest =
+      PatchNodesRequest(arch = None,
+                        clusterNamespace = None,
+                        heartbeatIntervals = None,
+                        msgEndPoint = None,
+                        token = None,
+                        name = None,
+                        nodeType = None,
+                        pattern = None,
+                        publicKey = Option("new publicKey"),
+                        registeredServices = None,
+                        softwareVersions = None,
+                        userInput = None)
+    val testnodes: Seq[NodeRow] =
+      Seq(NodeRow(arch               = "",
+                  id                 = "TestNodePatch/n2",
+                  heartbeatIntervals = "",
+                  lastHeartbeat      = None,
+                  lastUpdated        = ApiTime.nowUTC,
+                  msgEndPoint        = "",
+                  name               = "",
+                  nodeType           = "",
+                  orgid              = "TestNodePatch",
+                  owner              = "TestNodePatch/u1",
+                  pattern            = "",
+                  publicKey          = "publicKey",
+                  regServices        = "",
+                  softwareVersions   = "",
+                  token              = "",
+                  userInput          = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + "TestNodePatch" + "/nodes/" + "n2").postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.BAD_INPUT.intValue)
+      }, testnodes)
+  }
+  
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 201 ok - publicKey - set - root") {
     val input: PatchNodesRequest =
       PatchNodesRequest(arch = None,
                         clusterNamespace = None,
@@ -2140,6 +2182,228 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
     fixtureNodes(
       _ => {
         val response: HttpResponse[String] = Http(URL + "TestNodePatch" + "/nodes/" + "n2").postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.POST_OK.intValue)
+        
+        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        
+        assert(node.publicKey === input.publicKey.get)
+      }, testnodes)
+  }
+  
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 201 ok - publicKey - unset - root") {
+    val input: PatchNodesRequest =
+      PatchNodesRequest(arch = None,
+                        clusterNamespace = None,
+                        heartbeatIntervals = None,
+                        msgEndPoint = None,
+                        token = None,
+                        name = None,
+                        nodeType = None,
+                        pattern = None,
+                        publicKey = Option(""),
+                        registeredServices = None,
+                        softwareVersions = None,
+                        userInput = None)
+    val testnodes: Seq[NodeRow] =
+      Seq(NodeRow(arch               = "",
+                  id                 = "TestNodePatch/n2",
+                  heartbeatIntervals = "",
+                  lastHeartbeat      = None,
+                  lastUpdated        = ApiTime.nowUTC,
+                  msgEndPoint        = "",
+                  name               = "",
+                  nodeType           = "",
+                  orgid              = "TestNodePatch",
+                  owner              = "TestNodePatch/u1",
+                  pattern            = "",
+                  publicKey          = "publicKey",
+                  regServices        = "",
+                  softwareVersions   = "",
+                  token              = "",
+                  userInput          = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + "TestNodePatch" + "/nodes/" + "n2").postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.POST_OK.intValue)
+        
+        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        
+        assert(node.publicKey === input.publicKey.get)
+      }, testnodes)
+  }
+  
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 201 ok - publicKey - unset empty - root") {
+    val input: PatchNodesRequest =
+      PatchNodesRequest(arch = None,
+                        clusterNamespace = None,
+                        heartbeatIntervals = None,
+                        msgEndPoint = None,
+                        token = None,
+                        name = None,
+                        nodeType = None,
+                        pattern = None,
+                        publicKey = Option(""),
+                        registeredServices = None,
+                        softwareVersions = None,
+                        userInput = None)
+    val testnodes: Seq[NodeRow] =
+      Seq(NodeRow(arch               = "",
+                  id                 = "TestNodePatch/n2",
+                  heartbeatIntervals = "",
+                  lastHeartbeat      = None,
+                  lastUpdated        = ApiTime.nowUTC,
+                  msgEndPoint        = "",
+                  name               = "",
+                  nodeType           = "",
+                  orgid              = "TestNodePatch",
+                  owner              = "TestNodePatch/u1",
+                  pattern            = "",
+                  publicKey          = "",
+                  regServices        = "",
+                  softwareVersions   = "",
+                  token              = "",
+                  userInput          = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + "TestNodePatch" + "/nodes/" + "n2").postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.POST_OK.intValue)
+        
+        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        
+        assert(node.publicKey === input.publicKey.get)
+      }, testnodes)
+  }
+  
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 403 access denied - publicKey - set - admin") {
+    val input: PatchNodesRequest =
+      PatchNodesRequest(arch = None,
+                        clusterNamespace = None,
+                        heartbeatIntervals = None,
+                        msgEndPoint = None,
+                        token = None,
+                        name = None,
+                        nodeType = None,
+                        pattern = None,
+                        publicKey = Option("publicKey"),
+                        registeredServices = None,
+                        softwareVersions = None,
+                        userInput = None)
+    val testnodes: Seq[NodeRow] =
+      Seq(NodeRow(arch               = "",
+                  id                 = "TestNodePatch/n2",
+                  heartbeatIntervals = "",
+                  lastHeartbeat      = None,
+                  lastUpdated        = ApiTime.nowUTC,
+                  msgEndPoint        = "",
+                  name               = "",
+                  nodeType           = "",
+                  orgid              = "TestNodePatch",
+                  owner              = "TestNodePatch/u1",
+                  pattern            = "",
+                  publicKey          = "",
+                  regServices        = "",
+                  softwareVersions   = "",
+                  token              = "",
+                  userInput          = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + "TestNodePatch" + "/nodes/" + "n2").postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(ADMINAUTH).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      }, testnodes)
+  }
+  
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 403 access denied - publicKey - set - user") {
+    val input: PatchNodesRequest =
+      PatchNodesRequest(arch = None,
+                        clusterNamespace = None,
+                        heartbeatIntervals = None,
+                        msgEndPoint = None,
+                        token = None,
+                        name = None,
+                        nodeType = None,
+                        pattern = None,
+                        publicKey = Option("publicKey"),
+                        registeredServices = None,
+                        softwareVersions = None,
+                        userInput = None)
+    val testnodes: Seq[NodeRow] =
+      Seq(NodeRow(arch               = "",
+                  id                 = "TestNodePatch/n2",
+                  heartbeatIntervals = "",
+                  lastHeartbeat      = None,
+                  lastUpdated        = ApiTime.nowUTC,
+                  msgEndPoint        = "",
+                  name               = "",
+                  nodeType           = "",
+                  orgid              = "TestNodePatch",
+                  owner              = "TestNodePatch/u1",
+                  pattern            = "",
+                  publicKey          = "",
+                  regServices        = "",
+                  softwareVersions   = "",
+                  token              = "",
+                  userInput          = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + "TestNodePatch" + "/nodes/" + "n2").postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      }, testnodes)
+  }
+  
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 201 ok - publicKey - set - node") {
+    val input: PatchNodesRequest =
+      PatchNodesRequest(arch = None,
+                        clusterNamespace = None,
+                        heartbeatIntervals = None,
+                        msgEndPoint = None,
+                        token = None,
+                        name = None,
+                        nodeType = None,
+                        pattern = None,
+                        publicKey = Option("publicKey"),
+                        registeredServices = None,
+                        softwareVersions = None,
+                        userInput = None)
+    val testnodes: Seq[NodeRow] =
+      Seq(NodeRow(arch               = "",
+                  id                 = "TestNodePatch/n2",
+                  heartbeatIntervals = "",
+                  lastHeartbeat      = None,
+                  lastUpdated        = ApiTime.nowUTC,
+                  msgEndPoint        = "",
+                  name               = "",
+                  nodeType           = "",
+                  orgid              = "TestNodePatch",
+                  owner              = "TestNodePatch/u1",
+                  pattern            = "",
+                  publicKey          = "",
+                  regServices        = "",
+                  softwareVersions   = "",
+                  token              = Password.fastHash("n2pw"),
+                  userInput          = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + "TestNodePatch" + "/nodes/" + "n2").postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
         info("Code: " + response.code)
         info("Body: " + response.body)
         

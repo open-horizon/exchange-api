@@ -1237,6 +1237,22 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     var jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
     var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    
+    jsonInput = """{ "publicKey": "" }"""
+    response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+    
+    // whitespace
+    jsonInput = """   { "publicKey": "" }    """
+    response = Http(URL + "/nodes/" + nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
+    assert(response.code === HttpCode.PUT_OK.intValue)
+    
+    jsonInput = """{ "publicKey": """" + nodePubKey + """" }"""
+    response = Http(URL + "/nodes/" + nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    info("code: " + response.code + ", response.body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
     
     jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+SDRSPEC_URL+"""", "serviceArch": """"+svcarch+"""", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
@@ -1262,18 +1278,13 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId+" - as node with whitespace") {
-    var jsonInput = """   { "publicKey": """"+nodePubKey+"""" }    """
-    var response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
-    
-    jsonInput =
+    val jsonInput =
       """
         { "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+SDRSPEC_URL+"""", "serviceArch": """"+svcarch+"""", "serviceVersionRange": """"+ALL_VERSIONS+
         """", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }
 
           """
-    response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
+    val response = Http(URL+"/nodes/"+nodeId).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
@@ -1328,8 +1339,11 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     var prevLastUpdated = dev.lastUpdated
     
     // patch the node so that the lastUpdated field gets updated
-    val jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
-    response = Http(URL+"/nodes/"+nodeId4).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    var jsonInput = """{ "publicKey": "" }"""
+    response = Http(URL + "/nodes/" + nodeId4).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    
+    jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
+    response = Http(URL+"/nodes/"+nodeId4).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
     
@@ -1437,7 +1451,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId3+" - add publicKey so it will be found") {
     val jsonInput = """{ "publicKey": "NODE3ABC" }"""
-    val response = Http(URL + "/nodes/" + nodeId3).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL + "/nodes/" + nodeId3).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     assert(response.code === HttpCode.PUT_OK.intValue)
     
     patchAllNodePatterns("")      // remove pattern from nodes so we can search for services
@@ -2342,8 +2356,11 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("PATCH /orgs/"+orgid+"/nodes/"+nodeId2+" - patching public key so this node won't be stale for non-pattern search") {
-    val jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
-    val response = Http(URL + "/nodes/" + nodeId2).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    var jsonInput = """{ "publicKey": "" }"""
+    var response = Http(URL + "/nodes/" + nodeId2).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    
+    jsonInput = """{ "publicKey": """"+nodePubKey+"""" }"""
+    response = Http(URL + "/nodes/" + nodeId2).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("PATCH "+nodeId2+", code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }

@@ -328,6 +328,7 @@ policy.added.or.updated=policy added or updated
 policy.not.inserted.or.updated=policy for service ''{0}'' not inserted or updated: {1}
 post.ok=post ok
 property.type.must.be=The properties.type value ''{0}'' must be 1 of: {1}
+public.key.no.replace=A node's public key cannot be replaced with a different key.
 reload.successful=reload successful
 req.service.has.wrong.arch=required service ''{0}'' has arch ''{1}'', which is different than this service''s arch ''{2}''
 req.service.not.in.exchange=the following required service does not exist in the exchange: org= {0}, url= {1}, version= {2}, arch= {3}

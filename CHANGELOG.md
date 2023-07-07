@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.115.3] - 2023-07-07
+- Issue 675: Node tokens can be changed by all User types, and public keys can only be [un]set without changing keys by Nodes.
+
 ## [2.115.2] - 2023-07-07
 - Issue 675: Removed extra regular expressions modifying searched Service's URL.
 

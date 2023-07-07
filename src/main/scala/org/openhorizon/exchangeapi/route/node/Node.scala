@@ -24,6 +24,7 @@ import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{Compiled, CompiledExecutable}
 
+import java.lang.IllegalStateException
 import java.sql.Timestamp
 import java.time.ZoneId
 import scala.concurrent.ExecutionContext
@@ -331,7 +332,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 val session: String = Password.fastHash(password = s"patch$organization$node${identity.identityString}${changeTimestamp.getTime.toString}")
                 
                 // Have a single attribute to update, retrieve its name.
-                val vaildAttribute: String =
+                val validAttribute: String =
                   attributeExistence.filter(attribute => attribute._2).head._1
                 
                 val getPatternBase: Query[Patterns, PatternRow, Seq] =
@@ -351,7 +352,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                            .length)
                 
                 val servicesToSearch: Seq[SearchServiceKey] = {
-                  if (vaildAttribute == "userInput") {
+                  if (validAttribute == "userInput") {
                     reqBody.userInput.get.map(
                       service =>
                         SearchServiceKey(architecture = (if (service.serviceArch.isEmpty || service.serviceArch.get == "") "%" else service.serviceArch.get),
@@ -377,10 +378,11 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                    service.url,
                                    service.version))
                 
-                val patchNode: DBIOAction[Unit, NoStream, Effect.Read with Effect with Effect.Write] =
+                val patchNode =
                   for {
+                    // ---------- pattern --------------
                     matchedPatterns <-
-                      if (vaildAttribute == "pattern" && reqBody.pattern.get.nonEmpty)
+                      if (validAttribute == "pattern" && reqBody.pattern.get.nonEmpty)
                         matchingPatterns.result
                       else
                         DBIO.successful(1)
@@ -389,16 +391,37 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     // already using a Deployment Policy.
                     _ <-
                       if (matchedPatterns == 0)
-                        DBIO.failed(new BadInputException(ExchMsg.translate("pattern.not.in.exchange")))
+                        DBIO.failed(new BadInputException(msg = ExchMsg.translate("pattern.not.in.exchange")))
                       else
                         DBIO.successful(())
                     
-                    unsetPublicKeys <-
-                      if ((identity.role.equals(AuthRoles.Node) || identity.isSuperUser) &&
-                          vaildAttribute == "token")
-                        Compiled(NodesTQ.getNode(resource).filter(_.publicKey === "").map(_.id).length).result
-                      else if (vaildAttribute == "token")
+                    // ---------- publicKey ------------
+                    validPublicKey <-
+                      if ((identity.role.equals(AuthRoles.Node) ||
+                           identity.isSuperUser) &&
+                          validAttribute == "publicKey") {
+                          if (reqBody.publicKey.get.nonEmpty)
+                            Compiled(NodesTQ.getNode(resource)
+                                            .filter(_.publicKey === "")
+                                            .map(_.id)
+                                            .length).result
+                          else
+                            DBIO.successful(1)
+                      } else if (validAttribute == "publicKey")
                         DBIO.failed(new AccessDeniedException(msg = ExchMsg.translate("access.denied")))
+                      else
+                        DBIO.successful(1)
+                    
+                    _ <-
+                      if (validPublicKey == 0)
+                        DBIO.failed(new BadInputException(msg = ExchMsg.translate("public.key.no.replace")))
+                      else
+                        DBIO.successful(())
+                    
+                    // ---------- token ----------------
+                    unsetPublicKeys <-
+                      if (validAttribute == "token")
+                        Compiled(NodesTQ.getNode(resource).filter(_.publicKey === "").map(_.id).length).result
                       else
                         DBIO.successful(1)
                     
@@ -410,7 +433,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                         DBIO.successful(())
                     
                     hashedPW =
-                      if (vaildAttribute == "token")
+                      if (validAttribute == "token")
                         Password.fastHash(reqBody.token.get)
                       else
                         ""
@@ -418,14 +441,14 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     // ---------- userInput ------------
                     // Has to have valid matches with defined services. Must be authorized to use service.
                     _ <-
-                      if (vaildAttribute == "userInput") {
+                      if (validAttribute == "userInput") {
                         // Load services to search on
                         SearchServiceTQ ++= servicesToSearch
                       } else
                         DBIO.successful(())
                     
                     unmatchedServices <-
-                      if (vaildAttribute == "userInput") {
+                      if (validAttribute == "userInput") {
                         // Compare our request input with what we have, factoring in authorization.
                         Compiled(authorizedServices.joinRight(
                                                       SearchServiceTQ.filter(_.session === session)
@@ -453,7 +476,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                         DBIO.successful(Seq(("", "", "", ""))) // Needs to be of the same type.
                     
                     _ <-
-                      if (vaildAttribute == "userInput") {
+                      if (validAttribute == "userInput") {
                         // Either all of our requested services are valid or none of them are.
                         if (0 < unmatchedServices.length) {
                           // Database will auto-remove our inputs when the transaction rolls-back.
@@ -468,7 +491,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     
                     // ---------- Node Record Change ---
                     nodesUpdated <-
-                      if (vaildAttribute == "clusterNamespace")
+                      if (validAttribute == "clusterNamespace")
                         Compiled(NodesTQ.getNode(resource)
                                         .map(node => (node.clusterNamespace, node.lastUpdated)))
                                         .update((reqBody.clusterNamespace,
@@ -479,7 +502,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       else
                         Compiled(NodesTQ.getNode(resource)
                                         .map(node =>
-                                              (vaildAttribute match {
+                                              (validAttribute match {
                                                 case "arch" => node.arch
                                                 case "heartbeatIntervals" => node.heartbeatIntervals
                                                 case "msgEndPoint" => node.msgEndPoint
@@ -492,7 +515,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                                 case "token" => node.token
                                                 case "userInput" => node.userInput},
                                                 node.lastUpdated)))
-                                        .update((vaildAttribute match {
+                                        .update((validAttribute match {
                                                   case "arch" => reqBody.arch.get
                                                   case "heartbeatIntervals" => write(reqBody.heartbeatIntervals.get)
                                                   case "msgEndPoint" => reqBody.msgEndPoint.get
@@ -530,7 +553,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     
                     // ---------- Update Auth Cache ----
                     _ <-
-                      if (vaildAttribute == "token") {
+                      if (validAttribute == "token") {
                         AuthCache.putNode(resource, hashedPW, reqBody.token.get)
                         DBIO.successful(())
                       }
@@ -541,7 +564,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 db.run(patchNode.transactionally.asTry)
                   .map({
                     case Success(_) =>
-                      (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", vaildAttribute, resource)))
+                      (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", validAttribute, resource)))
                     case Failure(t: org.postgresql.util.PSQLException) =>
                       ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.not.inserted.or.updated", resource, t.getMessage))
                     case Failure(t: AccessDeniedException) =>

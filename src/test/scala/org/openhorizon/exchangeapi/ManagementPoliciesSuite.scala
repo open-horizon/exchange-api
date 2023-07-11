@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi
 
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
-import org.openhorizon.exchangeapi.table.{ManagementPolicy, NodeRow, NodesTQ, OneProperty, OrgRow, OrgsTQ, RegService, ResourceChangesTQ, UserRow}
+import org.openhorizon.exchangeapi.table.{ManagementPolicy, OneProperty, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow}
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, convertToJsonInput, jvalue2extractable}
 import org.json4s.native.Serialization.write
@@ -9,6 +9,7 @@ import org.junit.runner.RunWith
 import org.openhorizon.exchangeapi.route.managementpolicy.{GetManagementPoliciesResponse, PostPutManagementPolicyRequest}
 import org.openhorizon.exchangeapi.route.organization.{ChangeEntry, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ, RegService}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner

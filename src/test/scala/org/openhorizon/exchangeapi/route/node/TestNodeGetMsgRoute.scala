@@ -1,10 +1,11 @@
 package org.openhorizon.exchangeapi.route.node
 
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection, table}
-import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, NodeMsgRow, NodeMsgsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
-import org.openhorizon.exchangeapi.table.{NodeMsgRow, NodeMsgsTQ, NodeRow, NodesTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
+import org.openhorizon.exchangeapi.table.node.message.{NodeMsgRow, NodeMsgsTQ}
 import org.openhorizon.exchangeapi.{Role, TestDBConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
@@ -34,7 +35,7 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
              publicKey     = "",
              token         = "")
   private val TESTNODEMESSAGES: Seq[NodeMsgRow] =
-    Seq(table.NodeMsgRow(agbotId     = "TestNodeGetMsgRoute/a1",
+    Seq(NodeMsgRow(agbotId     = "TestNodeGetMsgRoute/a1",
                           agbotPubKey = "",
                           message     = """{msg1 from node1 to agbot1}""",
                           msgId       = -1,

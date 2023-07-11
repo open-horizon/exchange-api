@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.node
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import akka.http.scaladsl.server.Directives.{as, complete, entity, get, patch, path, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.PathMatchers.Segment
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
@@ -17,9 +17,12 @@ import org.json4s.native.Serialization.write
 import org.openhorizon.exchangeapi.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.ExchangeApiApp.{exchAuth, validateWithMsg}
 import org.openhorizon.exchangeapi.auth.{AccessDeniedException, BadInputException, DBProcessingError, ResourceNotFoundException}
+import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
+import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
+import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.service.{SearchServiceKey, SearchServiceTQ}
-import org.openhorizon.exchangeapi.table.{NodeGroupAssignmentTQ, NodeGroupTQ, NodeType, NodesTQ, OrgLimits, OrgsTQ, PatternRow, Patterns, PatternsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ, ServicesTQ}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthRoles, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Identity, Nth, OrgAndId, Password, TNode, VersionRange}
+import org.openhorizon.exchangeapi.table.{OrgLimits, OrgsTQ, PatternRow, Patterns, PatternsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ, ServicesTQ}
+import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthRoles, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Identity, Nth, OrgAndId, Password, TNode, VersionRange, table}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{Compiled, CompiledExecutable}
@@ -169,7 +172,8 @@ trait Node extends JacksonSupport with AuthenticationSupport {
       },
       "ha_group": "groupName",
       "lastUpdated": "string",
-      "clusterNamespace": "MyNamespace"
+      "clusterNamespace": "MyNamespace",
+      "isNamespaceScoped": false
     }
   },
   "lastIndex": 0
@@ -207,7 +211,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     logger.debug("GET /orgs/" + organization + "/nodes/" + node + " result: " + list.size)
                     if (list.nonEmpty) {
                       //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
-                      val nodes: Map[String, org.openhorizon.exchangeapi.table.Node] = list.map(e => e._1.id -> e._1.toNode(ident.isSuperUser, e._2)).toMap
+                      val nodes: Map[String, table.node.Node] = list.map(e => e._1.id -> e._1.toNode(ident.isSuperUser, e._2)).toMap
                       (HttpCode.OK, GetNodesResponse(nodes, 0))
                     } else {
                       (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))) // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
@@ -274,7 +278,8 @@ trait Node extends JacksonSupport with AuthenticationSupport {
     "maxInterval": 120,
     "intervalAdjustment": 10
   },
-  "clusterNamespace": "MyNamespace"
+  "clusterNamespace": "MyNamespace",
+  "isNamespaceScoped": false
 }
 """
           )
@@ -301,6 +306,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
           val attributeExistence: Seq[(String, Boolean)] =
             Seq(("arch",reqBody.arch.isDefined),
                 ("clusterNamespace", reqBody.clusterNamespace.isDefined),
+                ("isNamespaceScoped", reqBody.isNamespaceScoped.isDefined),
                 ("heartbeatIntervals", reqBody.heartbeatIntervals.isDefined),
                 ("msgEndPoint", reqBody.msgEndPoint.isDefined),
                 ("name", reqBody.name.isDefined),
@@ -499,6 +505,14 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                                                               .atZone(ZoneId.of("UTC"))
                                                                               .withZoneSameInstant(ZoneId.of("UTC"))
                                                                               .toString)))
+                      else if (validAttribute == "isNamespaceScoped")
+                        Compiled(NodesTQ.getNode(resource)
+                                        .map(node => (node.isNamespaceScoped, node.lastUpdated)))
+                                        .update((reqBody.isNamespaceScoped.get,
+                                                 fixFormatting(changeTimestamp.toInstant
+                                                                              .atZone(ZoneId.of("UTC"))
+                                                                              .withZoneSameInstant(ZoneId.of("UTC"))
+                                                                              .toString)))
                       else
                         Compiled(NodesTQ.getNode(resource)
                                         .map(node =>
@@ -648,7 +662,8 @@ trait Node extends JacksonSupport with AuthenticationSupport {
     "maxInterval": 120,
     "intervalAdjustment": 10
   },
-  "clusterNamespace": "MyNamespace"
+  "clusterNamespace": "MyNamespace",
+  "isNamespaceScoped": false
 }
 """
             )

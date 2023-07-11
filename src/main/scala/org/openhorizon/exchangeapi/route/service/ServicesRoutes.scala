@@ -16,6 +16,7 @@ import org.json4s._
 import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.node.NodeType
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, OrgAndId, TService, Version, VersionRange}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._

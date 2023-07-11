@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.route.agentconfigurationmanagement
 
-import org.openhorizon.exchangeapi.table.{AgbotMsgRow, AgbotMsgsTQ, AgbotRow, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsResponse, NodeRow, NodesTQ, OrgRow, OrgsTQ, Prop, RegService, ResourceChangesTQ, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ, UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.{AgbotMsgRow, AgbotMsgsTQ, AgbotRow, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsResponse, OrgRow, OrgsTQ, ResourceChangesTQ, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ, UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
@@ -9,7 +9,7 @@ import org.openhorizon.exchangeapi.Role
 import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotMsgsResponse, PutAgbotsRequest}
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
-import org.openhorizon.exchangeapi.table.{NodeRow, NodesTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ, Prop, RegService}
 import org.scalatest.{BeforeAndAfterAll, DoNotDiscover, Suite}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}

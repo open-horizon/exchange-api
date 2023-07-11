@@ -1,11 +1,12 @@
 package org.openhorizon.exchangeapi.route.user
 
 import org.openhorizon.exchangeapi.{ApiResponse, ApiTime, ApiUtils, ExchMsg, HttpCode, Password, Role, TestDBConnection}
-import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
 import org.mindrot.jbcrypt.BCrypt
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}

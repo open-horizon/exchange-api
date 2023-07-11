@@ -2,11 +2,11 @@ package org.openhorizon.exchangeapi.route.organization
 
 import akka.http.scaladsl.model.headers.CacheDirectives.public
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, ExchangeApi, HttpCode, Password, Role, TestDBConnection}
-import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, NodeRow, NodesTQ, OrgRow, OrgsTQ, ResourceChangeRow, ResourceChangesTQ, UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, OrgRow, OrgsTQ, ResourceChangeRow, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
-import org.openhorizon.exchangeapi.table.{NodeRow, NodesTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.{ExchangeApi, Password, Role, TestDBConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite

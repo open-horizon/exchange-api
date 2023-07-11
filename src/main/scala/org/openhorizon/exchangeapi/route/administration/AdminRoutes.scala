@@ -12,7 +12,10 @@ import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{GET, POST, Path}
-import org.openhorizon.exchangeapi.table.{NodeAgreementsTQ, NodeMsgsTQ, NodesTQ, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.node.NodesTQ
+import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
+import org.openhorizon.exchangeapi.table.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.{Access, ApiRespType, AuthCache, AuthenticationSupport, ExchangeApi, ExchangeApiTables, Role}
 import slick.jdbc.PostgresProfile.api._
 

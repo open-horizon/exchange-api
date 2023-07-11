@@ -1,6 +1,7 @@
 package org.openhorizon.exchangeapi.route.node
 
-import org.openhorizon.exchangeapi.table.{NodeHeartbeatIntervals, OneUserInputService, RegService}
+import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, RegService}
+import org.openhorizon.exchangeapi.table.OneUserInputService
 
 final case class PatchNodesRequest(token: Option[String] = None,
                                    name: Option[String] = None,
@@ -13,7 +14,8 @@ final case class PatchNodesRequest(token: Option[String] = None,
                                    publicKey: Option[String] = None,
                                    arch: Option[String] = None,
                                    heartbeatIntervals: Option[NodeHeartbeatIntervals] = None,
-                                   clusterNamespace: Option[String] = None)
+                                   clusterNamespace: Option[String] = None,
+                                   isNamespaceScoped: Option[Boolean] = None)
 /** {
   protected implicit val jsonFormats: Formats = DefaultFormats
 

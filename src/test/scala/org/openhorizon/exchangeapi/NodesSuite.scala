@@ -20,7 +20,12 @@ import org.openhorizon.exchangeapi.route.node.{GetNodeAgreementsResponse, GetNod
 import org.openhorizon.exchangeapi.route.organization.{AllNodeErrorsInOrgResp, GetOrgStatusResponse, MaxChangeIdResponse, PatchOrgRequest, PostNodeHealthRequest, PostNodeHealthResponse, PostPutOrgRequest, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.service.PostPutServiceRequest
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
-import org.openhorizon.exchangeapi.table.{ContainerStatus, NAService, NodeError, NodeHeartbeatIntervals, NodePolicy, NodeStatus, NodeType, OneService, PostPutNodeGroupsRequest, RegService}
+import org.openhorizon.exchangeapi.table.node.agreement.{NAService, NAgrService}
+import org.openhorizon.exchangeapi.table.node.error.NodeError
+import org.openhorizon.exchangeapi.table.node.status.NodeStatus
+import org.openhorizon.exchangeapi.table.node.{ContainerStatus, NodeHeartbeatIntervals, NodeType, NodesTQ, OneService, Prop, RegService}
+import org.openhorizon.exchangeapi.table.node.deploymentpolicy.{NodePolicy, PropertiesAndConstraints}
+import org.openhorizon.exchangeapi.table.node.group.assignment.PostPutNodeGroupsRequest
 import org.scalatest.BeforeAndAfterAll
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc.PostgresProfile.api._
@@ -440,7 +445,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
           Prop("version","1.0.0","version","in")), Some(""))
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, Some(NodeHeartbeatIntervals(5,15,2)))
+      None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, Some(NodeHeartbeatIntervals(5,15,2)), clusterNamespace = None, isNamespaceScoped = Option(true))
     val response = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
@@ -508,7 +513,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
           Prop("version","1.0.0","version","in")), Some(""))
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, Some(svcarch), Some(ALL_VERSIONS), List( OneUserInputValue("UI_STRING","mystr - updated"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(""), Some(Map("horizon"->"3.2.1")), nodePubKey, Some("amd64"), Some(NodeHeartbeatIntervals(6,15,2)))
+      Some(""), Some(Map("horizon"->"3.2.1")), nodePubKey, Some("amd64"), Some(NodeHeartbeatIntervals(6,15,2)), None, Option(true))
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -517,7 +522,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("PUT /orgs/"+orgid2+"/nodes/"+nodeId+" - add node in 2nd org") {
     Http(urlRoot + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(ROOTAUTH).asString
     
-    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", None, compositePatid, None, None, None, None, nodePubKey, None, None)
+    val input = PutNodesRequest(nodeToken, "rpi"+nodeId+"-norm", None, compositePatid, None, None, None, None, nodePubKey, None, None, None, None)
     
     val response = Http(URL2 + "/nodes/" + nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code)
@@ -593,7 +598,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
-      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, nodePubKey, Some("arm"), None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, nodePubKey, Some("arm"), None, None, Option(false))
     val response = Http(URL+"/nodes/"+nodeId4).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
@@ -620,6 +625,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(getDevResp.nodes.contains(orgnodeId))
     var dev = getDevResp.nodes(orgnodeId)
+    assert(dev.isNamespaceScoped === true)
     assert(dev.name === "rpi"+nodeId+"-normal")
     assert(dev.softwareVersions.size === 1)
     assert(dev.softwareVersions.contains("horizon"))
@@ -693,7 +699,8 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/nodes").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(orgid + "/u2:u2pw"))).asString
     info("code: " + response.code)
     info("response.body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue && parse(response.body).extract[GetNodesResponse].nodes.size === 0)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(parse(response.body).extract[GetNodesResponse].nodes.size === 0)
   }
   
   test("GET /orgs/"+orgid+"/nodes - filter for devices") {
@@ -704,6 +711,9 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val devs = getDevResp.nodes
     assert(devs.size === 3)
     assert(devs.contains(orgnodeId) && devs.contains(orgnodeId3) && devs.contains(orgnodeId4))
+    assert(parse(response.body).extract[GetNodesResponse].nodes(orgnodeId).isNamespaceScoped === true)
+    assert(parse(response.body).extract[GetNodesResponse].nodes(orgnodeId3).isNamespaceScoped === false)
+    assert(parse(response.body).extract[GetNodesResponse].nodes(orgnodeId4).isNamespaceScoped === false)
   }
   
   test("GET /orgs/"+orgid+"/nodes - filter for clusters") {

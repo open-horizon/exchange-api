@@ -17,7 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
-import org.openhorizon.exchangeapi.table.{NodeErrorTQ, NodesTQ, OneUserInputService, PatternsTQ, _}
+import org.openhorizon.exchangeapi.table.{OneUserInputService, PatternsTQ, _}
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.Serialization.{read, write}
@@ -28,6 +28,15 @@ import scala.util._
 import scala.util.control.Breaks._
 import scala.util.matching.Regex
 import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreement, NodeAgreementsTQ}
+import org.openhorizon.exchangeapi.table.node.deploymentpolicy.{NodePolicy, NodePolicyTQ}
+import org.openhorizon.exchangeapi.table.node.error.{NodeError, NodeErrorTQ}
+import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
+import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
+import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{GetNMPStatusResponse, NodeMgmtPolStatusRow, NodeMgmtPolStatuses}
+import org.openhorizon.exchangeapi.table.node.message.{NodeMsg, NodeMsgRow, NodeMsgsTQ}
+import org.openhorizon.exchangeapi.table.node.status.{NodeStatus, NodeStatusTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodesTQ, OneService, RegService}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthRoles, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Nth, OrgAndId, Password, StrConstants, TNode}
 
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
@@ -1590,6 +1599,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                            node._1._1._1._1.token),
                                          node._1._1._1._1.userInput,
                                          node._1._1._1._1.clusterNamespace,
+                                         node._1._1._1._1.isNamespaceScoped,
                                          node._1._1._1._2,           // Node Errors (errors, lastUpdated)
                                          node._1._1._2,              // Node Policy (constraints, lastUpdated, properties)
                                          node._1._2,                 // Node Statuses (connectivity, lastUpdated, runningServices, services)
@@ -1606,23 +1616,23 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                              else
                                                Option(node._1),
                                              connectivity =
-                                               if(node._20.isEmpty ||
-                                                  node._20.get.connectivity.isEmpty)
+                                               if(node._21.isEmpty ||
+                                                  node._21.get.connectivity.isEmpty)
                                                  None
                                                else
-                                                 Option(read[Map[String, Boolean]](node._20.get.connectivity)),
+                                                 Option(read[Map[String, Boolean]](node._21.get.connectivity)),
                                              constraints =
-                                              if(node._19.isEmpty ||
-                                                 node._19.get.constraints.isEmpty)
+                                              if(node._20.isEmpty ||
+                                                 node._20.get.constraints.isEmpty)
                                                 None
                                               else
-                                                Option(read[List[String]](node._19.get.constraints)),
+                                                Option(read[List[String]](node._20.get.constraints)),
                                              errors =
-                                               if(node._18.isEmpty ||
-                                                  node._18.get.errors.isEmpty)
+                                               if(node._19.isEmpty ||
+                                                  node._19.get.errors.isEmpty)
                                                  None
                                                else
-                                                 Option(read[List[Any]](node._18.get.errors)),
+                                                 Option(read[List[Any]](node._19.get.errors)),
                                              id = node._2,
                                              heartbeatIntervals =
                                                if(node._3.isEmpty)
@@ -1632,18 +1642,18 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                              lastHeartbeat = node._4,
                                              lastUpdatedNode = node._5,
                                              lastUpdatedNodeError =
-                                               if(node._18.isDefined)
-                                                 Option(node._18.get.lastUpdated)
+                                               if(node._19.isDefined)
+                                                 Option(node._19.get.lastUpdated)
                                                else
                                                  None,
                                              lastUpdatedNodePolicy =
-                                              if(node._19.isDefined)
-                                                Option(node._19.get.lastUpdated)
+                                              if(node._20.isDefined)
+                                                Option(node._20.get.lastUpdated)
                                               else
                                                 None,
                                              lastUpdatedNodeStatus =
-                                               if(node._20.isDefined)
-                                                 Option(node._20.get.lastUpdated)
+                                               if(node._21.isDefined)
+                                                 Option(node._21.get.lastUpdated)
                                                else
                                                  None,
                                              msgEndPoint =
@@ -1669,11 +1679,11 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                else
                                                  Option(node._11),
                                              properties =
-                                              if(node._19.isEmpty ||
-                                                 node._19.get.properties.isEmpty)
+                                              if(node._20.isEmpty ||
+                                                 node._20.get.properties.isEmpty)
                                                 None
                                               else
-                                                Option(read[List[OneProperty]](node._19.get.properties)),
+                                                Option(read[List[OneProperty]](node._20.get.properties)),
                                              publicKey =
                                                if(node._12.isEmpty)
                                                  None
@@ -1685,17 +1695,17 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                else
                                                  Option(read[List[RegService]](node._13).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Some("active")), rs.policy, rs.properties, rs.version))),
                                              runningServices =
-                                               if(node._20.isEmpty ||
-                                                  node._20.get.services.isEmpty)
+                                               if(node._21.isEmpty ||
+                                                  node._21.get.services.isEmpty)
                                                  None
                                                else
-                                                 Option(node._20.get.runningServices),
+                                                 Option(node._21.get.runningServices),
                                              services =
-                                               if(node._20.isEmpty ||
-                                                  node._20.get.services.isEmpty)
+                                               if(node._21.isEmpty ||
+                                                  node._21.get.services.isEmpty)
                                                  None
                                                else
-                                                 Option(read[List[OneService]](node._20.get.services)),
+                                                 Option(read[List[OneService]](node._21.get.services)),
                                              softwareVersions =
                                                if(node._14.isEmpty)
                                                  None
@@ -1711,8 +1721,9 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                                  None
                                                else
                                                  Option(read[List[OneUserInputService]](node._16)),
-                                             ha_group = node._21,
-                                             clusterNamespace = node._17)).toList)
+                                             ha_group = node._22,
+                                             clusterNamespace = node._17,
+                                             isNamespaceScoped = node._18)).toList)
                   } yield(nodes)
                 
                 db.run(getNodes.asTry).map({

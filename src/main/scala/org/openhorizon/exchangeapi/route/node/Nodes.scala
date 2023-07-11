@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.node
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import akka.http.scaladsl.server.Directives.{complete, get, path, parameter, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.PathMatchers.Segment
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
@@ -11,8 +11,10 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import jakarta.ws.rs.{GET, Path}
+import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
+import org.openhorizon.exchangeapi.table.node.{Node, NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.{Access, AuthRoles, AuthenticationSupport, OrgAndId, TNode}
-import org.openhorizon.exchangeapi.table.{NodeGroupAssignmentTQ, NodeGroupTQ, NodesTQ, NodeType}
+import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -109,7 +111,8 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
       },
       "ha_group": "groupName",
       "lastUpdated": "string",
-      "clusterNamespace": "MyNamespace"
+      "clusterNamespace": "MyNamespace",
+      "isNamespaceScoped": false
     }
   },
   "lastIndex": 0
@@ -126,8 +129,8 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def getNodes(organization: String): Route =
     get {
-      parameter("idfilter".?, "name".?, "owner".?, "arch".?, "nodetype".?, "clusternamespace".?) {
-        (idfilter, name, owner, arch, nodetype, clusterNamespace) =>
+      parameter("idfilter".?, "name".?, "owner".?, "arch".?, "nodetype".?, "clusternamespace".?, "isNamespaceScoped".as[Boolean].?) {
+        (idfilter, name, owner, arch, nodetype, clusterNamespace, isNamespaceScoped) =>
           logger.debug(s"Doing GET /orgs/$organization/nodes")
           exchAuth(TNode(OrgAndId(organization, "#").toString), Access.READ) { ident =>
             validateWithMsg(GetNodesUtils.getNodesProblem(nodetype)) {
@@ -139,12 +142,18 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
                 arch.foreach(arch => {
                   if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch)
                 })
+                
                 clusterNamespace.foreach(namespace => {
                   if (namespace.contains("%")) q = q.filter(_.clusterNamespace like namespace) else q = q.filter(_.clusterNamespace === namespace)
                 })
+                
                 idfilter.foreach(id => {
                   if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id)
                 })
+                
+                if (isNamespaceScoped.isDefined)
+                  q = q.filter(_.isNamespaceScoped === isNamespaceScoped.get)
+                
                 name.foreach(name => {
                   if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name)
                 })
@@ -172,7 +181,7 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
                 db.run(combinedQuery.result).map({ result =>
                   logger.debug(s"GET /orgs/$organization/nodes result size: ${result.size}")
                   //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
-                  val nodes: Map[String, org.openhorizon.exchangeapi.table.Node] = result.map(e => e._1.id -> e._1.toNode(ident.isSuperUser, e._2)).toMap
+                  val nodes: Map[String, Node] = result.map(e => e._1.id -> e._1.toNode(ident.isSuperUser, e._2)).toMap
                   val code: StatusCode = if (nodes.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
                   (code, GetNodesResponse(nodes, 0))
                 })

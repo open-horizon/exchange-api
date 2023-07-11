@@ -16,6 +16,8 @@ import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.auth.DBProcessingError
 import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
+import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Nth, OrgAndId, TBusiness, TNode, Version}
 import slick.jdbc.PostgresProfile.api._
 

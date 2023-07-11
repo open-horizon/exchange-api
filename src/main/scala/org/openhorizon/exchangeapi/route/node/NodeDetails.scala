@@ -1,7 +1,8 @@
 package org.openhorizon.exchangeapi.route.node
 
 import org.openhorizon.exchangeapi.StrConstants
-import org.openhorizon.exchangeapi.table.{NodeHeartbeatIntervals, OneProperty, OneService, OneUserInputService, RegService}
+import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, OneService, RegService}
+import org.openhorizon.exchangeapi.table.{OneProperty, OneUserInputService}
 
 case class NodeDetails(arch: Option[String] = None,
                        connectivity: Option[Map[String, Boolean]] = None,
@@ -29,4 +30,5 @@ case class NodeDetails(arch: Option[String] = None,
                        token: String = StrConstants.hiddenPw,
                        userInput: Option[List[OneUserInputService]] = None,
                        ha_group: Option[String] = None,
-                       clusterNamespace: Option[String] = None)
+                       clusterNamespace: Option[String] = None,
+                       isNamespaceScoped: Boolean = false)

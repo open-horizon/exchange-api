@@ -7,6 +7,12 @@ import scala.collection.mutable.ListBuffer
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.headers.CacheDirectives.public
 import org.openhorizon.exchangeapi.ApiTime
+import org.openhorizon.exchangeapi.table.node.deploymentpolicy.NodePolicyTQ
+import org.openhorizon.exchangeapi.table.node.error.NodeErrorTQ
+import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
+import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
+import org.openhorizon.exchangeapi.table.node.managementpolicy.status.NodeMgmtPolStatuses
+import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
 import org.openhorizon.exchangeapi.table.service.SearchServiceTQ
 import slick.jdbc
 
@@ -234,14 +240,16 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
       case 53 => // v2.113.0
         DBIO.seq(sqlu"""UPDATE public.businesspolicies SET service = regexp_replace(service, '}}$$', '},"clusterNamespace": "' || cluster_namespace || '"}') WHERE cluster_namespace NOTNULL AND service NOT LIKE '%},"clusterNamespace": "%"}';""",
                  sqlu"ALTER TABLE public.businesspolicies DROP COLUMN IF EXISTS cluster_namespace;")
-      case 54 =>
+      case 54 => // v2.115.0
         DBIO.seq(SearchServiceTQ.schema.create)
+      case 55 => // v2.116.0
+        DBIO.seq(sqlu"ALTER TABLE public.nodes ADD is_namespace_scoped bool NOT NULL DEFAULT false;")
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }
   }
 
-  val latestSchemaVersion: Int = 54    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 55    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

@@ -2,7 +2,8 @@ package org.openhorizon.exchangeapi.route.node
 
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.table.{NodeHeartbeatIntervals, NodeRow, NodeType, NodesTQ, OneUserInputService, RegService, ServiceRef2}
+import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, NodeType, NodesTQ, RegService}
+import org.openhorizon.exchangeapi.table.{OneUserInputService, ServiceRef2}
 import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
 
@@ -18,7 +19,8 @@ final case class PutNodesRequest(token: String,
                                  publicKey: String,
                                  arch: Option[String],
                                  heartbeatIntervals: Option[NodeHeartbeatIntervals],
-                                 clusterNamespace: Option[String] = None) {
+                                 clusterNamespace: Option[String] = None,
+                                 isNamespaceScoped: Option[Boolean] = None) {
   require(token!=null && name!=null && pattern!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
@@ -60,6 +62,7 @@ final case class PutNodesRequest(token: String,
             clusterNamespace = clusterNamespace,
             heartbeatIntervals = write(heartbeatIntervals),
             id = id,
+            isNamespaceScoped = isNamespaceScoped.getOrElse(false),
             lastHeartbeat = lastHeartbeat,
             lastUpdated = ApiTime.nowUTC,
             msgEndPoint = msgEndPoint.getOrElse(""),
@@ -89,6 +92,7 @@ final case class PutNodesRequest(token: String,
             clusterNamespace = clusterNamespace,
             heartbeatIntervals = write(heartbeatIntervals),
             id = id,
+            isNamespaceScoped = isNamespaceScoped.getOrElse(false),
             lastHeartbeat = lastHeartbeat,
             lastUpdated = ApiTime.nowUTC,
             msgEndPoint = msgEndPoint.getOrElse(""),

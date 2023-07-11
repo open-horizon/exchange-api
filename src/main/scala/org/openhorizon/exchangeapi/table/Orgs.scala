@@ -6,10 +6,11 @@ import org.json4s.jackson.Serialization.read
 import org.json4s.jackson.Serialization.write
 import slick.dbio.{DBIO, Effect}
 import slick.sql.FixedSqlAction
-import org.openhorizon.exchangeapi.{ApiTime}
+import org.openhorizon.exchangeapi.ApiTime
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import org.openhorizon.exchangeapi.table.ResChangeCategory.Value
 import org.openhorizon.exchangeapi.ApiUtils
+import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
 import slick.lifted.CompilableLowPriority
 
 

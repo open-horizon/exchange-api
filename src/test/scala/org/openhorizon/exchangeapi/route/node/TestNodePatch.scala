@@ -5,8 +5,9 @@ import org.json4s.native.JsonMethods._
 import org.json4s.native.Serialization.write
 import org.openhorizon.exchangeapi.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.table.ResChangeCategory.ResChangeCategory
+import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, NodesTQ, Prop, RegService}
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Password, Role, TestDBConnection}
-import org.openhorizon.exchangeapi.table.{AgbotsTQ, NodeHeartbeatIntervals, NodeRow, NodesTQ, OneUserInputService, OneUserInputValue, OrgRow, OrgsTQ, PatternRow, PatternsTQ, Prop, RegService, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ, ServiceRow, ServicesTQ, UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.{AgbotsTQ, OneUserInputService, OneUserInputValue, OrgRow, OrgsTQ, PatternRow, PatternsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ, ServiceRow, ServicesTQ, UserRow, UsersTQ}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -521,8 +522,8 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
     val testnodes: Seq[NodeRow] =
       Seq(NodeRow(arch               = "",
                   clusterNamespace   = None,
-                  id                 = "TestNodePatch/n2",
                   heartbeatIntervals = "",
+                  id                 = "TestNodePatch/n2",
                   lastHeartbeat      = None,
                   lastUpdated        = ApiTime.nowUTC,
                   msgEndPoint        = "",
@@ -550,8 +551,9 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         assert(node.arch === testnodes(0).arch)
         assert(node.clusterNamespace.isDefined)
         assert(node.clusterNamespace.get === input.clusterNamespace.get)
-        assert(node.id === testnodes(0).id)
         assert(node.heartbeatIntervals === testnodes(0).heartbeatIntervals)
+        assert(node.id === testnodes(0).id)
+        assert(node.isNamespaceScoped === testnodes(0).isNamespaceScoped)
         assert(node.lastHeartbeat === testnodes(0).lastHeartbeat)
         assert(node.lastUpdated !== testnodes(0).lastUpdated)
         assert(node.msgEndPoint === testnodes(0).msgEndPoint)
@@ -631,6 +633,73 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         assert(heartbeatIntervals.minInterval === input.heartbeatIntervals.get.minInterval)
         assert(heartbeatIntervals.maxInterval === input.heartbeatIntervals.get.maxInterval)
         
+        assert(node.lastHeartbeat === testnodes(0).lastHeartbeat)
+        assert(node.lastUpdated !== testnodes(0).lastUpdated)
+        assert(node.msgEndPoint === testnodes(0).msgEndPoint)
+        assert(node.name === testnodes(0).name)
+        assert(node.nodeType === testnodes(0).nodeType)
+        assert(node.orgid === testnodes(0).orgid)
+        assert(node.owner === testnodes(0).owner)
+        assert(node.pattern === testnodes(0).pattern)
+        assert(node.publicKey === testnodes(0).publicKey)
+        assert(node.regServices === testnodes(0).regServices)
+        assert(node.softwareVersions === testnodes(0).softwareVersions)
+        assert(node.token === testnodes(0).token)
+        assert(node.userInput === testnodes(0).userInput)
+      }, testnodes)
+  }
+  
+  // ---------- isNamespaceScoped
+  test("PATCH /v1/orgs/" + "TestNodePatch" + "/nodes/" + "n2" + " -- 201 ok - isNamespaceScoped - root") {
+    val input: PatchNodesRequest =
+      PatchNodesRequest(arch = None,
+                        clusterNamespace = None,
+                        heartbeatIntervals = None,
+                        isNamespaceScoped = Option(false),
+                        msgEndPoint = None,
+                        token = None,
+                        name = None,
+                        nodeType = None,
+                        pattern = None,
+                        publicKey = None,
+                        registeredServices = None,
+                        softwareVersions = None,
+                        userInput = None)
+    val testnodes: Seq[NodeRow] =
+      Seq(NodeRow(arch               = "",
+                  clusterNamespace   = None,
+                  heartbeatIntervals = "",
+                  id                 = "TestNodePatch/n2",
+                  isNamespaceScoped  = true,
+                  lastHeartbeat      = None,
+                  lastUpdated        = ApiTime.nowUTC,
+                  msgEndPoint        = "",
+                  name               = "",
+                  nodeType           = "",
+                  orgid              = "TestNodePatch",
+                  owner              = "TestNodePatch/u1",
+                  pattern            = "",
+                  publicKey          = "",
+                  regServices        = "",
+                  softwareVersions   = "",
+                  token              = "",
+                  userInput          = ""))
+    
+    fixtureNodes(
+      _ => {
+        val response: HttpResponse[String] = Http(URL + "TestNodePatch" + "/nodes/" + "n2").postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+        info("Code: " + response.code)
+        info("Body: " + response.body)
+        
+        assert(response.code === HttpCode.POST_OK.intValue)
+        
+        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        
+        assert(node.arch === testnodes(0).arch)
+        assert(node.clusterNamespace === testnodes(0).clusterNamespace)
+        assert(node.heartbeatIntervals === testnodes(0).heartbeatIntervals)
+        assert(node.id === testnodes(0).id)
+        assert(node.isNamespaceScoped === input.isNamespaceScoped.get)
         assert(node.lastHeartbeat === testnodes(0).lastHeartbeat)
         assert(node.lastUpdated !== testnodes(0).lastUpdated)
         assert(node.msgEndPoint === testnodes(0).msgEndPoint)

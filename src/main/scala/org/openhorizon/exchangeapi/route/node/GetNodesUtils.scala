@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.node
 
 import org.openhorizon.exchangeapi.ExchMsg
-import org.openhorizon.exchangeapi.table.NodeType
+import org.openhorizon.exchangeapi.table.node.NodeType
 
 object GetNodesUtils {
   def getNodesProblem(nodetype: Option[String]): Option[String] = {

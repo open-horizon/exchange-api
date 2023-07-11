@@ -13,8 +13,9 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, POST, Path}
 import org.checkerframework.checker.units.qual.t
 import org.openhorizon.exchangeapi.auth.DBProcessingError
+import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Identity, OrgAndId, TAgbot}
-import org.openhorizon.exchangeapi.table.{AgbotMsg, AgbotMsgRow, AgbotMsgsTQ, NodesTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.{AgbotMsg, AgbotMsgRow, AgbotMsgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

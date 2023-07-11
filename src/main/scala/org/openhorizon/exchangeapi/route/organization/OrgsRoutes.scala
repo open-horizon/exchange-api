@@ -20,6 +20,11 @@ import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmReque
 import org.openhorizon.exchangeapi.route.node.{PostNodeErrorResponse, PostServiceSearchRequest, PostServiceSearchResponse}
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
+import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodesTQ}
+import org.openhorizon.exchangeapi.table.node.error.NodeErrorTQ
+import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
+import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, ApiUtils, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangeApi, ExchangePosgtresErrorHandling, HttpCode, IAgbot, INode, IUser, OrgAndId, RouteUtils, TAction, TAgbot, TNode, TOrg}
 
 import java.time.ZonedDateTime

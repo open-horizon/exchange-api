@@ -18,6 +18,8 @@ import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.route.node.{PatternNodeResponse, PostPatternSearchResponse}
 import org.openhorizon.exchangeapi.route.organization.{NodeHealthHashElement, PostNodeHealthRequest, PostNodeHealthResponse}
 import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
+import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Nth, OrgAndId, RouteUtils, TNode, TPattern, Version, auth}
 import slick.jdbc.PostgresProfile.api._
 

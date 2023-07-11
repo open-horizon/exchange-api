@@ -14,7 +14,7 @@ import scala.concurrent.duration._
 import org.openhorizon.exchangeapi.auth._
 import com.google.common.cache.CacheBuilder
 import org.openhorizon.exchangeapi
-import org.openhorizon.exchangeapi.table.NodesTQ
+import org.openhorizon.exchangeapi.table.node.NodesTQ
 import scalacache._
 import scalacache.guava.GuavaCache
 import scalacache.modes.try_._

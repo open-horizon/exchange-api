@@ -1,12 +1,16 @@
 package org.openhorizon.exchangeapi.route.node
 
-import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, NodeErrorRow, NodeErrorTQ, NodeHeartbeatIntervals, NodePolicy, NodePolicyRow, NodePolicyTQ, NodeRow, NodeStatusRow, NodeStatusTQ, NodesTQ, OneProperty, OneService, OneUserInputService, OrgRow, OrgsTQ, RegService, ResourceChangesTQ, UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, OneProperty, OneUserInputService, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, StrConstants, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.{json4s, scalatest}
 import org.json4s.{DefaultFormats, convertToJsonInput}
 import org.json4s.AsJsonInput.stringAsJsonInput
 import org.json4s.jackson.JsonMethods.parse
+import org.openhorizon.exchangeapi.table.node.deploymentpolicy.{NodePolicy, NodePolicyRow, NodePolicyTQ}
+import org.openhorizon.exchangeapi.table.node.error.{NodeErrorRow, NodeErrorTQ}
+import org.openhorizon.exchangeapi.table.node.status.{NodeStatusRow, NodeStatusTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, NodesTQ, OneService, RegService}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import org.scalatest.BeforeAndAfterAll
@@ -58,7 +62,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 softwareVersions = """{"horizon":"3.2.1"}""",
                 token = "$2a$10$iXtbvxfSH8iN3LxPDlntEO7yLq6Wk4YhE4Tq4B7RtiqLfeHOaBE8q", // TestNodesGetDetails/n1:n1pw
                 userInput = """[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"horizon.sdr","serviceArch":"amd64","serviceVersionRange":"[0.0.0,INFINITY)","inputs":[{"name":"UI_STRING","value":"mystr - updated"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}]""",
-                clusterNamespace = Option("namespace0")),
+                clusterNamespace = Option("namespace0"),
+                isNamespaceScoped = true),
                 
         NodeRow(arch = "x86",
                 id = "TestNodesGetDetails/n2",
@@ -76,7 +81,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 softwareVersions = "",
                 token = "$2a$10$0EOlHl1mb2THvz3f/AnyWOV6ivUMItcQKLTzltNLmrdiLn.VCgavy",
                 userInput = "",
-                clusterNamespace = None),
+                clusterNamespace = None,
+                isNamespaceScoped = false),
         NodeRow(arch = "",
                 id = "TestNodesGetDetails/n3",
                 heartbeatIntervals = "",
@@ -231,6 +237,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(0).constraints           === Option(parse(TESTNODEPOLICIES(0).constraints).extract[List[String]]))
     assert(NODES(0).errors                === Option(parse(TESTNODEERRORS(0).errors).extract[List[Any]]))
     assert(NODES(0).heartbeatIntervals    === Option(parse(TESTNODES(0).heartbeatIntervals).extract[NodeHeartbeatIntervals]))
+    assert(NODES(0).isNamespaceScoped     === TESTNODES(0).isNamespaceScoped)
     assert(NODES(0).lastHeartbeat         === TESTNODES(0).lastHeartbeat)
     assert(NODES(0).lastUpdatedNode       === TESTNODES(0).lastUpdated)
     assert(NODES(0).lastUpdatedNodeError  === Option(TESTNODEERRORS(0).lastUpdated))
@@ -255,6 +262,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(1).clusterNamespace      === TESTNODES(1).clusterNamespace)
     assert(NODES(1).connectivity          === None)
     assert(NODES(1).constraints           === None)
+    assert(NODES(1).isNamespaceScoped     === TESTNODES(1).isNamespaceScoped)
     assert(NODES(1).lastUpdatedNodeError  === Option(TESTNODEERRORS(1).lastUpdated))
     assert(NODES(1).lastUpdatedNodePolicy === Option(TESTNODEPOLICIES(1).lastUpdated))
     assert(NODES(1).lastUpdatedNodeStatus === Option(TESTNODESTATUSES(1).lastUpdated))
@@ -268,6 +276,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(2).constraints           === None)
     assert(NODES(2).errors                === None)
     assert(NODES(2).heartbeatIntervals    === Option(NodeHeartbeatIntervals(0, 0, 0)))
+    assert(NODES(2).isNamespaceScoped     === false)
     assert(NODES(2).lastHeartbeat         === None)
     assert(NODES(2).lastUpdatedNodeError  === None)
     assert(NODES(2).lastUpdatedNodePolicy === None)

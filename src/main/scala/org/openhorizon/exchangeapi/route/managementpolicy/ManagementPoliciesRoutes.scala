@@ -14,11 +14,12 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, POST, PUT, Path}
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.auth.DBProcessingError
+import org.openhorizon.exchangeapi.auth.{AccessDeniedException, DBProcessingError}
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, OrgAndId, TManagementPolicy}
 import slick.jdbc.PostgresProfile.api._
 
+import java.nio.file.AccessDeniedException
 import scala.collection.immutable._
 import scala.concurrent.ExecutionContext
 import scala.util._
@@ -102,11 +103,12 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
   @Path("")
   @Operation(summary = "Returns all node management policies", description = "Returns all management policy definitions in this organization. Can be run by any user, node, or agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this description (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this id (can include % for wildcard - the URL encoding for % is %25)"),
-      new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this owner (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this label (can include % for wildcard - the URL encoding for % is %25)"),
-      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this description (can include % for wildcard - the URL encoding for % is %25)")),
+      new Parameter(name = "manifest", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this manifest (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this owner (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(
@@ -155,25 +157,76 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "management policy")
-  def mgmtPolsGetRoute: Route = (path("orgs" / Segment / "managementpolicies") & get & parameter("idfilter".?, "owner".?, "label".?, "description".?)) { (orgid, idfilter, owner, label, description) =>
-    exchAuth(TManagementPolicy(OrgAndId(orgid, "*").toString), Access.READ) { ident =>
-      complete({
-        var q = ManagementPoliciesTQ.getAllManagementPolicies(orgid)
-        // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
-        idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.managementPolicy like id) else q = q.filter(_.managementPolicy === id) })
-        owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-        label.foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
-        description.foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
-
-        db.run(q.result).map({ list =>
-          logger.debug("GET /orgs/"+orgid+"/managementpolicies result size: "+list.size)
-          val managementPolicy: Map[String, ManagementPolicy] = list.filter(e => ident.getOrg == e.orgid || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.managementPolicy -> e.toManagementPolicy).toMap
-          val code: StatusCode = if (managementPolicy.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-          (code, GetManagementPoliciesResponse(managementPolicy, 0))
-        })
-      }) // end of complete
-  } // end of exchAuth
-  }
+  def mgmtPolsGetRoute: Route =
+    path("orgs" / Segment / "managementpolicies") {
+      organization =>
+        get {
+          parameter("idfilter".?,
+                    "owner".?,
+                    "label".?,
+                    "description".?,
+                    "manifest".?) {
+            (idfilter,
+             owner,
+             label,
+             description,
+             manifest) =>
+              exchAuth(TManagementPolicy(OrgAndId(organization, "*").toString), Access.READ) {
+                _ =>
+                  complete({
+                    val getAllManagementPolicies =
+                      for {
+                        managementPolicies <-
+                          Compiled(ManagementPoliciesTQ.getAllManagementPolicies(organization)
+                                                       .filterOpt(description)(
+                                                         (managementPolicy, description) =>
+                                                           if (description.contains("%"))
+                                                             managementPolicy.description like description
+                                                           else
+                                                             managementPolicy.description === description)
+                                                       .filterOpt(idfilter)(
+                                                         (managementPolicy, id) =>
+                                                           if (id.contains("%"))
+                                                             managementPolicy.managementPolicy like id
+                                                           else
+                                                             managementPolicy.managementPolicy === id)
+                                                       .filterOpt(label)(
+                                                         (managementPolicy, label) =>
+                                                           if (label.contains("%"))
+                                                             managementPolicy.label like label
+                                                           else
+                                                             managementPolicy.label === label)
+                                                       .filterOpt(manifest)(
+                                                         (managementPolicy, manifest) =>
+                                                           if (manifest.contains("%"))
+                                                             managementPolicy.manifest like manifest
+                                                           else
+                                                             managementPolicy.manifest === manifest)
+                                                       .filterOpt(owner)(
+                                                         (managementPolicy, owner) =>
+                                                           if (owner.contains("%"))
+                                                             managementPolicy.owner like owner
+                                                           else
+                                                             managementPolicy.owner === owner)
+                                                       .sortBy(_.managementPolicy.asc.nullsLast))
+                      } yield(managementPolicies)
+                      
+                      db.run(getAllManagementPolicies.result.transactionally).map({
+                        managementPolicies =>
+                          logger.debug("GET /orgs/" + organization + "/managementpolicies result size: " + managementPolicies.size)
+                          val code: StatusCode =
+                            if (managementPolicies.nonEmpty)
+                              StatusCodes.OK
+                            else
+                              StatusCodes.NotFound
+                          
+                          (code, GetManagementPoliciesResponse(managementPolicies.map(managementPolicy => managementPolicy.managementPolicy -> managementPolicy.toManagementPolicy).toMap, 0))
+                      })
+                  })
+              }
+          }
+        }
+    }
 
   /* ====== GET /orgs/{orgid}/managementpolicies/{mgmtpolicy} ================================ */
   @GET

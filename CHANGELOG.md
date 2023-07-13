@@ -2,6 +2,9 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.117.0] - 2023-07-13
+- Issue 686: Added rest parameter `manifest` to Get /v1/orgs/<org>/managementpolicies route.
+
 ## [2.116.0] - 2023-07-11
 - Issue 676: Added `isNamespaceScoped` attribute to Nodes.
 - Reorganized table package object source for Nodes and related.

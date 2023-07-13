@@ -1,23 +1,20 @@
-package org.openhorizon.exchangeapi
+package org.openhorizon.exchangeapi.route.managementpolicy
 
-import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
-import org.openhorizon.exchangeapi.table.{ManagementPolicy, OneProperty, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow}
 import org.json4s.jackson.JsonMethods.parse
-import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, convertToJsonInput, jvalue2extractable}
 import org.json4s.native.Serialization.write
+import org.json4s.{DefaultFormats, jvalue2extractable}
 import org.junit.runner.RunWith
-import org.openhorizon.exchangeapi.route.managementpolicy.{GetManagementPoliciesResponse, PostPutManagementPolicyRequest}
 import org.openhorizon.exchangeapi.route.organization.{ChangeEntry, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
-import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ, RegService}
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
+import org.openhorizon.exchangeapi.table.{ManagementPolicy, OneProperty, OrgRow, OrgsTQ}
+import org.openhorizon.exchangeapi.{ApiResponse, ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc.PostgresProfile.api._
 
-import scala.collection.immutable
-import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -79,8 +76,8 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "MgmtPolSuite").delete andThen
-                                       OrgsTQ.filter(_.orgid startsWith "MgmtPolSuite").delete), AWAITDURATION)
+    /*Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "MgmtPolSuite").delete andThen
+                                       OrgsTQ.filter(_.orgid startsWith "MgmtPolSuite").delete), AWAITDURATION)*/
     
     DBCONNECTION.getDb.close()
   }

@@ -389,12 +389,11 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- both changeId and lastUpdated provided -- success, uses lastUpdated") {
-    val request: ResourceChangesRequest = ResourceChangesRequest(
-      changeId = lastChangeId, //will ensure that at least the final RC added will be returned
-      lastUpdated = Some(ApiTime.futureUTC(600)), //if this were to be used, none of the TESTRCs would be included
-      maxRecords = 100,
-      orgList = None
-    )
+    val request: ResourceChangesRequest =
+      ResourceChangesRequest(changeId = lastChangeId, //will ensure that at least the final RC added will be returned
+                             lastUpdated = Option(ApiTime.futureUTC(600)), //if this were to be used, none of the TESTRCs would be included
+                             maxRecords = 100,
+                             orgList = None)
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)

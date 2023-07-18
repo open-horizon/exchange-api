@@ -45,11 +45,11 @@ import com.typesafe.config.ConfigFactory
 import org.json4s._
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.deploymentpattern.PatternsRoutes
-import org.openhorizon.exchangeapi.route.deploymentpolicy.BusinessRoutes
+import org.openhorizon.exchangeapi.route.deploymentpolicy.{BusinessRoutes, DeploymentPolicySearch}
 import org.openhorizon.exchangeapi.route.managementpolicy.ManagementPoliciesRoutes
 import org.openhorizon.exchangeapi.route.node.{Node, Nodes, NodesRoutes}
 import org.openhorizon.exchangeapi.route.nodegroup.NodeGroupRoutes
-import org.openhorizon.exchangeapi.route.organization.OrgsRoutes
+import org.openhorizon.exchangeapi.route.organization.{Changes, MaxChangeId, OrgsRoutes}
 import org.openhorizon.exchangeapi.route.service.ServicesRoutes
 import org.openhorizon.exchangeapi.route.user.UsersRoutes
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
@@ -99,17 +99,20 @@ object ExchangeApiApp extends App
   with AgreementBots
   with BusinessRoutes
   with CatalogRoutes
+  with Changes
   with ClearAuthCache
   with Configuration
   with DeploymentPattern
   with DeploymentPatterns
   with DeploymentPolicy
   with DeploymentPolicies
+  with DeploymentPolicySearch
   with DropDatabase
   with Heartbeat
   with HashPassword
   with InitializeDatabase
   with ManagementPoliciesRoutes
+  with MaxChangeId
   with Message
   with Messages
   with Node
@@ -268,17 +271,20 @@ object ExchangeApiApp extends App
                     agreementBots ~
                     businessRoutes ~
                     catalogRoutes ~
+                    changes ~
                     clearAuthCache ~
                     configuration ~
                     deploymentPatternAgreementBot ~
                     deploymentPatternsAgreementBot ~
                     deploymentPoliciesAgreementBot ~
                     deploymentPolicyAgreementBot ~
+                    deploymentPolicySearch ~
                     dropDB ~
                     hashPW ~
                     heartbeatAgreementBot ~
                     initializeDB ~
                     managementPoliciesRoutes ~
+                    maxChangeId ~
                     messageAgreementBot ~
                     messagesAgreementBot ~
                     node ~

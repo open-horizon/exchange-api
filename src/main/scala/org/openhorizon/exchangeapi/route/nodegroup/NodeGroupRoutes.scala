@@ -29,16 +29,6 @@ import scala.concurrent.ExecutionContext
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
-/** Output format for GET /hagroups */
-final case class NodeGroupResp(name: String, description: String = "", members: Seq[String], admin: Boolean, lastUpdated: String)
-final case class GetNodeGroupsResponse(nodeGroups: Seq[NodeGroupResp])
-
-/** Input format for POST/PUT /orgs/{orgid}/hagroups/<name> */
-final case class PutNodeGroupsRequest(members: Option[Seq[String]], description: Option[String]) {
-  def getAnyProblem: Option[String] = None
-}
-
-/** Implementation for all of the /orgs/{orgid}/hagroups routes */
 @Path("/v1/orgs/{org}/hagroups")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "high availability node group")
 trait NodeGroupRoutes extends JacksonSupport with AuthenticationSupport {

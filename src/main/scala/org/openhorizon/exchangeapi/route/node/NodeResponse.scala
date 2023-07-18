@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.route.node
 
-import org.openhorizon.exchangeapi.table.OneUserInputService
+import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.RegService
 
 final case class NodeResponse(id: String,

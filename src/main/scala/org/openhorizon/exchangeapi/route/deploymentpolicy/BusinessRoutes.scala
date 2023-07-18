@@ -16,9 +16,11 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.Serialization.{read, write}
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.{organization, _}
+import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ, BusinessPolicy}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
+import org.openhorizon.exchangeapi.table.organization.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Nth, OrgAndId, TBusiness, TNode, Version}
 import slick.jdbc.PostgresProfile.api._
 
@@ -552,7 +554,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
               if (numUpdated > 0) {
                 if (owner != "") AuthCache.putBusinessOwner(compositeId, owner) // currently only users are allowed to update business policy resources, so owner should never be blank
                 AuthCache.putBusinessIsPublic(compositeId, isPublic = false)
-                ResourceChange(0L, orgid, policy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                organization.ResourceChange(0L, orgid, policy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATEDMODIFIED).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
               }
@@ -701,7 +703,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("PATCH /orgs/" + orgid + "/business/policies/" + policy + " result: " + n)
                 val numUpdated: Int = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
                 if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                  ResourceChange(0L, orgid, policy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.MODIFIED).insert.asTry
+                  organization.ResourceChange(0L, orgid, policy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.MODIFIED).insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
                 }
@@ -748,7 +750,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removeBusinessOwner(compositeId)
               AuthCache.removeBusinessIsPublic(compositeId)
-              ResourceChange(0L, orgid, policy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.DELETED).insert.asTry
+              organization.ResourceChange(0L, orgid, policy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", compositeId))).asTry
             }

@@ -1,11 +1,12 @@
-package org.openhorizon.exchangeapi.table
+package org.openhorizon.exchangeapi.table.deploymentpattern
 
 import org.json4s.jackson.Serialization.read
 import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.table.service.{ServiceRef2, ServicesTQ}
 import org.openhorizon.exchangeapi.{Version, VersionRange}
 import slick.dbio.DBIO
-import slick.lifted.{Query, Rep, TableQuery}
 import slick.jdbc.PostgresProfile.api._
+import slick.lifted.{Query, Rep, TableQuery}
 
 import scala.collection.mutable.ListBuffer
 

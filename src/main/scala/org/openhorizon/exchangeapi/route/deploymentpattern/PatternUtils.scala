@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.route.deploymentpattern
 
-import org.openhorizon.exchangeapi.table.PServices
+import org.openhorizon.exchangeapi.table.deploymentpattern.PServices
 import org.openhorizon.exchangeapi.{ExchMsg, Version}
 
 object PatternUtils {

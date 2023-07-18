@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.user
 
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.table.UsersTQ
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.{ApiTime, ExchMsg, Identity}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._

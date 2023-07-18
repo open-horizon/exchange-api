@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.node
 
+import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, RegService}
-import org.openhorizon.exchangeapi.table.OneUserInputService
 
 final case class PatchNodesRequest(token: Option[String] = None,
                                    name: Option[String] = None,

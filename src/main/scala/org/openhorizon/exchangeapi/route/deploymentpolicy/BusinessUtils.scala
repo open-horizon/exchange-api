@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.route.deploymentpolicy
 
-import org.openhorizon.exchangeapi.table.BService
+import org.openhorizon.exchangeapi.table.deploymentpolicy.BService
 import org.openhorizon.exchangeapi.{ExchMsg, Version}
 
 object BusinessUtils {

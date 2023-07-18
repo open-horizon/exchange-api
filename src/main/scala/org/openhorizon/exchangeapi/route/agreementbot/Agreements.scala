@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.agreementbot
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import akka.http.scaladsl.server.Directives.{complete, get, path, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -11,7 +11,9 @@ import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, Path}
 import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.table.{AgbotAgreement, AgbotAgreementsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotAgreement, AgbotAgreementsTQ}
+import org.openhorizon.exchangeapi.table.organization
+import org.openhorizon.exchangeapi.table.organization.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthenticationSupport, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, OrgAndId, TAgbot}
 import slick.jdbc.PostgresProfile.api._
 
@@ -54,7 +56,7 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
                                     if (0 < v) { // there were no db errors, but determine if it actually found it or not
                                       // Add the resource to the resourcechanges table
                                       logger.debug("DELETE /agbots/" + id + "/agreements result: " + v)
-                                      ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
+                                      organization.ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
                                     }
                                     else
                                       DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.agreements.found.for.agbot", compositeId))).asTry

@@ -13,6 +13,8 @@ import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.organization.{PostPutOrgRequest, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.service.{GetServiceAttributeResponse, GetServicesResponse, PatchServiceRequest, PostPutServiceDockAuthRequest, PostPutServiceRequest, PutServicePolicyRequest}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
+import org.openhorizon.exchangeapi.table.organization.ResChangeOperation
+import org.openhorizon.exchangeapi.table.service.{OneProperty, ServiceDockAuth, ServicePolicy, ServiceRef}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 

@@ -15,7 +15,7 @@ import org.openhorizon.exchangeapi.auth.{AccessDeniedException, BadInputExceptio
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroup, NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignment, NodeGroupAssignmentRow, NodeGroupAssignmentTQ, PostPutNodeGroupsRequest}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, Nodes, NodesTQ}
-import org.openhorizon.exchangeapi.table.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.organization.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthRoles, AuthenticationSupport, ExchMsg, HttpCode, OrgAndId, TNode, auth}
 import org.postgresql.util.PSQLException
 import slick.dbio.Effect

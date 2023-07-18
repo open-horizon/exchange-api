@@ -1,8 +1,9 @@
 package org.openhorizon.exchangeapi.table.node
 
+import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
-import org.openhorizon.exchangeapi.table.{OneUserInputService, ServiceRef2, ServicesTQ}
+import org.openhorizon.exchangeapi.table.service.{ServiceRef2, ServicesTQ}
 import org.openhorizon.exchangeapi.{Version, VersionRange}
 import slick.dbio.{DBIO, Effect, NoStream}
 import slick.jdbc.PostgresProfile.api._

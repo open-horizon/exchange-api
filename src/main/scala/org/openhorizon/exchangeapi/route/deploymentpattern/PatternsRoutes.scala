@@ -17,9 +17,11 @@ import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.route.node.{PatternNodeResponse, PostPatternSearchResponse}
 import org.openhorizon.exchangeapi.route.organization.{NodeHealthHashElement, PostNodeHealthRequest, PostNodeHealthResponse}
-import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.{organization, _}
+import org.openhorizon.exchangeapi.table.deploymentpattern.{PServices, Pattern, PatternKeysTQ, PatternsTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
+import org.openhorizon.exchangeapi.table.organization.{OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Nth, OrgAndId, RouteUtils, TNode, TPattern, Version, auth}
 import slick.jdbc.PostgresProfile.api._
 
@@ -662,7 +664,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                 else {
                   publicField = storedPatternPublic
                 }
-                ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                organization.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.CREATEDMODIFIED).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
               }
@@ -862,7 +864,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                   else {
                     publicField = storedPatternPublic
                   }
-                  ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.MODIFIED).insert.asTry
+                  organization.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.MODIFIED).insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.attribute.not.update", attrName, compositeId))).asTry
                 }
@@ -922,7 +924,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removePatternOwner(compositeId)
               AuthCache.removePatternIsPublic(compositeId)
-              ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERN, ResChangeOperation.DELETED).insert.asTry
+              organization.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERN, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
             }
@@ -1343,7 +1345,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " public field: " + public)
                 if (public.nonEmpty) {
                   val publicField: Boolean = public.head
-                  ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                  organization.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
                 } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
@@ -1395,7 +1397,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /patterns/" + pattern + "/keys result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED).insert.asTry
+              organization.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.pattern.keys.found", compositeId))).asTry
             }
@@ -1448,7 +1450,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /patterns/" + pattern + "/keys/" + keyId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED).insert.asTry
+              organization.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.key.not.found", keyId, compositeId))).asTry
             }

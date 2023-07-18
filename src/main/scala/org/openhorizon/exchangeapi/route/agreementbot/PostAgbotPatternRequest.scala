@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.agreementbot
 
 import org.openhorizon.exchangeapi.ApiTime
-import org.openhorizon.exchangeapi.table.{AgbotPattern, AgbotPatternRow}
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotPattern, AgbotPatternRow}
 
 /** Input format for POST /orgs/{orgid}/agbots/{id}/patterns */
 final case class PostAgbotPatternRequest(patternOrgid: String, pattern: String, nodeOrgid: Option[String]) {

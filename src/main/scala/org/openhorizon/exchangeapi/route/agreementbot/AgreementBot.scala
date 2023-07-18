@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.agreementbot
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import akka.http.scaladsl.server.Directives.{as, complete, entity, parameter, path, pathEnd, pathPrefix, validate, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -12,8 +12,9 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PATCH, PUT, Path}
 import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.table.{Agbot, AgbotsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Identity, OrgAndId, Password, TAgbot}
+import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotsTQ}
+import org.openhorizon.exchangeapi.table.organization.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Identity, OrgAndId, Password, TAgbot, table}
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
 
@@ -170,7 +171,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                              .flatMap({
                                case Success(v) => // Add the resource to the resourcechanges table
                                  logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot result: $v")
-                                 ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                                 table.organization.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.CREATEDMODIFIED).insert.asTry
                                case Failure(t) => DBIO.failed(t).asTry}))
                 .map({
                   case Success(v) =>
@@ -248,7 +249,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                                    if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
                                      if (reqBody.token.isDefined)
                                        AuthCache.putAgbot(resource, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
-                                     ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.MODIFIED).insert.asTry
+                                     table.organization.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.MODIFIED).insert.asTry
                                    }
                                    else
                                      DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", resource))).asTry
@@ -298,7 +299,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                            if (v > 0) { // there were no db errors, but determine if it actually found it or not
                              logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot result: $v")
                              AuthCache.removeAgbotAndOwner(resource)
-                             ResourceChange(0L,
+                             table.organization.ResourceChange(0L,
                                             organization,
                                             agreementBot,
                                             ResChangeCategory.AGBOT,

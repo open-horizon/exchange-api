@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.route.organization
 
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives.{complete, entity, path, post, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
@@ -10,8 +10,9 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
-import org.openhorizon.exchangeapi.table.{AgbotsTQ, ResChangeOperation, ResourceChangeRow, ResourceChanges, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.organization.{ResChangeOperation, ResourceChangeRow, ResourceChanges, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthenticationSupport, ExchConfig, ExchMsg, ExchangeApi, ExchangePosgtresErrorHandling, HttpCode, IAgbot, INode, Identity, TOrg}
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._

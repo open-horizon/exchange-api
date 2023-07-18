@@ -3,7 +3,9 @@ package org.openhorizon.exchangeapi.route.deploymentpolicy
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.ApiTime
-import org.openhorizon.exchangeapi.table.{BService, BusinessPoliciesTQ, OneProperty, OneSecretBindingService, OneUserInputService}
+import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ}
+import org.openhorizon.exchangeapi.table.service.OneProperty
+import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 

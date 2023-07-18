@@ -2,8 +2,9 @@ package org.openhorizon.exchangeapi.route.node
 
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, NodeType, NodesTQ, RegService}
-import org.openhorizon.exchangeapi.table.{OneUserInputService, ServiceRef2}
+import org.openhorizon.exchangeapi.table.service.ServiceRef2
 import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
 

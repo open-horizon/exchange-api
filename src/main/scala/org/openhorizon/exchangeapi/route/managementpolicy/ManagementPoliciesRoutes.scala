@@ -15,7 +15,8 @@ import jakarta.ws.rs.{DELETE, GET, POST, PUT, Path}
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.auth.{AccessDeniedException, DBProcessingError}
-import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.{organization, _}
+import org.openhorizon.exchangeapi.table.organization.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, OrgAndId, TManagementPolicy}
 import slick.jdbc.PostgresProfile.api._
 
@@ -455,7 +456,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/managementpolicies/" + mgmtpolicy + " result: " + v)
-              ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.MODIFIED).insert.asTry
+              organization.ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.MODIFIED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -501,7 +502,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removeManagementPolicyOwner(compositeId)
               AuthCache.removeManagementPolicyIsPublic(compositeId)
-              ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.DELETED).insert.asTry
+              organization.ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.not.found", compositeId))).asTry
             }

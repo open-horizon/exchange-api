@@ -1,9 +1,10 @@
-package org.openhorizon.exchangeapi.table
+package org.openhorizon.exchangeapi.table.service
 
-import org.openhorizon.exchangeapi.{OrgAndId}
 import org.json4s._
 import org.json4s.jackson.Serialization.read
-import org.openhorizon.exchangeapi.ApiTime
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.{ApiTime, OrgAndId}
 import slick.dbio.Effect
 import slick.jdbc.PostgresProfile.api._
 import slick.sql.FixedSqlAction

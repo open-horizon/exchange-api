@@ -1,7 +1,7 @@
-package org.openhorizon.exchangeapi.table
+package org.openhorizon.exchangeapi.table.user
 
-import org.openhorizon.exchangeapi._
 import org.openhorizon.exchangeapi.StrConstants
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import slick.jdbc.PostgresProfile.api._
 
 /** Contains the object representations of the DB tables related to users. */

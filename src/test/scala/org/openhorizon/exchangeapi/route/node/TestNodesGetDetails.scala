@@ -1,16 +1,20 @@
 package org.openhorizon.exchangeapi.route.node
 
-import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, OneProperty, OneUserInputService, OrgRow, OrgsTQ, ResourceChangesTQ, UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, StrConstants, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.{json4s, scalatest}
 import org.json4s.{DefaultFormats, convertToJsonInput}
 import org.json4s.AsJsonInput.stringAsJsonInput
 import org.json4s.jackson.JsonMethods.parse
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
+import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.{NodePolicy, NodePolicyRow, NodePolicyTQ}
 import org.openhorizon.exchangeapi.table.node.error.{NodeErrorRow, NodeErrorTQ}
 import org.openhorizon.exchangeapi.table.node.status.{NodeStatusRow, NodeStatusTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, NodesTQ, OneService, RegService}
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.service.OneProperty
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import org.scalatest.BeforeAndAfterAll

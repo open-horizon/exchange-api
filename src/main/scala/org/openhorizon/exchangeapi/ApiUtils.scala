@@ -11,7 +11,6 @@ import scala.jdk.CollectionConverters.{CollectionHasAsScala, MapHasAsJava, MapHa
 import scala.util.matching.Regex
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
 import akka.http.scaladsl.server._
-import org.openhorizon.exchangeapi.table.{OrgRow, UserRow}
 import com.osinka.i18n.{Lang, Messages}
 import com.typesafe.config._
 import slick.jdbc.PostgresProfile.api._
@@ -25,7 +24,8 @@ import org.json4s.JsonAST.JValue
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi.route.organization.{NodeHealthAgreementElement, NodeHealthHashElement}
-import org.openhorizon.exchangeapi.table.{OrgRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.organization.OrgRow
 
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 

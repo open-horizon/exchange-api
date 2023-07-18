@@ -20,12 +20,16 @@ import org.openhorizon.exchangeapi.route.node.{GetNodeAgreementsResponse, GetNod
 import org.openhorizon.exchangeapi.route.organization.{AllNodeErrorsInOrgResp, GetOrgStatusResponse, MaxChangeIdResponse, PatchOrgRequest, PostNodeHealthRequest, PostNodeHealthResponse, PostPutOrgRequest, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.service.PostPutServiceRequest
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
+import org.openhorizon.exchangeapi.table.deploymentpattern.{OneUserInputService, OneUserInputValue, PServiceVersions, PServices}
+import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BServiceVersions}
 import org.openhorizon.exchangeapi.table.node.agreement.{NAService, NAgrService}
 import org.openhorizon.exchangeapi.table.node.error.NodeError
 import org.openhorizon.exchangeapi.table.node.status.NodeStatus
 import org.openhorizon.exchangeapi.table.node.{ContainerStatus, NodeHeartbeatIntervals, NodeType, NodesTQ, OneService, Prop, RegService}
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.{NodePolicy, PropertiesAndConstraints}
 import org.openhorizon.exchangeapi.table.node.group.assignment.PostPutNodeGroupsRequest
+import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ, ResChangeCategory, ResChangeOperation, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.service.{OneProperty, ServicesTQ}
 import org.scalatest.BeforeAndAfterAll
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc.PostgresProfile.api._

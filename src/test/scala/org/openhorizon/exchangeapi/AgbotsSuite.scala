@@ -13,6 +13,10 @@ import org.openhorizon.exchangeapi.route.node.{PostNodesMsgsRequest, PutNodesReq
 import org.openhorizon.exchangeapi.route.organization.{MaxChangeIdResponse, PostPutOrgRequest, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.service.{GetServicesResponse, PostPutServiceRequest}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
+import org.openhorizon.exchangeapi.table.agreementbot.AAService
+import org.openhorizon.exchangeapi.table.deploymentpattern.{PServiceVersions, PServices}
+import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BServiceVersions}
+import org.openhorizon.exchangeapi.table.organization.ResChangeOperation
 
 import scala.collection.mutable.ListBuffer
 //import org.json4s.JsonDSL._

@@ -1,8 +1,13 @@
-package org.openhorizon.exchangeapi.table
+package org.openhorizon.exchangeapi.table.deploymentpolicy
 
-import org.openhorizon.exchangeapi.{Version, VersionRange}
 import org.json4s._
 import org.json4s.jackson.Serialization.read
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
+import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService}
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.service.{OneProperty, ServiceRef2, ServicesTQ}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.{Version, VersionRange}
 import slick.dbio.Effect
 import slick.jdbc.PostgresProfile.api._
 import slick.sql.FixedSqlAction

@@ -1,11 +1,10 @@
-package org.openhorizon.exchangeapi.table
+package org.openhorizon.exchangeapi.table.deploymentpattern
 
-import org.openhorizon.exchangeapi.{Version, VersionRange}
 import org.json4s._
 import org.json4s.jackson.Serialization.read
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.jdbc.PostgresProfile.api._
-
-import scala.collection.mutable.ListBuffer
 
 
 /** Contains the object representations of the DB tables related to patterns. */

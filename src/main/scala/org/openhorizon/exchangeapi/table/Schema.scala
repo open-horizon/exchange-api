@@ -7,13 +7,17 @@ import scala.collection.mutable.ListBuffer
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.headers.CacheDirectives.public
 import org.openhorizon.exchangeapi.ApiTime
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotBusinessPolsTQ, AgbotPatternsTQ}
+import org.openhorizon.exchangeapi.table.deploymentpattern.PatternKeysTQ
+import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, SearchOffsetPolicyTQ}
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.NodePolicyTQ
 import org.openhorizon.exchangeapi.table.node.error.NodeErrorTQ
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.NodeMgmtPolStatuses
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
-import org.openhorizon.exchangeapi.table.service.SearchServiceTQ
+import org.openhorizon.exchangeapi.table.organization.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServiceDockAuthsTQ, ServicePolicyTQ, ServicesTQ}
 import slick.jdbc
 
 

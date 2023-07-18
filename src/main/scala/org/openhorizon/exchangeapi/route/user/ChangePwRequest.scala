@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.route.user
 
-import org.openhorizon.exchangeapi.table.UsersTQ
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._

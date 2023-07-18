@@ -14,6 +14,7 @@ import org.openhorizon.exchangeapi.route.user.{GetUsersResponse, PostPutUsersReq
 
 import scala.collection.mutable.ListBuffer
 import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ, ResourceChangesTQ}
 import org.scalatest.BeforeAndAfterAll
 
 import scala.collection.immutable._

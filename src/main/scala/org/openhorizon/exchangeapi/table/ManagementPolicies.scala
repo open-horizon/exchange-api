@@ -3,8 +3,12 @@ package org.openhorizon.exchangeapi.table
 import org.openhorizon.exchangeapi.{Version, VersionRange}
 import org.json4s._
 import org.json4s.jackson.Serialization.read
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.service.OneProperty
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.dbio.Effect
 import slick.jdbc.PostgresProfile.api._
+
 import scala.collection.mutable.ListBuffer
 
 

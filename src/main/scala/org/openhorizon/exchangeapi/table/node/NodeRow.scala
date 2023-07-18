@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.table.node
 
 import org.json4s.jackson.Serialization.read
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.table.OneUserInputService
+import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.{Role, StrConstants}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._

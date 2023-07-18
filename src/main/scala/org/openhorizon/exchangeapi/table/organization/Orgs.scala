@@ -1,17 +1,14 @@
-package org.openhorizon.exchangeapi.table
+package org.openhorizon.exchangeapi.table.organization
 
-import java.sql.Timestamp
 import org.json4s._
-import org.json4s.jackson.Serialization.read
-import org.json4s.jackson.Serialization.write
+import org.json4s.jackson.Serialization.{read, write}
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
+import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
+import org.openhorizon.exchangeapi.{ApiTime, ApiUtils}
 import slick.dbio.{DBIO, Effect}
 import slick.sql.FixedSqlAction
-import org.openhorizon.exchangeapi.ApiTime
-import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
-import org.openhorizon.exchangeapi.table.ResChangeCategory.Value
-import org.openhorizon.exchangeapi.ApiUtils
-import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
-import slick.lifted.CompilableLowPriority
+
+import java.sql.Timestamp
 
 
 /** Contains the object representations of the DB tables related to orgs. */
@@ -113,7 +110,7 @@ object ResChangeCategory extends Enumeration {
   val SERVICE: ResChangeCategory.Value = Value("service")
   val NODEGROUP: ResChangeCategory.Value = Value("ha_group")
 }
-import org.openhorizon.exchangeapi.table.ResChangeCategory._
+import org.openhorizon.exchangeapi.table.organization.ResChangeCategory._
 
 object ResChangeResource extends Enumeration {
   type ResChangeResource = Value
@@ -145,7 +142,7 @@ object ResChangeResource extends Enumeration {
   val SERVICEKEYS: ResChangeResource.Value = Value("servicekeys")
   val SERVICEPOLICIES: ResChangeResource.Value = Value("servicepolicies")
 }
-import org.openhorizon.exchangeapi.table.ResChangeResource._
+import org.openhorizon.exchangeapi.table.organization.ResChangeResource._
 
 object ResChangeOperation extends Enumeration {
   type ResChangeOperation = Value
@@ -154,7 +151,7 @@ object ResChangeOperation extends Enumeration {
   val MODIFIED: ResChangeOperation.Value = Value("modified")
   val DELETED: ResChangeOperation.Value = Value("deleted")
 }
-import org.openhorizon.exchangeapi.table.ResChangeOperation._
+import org.openhorizon.exchangeapi.table.organization.ResChangeOperation._
 
 final case class ResourceChangeRow(changeId: Long, orgId: String, id: String, category: String, public: String, resource: String, operation: String, lastUpdated: java.sql.Timestamp) {
   protected implicit val jsonFormats: Formats = DefaultFormats

@@ -15,8 +15,10 @@ import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi.auth._
-import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.{organization, _}
 import org.openhorizon.exchangeapi.table.node.NodeType
+import org.openhorizon.exchangeapi.table.organization.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.service.{Service, ServiceDockAuth, ServiceDockAuthsTQ, ServiceKeysTQ, ServicePolicy, ServicePolicyTQ, ServiceRef, ServicesTQ}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, OrgAndId, TService, Version, VersionRange}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
@@ -588,7 +590,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                 if (owner != "") AuthCache.putServiceOwner(compositeId, owner) // currently only users are allowed to update service resources, so owner should never be blank
                 AuthCache.putServiceIsPublic(compositeId, reqBody.public)
                 val serviceId: String = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-                ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, reqBody.public, ResChangeResource.SERVICE, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, reqBody.public, ResChangeResource.SERVICE, ResChangeOperation.CREATEDMODIFIED).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
               }
@@ -746,7 +748,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                   else {
                     publicField = public.head
                   }
-                  ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, publicField, ResChangeResource.SERVICE, ResChangeOperation.MODIFIED).insert.asTry
+                  organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, publicField, ResChangeResource.SERVICE, ResChangeOperation.MODIFIED).insert.asTry
                 } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
@@ -805,7 +807,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               AuthCache.removeServiceOwner(compositeId)
               AuthCache.removeServiceIsPublic(compositeId)
               val serviceId: String = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-              ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICE, ResChangeOperation.DELETED).insert.asTry
+              organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICE, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
             }
@@ -939,7 +941,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/policy public field: " + public)
               if (public.nonEmpty) {
                 val serviceId: String = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-                ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEPOLICIES, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEPOLICIES, ResChangeOperation.CREATEDMODIFIED).insert.asTry
               } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -991,7 +993,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             logger.debug("DELETE /orgs/" + orgid + "/services/" + service + "/policy result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               val serviceId: String = compositeId.substring(compositeId.indexOf("/") + 1, compositeId.length)
-              ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEPOLICIES, ResChangeOperation.DELETED).insert.asTry
+              organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEPOLICIES, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.policy.not.found", compositeId))).asTry
             }
@@ -1133,7 +1135,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/keys/" + keyId + " public field: " + public)
                 if (public.nonEmpty) {
                   val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-                  ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEKEYS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                  organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEKEYS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
                 } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
@@ -1186,7 +1188,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             logger.debug("DELETE /services/" + service + "/keys result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-              ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEKEYS, ResChangeOperation.DELETED).insert.asTry
+              organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEKEYS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.service.keys.found", compositeId))).asTry
             }
@@ -1240,7 +1242,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             logger.debug("DELETE /services/" + service + "/keys/" + keyId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-              ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEKEYS, ResChangeOperation.DELETED).insert.asTry
+              organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEKEYS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.key.not.found", keyId, compositeId))).asTry
             }
@@ -1430,7 +1432,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug("POST /orgs/" + orgid + "/services/" + service + "/dockauths public field: " + public)
               if (public.nonEmpty) {
                 val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-                ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.CREATED).insert.asTry
+                organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.CREATED).insert.asTry
               } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -1490,7 +1492,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
               logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/dockauths/" + dockAuthId + " public field: " + public)
               if (public.nonEmpty) {
                 val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-                ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
               } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
@@ -1544,7 +1546,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
             logger.debug("POST /orgs/" + orgid + "/services result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-              ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.DELETED).insert.asTry
+              organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.dockauths.found.for.service", compositeId))).asTry
             }
@@ -1600,7 +1602,7 @@ trait ServicesRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("DELETE /services/" + service + "/dockauths/" + dockauthId + " result: " + v)
                 if (v > 0) { // there were no db errors, but determine if it actually found it or not
                   val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-                  ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.DELETED).insert.asTry
+                  organization.ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.DELETED).insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.dockauths.not.found", dockauthId, compositeId))).asTry
                 }

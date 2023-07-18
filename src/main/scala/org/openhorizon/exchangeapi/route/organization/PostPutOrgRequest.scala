@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.organization
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
-import org.openhorizon.exchangeapi.table.{OrgLimits, OrgRow}
+import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgRow}
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, ExchConfig, ExchMsg}
 
 final case class PostPutOrgRequest(orgType: Option[String],

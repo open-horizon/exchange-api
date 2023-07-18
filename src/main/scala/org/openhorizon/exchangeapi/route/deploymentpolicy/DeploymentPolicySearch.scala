@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.route.deploymentpolicy
 
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives.{entity, path, post, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
@@ -12,9 +12,9 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
+import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ, SearchOffsetPolicyTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
-import org.openhorizon.exchangeapi.table.{BService, BusinessPoliciesTQ, SearchOffsetPolicyTQ}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthenticationSupport, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Identity, OrgAndId, TNode}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled

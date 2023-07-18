@@ -2,6 +2,9 @@ package org.openhorizon.exchangeapi
 
 import akka.event.LoggingAdapter
 import org.openhorizon.exchangeapi.ExchangeApiApp.system
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotAgreementsTQ, AgbotBusinessPolsTQ, AgbotMsgsTQ, AgbotPatternsTQ, AgbotsTQ}
+import org.openhorizon.exchangeapi.table.deploymentpattern.{PatternKeysTQ, PatternsTQ}
+import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, SearchOffsetPolicyTQ}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.NodePolicyTQ
@@ -11,11 +14,13 @@ import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignme
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.NodeMgmtPolStatuses
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
-import org.openhorizon.exchangeapi.table.service.SearchServiceTQ
+import org.openhorizon.exchangeapi.table.organization.{OrgsTQ, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServiceDockAuthsTQ, ServiceKeysTQ, ServicePolicyTQ, ServicesTQ}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
-import org.openhorizon.exchangeapi.table.{AgbotAgreementsTQ, AgbotBusinessPolsTQ, AgbotMsgsTQ, AgbotPatternsTQ, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, BusinessPoliciesTQ, ManagementPoliciesTQ, OrgsTQ, PatternKeysTQ, PatternsTQ, ResourceChangesTQ, SchemaRow, SchemaTQ, SearchOffsetPolicyTQ, ServiceDockAuthsTQ, ServiceKeysTQ, ServicePolicyTQ, ServicesTQ, UsersTQ}
+import org.openhorizon.exchangeapi.table.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, ManagementPoliciesTQ, SchemaRow, SchemaTQ}
 import org.postgresql.util.PSQLException
 import slick.collection.heterogeneous.Zero.+
 

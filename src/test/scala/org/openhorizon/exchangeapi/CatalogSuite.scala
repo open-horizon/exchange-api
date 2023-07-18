@@ -2,7 +2,6 @@ package org.openhorizon.exchangeapi
 
 import org.openhorizon.exchangeapi._
 import org.openhorizon.exchangeapi.route.administration.DeleteOrgChangesRequest
-import org.openhorizon.exchangeapi.table.{PServiceVersions, PServices}
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
@@ -13,6 +12,7 @@ import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.organization.PostPutOrgRequest
 import org.openhorizon.exchangeapi.route.service.{GetServicesResponse, PostPutServiceRequest}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
+import org.openhorizon.exchangeapi.table.deploymentpattern.{PServiceVersions, PServices}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 

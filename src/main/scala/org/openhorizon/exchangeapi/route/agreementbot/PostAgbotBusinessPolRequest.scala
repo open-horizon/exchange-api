@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.route.agreementbot
 
-import org.openhorizon.exchangeapi.table.{AgbotBusinessPol, AgbotBusinessPolRow}
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotBusinessPol, AgbotBusinessPolRow}
 import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
 
 /** Input format for POST /orgs/{orgid}/agbots/{id}/businesspols */

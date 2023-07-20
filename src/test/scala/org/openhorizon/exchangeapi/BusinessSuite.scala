@@ -17,7 +17,7 @@ import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService, OneUserInputValue}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BServiceVersions}
 import org.openhorizon.exchangeapi.table.node.{Prop, RegService}
-import org.openhorizon.exchangeapi.table.organization.ResChangeOperation
+import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
 import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner

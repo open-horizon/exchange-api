@@ -28,7 +28,8 @@ import org.openhorizon.exchangeapi.table.node.status.NodeStatus
 import org.openhorizon.exchangeapi.table.node.{ContainerStatus, NodeHeartbeatIntervals, NodeType, NodesTQ, OneService, Prop, RegService}
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.{NodePolicy, PropertiesAndConstraints}
 import org.openhorizon.exchangeapi.table.node.group.assignment.PostPutNodeGroupsRequest
-import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ, ResChangeCategory, ResChangeOperation, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service.{OneProperty, ServicesTQ}
 import org.scalatest.BeforeAndAfterAll
 import scalaj.http.{Http, HttpResponse}

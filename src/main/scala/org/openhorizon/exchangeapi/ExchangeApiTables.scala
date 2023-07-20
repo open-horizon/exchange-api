@@ -2,7 +2,11 @@ package org.openhorizon.exchangeapi
 
 import akka.event.LoggingAdapter
 import org.openhorizon.exchangeapi.ExchangeApiApp.system
-import org.openhorizon.exchangeapi.table.agreementbot.{AgbotAgreementsTQ, AgbotBusinessPolsTQ, AgbotMsgsTQ, AgbotPatternsTQ, AgbotsTQ}
+import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.AgbotBusinessPolsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.AgbotPatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PatternKeysTQ, PatternsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, SearchOffsetPolicyTQ}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
@@ -14,8 +18,12 @@ import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignme
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.NodeMgmtPolStatuses
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
-import org.openhorizon.exchangeapi.table.organization.{OrgsTQ, ResourceChangesTQ}
-import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServiceDockAuthsTQ, ServiceKeysTQ, ServicePolicyTQ, ServicesTQ}
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuthsTQ
+import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
+import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyTQ
+import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServicesTQ}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.jdbc.PostgresProfile.api._
 

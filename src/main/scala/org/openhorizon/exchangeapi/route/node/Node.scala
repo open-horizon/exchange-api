@@ -21,7 +21,9 @@ import org.openhorizon.exchangeapi.table.deploymentpattern.{PatternRow, Patterns
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
-import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ}
+import org.openhorizon.exchangeapi.table.resourcechange
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service.{SearchServiceKey, SearchServiceTQ, ServicesTQ}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthRoles, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Identity, Nth, OrgAndId, Password, TNode, VersionRange, table}
 import slick.dbio.DBIO
@@ -69,7 +71,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
               if (v > 0) { // there were no db errors, but determine if it actually found it or not
                 logger.debug(s"DELETE /orgs/$organization/nodes/$node result: $v")
                 AuthCache.removeNodeAndOwner(compositeId)
-                table.organization.ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODE, ResChangeOperation.DELETED).insert.asTry
+                ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODE, ResChangeOperation.DELETED).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", compositeId))).asTry
               }
@@ -787,7 +789,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   case Failure(t) => DBIO.failed(t).asTry
                   }).flatMap({ case Success(v) => // Add the resource to the resourcechanges table
                     logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " result: " + v)
-                    table.organization.ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODE, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                    resourcechange.ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODE, ResChangeOperation.CREATEDMODIFIED).insert.asTry
                   case Failure(t) => DBIO.failed(t).asTry
                   })).map({ case Success(v) => // Check creation/update of node, and other errors
                     logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " updating resource status table: " + v)

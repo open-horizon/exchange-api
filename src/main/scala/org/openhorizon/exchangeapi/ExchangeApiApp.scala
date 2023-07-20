@@ -52,9 +52,9 @@ import org.openhorizon.exchangeapi.route.nodegroup.NodeGroupRoutes
 import org.openhorizon.exchangeapi.route.organization.{Changes, MaxChangeId, OrgsRoutes}
 import org.openhorizon.exchangeapi.route.service.ServicesRoutes
 import org.openhorizon.exchangeapi.route.user.UsersRoutes
-import org.openhorizon.exchangeapi.table.agreementbot.AgbotMsgsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
-import org.openhorizon.exchangeapi.table.organization.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import slick.jdbc.TransactionIsolation.Serializable
 
 import java.io.{FileInputStream, InputStream}

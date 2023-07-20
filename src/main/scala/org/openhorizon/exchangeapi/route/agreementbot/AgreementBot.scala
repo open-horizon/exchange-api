@@ -13,7 +13,8 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PATCH, PUT, Path}
 import org.openhorizon.exchangeapi.auth.DBProcessingError
 import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotsTQ}
-import org.openhorizon.exchangeapi.table.organization.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.resourcechange
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Identity, OrgAndId, Password, TAgbot, table}
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
@@ -171,7 +172,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                              .flatMap({
                                case Success(v) => // Add the resource to the resourcechanges table
                                  logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot result: $v")
-                                 table.organization.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                                 resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.CREATEDMODIFIED).insert.asTry
                                case Failure(t) => DBIO.failed(t).asTry}))
                 .map({
                   case Success(v) =>
@@ -249,7 +250,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                                    if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
                                      if (reqBody.token.isDefined)
                                        AuthCache.putAgbot(resource, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
-                                     table.organization.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.MODIFIED).insert.asTry
+                                     resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.MODIFIED).insert.asTry
                                    }
                                    else
                                      DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", resource))).asTry
@@ -299,7 +300,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                            if (v > 0) { // there were no db errors, but determine if it actually found it or not
                              logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot result: $v")
                              AuthCache.removeAgbotAndOwner(resource)
-                             table.organization.ResourceChange(0L,
+                             resourcechange.ResourceChange(0L,
                                             organization,
                                             agreementBot,
                                             ResChangeCategory.AGBOT,

@@ -13,9 +13,10 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, POST, Path}
 import org.checkerframework.checker.units.qual.t
 import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.table.agreementbot.{AgbotMsg, AgbotMsgRow, AgbotMsgsTQ}
+import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMsgRow, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
-import org.openhorizon.exchangeapi.table.organization.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.resourcechange
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Identity, OrgAndId, TAgbot, table}
 import slick.jdbc.PostgresProfile.api._
 
@@ -155,7 +156,7 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
                                   case Success(v) => // Add the resource to the resourcechanges table
                                     logger.debug("POST /orgs/{organization}/agbots/" + agreementBot + "/msgs write row result: " + v)
                                     msgNum = v.toString
-                                    table.organization.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTMSGS, ResChangeOperation.CREATED).insert.asTry
+                                    resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTMSGS, ResChangeOperation.CREATED).insert.asTry
                                   case Failure(t) =>
                                     DBIO.failed(t).asTry}))
             .map({

@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, Path}
 import org.checkerframework.checker.units.qual.t
 import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.table.agreementbot.{AgbotMsg, AgbotMsgsTQ}
+import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthenticationSupport, BadInputRejection, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, OrgAndId, TAgbot}
 import slick.jdbc.PostgresProfile.api._
 

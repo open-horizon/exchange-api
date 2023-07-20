@@ -12,7 +12,8 @@ import org.openhorizon.exchangeapi.table.node.deploymentpolicy.{NodePolicy, Node
 import org.openhorizon.exchangeapi.table.node.error.{NodeErrorRow, NodeErrorTQ}
 import org.openhorizon.exchangeapi.table.node.status.{NodeStatusRow, NodeStatusTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, NodesTQ, OneService, RegService}
-import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
+import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.scalatest.funsuite.AnyFunSuite

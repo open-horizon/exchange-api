@@ -11,7 +11,7 @@ import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.table.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsRequest, AgentVersionsResponse, SchemaTQ, organization}
+import org.openhorizon.exchangeapi.table.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsRequest, AgentVersionsResponse, SchemaTQ, organization, resourcechange}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
@@ -19,7 +19,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
-import org.openhorizon.exchangeapi.table.organization.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 
 import java.sql.Timestamp
@@ -232,7 +232,7 @@ trait AgentConfigurationManagementRoutes extends JacksonSupport with Authenticat
                      (AgentConfigurationVersionsTQ ++= reqBody.agentConfigVersions.zipWithIndex.map(configurations => {(configurations._1, orgId, Option(configurations._2.toLong))})) andThen
                      (AgentSoftwareVersionsTQ ++= reqBody.agentSoftwareVersions.zipWithIndex.map(software => {(orgId, software._1, Option(software._2.toLong))})) andThen
                      (AgentVersionsChangedTQ.insertOrUpdate((ApiTime.nowUTCTimestamp, orgId))) andThen
-                     (organization.ResourceChange(category = ResChangeCategory.ORG,
+                     (resourcechange.ResourceChange(category = ResChangeCategory.ORG,
                                      changeId = 0L,
                                      id = orgId,
                                      operation = ResChangeOperation.MODIFIED,

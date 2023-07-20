@@ -13,9 +13,10 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, POST, Path}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthenticationSupport, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, OrgAndId, TAgbot, auth, table}
 import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.table.agreementbot.{AgbotPattern, AgbotPatternsTQ}
+import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.{AgbotPattern, AgbotPatternsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
-import org.openhorizon.exchangeapi.table.organization.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.resourcechange
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -57,7 +58,7 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
                                   if (v > 0) { // there were no db errors, but determine if it actually found it or not
                                     // Add the resource to the resourcechanges table
                                     logger.debug("DELETE /agbots/" + agreementBot + "/patterns result: " + v)
-                                    table.organization.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.DELETED).insert.asTry
+                                    resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.DELETED).insert.asTry
                                   }
                                   else
                                     DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("patterns.not.found", resource))).asTry
@@ -179,7 +180,7 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
                                  .flatMap({
                                    case Success(v) => // Add the resource to the resourcechanges table
                                      logger.debug("POST /orgs/" + organization + "/agbots/" + agreementBot + "/patterns result: " + v)
-                                     table.organization.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.CREATED).insert.asTry
+                                     resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.CREATED).insert.asTry
                                    case Failure(t) =>
                                      DBIO.failed(t).asTry}))
                   .map({

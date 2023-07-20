@@ -15,7 +15,7 @@ import jakarta.ws.rs.{GET, POST, Path}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
-import org.openhorizon.exchangeapi.table.organization.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.{Access, ApiRespType, AuthCache, AuthenticationSupport, ExchangeApi, ExchangeApiTables, Role}
 import slick.jdbc.PostgresProfile.api._
 

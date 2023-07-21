@@ -2,6 +2,35 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.110.2] - 2023-07-21
+- Back-porting 2.117.0 to 2.110.2
+- Issue 686: Added rest parameter `manifest` to Get /v1/orgs/<org>/managementpolicies route.
+- Issue 676: Added `isNamespaceScoped` attribute to Nodes.
+- Reorganized table package object source for Nodes and related.
+- SBT 1.9.0 -> 1.9.2
+- Issue 675: Node tokens can be changed by all User types, and public keys can only be [un]set without changing keys by Nodes.
+- Issue 675: Removed extra regular expressions modifying searched Service's URL.
+- Issue 675: Fixed User and Node access to searching all Patterns and Services within the Node's Organization.
+- Corrected error messages.
+- Issue 675: Patch /orgs/<organization>/nodes/<node> No longer allows setting the Node's token if a public key is set.
+  - Added a new database table to handle Service querying and matching.
+- pattern and userInput are now User archetype authorization scoped.
+- Reorganized the Node resource source.
+- postgresql           42.5.3 -> 42.6.0
+- SBT                  1.8.2  -> 1.9.0
+- swagger-scala-module 2.8.2  -> 2.11.0
+- Swagger UI           4.15.5 -> 5.1.0
+- Issue 639: Moved top-level attribute clusterNamespace to a sub-attribute under service for Deployment Policies.
+- Issue 637 - Added CORS support. Can be configurated via the Exchange's config.json file.
+- Changed Java package path to the prefix org.openhorizon.
+- Moved source handling routing to new sub-package org.openhorizon.route..
+  - AdminRoutes and AgbotRoutes have been further sub-divided based on rest resource.
+- Deprecated custom methods for handling Akka configuration parameters in favor of framework defaults.
+  - Backwards compatibility is still maintained.
+- Issue 640: Added `clusterNamespace` attribute to Deployment Patterns.
+- Issue 641: Added `clusterNamespace` attribute to Nodes.
+- Issue 639: Added `clusterNamespace` attribute to Deployment Policies.
+
 ## [2.110.1] - 2023-03-01
 - Issue 662: Slick's schema.createIfNotExists function is not creating foreign keys. Reverting back to the simple create function.
 

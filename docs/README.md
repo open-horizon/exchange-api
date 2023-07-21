@@ -1,15 +1,13 @@
 ---
 copyright:
 years: 2022 - 2023
-lastupdated: "2023-03-14"
+lastupdated: "2023-04-26"
 layout: page
 title: "Exchange API Server"
 description: "Open Horizon Exchange API Documentation"
 
 nav_order: 3
 parent: Management Hub
-has_children: true
-has_toc: false
 ---
 
 # Open Horizon Exchange Server and REST API
@@ -26,30 +24,51 @@ services in the exchange.
 - [Install sbt](https://www.scala-sbt.org/1.x/docs/Setup.html){:target="_blank"}{: .externalLink}
 - (optional) Install conscript and giter8 if you want to get example code from scalatra.org
 - Install postgresql locally (unless you have a remote instance you are using). Instructions for installing on Mac OS X:
-    - Install: `brew install postgresql`
-    - Note: when running/testing the exchange svr in a docker container, it can't reach your postgres instance on `localhost`, so configure it to also listen on your local IP:
-      - set this to your IP: `export MY_IP=<my-ip>`
-      - `echo "host all all $MY_IP/32 trust" >> /usr/local/var/postgres/pg_hba.conf`
-      - `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = '$MY_IP'/" /usr/local/var/postgres/postgresql.conf`
-      - `brew services start postgresql` or if it is already running `brew services restart postgresql`
-    - Or if your test machine is on a private subnet:
-      - trust all clients on your subnet: `echo 'host all all 192.168.1.0/24 trust' >> /usr/local/var/postgres/pg_hba.conf`
-      - listen on all interfaces: `sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /usr/local/var/postgres/postgresql.conf`
-      - `brew services start postgresql` or if it is already running `brew services restart postgresql`
-    - Or you can run postgresql in a container and connect it to the docker network `exchange-api-network`
-    - Test: `psql "host=$MY_IP dbname=postgres user=<myuser> password=''"`
+  - Install: `brew install postgresql`
+  - Note: when running/testing the exchange svr in a docker container, it can't reach your postgres instance on `localhost`, so configure it to also listen on your local IP:
+    - set this to your IP:
+
+      ```bash
+      export MY_IP=<my-ip>
+      echo "host all all $MY_IP/32 trust" >> /usr/local/var/postgres/pg_hba.conf
+      sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = '$MY_IP'/" /usr/local/var/postgres/postgresql.conf
+      brew services start postgresql
+      ```
+
+      or if it is already running, `brew services restart postgresql`
+  - Or if your test machine is on a private subnet:
+    - trust all clients on your subnet:
+
+      ```bash
+      echo 'host all all 192.168.1.0/24 trust' >> /usr/local/var/postgres/pg_hba.conf
+      ```
+
+    - listen on all interfaces:
+
+      ```bash
+      sed -i -e "s/#listen_addresses = 'localhost'/listen_addresses = '*'/" /usr/local/var/postgres/postgresql.conf
+      brew services start postgresql` or if it is already running `brew services restart postgresql
+      ```
+
+  - Or you can run postgresql in a container and connect it to the docker network `exchange-api-network`
+  - Test:
+
+    ```bash
+    psql "host=$MY_IP dbname=postgres user=<myuser> password=''"
+    ```
+
 - Add a configuration file on your development system at `/etc/horizon/exchange/config.json` with at minimum the following content (this is needed for the automated tests. Defaults and the full list of configuration variables are in `src/main/resources/config.json`):
 
-  ```
+  ```json
   {
+    "akka": {
+      "loglevel": "DEBUG"
+    },
     "api": {
       "db": {
         "jdbcUrl": "jdbc:postgresql://localhost/postgres",    // my local postgres db
         "user": "myuser",
         "password": ""
-      },
-      "logging": {
-        "level": "DEBUG"
       },
       "root": {
         "password": "myrootpw"
@@ -57,36 +76,43 @@ services in the exchange.
     }
   }
   ```
+
 - If you want to run the `FrontEndSuite` test class `config.json` should also include `"frontEndHeader": "issuer"` directly after `email` under `root`.
+
 - Set the same exchange root password in your shell environment, for example:
-```
-export EXCHANGE_ROOTPW=myrootpw
-```
+
+  ```bash
+  export EXCHANGE_ROOTPW=myrootpw
+  ```
 
 - If someone hasn't done it already, create the TLS private key and certificate:
-```
-export EXCHANGE_KEY_PW=<pass-phrase>
-make gen-key
-```
+
+  ```bash
+  export EXCHANGE_KEY_PW=<pass-phrase>
+  make gen-key
+  ```
 
 - Otherwise, get files `exchangecert.pem`, `keypassword`, and `keystore` from the person who created them and put them in `./keys/etc`.
 
 ## Building and Running in Local Sandbox
 
 - `sbt`
-- `~reStart`
+- `reStart`
 - Once the server starts, to see the swagger output, browse: [http://localhost:8080/v1/swagger](http://localhost:8080/v1/swagger){:target="_blank"}{: .externalLink}
-- To try a simple rest method curl: `curl -X GET "http://localhost:8080/v1/admin/version"`. You should get the exchange version number as the response.  
+- To try a simple rest method curl: `curl -X GET "http://localhost:8080/v1/admin/version"`. You should get the exchange version number as the response.
 - When testing the exchange in an OpenShift Cluster the variables `EXCHANGE_IAM_ORG`, `EXCHANGE_IAM_KEY` and `EXCHANGE_MULT_ACCOUNT_ID` must be set accordingly.
 - A convenience script `src/test/bash/primedb.sh` can be run to prime the DB with some exchange resources to use in manually testing:
-```
+
+```bash
 export EXCHANGE_USER=<my-user-in-IBM-org>
 export EXCHANGE_PW=<my-pw-in-IBM-org>
 src/test/bash/primedb.sh
 ```
+
 - `primedb.sh` will only create what doesn't already exist, so it can be run again to restore some resources you have deleted.
 - To locally test the exchange against an existing ICP cluster:
-```
+
+```bash
 export ICP_EXTERNAL_MGMT_INGRESS=<icp-external-host>:8443
 ```
 
@@ -95,18 +121,21 @@ export ICP_EXTERNAL_MGMT_INGRESS=<icp-external-host>:8443
 When at the `sbt` sub-command prompt:
 
 - Get a list of tasks: `task -V`
-- Start your app such that it will restart on code changes: `~reStart`
+- Start your app such that it will restart on code changes: `reStart`
 - Clean all built files (if the incremental build needs to be reset): `clean`
+- Check and attempt to resolve any binary incompatibilities in dependency stack: `evicted`
 
 ## Running the Automated Tests in Local Sandbox
 
 - (Optional) To include tests for IBM agbot ACLs: `export EXCHANGE_AGBOTAUTH=myibmagbot:abcdef`
 - (Optional) To include tests for IBM IAM platform key authentication:
-```
+
+```bash
 export EXCHANGE_IAM_KEY=myiamplatformkey
 export EXCHANGE_IAM_EMAIL=myaccountemail@something.com
 export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 ```
+
 - Run the automated tests in a second shell (with the exchange server still running in the first): `sbt test`
 - Run just 1 of the the automated test suites (with the exchange server still running): `sbt "testOnly **.AgbotsSuite"`
 - Run the performance tests: `src/test/bash/scale/test.sh` or `src/test/bash/scale/wrapper.sh 8`
@@ -114,54 +143,69 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 
 ## Code Coverage Report
 
-  Code coverage is disabled in the project by default. The sbt command `sbt coverage` toggles scoverage checking on/off. To create a report of scoverage:
-  
-  - Execute `sbt coverage` to enable scoverage.
-  - Run all tests see section above (`Running the Automated Tests in Local Sandbox`).
-  - Create report running command `sbt coverageReport`.
-  - Terminal will display where the report was written and provide a high-level percent summary.
+Code coverage is disabled in the project by default. The sbt command `sbt coverage` toggles scoverage checking on/off. To create a report of scoverage:
+
+- Execute `sbt coverage` to enable scoverage.
+- Run all tests see section above (`Running the Automated Tests in Local Sandbox`).
+- Create report running command `sbt coverageReport`.
+- Terminal will display where the report was written and provide a high-level percent summary.
 
 ## Linting
 
-  Project uses Scapegoat. To use:
-  
-  - Run `sbt scapegoat`
-  - Terminal will display where the report was written and provide a summary of found errors and warnings.
+Project uses Scapegoat. To use:
+
+- Run `sbt scapegoat`
+- Terminal will display where the report was written and provide a summary of found errors and warnings.
 
 ## Building and Running the Docker Container in Local Sandbox
 
 - Update the version in `src/main/resources/version.txt`
 - Add a second configuration file that is specific to running in the docker container:
-  - `sudo mkdir -p /etc/horizon/exchange/docker`
-  - `sudo cp /etc/horizon/exchange/config.json /etc/horizon/exchange/docker/config.json`
+
+  ```bash
+  sudo mkdir -p /etc/horizon/exchange/docker
+  sudo cp /etc/horizon/exchange/config.json /etc/horizon/exchange/docker/config.json
+  ```
+
   - See [the Preconditions section](#preconditions) for the options for configuring postgresql to listen on an IP address that your exchange docker container will be able to reach. (Docker will not let it reach your host's `localhost` or `127.0.0.1` .)
   - Set the `jdbcUrl` field in this `config.json` to use that IP address, for example:
-    - `"jdbcUrl": "jdbc:postgresql://192.168.1.9/postgres",`
+
+    ```json
+    "jdbcUrl": "jdbc:postgresql://192.168.1.9/postgres",
+    ```
+
 - To compile your local code, build the exchange container, and run it locally, run:
-  - `make .docker-exec-run-no-https`
+
+  ```bash
+  make .docker-exec-run-no-https
+  ```
+
   - If you need to rerun the container without changing any code:
-    - `rm .docker-exec-run-no-https && make .docker-exec-run-no-https`
+
+    ```bash
+    rm .docker-exec-run-no-https && make .docker-exec-run-no-https
+    ```
+
 - Log output of the exchange svr can be seen via `docker logs -f exchange-api`, or might also go to `/var/log/syslog` depending on the docker and syslog configuration.
 - Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
-- **Note:** The exchange-api does not support HTTPS until issue https://github.com/open-horizon/exchange-api/issues/259 is completed.
 - Run the automated tests: `sbt test`
 - **Note:** Swagger does not yet work in the local docker container.
 - At this point you probably want to run `docker rm -f amd64_exchange-api` to stop your local docker container so it stops listening on your 8080 port. Otherwise you may be very confused when you go back to running the exchange via `sbt`, but it doesn't seem to be executing your tests.
 
 ### Notes About `config/exchange-api.tmpl`
 
-- The `config/exchange-api.tmpl` is a application configuration template much like `/etc/horizon/exchange/config.json`. The template file itself is required for building a Docker image, but the content is not. It is recommend that the default content remain as-is when building a Docker image. 
+- The `config/exchange-api.tmpl` is a application configuration template much like `/etc/horizon/exchange/config.json`. The template file itself is required for building a Docker image, but the content is not. It is recommend that the default content remain as-is when building a Docker image.
 - The content layout of the template exactly matches that of `/etc/horizon/exchange/config.json`, and the content of the config.json can be directly copied-and-pasted into the template. This will set the default Exchange configuration to the hard-coded specifications defined in the config.json when a Docker container is created.
 - Alternatively, instead of using hard-coded values the template accepts substitution variables (default content of the `config/exchange-api.tmpl`). At container creation the utility `envsubst` will make a value substitution with any corresponding environmental variables passed into the running container by Docker, Kubernetes, OpenShift, or etc. For example:
-    - `config/exchange-api.tmpl`:
-        - "jdbcUrl": "$EXCHANGE_DB_URL"
-    - Kubernetes config-map (environment variable passed to container at creation):
-        - "$EXCHANGE_DB_URL=192.168.0.123"
-    - Default `/etc/horizon/exchange/config.json` inside running container:
-        - "jdbcUrl": "192.168.0.123"
+  - `config/exchange-api.tmpl`:
+    - "jdbcUrl": "$EXCHANGE_DB_URL"
+  - Kubernetes config-map (environment variable passed to container at creation):
+    - "$EXCHANGE_DB_URL=192.168.0.123"
+  - Default `/etc/horizon/exchange/config.json` inside running container:
+    - "jdbcUrl": "192.168.0.123"
 - It is possible to mix-and-match hard-coded values and substitution values in the template.
 - ***WARNING:*** `envsubst` will attempt to substitute any value containing a `$`, which will include the value of `api.root.password` if it is a hashed password. To prevent this either pass the environmental variable `ENVSUBST_CONFIG` with a garbage value, e.g. `ENVSUBST_CONFIG='$donotsubstituteanything'` (this will effectively disable `envsubst`), or pass it with a value containing the exact substitution variables `envsubst` is to substitute (`ENVSUBST_CONFIG='${EXCHANGE_DB_URL} ${EXCHANGE_DB_USER} ${EXCHANGE_DB_PW} ${EXCHANGE_ROOT_PW} ...'`), and of course you have to pass those environment variables values into the container.
-    - By default `$ENVSUBST_CONFIG` is set to `$ENVSUBST_CONFIG=''` this causes `envsubst` to use its default opportunistic behavior and will attempt to make any/all substitutions where possible.
+  - By default `$ENVSUBST_CONFIG` is set to `$ENVSUBST_CONFIG=''` this causes `envsubst` to use its default opportunistic behavior and will attempt to make any/all substitutions where possible.
 - It is also possible to directly pass a `/etc/horizon/exchange/config.json` to a container at creation using a bind/volume mount. This takes precedence over the content of the template `config/exchange-api.tmpl`. The directly passed config.json is still subject to the `envsubst` utility and the above warning still applies.
 
 ### Notes About the Docker Image Build Process
@@ -179,7 +223,8 @@ export EXCHANGE_IAM_ACCOUNT=myibmcloudaccountid
 
 - If you will be testing with anax on another machine, push just the version-tagged exchange image to docker hub, so it will be available to the other machines: `make docker-push-version-only`
 - Just the first time: on an ubuntu machine, clone the anax repo and define this e2edev script:
-```
+
+```bash
 mkdir -p ~/src/github.com/open-horizon && cd ~/src/github.com/open-horizon && git clone git@github.com:open-horizon/anax.git
 # See: https://github.com/open-horizon/anax/blob/master/test/README.md
 if [[ -z "$1" ]]; then
@@ -201,8 +246,10 @@ make test TEST_VARS="NOLOOP=1" DOCKER_EXCH_TAG=$1
 echo 'Now run: cd $HOME/src/github.com/open-horizon/anax/test && make realclean && sudo systemctl start horizon.service && cd -'
 set +e
 ```
+
 - Now run the test (this will take about 10 minutes):
-```
+
+```bash
 e2edev <exchange-version>
 ```
 
@@ -210,12 +257,13 @@ e2edev <exchange-version>
 
 - Push container to the docker hub registry: `make docker-push-only`
 - Deploy the new container to the staging or production docker host
-    - Ensure that no changes are needed to the /etc/horizon/exchange/config.json file
+  - Ensure that no changes are needed to the /etc/horizon/exchange/config.json file
 - Sniff test the new container : `curl -sS -w %{http_code} https://<exchange-host>/v1/admin/version`
 
 ## Building the Container for a Branch
 
 To build an exchange container with code that is targeted for a git branch:
+
 - Create a development git branch A (that when tested you will merge to branch B). Where A and B can be any branch names.
 - Locally test the branch A exchange via sbt
 - When all tests pass, build the container: `rm -f .docker-compile && make .docker-exec-run TARGET_BRANCH=B`
@@ -230,7 +278,8 @@ To build an exchange container with code that is targeted for a git branch:
 ### Putting Hashed Password in config.json
 
 The exchange root user password is set in the config file (`/etc/horizon/exchange/config.json`). But the password doesn't need to be clear text. You can hash the password with:
-```
+
+```bash
 curl -sS -X POST -H "Authorization:Basic $HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -H "Content-Type: application/json" -d '{ "password": "PUT-PW-HERE" }' $HZN_EXCHANGE_URL/admin/hashpw | jq
 ```
 
@@ -239,13 +288,16 @@ And then put that hashed value in `/etc/horizon/exchange/config.json` in the `ap
 ### Disabling Root User
 
 If you want to reduce the attack surface of the exchange, you can disable the exchange root user, because it is only needed under special circumstances. Before disabling root, we suggest you do:
+
 - Create a local exchange user in the IBM org. (This can be used if you want to update the sample services, patterns, and policies at some point with `https://raw.githubusercontent.com/open-horizon/examples/master/tools/exchangePublishScript.sh`.):
+
   ```bash
   hzn exchange user create -u "root/root:PUT-ROOT-PW-HERE" -o IBM -A PUT-USER-HERE PUT-PW-HERE PUT-EMAIL-HERE
   ```
 
 - Give 1 of the IBM Cloud users `admin` privilege:
-  ```
+
+  ```bash
   hzn exchange user setadmin -u "root/root:PUT-ROOT-PW-HERE" -o PUT-IBM-CLOUD-ORG-HERE PUT-USER-HERE true
   ```
 
@@ -281,7 +333,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
   - The `TLSv1.3` cipher `TLS_CHACHA20_POLY1305_SHA256` is available starting in Java 14.
   - The supported ciphers for `TLSv1.2` are `TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384` and `TLS_DHE_RSA_WITH_AES_256_GCM_SHA384`.
 - [Optional] When using HTTPS with the Exchange the PostgreSQL database can also be configured with TLS turned on.
-  - The Exchange does not require an SSL enabled PostgreSQL database to function with TLS enabled. 
+  - The Exchange does not require an SSL enabled PostgreSQL database to function with TLS enabled.
   - See https://www.postgresql.org/docs/13/runtime-config-connection.html#RUNTIME-CONFIG-CONNECTION-SSL for more information.
   - Requires separate certificate (.cert) and private key (.key) files.
     - See Makefile target `/postgres.crt` (line 138) for an idea.
@@ -296,6 +348,58 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 
 `src/main/resources/config.json` is the default configuration file for the Exchange. This file is bundled in the Exchange jar. To run the exchange server with different values, copy this to `/etc/horizon/exchange/config.json`. In your version of the config file, you only have to set what you want to override.
 
+### akka
+
+Akka Actor: https://doc.akka.io/docs/akka/current/general/configuration-reference.html
+</br>
+Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
+</br>
+Log Level: http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html
+
+| Parameter Name | Default Value  | Description |
+|----------------|----------------|-------------|
+| loglevel       | `"INFO"`       |             |
+
+ - #### akka.coordinated-shutdown
+
+   | Parameter Name                | Default Value | Description                                                                    |
+   |-------------------------------|---------------|--------------------------------------------------------------------------------|
+   | phases.service-unbind.timeout | `"60s"`       | Number of seconds to let in-flight requests complete before exiting the server |
+
+ - #### akka.http.parsing
+
+   | Parameter Name         | Default Value | Description |
+   |------------------------|---------------|-------------|
+   | max-header-name-length | `128`         |             |
+
+ - #### akka.http.server
+
+   | Paramater Name   | Default Value | Description |
+   |------------------|---------------|-------------|
+   | backlog          | `100`         |             |
+   | bind-timeout     | `"1s"`        |             |
+   | idle-timeout     | `"60s"`       |             |
+   | linger-timeout   | `"1m"`        |             |
+   | max-connections  | `1024`        |             |
+   | pipelining-limit | `1`           |             |
+   | request-timeout  | `"45s"`       |             |
+   | server-header    | `""`          |             |
+
+### akka-http-cors
+
+https://github.com/lomigmegard/akka-http-cors#configuration
+
+| Parameter Name              | Default Value                                     | Description                                                              |
+|-----------------------------|---------------------------------------------------|--------------------------------------------------------------------------|
+| allow-credentials           | `true`                                            |                                                                          |
+| allow-generic-http-requests | `true`                                            | Do not apply `Origin` header check to non-preflight (`OPTIONS`) requests |
+| allowed-headers             | `["*"]`                                           |                                                                          |
+| allowed-methods             | `["DELETE","GET","OPTIONS","PATCH","POST","PUT"]` |                                                                          |
+| allowed-origins             | `["*"]`                                           |                                                                          |
+| exposed-headers             | `["*"]`                                           |                                                                          |
+| max-age                     | `0s`                                              |                                                                          |
+
+
 ### api.acls
 
 | Parameter Name | Description       |
@@ -308,22 +412,7 @@ Now you can disable root by setting `api.root.enabled` to `false` in `/etc/horiz
 | SuperUser      |                   |
 | User           |                   |
 
-### api.akka
-
-Akka Actor: https://doc.akka.io/docs/akka/current/general/configuration-reference.html
-</br>
-Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
-
-| Parameter Name                     | Description                             |
-|------------------------------------|-----------------------------------------|
-| akka.http.server.backlog           |                                         |
-| akka.http.server.bind-timeout      |                                         |
-| akka.http.server.idle-timeout      |                                         |
-| akka.http.server.linger-timeout    |                                         |
-| akka.http.server.max-connections   |                                         |
-| akka.http.server.pipelining-limit  |                                         |
-| akka.http.server.request-timeout   |                                         |
-| akka.http.server.server-header     | Removes the Server header from response |
+### api.akka [DEPRECATED]
 
 ### api.cache
 
@@ -363,15 +452,20 @@ Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
 #### api.defaults
 
 - ##### api.defaults.businessPolicy
+
   | Parameter Name             | Description                                       |
   |----------------------------|---------------------------------------------------|
   | check_agreement_status     |                                                   |
   | missing_heartbeat_interval | Used if the service.nodeHealth section is omitted |
+
 - ##### api.defaults.msgs
+
   | Parameter Name                | Description                                                            |
   |-------------------------------|------------------------------------------------------------------------|
   | expired_msgs_removal_interval | Number of seconds between deletions of expired node and agbot messages |
+
 - ##### api.defaults.pattern
+
   | Parameter Name             | Description                                        |
   |----------------------------|----------------------------------------------------|
   | missing_heartbeat_interval | Used if the services.nodeHealth section is omitted |
@@ -390,11 +484,7 @@ Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
 | maxPatterns            | Maximum number of patterns 1 user is allowed to create, 0 for unlimited                                                     |
 | maxServices            | Maximum number of services 1 user is allowed to create, 0 for unlimited                                                     |
 
-#### api.logging
-
-| Parameter Name    | Description                                                                                 |
-|-------------------|---------------------------------------------------------------------------------------------|
-| level             | For possible values, see http://logback.qos.ch/apidocs/ch/qos/logback/classic/Level.html    |
+#### api.logging [DEPRECATED]
 
 #### api.resourceChanges
 
@@ -413,12 +503,12 @@ Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
 
 #### api.service
 
-| Parameter Name                      | Description                                                                    |
-|-------------------------------------|--------------------------------------------------------------------------------|
-| host                                |                                                                                |
-| port                                | Services HTTP traffic                                                          |
-| portEncrypted                       | Services HTTPS traffic                                                         |
-| shutdownWaitForRequestsToComplete   | Number of seconds to let in-flight requests complete before exiting the server |
+| Parameter Name                                 | Description            |
+|------------------------------------------------|------------------------|
+| host                                           |                        |
+| port                                           | Services HTTP traffic  |
+| portEncrypted                                  | Services HTTPS traffic |
+| shutdownWaitForRequestsToComplete [DEPRECATED] | [DEPRECATED]           |
 
 #### api.tls
 
@@ -430,21 +520,21 @@ Akka-Http: https://doc.akka.io/docs/akka-http/current/configuration.html
 ## Todos that may be done in future versions
 
 - Granular (per org) service ACL support:
-    - add Access type of BROWSE that will allow to see these fields of services:
-      - label, description, public, documentation, url, version, arch
-    - add acl table and resource with fields:
-      - org
-      - resource (e.g. service)
-      - resourceList (for future use)
-      - requester (org/username)
-      - access
-    - add GET, PUT, POST to manage these acls
-    - add checks on GET service to use these acls
-    - (later) consider adding a GET that returns all services of orgs of orgType=IBM
+  - add Access type of BROWSE that will allow to see these fields of services:
+    - label, description, public, documentation, url, version, arch
+  - add acl table and resource with fields:
+    - org
+    - resource (e.g. service)
+    - resourceList (for future use)
+    - requester (org/username)
+    - access
+  - add GET, PUT, POST to manage these acls
+  - add checks on GET service to use these acls
+  - (later) consider adding a GET that returns all services of orgs of orgType=IBM
 - Add rest method to delete a user's stale devices (carl requested)
 - Add ability to change owner of node
 - Add patch capability for node registered services
 - Consider:
-    - detect if pattern contains 2 services that depend on the same exclusive MS
-    - detect if a pattern is updated with service that has userInput w/o default values, and give warning
-    - Consider changing all creates to POST, and update (via put/patch) return codes to 200
+  - detect if pattern contains 2 services that depend on the same exclusive MS
+  - detect if a pattern is updated with service that has userInput w/o default values, and give warning
+  - Consider changing all creates to POST, and update (via put/patch) return codes to 200

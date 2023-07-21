@@ -1,0 +1,114 @@
+# Name of the workflow
+name: build-push
+
+# This workflow will run when there is a push (including merge) to the listed branches
+on:
+  push:
+    branches:
+      - master
+      - v2.87
+      - v2.110
+
+# Variables available to all jobs
+env:
+  IMAGE_REPO: ${{ vars.DOCKERHUB_REPO }}
+  GITHUB_CONTAINER_REGISTRY: ghcr.io/${{ github.repository_owner }}
+  BUILD_NUMBER: ${{ github.run_number }}
+
+# Jobs that will run when the workflow is triggered
+jobs:
+  # This job will build and then push to docker hub
+  build-push:
+    # The type of runner the job will run on
+    runs-on: ubuntu-20.04
+
+    # Variables that are available to all steps in the job
+    env:
+      IMAGE_VERSION: ''
+    
+    steps:
+      # Ensure that the repo variables and secrets are set before running any other steps
+      - name: Check User Set Variables
+        run: |
+          if [[ -z "$DOCKER_USER" ]]; then \
+          echo "::error::Secret DOCKER_USER was not set"; \
+          exit 1; \
+          fi
+          if [[ -z "$DOCKER_TOKEN" ]]; then \
+          echo "::error::Secret DOCKER_TOKEN was not set"; \
+          exit 1; \
+          fi
+          if [[ -z "$IMAGE_REPO" ]]; then \
+          echo "::error::Variable DOCKERHUB_REPO was not set"; \
+          exit 1; \
+          fi
+        env:
+          DOCKER_USER: ${{ secrets.DOCKER_USER }}
+          DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
+
+      # Upgrade Docker engine version, needed for building images.
+      - name: Install Latest Docker Version
+        run: |
+          sudo apt-get purge docker-ce docker-ce-cli containerd.io runc containerd moby-buildx moby-cli moby-compose moby-containerd moby-engine moby-runc
+
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo apt-key add -
+          sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu  $(lsb_release -cs)  stable"
+          sudo apt-get update
+          sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+      # Authenticate Dockerhub to allow pushing to our image repo
+      - name: Login to Dockerhub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_TOKEN }}
+        
+      # Authenticate GHCR to allow pushing to our alternate image registry
+      - name: Login to Github Container Registry
+        uses: docker/login-action@v2
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Checkout our Github repo
+      - name: Checkout Github Repo
+        uses: actions/checkout@v3
+
+      # Setup Scala
+      # Comes from open source action: https://github.com/coursier/setup-action
+      - name: Setup Scala
+        uses: coursier/setup-action@v1
+
+      # Configure version variables
+      - name: Config Version Variables
+        run: |
+          VERSION=$(head -n 1 src/main/resources/version.txt)
+          echo "IMAGE_VERSION="${VERSION}"" >> $GITHUB_ENV
+      
+      # Compile
+      - name: Compile
+        run: |
+          sbt compile
+
+      # Package
+      - name: Package
+        run: |
+          sbt package
+        
+      # Docker Build and Publish Local
+      ## When creating docker image sbt will ~for some reason~ mark the logs as [error] when it should be [info]
+      - name: Docker Build and Publish Local
+        run: |
+          sbt docker:publishLocal
+
+      # Push Docker images to Dockerhub
+      - name: Publish Image to Dockerhub
+        run: |
+          docker tag openhorizon/amd64_exchange-api:${IMAGE_VERSION} ${IMAGE_REPO}/amd64_exchange-api:testing
+          if [[ "$GITHUB_REF" == 'refs/heads/master' ]]; then \
+          docker push ${IMAGE_REPO}/amd64_exchange-api:testing; \
+          docker tag ${IMAGE_REPO}/amd64_exchange-api:testing ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing; \
+          docker push ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing; \
+          fi
+      

@@ -3,6 +3,7 @@ package org.openhorizon.exchangeapi.table
 import org.openhorizon.exchangeapi.{ApiTime, Version, VersionRange}
 import org.json4s._
 import org.json4s.jackson.Serialization.read
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import slick.dbio.Effect
 import slick.jdbc.PostgresProfile.api._
 

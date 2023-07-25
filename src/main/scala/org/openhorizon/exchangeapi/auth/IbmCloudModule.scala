@@ -9,7 +9,6 @@ import java.util.concurrent.TimeUnit
 import java.security.KeyStore
 import com.google.common.cache.CacheBuilder
 import org.openhorizon.exchangeapi._
-import org.openhorizon.exchangeapi.table.{UserRow}
 
 import javax.net.ssl.{SSLContext, SSLSocketFactory, TrustManagerFactory}
 import javax.security.auth._
@@ -17,7 +16,8 @@ import javax.security.auth.callback._
 import javax.security.auth.spi.LoginModule
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
-import org.openhorizon.exchangeapi.table.{OrgsTQ, UsersTQ}
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.{AuthorizationSupport, Creds, ExchangeApi, IUser, Identity, RequestInfo, Role}
 
 import scala.concurrent.ExecutionContext

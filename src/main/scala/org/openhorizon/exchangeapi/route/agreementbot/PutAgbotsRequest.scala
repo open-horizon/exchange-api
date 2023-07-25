@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.agreementbot
 
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.table.AgbotRow
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotRow
 import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
 import slick.jdbc.PostgresProfile.api._
 

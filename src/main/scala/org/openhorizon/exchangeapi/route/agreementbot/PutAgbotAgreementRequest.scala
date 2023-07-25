@@ -1,7 +1,8 @@
 package org.openhorizon.exchangeapi.route.agreementbot
 
 import org.openhorizon.exchangeapi.ApiTime
-import org.openhorizon.exchangeapi.table.{AAService, AgbotAgreementRow}
+import org.openhorizon.exchangeapi.table.agreementbot.AAService
+import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementRow
 
 /** Input format for PUT /orgs/{orgid}/agbots/{id}/agreements/<agreement-id> */
 final case class PutAgbotAgreementRequest(service: AAService, state: String) {

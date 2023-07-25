@@ -1,15 +1,21 @@
 package org.openhorizon.exchangeapi.route.policy
 
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
-import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, BusinessPoliciesTQ, BusinessPolicyRow, OrgRow, OrgsTQ, ResourceChangesTQ, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ, ServiceRow, ServicesTQ, UserRow, UsersTQ}
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable}
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
 import org.openhorizon.exchangeapi.Role
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{BusinessPolicyNodeResponse, PostBusinessPolicySearchRequest, PostBusinessPolicySearchResponse}
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
+import org.openhorizon.exchangeapi.table.deploymentpolicy.search.{SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ}
+import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, BusinessPolicyRow}
 import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreementRow, NodeAgreementsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
+import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.service.{ServiceRow, ServicesTQ}
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner

@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.agreementbot
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import akka.http.scaladsl.server.Directives.{as, complete, entity, path, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -13,8 +13,11 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, POST, Path}
 import org.checkerframework.checker.units.qual.t
 import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthenticationSupport, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, OrgAndId, TAgbot}
-import org.openhorizon.exchangeapi.table.{AgbotPattern, AgbotPatternsTQ, PatternsTQ, ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.{AgbotPattern, AgbotPatternsTQ}
+import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
+import org.openhorizon.exchangeapi.table.resourcechange
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthenticationSupport, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, OrgAndId, TAgbot, table}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -55,7 +58,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                               case Success(v) => // Add the resource to the resourcechanges table
                                 logger.debug("DELETE /agbots/" + agreementBot + "/patterns/" + deploymentPattern + " result: " + v)
                                 if (v > 0) // there were no db errors, but determine if it actually found it or not
-                                  ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.DELETED).insert.asTry
+                                  resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.DELETED).insert.asTry
                                 else
                                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.not.found", deploymentPattern, resource))).asTry
                               case Failure(t) =>

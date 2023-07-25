@@ -9,11 +9,15 @@ import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, responses}
 import jakarta.ws.rs.{GET, Path}
 import org.checkerframework.checker.units.qual.t
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.{Access, AuthenticationSupport, ExchMsg, HttpCode, TAction}
-import org.openhorizon.exchangeapi.table.{AgbotAgreementsTQ, AgbotMsgsTQ, AgbotsTQ, SchemaTQ, UsersTQ}
+import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
+import org.openhorizon.exchangeapi.table.schema.SchemaTQ
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.node.group
 
-import org.openhorizon.exchangeapi.table.OrgsTQ
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import slick.jdbc.PostgresProfile.api._
 
 class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {

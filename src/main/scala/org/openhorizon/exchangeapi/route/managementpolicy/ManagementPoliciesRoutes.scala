@@ -15,7 +15,9 @@ import jakarta.ws.rs.{DELETE, GET, POST, PUT, Path}
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.auth.{AccessDeniedException, DBProcessingError}
-import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicy}
+import org.openhorizon.exchangeapi.table.{organization, resourcechange, _}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, OrgAndId, TManagementPolicy}
 import slick.jdbc.PostgresProfile.api._
 
@@ -24,70 +26,6 @@ import scala.collection.immutable._
 import scala.concurrent.ExecutionContext
 import scala.util._
 
-//====== These are the input and output structures for /orgs/{orgid}/managementpolicy routes. Swagger and/or json seem to require they be outside the trait.
-
-/** Output format for GET /orgs/{orgid}/managementpolicies */
-final case class GetManagementPoliciesResponse(managementPolicy: Map[String, ManagementPolicy], lastIndex: Int)
-final case class GetManagementPolicyAttributeResponse(attribute: String, value: String)
-
-/** Input format for POST/PUT /orgs/{orgid}/managementpolicies/<mgmt-pol-id> */
-final case class PostPutManagementPolicyRequest(label: String,
-                                                description: Option[String],
-                                                properties: Option[List[OneProperty]],
-                                                constraints: Option[List[String]],
-                                                patterns: Option[List[String]],
-                                                enabled: Boolean,
-                                                start: String = "now",
-                                                startWindow: Long = 0,
-                                                agentUpgradePolicy: Option[AgentUpgradePolicy])  {
-  protected implicit val jsonFormats: Formats = DefaultFormats
-
-  def getAnyProblem: Option[String] = {
-    if (constraints.nonEmpty && patterns.nonEmpty) return Some(ExchMsg.translate("mgmtpol.constraints.or.patterns"))
-    None
-  }
-
-  // Note: write() handles correctly the case where the optional fields are None.
-  def getDbInsert(managementPolicy: String, orgid: String, owner: String): DBIO[_] = {
-    ManagementPolicyRow(allowDowngrade = if(agentUpgradePolicy.nonEmpty) agentUpgradePolicy.get.allowDowngrade else false,
-                        constraints = write(constraints),
-                        created = ApiTime.nowUTC,
-                        description = description.getOrElse(label),
-                        enabled = enabled,
-                        label = label,
-                        lastUpdated = ApiTime.nowUTC,
-                        managementPolicy = managementPolicy,
-                        manifest = if(agentUpgradePolicy.nonEmpty) agentUpgradePolicy.get.manifest else "",
-                        orgid = orgid,
-                        owner = owner,
-                        patterns = write(patterns),
-                        properties = write(properties),
-                        start = start,
-                        startWindow = if(startWindow < 0) 0 else startWindow).insert
-  }
-
-  def getDbUpdate(managementPolicy: String, orgid: String, owner: String): DBIO[_] = {
-    ManagementPolicyRow(allowDowngrade = if(agentUpgradePolicy.nonEmpty) agentUpgradePolicy.get.allowDowngrade else false,
-                        constraints = write(constraints),
-                        created = ApiTime.nowUTC,
-                        description = description.getOrElse(label),
-                        enabled = enabled,
-                        label = label,
-                        lastUpdated = ApiTime.nowUTC,
-                        managementPolicy = managementPolicy,
-                        manifest = if(agentUpgradePolicy.nonEmpty) agentUpgradePolicy.get.manifest else "",
-                        orgid = orgid,
-                        owner = owner,
-                        patterns = write(patterns),
-                        properties = write(properties),
-                        start = start,
-                        startWindow = if(startWindow < 0) 0 else startWindow).update
-  }
-}
-
-//todo: add patch class
-
-/** Implementation for all of the /orgs/{orgid}/managementpolicies routes */
 @Path("/v1/orgs/{orgid}/managementpolicies")
 trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -519,7 +457,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("PUT /orgs/" + orgid + "/managementpolicies/" + mgmtpolicy + " result: " + v)
-              ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.MODIFIED).insert.asTry
+              resourcechange.ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.MODIFIED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -565,7 +503,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removeManagementPolicyOwner(compositeId)
               AuthCache.removeManagementPolicyIsPublic(compositeId)
-              ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.DELETED).insert.asTry
+              resourcechange.ResourceChange(0L, orgid, mgmtpolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.not.found", compositeId))).asTry
             }

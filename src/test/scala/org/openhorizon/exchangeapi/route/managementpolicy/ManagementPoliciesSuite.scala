@@ -6,8 +6,11 @@ import org.json4s.{DefaultFormats, jvalue2extractable}
 import org.junit.runner.RunWith
 import org.openhorizon.exchangeapi.route.organization.{ChangeEntry, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
+import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPolicy
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
-import org.openhorizon.exchangeapi.table.{ManagementPolicy, OneProperty, OrgRow, OrgsTQ, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
+import org.openhorizon.exchangeapi.table.service.OneProperty
+import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.{ApiResponse, ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite

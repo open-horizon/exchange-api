@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.node.managementpolicy.status
 
+import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
-import org.openhorizon.exchangeapi.table.ManagementPoliciesTQ
 import slick.jdbc.PostgresProfile.api._
 import slick.model.ForeignKeyAction
 

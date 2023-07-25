@@ -2,6 +2,16 @@ package org.openhorizon.exchangeapi
 
 import akka.event.LoggingAdapter
 import org.openhorizon.exchangeapi.ExchangeApiApp.system
+import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.AgbotBusinessPolsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.AgbotPatternsTQ
+import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
+import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
+import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
+import org.openhorizon.exchangeapi.table.deploymentpolicy.search.SearchOffsetPolicyTQ
+import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.NodePolicyTQ
@@ -11,11 +21,18 @@ import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignme
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.NodeMgmtPolStatuses
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
-import org.openhorizon.exchangeapi.table.service.SearchServiceTQ
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.schema.{SchemaRow, SchemaTQ}
+import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuthsTQ
+import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
+import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyTQ
+import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServicesTQ}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
-import org.openhorizon.exchangeapi.table.{AgbotAgreementsTQ, AgbotBusinessPolsTQ, AgbotMsgsTQ, AgbotPatternsTQ, AgbotsTQ, AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, BusinessPoliciesTQ, ManagementPoliciesTQ, OrgsTQ, PatternKeysTQ, PatternsTQ, ResourceChangesTQ, SchemaRow, SchemaTQ, SearchOffsetPolicyTQ, ServiceDockAuthsTQ, ServiceKeysTQ, ServicePolicyTQ, ServicesTQ, UsersTQ}
+import org.openhorizon.exchangeapi.table.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ}
 import org.postgresql.util.PSQLException
 import slick.collection.heterogeneous.Zero.+
 

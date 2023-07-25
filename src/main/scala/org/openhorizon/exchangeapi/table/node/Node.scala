@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.node
 
-import org.openhorizon.exchangeapi.table.OneUserInputService
+import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 
 // This is the node table minus the key - used as the data structure to return to the REST clients
 class Node(var token: String,

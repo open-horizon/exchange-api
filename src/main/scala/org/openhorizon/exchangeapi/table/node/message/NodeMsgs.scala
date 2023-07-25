@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.node.message
 
-import org.openhorizon.exchangeapi.table.AgbotsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import slick.jdbc.PostgresProfile.api._
 

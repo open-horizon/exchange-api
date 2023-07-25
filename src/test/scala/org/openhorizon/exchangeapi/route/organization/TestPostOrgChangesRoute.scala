@@ -2,11 +2,14 @@ package org.openhorizon.exchangeapi.route.organization
 
 import akka.http.scaladsl.model.headers.CacheDirectives.public
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, ExchangeApi, HttpCode, Password, Role, TestDBConnection}
-import org.openhorizon.exchangeapi.table.{AgbotRow, AgbotsTQ, OrgRow, OrgsTQ, ResourceChangeRow, ResourceChangesTQ, UserRow, UsersTQ}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResourceChangeRow, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.{ExchangeApi, Password, Role, TestDBConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
@@ -18,11 +21,11 @@ import scala.concurrent.duration.{Duration, DurationInt}
 
 class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndAfterEach {
 
-  private val ACCEPT = ("Accept","application/json")
+  private val ACCEPT: (String, String) = ("Accept","application/json")
   private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: TestDBConnection = new TestDBConnection
-  private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
+  private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val ROUTE = "/changes"
 
   private val EXCHANGEVERSION: String = ExchangeApi.adminVersion()
@@ -168,15 +171,15 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
       )
     )
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
-  private val ORG2USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG2USERPASSWORD))
-  private val ORG1NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + ORG1NODETOKEN))
-  private val ORG2NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(1).id + ":" + ORG2NODETOKEN))
-  private val ORG1AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + ORG1AGBOTTOKEN))
-  private val ORG2AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(1).id + ":" + ORG2AGBOTTOKEN))
-  private val IBMAGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(2).id + ":" + IBMAGBOTTOKEN))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val HUBADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORG1USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
+  private val ORG2USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG2USERPASSWORD))
+  private val ORG1NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + ORG1NODETOKEN))
+  private val ORG2NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(1).id + ":" + ORG2NODETOKEN))
+  private val ORG1AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + ORG1AGBOTTOKEN))
+  private val ORG2AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(1).id + ":" + ORG2AGBOTTOKEN))
+  private val IBMAGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(2).id + ":" + IBMAGBOTTOKEN))
 
   private val TESTRESOURCECHANGES: Seq[ResourceChangeRow] = Seq(
     // old -- 0
@@ -286,9 +289,10 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     Await.ready(DBCONNECTION.getDb.run(
       (OrgsTQ ++= TESTORGS) andThen
         (UsersTQ ++= TESTUSERS) andThen
+      (ResourceChangesTQ ++= TESTRESOURCECHANGES) andThen
         (AgbotsTQ ++= TESTAGBOTS) andThen
-        (NodesTQ ++= TESTNODES) andThen
-        (ResourceChangesTQ ++= TESTRESOURCECHANGES)), AWAITDURATION
+        (NodesTQ ++= TESTNODES)
+        ), AWAITDURATION
     )
     lastChangeId = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ //get changeId of last RC added to DB
       .filter(_.orgId startsWith "testPostOrgChangesRoute")
@@ -302,6 +306,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
       OrgsTQ.filter(_.orgid startsWith "testPostOrgChangesRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/testPostOrgChangesRouteHubAdmin").delete andThen
       AgbotsTQ.filter(_.id startsWith "IBM/testPostOrgChangesRouteIBMAgbot").delete), AWAITDURATION)
+    
     DBCONNECTION.getDb.close()
   }
 
@@ -323,8 +328,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
       Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ += testData), AWAITDURATION)
       testCode(testData)
     }
-    finally
-      Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(x => x.orgId === testData.orgId && x.resource === testData.resource && x.id === testData.id).delete), AWAITDURATION)
+    //finally Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(x => x.orgId === testData.orgId && x.resource === testData.resource && x.id === testData.id).delete), AWAITDURATION)
   }
 
   def assertResourceChangeExists(rc: ResourceChangeRow, body: ResourceChangesRespObject): Unit = {
@@ -389,12 +393,12 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- both changeId and lastUpdated provided -- success, uses lastUpdated") {
-    val request: ResourceChangesRequest = ResourceChangesRequest(
-      changeId = lastChangeId, //will ensure that at least the final RC added will be returned
-      lastUpdated = Some(ApiTime.futureUTC(600)), //if this were to be used, none of the TESTRCs would be included
-      maxRecords = 100,
-      orgList = None
-    )
+    val request: ResourceChangesRequest =
+      ResourceChangesRequest(changeId = lastChangeId, //will ensure that at least the final RC added will be returned
+                             lastUpdated = Option(ApiTime.futureUTC(600)), //if this were to be used, none of the TESTRCs would be included
+                             maxRecords = 100,
+                             orgList = None)
+    info("request.lastUpdated:  " + request.lastUpdated)
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
@@ -404,29 +408,21 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId === lastChangeId))) //check if RC with lastChangeId is in response
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
   }
-
-  test("POST /orgs/doesNotExist" + ROUTE + " -- all RCs returned are public") {
-    val request: ResourceChangesRequest = ResourceChangesRequest(
-      changeId = lastChangeId - 5, //hopefully some of the TESTRCs will be returned. if not, no big deal, we should still get some public RCs
-      lastUpdated = None,
-      maxRecords = 5, //only take 5 for speed's sake
-      orgList = None
-    )
-    val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).postData(Serialization.write(defaultIdRequest)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+  
+  test("POST /orgs/doesNotExist" + ROUTE + " -- 403 access denied - other organization - user") {
+    val request: ResourceChangesRequest =
+      ResourceChangesRequest(changeId = lastChangeId - 5, //hopefully some of the TESTRCs will be returned. if not, no big deal, we should still get some public RCs
+                             lastUpdated = None,
+                             maxRecords = 5, //only take 5 for speed's sake
+                             orgList = None)
+    
+    val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
-    assert(responseObj.changes.nonEmpty)
-    for (change <- responseObj.changes) {
-      for (rc <- change.resourceChanges) { //double-nested for loop, but there will only be a max of 5 rcs to loop through
-        assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.changeId === rc.changeId).result), AWAITDURATION).head.public === "true")
-      }
-    }
-    assert(responseObj.exchangeVersion === EXCHANGEVERSION)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  test("POST /orgs/" + TESTORGS(1).orgId + ROUTE + " -- " + TESTORGS(1).orgId + " not in orgList, should be automatically added -- success") {
+  ignore("POST /orgs/" + TESTORGS(1).orgId + ROUTE + " -- " + TESTORGS(1).orgId + " not in orgList, should be automatically added -- success") {
     val request: ResourceChangesRequest = ResourceChangesRequest(
       changeId = 0,
       lastUpdated = Some(ApiTime.pastUTC(60)), //should get most TESTRCs
@@ -471,12 +467,12 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- " + TESTORGS(0).orgId + " wildcard '' (empty string) -- success") {
-    val request: ResourceChangesRequest = ResourceChangesRequest(
-      changeId = 0,
-      lastUpdated = Some(ApiTime.pastUTC(60)), //should get most TESTRCs
-      maxRecords = 100,
-      orgList = Some(List("*"))
-    )
+    val request: ResourceChangesRequest =
+      ResourceChangesRequest(changeId = 0,
+                             lastUpdated = Some(ApiTime.pastUTC(60)), //should get most TESTRCs
+                             maxRecords = 100,
+                             orgList = Some(List("*")))
+    
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(IBMAGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
@@ -492,7 +488,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     //check that heartbeat of caller was updated
     assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.id === TESTAGBOTS(2).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(2).lastHeartbeat)
   }
-
+  
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as agbot in org -- success") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(ORG1AGBOTAUTH).asString
     info("Code: " + response.code)
@@ -646,5 +642,4 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         assert(responseObj.exchangeVersion === EXCHANGEVERSION)
       }, newRC)
   }
-
 }

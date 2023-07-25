@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.route.agreementbot
 
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives.{complete, delete, get, path, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{ExceptionHandler, Route, ValidationRejection}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, Path}
 import org.checkerframework.checker.units.qual.t
 import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.table.{AgbotMsg, AgbotMsgsTQ}
+import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthenticationSupport, BadInputRejection, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, OrgAndId, TAgbot}
 import slick.jdbc.PostgresProfile.api._
 

@@ -3,14 +3,14 @@ package org.openhorizon.exchangeapi.route.agreementbot
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import akka.http.scaladsl.server.Directives.{complete, get, parameter, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
-import org.openhorizon.exchangeapi.table.{Agbot, AgbotsTQ}
+import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotsTQ}
 import org.openhorizon.exchangeapi.{Access, AuthenticationSupport, Identity, OrgAndId, TAgbot}
 import slick.jdbc.PostgresProfile.api._
 

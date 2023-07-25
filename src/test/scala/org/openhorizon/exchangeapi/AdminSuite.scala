@@ -5,7 +5,7 @@ import org.openhorizon.exchangeapi.route.administration.{DeleteOrgChangesRequest
 import scala.util.matching.Regex
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.route.administration.{AdminHashpwResponse, GetAdminOrgStatusResponse, GetAdminStatusResponse}
-import org.openhorizon.exchangeapi.table.OrgRow
+import org.openhorizon.exchangeapi.table.organization.OrgRow
 
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
@@ -31,8 +31,7 @@ import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.organization.PostPutOrgRequest
 import org.openhorizon.exchangeapi.route.service.PostPutServiceRequest
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
-import org.openhorizon.exchangeapi.table.PServiceVersions
-import org.openhorizon.exchangeapi.table.PServices
+import org.openhorizon.exchangeapi.table.deploymentpattern.{PServiceVersions, PServices}
 
 import scalaj.http.Http
 

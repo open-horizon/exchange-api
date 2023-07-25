@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
+import org.checkerframework.checker.units.qual.t
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi
@@ -19,19 +20,27 @@ import org.openhorizon.exchangeapi.auth.{DBProcessingError, IamAccountInfo, IbmC
 import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmRequest
 import org.openhorizon.exchangeapi.route.node.{PostNodeErrorResponse, PostServiceSearchRequest, PostServiceSearchResponse}
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
-import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.{organization, resourcechange, _}
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.error.NodeErrorTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, ApiUtils, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangeApi, ExchangePosgtresErrorHandling, HttpCode, IAgbot, INode, IUser, OrgAndId, RouteUtils, TAction, TAgbot, TNode, TOrg}
+import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgsTQ}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.schema.SchemaTQ
+import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, ApiUtils, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangeApi, ExchangePosgtresErrorHandling, HttpCode, IAgbot, INode, IUser, OrgAndId, RouteUtils, TAction, TAgbot, TNode, TOrg, table}
 
+import java.lang.IllegalCallerException
 import java.time.ZonedDateTime
 import java.time.format.DateTimeParseException
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
+import scala.math.Ordered.orderingToOrdered
 import scala.util._
 
 /*someday: when we start using actors:
@@ -44,112 +53,6 @@ import scala.concurrent.ExecutionContext
 */
 
 // Note: These are the input and output structures for /orgs routes. Swagger and/or json seem to require they be outside the trait.
-
-/** Output format for GET /orgs */
-final case class GetOrgsResponse(orgs: Map[String, Org], lastIndex: Int)
-final case class GetOrgStatusResponse(msg: String, numberOfUsers: Int, numberOfNodes: Int, numberOfNodeAgreements: Int, numberOfRegisteredNodes: Int, numberOfNodeMsgs: Int,SchemaVersion: Int)
-class OrgStatus() {
-  var msg: String = ""
-  var numberOfUsers: Int = 0
-  var numberOfNodes: Int = 0
-  var numberOfNodeAgreements: Int = 0
-  var numberOfRegisteredNodes: Int = 0
-  var numberOfNodeMsgs: Int = 0
-  var dbSchemaVersion: Int = 0
-  def toGetOrgStatusResponse: GetOrgStatusResponse = GetOrgStatusResponse(msg, numberOfUsers, numberOfNodes, numberOfNodeAgreements,numberOfRegisteredNodes, numberOfNodeMsgs, dbSchemaVersion)
-}
-final case class GetOrgAttributeResponse(attribute: String, value: String)
-
-/** Input format for PUT /orgs/<org-id> */
-final case class PostPutOrgRequest(orgType: Option[String], label: String, description: String, tags: Option[Map[String, String]], limits: Option[OrgLimits], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
-  require(label!=null && description!=null)
-  protected implicit val jsonFormats: Formats = DefaultFormats
-  def getAnyProblem(orgMaxNodes: Int): Option[String] = {
-    val exchangeMaxNodes: Int = ExchConfig.getInt("api.limits.maxNodes")
-    if (orgMaxNodes > exchangeMaxNodes) Some.apply(ExchMsg.translate("org.limits.cannot.be.over.exchange.limits", orgMaxNodes, exchangeMaxNodes))
-    else None
-  }
-
-  def toOrgRow(orgId: String): OrgRow = OrgRow.apply(orgId, orgType.getOrElse(""), label, description, ApiTime.nowUTC, tags.map(ts => ApiUtils.asJValue(ts)), write(limits), write(heartbeatIntervals))
-}
-
-final case class PatchOrgRequest(orgType: Option[String], label: Option[String], description: Option[String], tags: Option[Map[String, Option[String]]], limits: Option[OrgLimits], heartbeatIntervals: Option[NodeHeartbeatIntervals]) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
-
-  def getAnyProblem(orgMaxNodes: Int): Option[String] = {
-    val exchangeMaxNodes: Int = ExchConfig.getInt("api.limits.maxNodes")
-    if (orgMaxNodes > exchangeMaxNodes) Some.apply(ExchMsg.translate("org.limits.cannot.be.over.exchange.limits", orgMaxNodes, exchangeMaxNodes))
-    else None
-  }
-  /** Returns a tuple of the db action to update parts of the org, and the attribute name being updated. */
-  def getDbUpdate(orgId: String)(implicit executionContext: ExecutionContext): (DBIO[_], String) = {
-    import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.plainAPI._
-    val lastUpdated: String = ApiTime.nowUTC
-    // find the 1st attribute that was specified in the body and create a db action to update it for this org
-    orgType match { case Some(ot) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.orgType, d.lastUpdated)).update((orgId, ot, lastUpdated)), "orgType"); case _ => ; }
-    label match { case Some(lab) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.label, d.lastUpdated)).update((orgId, lab, lastUpdated)), "label"); case _ => ; }
-    description match { case Some(desc) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.description, d.lastUpdated)).update((orgId, desc, lastUpdated)), "description"); case _ => ; }
-    heartbeatIntervals match { case Some(hbIntervals) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.heartbeatIntervals, d.lastUpdated)).update((orgId, write(hbIntervals), lastUpdated)), "heartbeatIntervals"); case _ => ; }
-    tags match { case Some(ts) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.tags, d.lastUpdated)).update((orgId, Some(ApiUtils.asJValue(ts)), lastUpdated)), "tags"); case _ => ; }
-//    tags match {
-//      case Some(ts) =>
-//        val (deletes, updates) = ts.partition {
-//          case (_, v) => v.isEmpty
-//        }
-//        val dbUpdates =
-//          if (updates.isEmpty) Seq()
-//          else Seq(sqlu"update orgs set tags = coalesce(tags, '{}'::jsonb) || ${ApiUtils.asJValue(updates)} where orgid = $orgId")
-//
-//        val dbDeletes =
-//          for (tag <- deletes.keys.toSeq) yield {
-//            sqlu"update orgs set tags = tags - $tag where orgid = $orgId"
-//          }
-//        val allChanges = dbUpdates ++ dbDeletes
-//        return (DBIO.sequence(allChanges).map(counts => counts.sum), "tags")
-//      case _ =>
-//    }
-    limits match { case Some(lim) => return ((for { d <- OrgsTQ if d.orgid === orgId } yield (d.orgid, d.limits, d.lastUpdated)).update((orgId, write(lim), lastUpdated)), "limits"); case _ => ; }
-    (null, null)
-  }
-}
-
-/** The following classes are to build the response object for the GET /orgs/{orgid}/searc/nodes/error/all route */
-final case class NodeErrorsResp(nodeId: String, error: String, lastUpdated: String)
-final case class AllNodeErrorsInOrgResp(nodeErrors: ListBuffer[NodeErrorsResp])
-
-/** Input body for POST /org/{orgid}/search/nodehealth */
-final case class PostNodeHealthRequest(lastTime: String, nodeOrgids: Option[List[String]]) {
-  require(lastTime!=null)
-  def getAnyProblem: Option[String] = None
-}
-
-final case class NodeHealthAgreementElement(lastUpdated: String)
-class NodeHealthHashElement(var lastHeartbeat: Option[String], var agreements: Map[String, NodeHealthAgreementElement])
-final case class PostNodeHealthResponse(nodes: Map[String, NodeHealthHashElement])
-
-/** Case class for request body for ResourceChanges route */
-final case class ResourceChangesRequest(changeId: Long, lastUpdated: Option[String], maxRecords: Int, orgList: Option[List[String]]) {
-  def getAnyProblem: Option[String] = {
-    try {
-      ZonedDateTime.parse(lastUpdated.getOrElse(ApiTime.beginningUTC)) //if lastUpdated is provided, make sure we can parse it
-      None //if the parse was successful, no problem
-    }
-    catch {
-      case _: DateTimeParseException => Some.apply(ExchMsg.translate("error.parsing.timestamp", lastUpdated.get))
-    }
-  }
-}
-
-/** The following classes are to build the response object for the ResourceChanges route */
-final case class ResourceChangesInnerObject(changeId: Long, lastUpdated: String)
-final case class ChangeEntry(orgId: String, var resource: String, id: String, var operation: String, resourceChanges: ListBuffer[ResourceChangesInnerObject]){
-  def addToResourceChanges(innerObject: ResourceChangesInnerObject): ListBuffer[ResourceChangesInnerObject] = { this.resourceChanges += innerObject}
-  def setOperation(newOp: String): Unit = {this.operation = newOp}
-  def setResource(newResource: String): Unit = {this.resource = newResource}
-}
-final case class ResourceChangesRespObject(changes: List[ChangeEntry], mostRecentChangeId: Long, hitMaxRecords: Boolean, exchangeVersion: String)
-
-final case class MaxChangeIdResponse(maxChangeId: Long)
 
 final case class GetMyOrgsRequest(accounts: List[IamAccountInfo]){
   def getAnyProblem: Option[String] = None
@@ -186,7 +89,19 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   */
 
   // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
-  def orgsRoutes: Route = orgsGetRoute ~ orgGetRoute ~ orgStatusRoute ~ orgPostRoute ~ orgPutRoute ~ orgPatchRoute ~ orgDeleteRoute ~ orgPostNodesErrorRoute ~ nodeGetAllErrorsRoute ~ orgPostNodesServiceRoute ~ orgPostNodesHealthRoute ~ orgChangesRoute ~ orgsGetMaxChangeIdRoute ~ myOrgsPostRoute ~ agbotAgreementConfirmRoute
+  def orgsRoutes: Route = orgsGetRoute ~
+                          orgGetRoute ~
+                          orgStatusRoute ~
+                          orgPostRoute ~
+                          orgPutRoute ~
+                          orgPatchRoute ~
+                          orgDeleteRoute ~
+                          orgPostNodesErrorRoute ~
+                          nodeGetAllErrorsRoute ~
+                          orgPostNodesServiceRoute ~
+                          orgPostNodesHealthRoute ~
+                          myOrgsPostRoute ~
+                          agbotAgreementConfirmRoute
 
   // ====== GET /orgs ================================
 
@@ -619,7 +534,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug(s"PATCH /orgs/$orgId result: $n")
               if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
-                ResourceChange(0L, orgId, orgId, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.MODIFIED).insert.asTry
+                resourcechange.ResourceChange(0L, orgId, orgId, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.MODIFIED).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId))).asTry
               }
@@ -672,7 +587,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               logger.debug(s"DELETE /orgs/$orgId result: $v")
               if (v > 0) { // there were no db errors, but determine if it actually found it or not
-                ResourceChange(0L, orgId, orgId, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.DELETED).insert.asTry
+                resourcechange.ResourceChange(0L, orgId, orgId, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.DELETED).insert.asTry
               } else {
                 orgFound = false
                 DBIO.successful("no update in resourcechanges table").asTry // just give a success to get us to the next step, but notify that it wasn't added to the resourcechanges table
@@ -977,203 +892,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  def buildResourceChangesResponse(inputList: scala.Seq[ResourceChangeRow], hitMaxRecords: Boolean, inputChangeId: Long, maxChangeIdOfTable: Long): ResourceChangesRespObject ={
-    // Sort the rows based on the changeId. Default order is ascending, which is what we want
-    logger.info(s"POST /orgs/{orgid}/changes sorting ${inputList.size} rows")
-    // val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
-
-    // fill in some values we can before processing
-    val exchangeVersion: String = ExchangeApi.adminVersion()
-    // set up needed variables
-    val maxChangeIdInResponse: Long = inputList.last.changeId
-    val changesMap: scala.collection.mutable.Map[String, ChangeEntry] = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
-    // fill in changesMap
-    for (entry <- inputList) { // looping through every single ResourceChangeRow in inputList, given that we apply `.take(maxRecords)` in the query, this should never be over maxRecords, so no more need to break
-      val resChange: ResourceChangesInnerObject = ResourceChangesInnerObject(entry.changeId, ApiTime.fixFormatting(entry.lastUpdated.toString))
-      changesMap.get(entry.orgId + "_" + entry.id + "_" + entry.resource) match { // using the map allows for better searching and entry
-        case Some(change) =>
-          // inputList is already sorted by changeId from the query so we know this change happened later
-          change.addToResourceChanges(resChange) // add the changeId and lastUpdated to the list of recent changes
-          change.setOperation(entry.operation) // update the most recent operation performed
-        case None => // add the change to the changesMap
-          val resChangeListBuffer: ListBuffer[ResourceChangesInnerObject] = ListBuffer[ResourceChangesInnerObject](resChange)
-          changesMap.put(entry.orgId + "_" + entry.id + "_" + entry.resource, ChangeEntry(entry.orgId, entry.resource, entry.id, entry.operation, resChangeListBuffer))
-      } // end of match
-    } // end of for loop
-    // now we have changesMap which is Map[String, ChangeEntry] we need to convert that to a List[ChangeEntry]
-    val changesList: List[ChangeEntry] = changesMap.values.toList
-    var maxChangeId = 0L
-    if (hitMaxRecords) maxChangeId = maxChangeIdInResponse   // we hit the max records, so there are possibly value entries we are not returning, so the client needs to start here next time
-    else if (maxChangeIdOfTable > 0) maxChangeId = maxChangeIdOfTable   // we got a valid max change id in the table, and we returned all relevant entries, so the client can start at the end of the table next time
-    else maxChangeId = inputChangeId    // we didn't get a valid maxChangeIdInResponse or maxChangeIdOfTable, so just give the client back what they gave us
-    ResourceChangesRespObject(changesList, maxChangeId, hitMaxRecords, exchangeVersion)
-  }
-
-  /* ====== POST /orgs/{orgid}/changes ================================ */
-  @POST
-  @Path("orgs/{orgid}/changes")
-  @Operation(
-    summary = "Returns recent changes in this org",
-    description = "Returns all the recent resource changes within an org that the caller has permissions to view.",
-    parameters = Array(
-      new Parameter(
-        name = "orgid",
-        in = ParameterIn.PATH,
-        description = "Organization id."
-      )
-    ),
-    requestBody = new RequestBody(
-      content = Array(
-        new Content(
-          examples = Array(
-            new ExampleObject(
-              value = """{
-  "changeId": 1234,
-  "lastUpdated": "2019-05-14T16:34:36.295Z[UTC]",
-  "maxRecords": 100,
-  "orgList": ["", "", ""]
-}"""
-            )
-          ),
-          mediaType = "application/json",
-          schema = new Schema(implementation = classOf[ResourceChangesRequest])
-        )
-      ),
-      required = true
-    ),
-    responses = Array(
-      new responses.ApiResponse(
-        responseCode = "201",
-        description = "changes returned - response body:",
-        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ResourceChangesRespObject])))
-      ),
-      new responses.ApiResponse(
-        responseCode = "400",
-        description = "bad input"
-      ),
-      new responses.ApiResponse(
-        responseCode = "401",
-        description = "invalid credentials"
-      ),
-      new responses.ApiResponse(
-        responseCode = "403",
-        description = "access denied"
-      ),
-      new responses.ApiResponse(
-        responseCode = "404",
-        description = "not found"
-      )
-    )
-  )
-  def orgChangesRoute: Route = (path("orgs" / Segment / "changes") & post & entity(as[ResourceChangesRequest])) { (orgId, reqBody) =>
-    logger.debug(s"Doing POST /orgs/$orgId/changes")
-    exchAuth(TOrg(orgId), Access.READ) { ident =>
-      validateWithMsg(reqBody.getAnyProblem) {
-        complete({
-          // make sure callers obey maxRecords cap set in config, defaults is 10,000
-          val maxRecordsCap: Int = ExchConfig.getInt("api.resourceChanges.maxRecordsCap")
-          val maxRecords: Int = if (reqBody.maxRecords > maxRecordsCap) maxRecordsCap else reqBody.maxRecords
-          // Create a query to get the last changeid currently in the table
-          val qMaxChangeId = ResourceChangesTQ.sortBy(_.changeId.desc).take(1).map(_.changeId)
-          val orgList : List[String] = if (reqBody.orgList.isDefined && reqBody.orgList.getOrElse(List()).contains(orgId)) reqBody.orgList.getOrElse(List("")) else reqBody.orgList.getOrElse(List("")) ++ List(orgId)
-          val orgSet : Set[String] = orgList.toSet
-          var maxChangeId = 0L
-          val reqBodyTime : java.sql.Timestamp = java.sql.Timestamp.from(ZonedDateTime.parse(reqBody.lastUpdated.getOrElse(ApiTime.beginningUTC)).toInstant)
-          // Create query to get the rows relevant to this client. We only support either changeId or lastUpdated being specified, but not both
-          var qFilter = if (reqBody.lastUpdated.getOrElse("") != "" && reqBody.changeId <= 0) ResourceChangesTQ.filter(_.lastUpdated >= reqBodyTime) else ResourceChangesTQ.filter(_.changeId >= reqBody.changeId)
-
-          ident match {
-            case _: INode =>
-              // if its a node calling then it doesn't want information about any other nodes
-              /* Note: these filters in the commented out line were replaced with the line below it because it was found that postgresql used significantly less CPU processing filters that don't contain
-                    inequality statements. In postgresql 9 the difference was dramatic. In postgreql 12 the difference was less but still signficant. Logically, the only difference between these 2 lines
-                    is that the latter will not get changes in patterns or deployment policies. But the node doesn't need these, because the agbots drive the response to those.
-                qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filter(u => (u.category === "node" && u.id === ident.getIdentity) || u.category =!= "node") */
-                qFilter = qFilter.filter(u => (u.orgId === orgId) || u.public === "true") .filter(u => (u.category === "mgmtpolicy") || (u.category === "node" && u.id === ident.getIdentity) || (u.category === "service" || u.category === "org"))
-            case _: IAgbot =>
-              val wildcard: Boolean = orgSet.contains("*") || orgSet.contains("")
-              if (ident.isMultiTenantAgbot && !wildcard) { // its an IBM Agbot with no wildcard sent in, get all changes from orgs the agbot covers
-                qFilter = qFilter.filter(u => (u.orgId inSet orgSet) || ((u.resource === "org") && (u.operation === ResChangeOperation.CREATED.toString))).filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString).filterNot(u => u.resource === "agbotagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString)
-              } else if ( ident.isMultiTenantAgbot && wildcard) {
-                // if the IBM agbot sends in the wildcard case then we don't want to filter on orgId at all
-                qFilter = qFilter.filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString).filterNot(u => u.resource === "agbotagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString)
-              } else {
-                qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true")).filterNot(_.resource === "nodemsgs").filterNot(_.resource === "nodestatus").filterNot(u => u.resource === "nodeagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString).filterNot(u => u.resource === "agbotagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString) // if its not an IBM agbot only allow access to the agbot's own org and public changes from other orgs
-              }
-            case _ => qFilter = qFilter.filter(u => (u.orgId === orgId) || (u.orgId =!= orgId && u.public === "true"))
-          }
-          // sort by changeId and take only maxRecords from the query
-          qFilter = qFilter.sortBy(_.changeId).take(maxRecords)
-
-          logger.debug(s"POST /orgs/$orgId/changes db query: ${qFilter.result.statements}")
-          var qResp : scala.Seq[ResourceChangeRow] = null
-
-          db.run(qMaxChangeId.result.asTry.flatMap({
-            case Success(qMaxChangeIdResp) =>
-              maxChangeId = if (qMaxChangeIdResp.nonEmpty) qMaxChangeIdResp.head else 0
-              qFilter.result.asTry
-            case Failure(t) => DBIO.failed(t).asTry
-          }).flatMap({
-            case Success(qResult) =>
-              //logger.debug("POST /orgs/" + orgId + "/changes changes : " + qOrgResult.toString())
-              logger.debug("POST /orgs/" + orgId + "/changes number of changed rows retrieved: " + qResult.size)
-              qResp = qResult
-              val id: String = ident.getOrg + "/" + ident.getIdentity
-              ident match {
-                case _: INode =>
-                  NodesTQ.getLastHeartbeat(id).update(Some(ApiTime.nowUTC)).asTry
-                case _: IAgbot =>
-                  AgbotsTQ.getLastHeartbeat(id).update(ApiTime.nowUTC).asTry
-                case _ =>
-                  // Caller isn't a node or agbot so no need to heartbeat, just send a success in this step
-                  // v in the next step must be > 0 so any n > 0 works
-                  DBIO.successful(1).asTry
-              }
-            case Failure(t) => DBIO.failed(t).asTry
-          })).map({
-            case Success(n) =>
-              logger.debug(s"POST /orgs/$orgId/changes node/agbot heartbeat result: $n")
-              if (n > 0) {
-                val hitMaxRecords: Boolean = (qResp.size >= maxRecords) // if they are equal then we hit maxRecords
-                if(qResp.nonEmpty) (HttpCode.POST_OK, buildResourceChangesResponse(qResp, hitMaxRecords, reqBody.changeId, maxChangeId))
-                else (HttpCode.POST_OK, ResourceChangesRespObject(List[ChangeEntry](), maxChangeId, hitMaxRecords = false, ExchangeApi.adminVersion()))
-              }
-            else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", ident.getIdentity)))
-            case Failure(t: org.postgresql.util.PSQLException) =>
-              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("invalid.input.message", t.getMessage))
-            case Failure(t) =>
-              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
-          })
-        }) // end of complete
-      } // end of validateWithMsg
-    } // end of exchAuth
-  }
-
-  // ====== GET /changes/maxchangeid ================================
-  @GET
-  @Path("changes/maxchangeid")
-  @Operation(summary = "Returns the max changeid of the resource changes", description = "Returns the max changeid of the resource changes. Can be run by the root user, organization admins, or any node or agbot.",
-    responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "response body",
-        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[MaxChangeIdResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-      new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def orgsGetMaxChangeIdRoute: Route = (path("changes" / "maxchangeid") & get) {
-    logger.debug("Doing GET /changes/maxchangeid")
-    exchAuth(TAction(), Access.MAXCHANGEID) { _ =>
-      complete({
-        val q = ResourceChangesTQ.sortBy(_.changeId.desc).take(1).map(_.changeId)
-        logger.debug(s"GET /changes/maxchangeid db query: ${q.result.statements}")
-
-        db.run(q.result).map({ changeIds =>
-          logger.debug("GET /changes/maxchangeid result: " + changeIds)
-          val changeId: Long = if (changeIds.nonEmpty) changeIds.head else 0
-          (StatusCodes.OK, MaxChangeIdResponse(changeId))
-        })
-      }) // end of complete
-    } // end of exchAuth
-  }
-
+  
+  
   // ====== POST /myorgs ================================
   @POST
   @Path("myorgs")

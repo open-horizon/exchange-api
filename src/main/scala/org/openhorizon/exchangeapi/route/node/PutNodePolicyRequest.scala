@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.node
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.{NodePolicyRow, PropertiesAndConstraints}
-import org.openhorizon.exchangeapi.table.OneProperty
+import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
 
 final case class PutNodePolicyRequest(label: Option[String], description: Option[String], properties: Option[List[OneProperty]], constraints: Option[List[String]], deployment: Option[PropertiesAndConstraints], management: Option[PropertiesAndConstraints], nodePolicyVersion: Option[String]) {

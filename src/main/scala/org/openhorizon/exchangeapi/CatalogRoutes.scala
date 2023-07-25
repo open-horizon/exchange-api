@@ -18,7 +18,9 @@ import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization.read
 import org.openhorizon.exchangeapi.route.deploymentpattern.GetPatternsResponse
 import org.openhorizon.exchangeapi.route.service.{GetServicesResponse, GetServicesUtils}
-import org.openhorizon.exchangeapi.table.{OrgsTQ, Pattern, PatternsTQ, Service, ServicesTQ}
+import org.openhorizon.exchangeapi.table.deploymentpattern.{Pattern, PatternsTQ}
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.service.{Service, ServicesTQ}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.util.{Failure, Success}

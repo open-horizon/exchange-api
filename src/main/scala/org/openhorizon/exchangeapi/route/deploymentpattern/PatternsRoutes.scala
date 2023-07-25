@@ -17,9 +17,13 @@ import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.route.node.{PatternNodeResponse, PostPatternSearchResponse}
 import org.openhorizon.exchangeapi.route.organization.{NodeHealthHashElement, PostNodeHealthRequest, PostNodeHealthResponse}
-import org.openhorizon.exchangeapi.table._
+import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
+import org.openhorizon.exchangeapi.table.{organization, resourcechange, _}
+import org.openhorizon.exchangeapi.table.deploymentpattern.{PServices, Pattern, PatternsTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Nth, OrgAndId, RouteUtils, TNode, TPattern, Version, auth}
 import slick.jdbc.PostgresProfile.api._
 
@@ -29,138 +33,6 @@ import scala.concurrent.ExecutionContext
 import scala.util._
 import scala.util.control.Breaks._
 
-
-//====== These are the input and output structures for /orgs/{orgid}/patterns routes. Swagger and/or json seem to require they be outside the trait.
-
-/** Output format for GET /orgs/{orgid}/patterns */
-final case class GetPatternsResponse(patterns: Map[String,Pattern], lastIndex: Int)
-final case class GetPatternAttributeResponse(attribute: String, value: String)
-
-/** 
-  * Input for pattern-based search for nodes to make agreements with. 
-  * 
-  * Pattern does not use changedSince like policy search because pattern agreements either exist 
-  * or they do not. Pattern agreements are not time-boxed.
-  **/
-final case class PostPatternSearchRequest(arch: Option[String], 
-                                          nodeOrgids: Option[List[String]], 
-                                          numEntries: Option[String] = None,  // Not used.
-                                          secondsStale: Option[Int], 
-                                          serviceUrl: String = "",
-                                          startIndex: Option[String] = None)  // Not used.
-
-object PatternUtils {
-  def validatePatternServices(services: List[PServices]): Option[String] = {
-    // Check that it is signed and check the version syntax
-    for (s <- services) {
-      if (s.serviceVersions.isEmpty) return Some(ExchMsg.translate("no.version.specified.for.service", s.serviceOrgid, s.serviceUrl, s.serviceArch))
-      for (sv <- s.serviceVersions) {
-        if (!Version(sv.version).isValid) return Some(ExchMsg.translate("version.not.valid.format", sv.version))
-        if (sv.deployment_overrides.getOrElse("") != "" && sv.deployment_overrides_signature.getOrElse("") == "") {
-          return Some(ExchMsg.translate("pattern.definition.not.signed"))
-        }
-      }
-    }
-    None
-  }
-}
-
-/** Input format for POST/PUT /orgs/{orgid}/patterns/<pattern-id> */
-final case class PostPutPatternRequest(label: String,
-                                       description: Option[String],
-                                       public: Option[Boolean],
-                                       services: List[PServices],
-                                       userInput: Option[List[OneUserInputService]],
-                                       secretBinding: Option[List[OneSecretBindingService]],
-                                       agreementProtocols: Option[List[Map[String,String]]],
-                                       clusterNamespace: Option[String] = None) {
-  require(label!=null && services!=null)
-  protected implicit val jsonFormats: Formats = DefaultFormats
-
-  def getAnyProblem: Option[String] = {
-    if(services.isEmpty) return Some(ExchMsg.translate("no.services.defined.in.pattern"))
-    PatternUtils.validatePatternServices(services)
-  }
-
-  // Build a list of db actions to verify that the referenced services exist
-  def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { PatternsTQ.validateServiceIds(services, userInput.getOrElse(List())) }
-
-  // Note: write() handles correctly the case where the optional fields are None.
-  def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
-    // The nodeHealth field is optional, so fill in a default in each element of services if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
-    val agrChkDefault: Int = ExchConfig.getInt("api.defaults.pattern.check_agreement_status")
-    val agreementProtocols2: Option[List[Map[String, String]]] = agreementProtocols.orElse(Some(List(Map("name" -> "Basic"))))
-    val hbDefault: Int = ExchConfig.getInt("api.defaults.pattern.missing_heartbeat_interval")
-    val services2: Seq[PServices] =
-      if (services.nonEmpty) {
-        services.map({
-          s =>
-            val nodeHealth2: Option[Map[String, Int]] = s.nodeHealth.orElse(Some(Map("missing_heartbeat_interval" -> hbDefault, "check_agreement_status" -> agrChkDefault)))
-            PServices(s.serviceUrl, s.serviceOrgid, s.serviceArch, s.agreementLess, s.serviceVersions, s.dataVerification, nodeHealth2)
-        })
-      }
-      else
-        services
-    
-    PatternRow(agreementProtocols = write(agreementProtocols2),
-               clusterNamespace = clusterNamespace,
-               description = description.getOrElse(label),
-               label = label,
-               lastUpdated = ApiTime.nowUTC,
-               orgid = orgid,
-               owner = owner,
-               pattern = pattern,
-               public = public.getOrElse(false),
-               services = write(services2),
-               secretBinding = write(secretBinding),
-               userInput = write(userInput))
-  }
-}
-
-final case class PatchPatternRequest(label: Option[String],
-                                     description: Option[String],
-                                     public: Option[Boolean],
-                                     services: Option[List[PServices]],
-                                     userInput: Option[List[OneUserInputService]],
-                                     secretBinding:Option[List[OneSecretBindingService]],
-                                     agreementProtocols: Option[List[Map[String,String]]],
-                                     clusterNamespace: Option[String] = None) {
-  protected implicit val jsonFormats: Formats = DefaultFormats
-
-  def getAnyProblem: Option[String] = {
-    /* if (!requestBody.trim.startsWith("{") && !requestBody.trim.endsWith("}")) Some(ExchMsg.translate("invalid.input.message", requestBody))
-    else */ if (services.isDefined) PatternUtils.validatePatternServices(services.get)
-    else None
-  }
-
-  /** Returns a tuple of the db action to update parts of the pattern, and the attribute name being updated. */
-  def getDbUpdate(pattern: String, orgid: String): (DBIO[_],String) = {
-    val lastUpdated: String = ApiTime.nowUTC
-    // find the 1st attribute that was specified in the body and create a db action to update it for this pattern
-    agreementProtocols match { case Some(ap) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.agreementProtocols,d.lastUpdated)).update((pattern, write(ap), lastUpdated)), "agreementProtocols"); case _ => ; }
-    clusterNamespace match { case Some(namespace) => return ((for { d <- PatternsTQ if d.clusterNamespace === namespace } yield (d.pattern,d.clusterNamespace,d.lastUpdated)).update((pattern, Option(namespace), lastUpdated)), "clusterNamespace"); case _ => ; }
-    description match { case Some(desc) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.description,d.lastUpdated)).update((pattern, desc, lastUpdated)), "description"); case _ => ; }
-    label match { case Some(lab) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.label,d.lastUpdated)).update((pattern, lab, lastUpdated)), "label"); case _ => ; }
-    public match { case Some(pub) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.public,d.lastUpdated)).update((pattern, pub, lastUpdated)), "public"); case _ => ; }
-    secretBinding match {case Some(bind) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.secretBinding,d.lastUpdated)).update((pattern, write(bind), lastUpdated)), "secretBinding"); case _ => ; }
-    services match { case Some(svc) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.services,d.lastUpdated)).update((pattern, write(svc), lastUpdated)), "services"); case _ => ; }
-    userInput match { case Some(input) => return ((for { d <- PatternsTQ if d.pattern === pattern } yield (d.pattern,d.userInput,d.lastUpdated)).update((pattern, write(input), lastUpdated)), "userInput"); case _ => ; }
-    (null, null)
-  }
-
-}
-
-
-/** Input format for PUT /orgs/{orgid}/patterns/{pattern}/keys/<key-id> */
-final case class PutPatternKeyRequest(key: String) {
-  require(key!=null)
-  def toPatternKey: PatternKey = PatternKey(key, ApiTime.nowUTC)
-  def toPatternKeyRow(patternId: String, keyId: String): PatternKeyRow = PatternKeyRow(keyId, patternId, key, ApiTime.nowUTC)
-  def getAnyProblem: Option[String] = None
-}
-
-
-/** Implementation for all of the /orgs/{orgid}/patterns routes */
 @Path("/v1/orgs/{orgid}/patterns")
 trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -994,7 +866,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                   else {
                     publicField = storedPatternPublic
                   }
-                  ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.MODIFIED).insert.asTry
+                  resourcechange.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.MODIFIED).insert.asTry
                 } else {
                   DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.attribute.not.update", attrName, compositeId))).asTry
                 }
@@ -1054,7 +926,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               AuthCache.removePatternOwner(compositeId)
               AuthCache.removePatternIsPublic(compositeId)
-              ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERN, ResChangeOperation.DELETED).insert.asTry
+              resourcechange.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERN, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
             }
@@ -1475,7 +1347,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
                 logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " public field: " + public)
                 if (public.nonEmpty) {
                   val publicField: Boolean = public.head
-                  ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                  resourcechange.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
                 } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
@@ -1527,7 +1399,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /patterns/" + pattern + "/keys result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED).insert.asTry
+              resourcechange.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.pattern.keys.found", compositeId))).asTry
             }
@@ -1580,7 +1452,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /patterns/" + pattern + "/keys/" + keyId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED).insert.asTry
+              resourcechange.ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.key.not.found", keyId, compositeId))).asTry
             }

@@ -30,6 +30,7 @@ import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.schema.SchemaTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, ApiUtils, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangeApi, ExchangePosgtresErrorHandling, HttpCode, IAgbot, INode, IUser, OrgAndId, RouteUtils, TAction, TAgbot, TNode, TOrg, table}
 

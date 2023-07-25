@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.managementpolicy
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.service.OneProperty
-import org.openhorizon.exchangeapi.table.{AgentUpgradePolicy, ManagementPolicyRow}
+import org.openhorizon.exchangeapi.table.managementpolicy.{AgentUpgradePolicy, ManagementPolicyRow}
 import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
 

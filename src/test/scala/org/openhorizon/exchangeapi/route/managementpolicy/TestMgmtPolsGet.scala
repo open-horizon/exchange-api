@@ -2,10 +2,10 @@ package org.openhorizon.exchangeapi.route.managementpolicy
 
 import org.json4s.DefaultFormats
 import org.json4s.native.JsonMethods
+import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicy, ManagementPolicyRow}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.table.{ManagementPoliciesTQ, ManagementPolicy, ManagementPolicyRow}
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Password, Role, TestDBConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite

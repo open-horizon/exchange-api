@@ -7,8 +7,11 @@ import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.AgbotBusi
 import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.AgbotPatternsTQ
-import org.openhorizon.exchangeapi.table.deploymentpattern.{PatternKeysTQ, PatternsTQ}
-import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, SearchOffsetPolicyTQ}
+import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
+import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
+import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
+import org.openhorizon.exchangeapi.table.deploymentpolicy.search.SearchOffsetPolicyTQ
+import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.NodePolicyTQ
@@ -20,6 +23,7 @@ import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.schema.{SchemaRow, SchemaTQ}
 import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuthsTQ
 import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyTQ
@@ -28,7 +32,7 @@ import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
-import org.openhorizon.exchangeapi.table.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, ManagementPoliciesTQ, SchemaRow, SchemaTQ}
+import org.openhorizon.exchangeapi.table.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ}
 import org.postgresql.util.PSQLException
 import slick.collection.heterogeneous.Zero.+
 

@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import org.openhorizon.exchangeapi.table.SchemaTQ
 import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, ExchMsg, HttpCode, Password, Role, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
@@ -10,6 +9,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.message.{NodeMsgRow, NodeMsgsTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.schema.SchemaTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.{Password, Role, TestDBConnection}
 import org.scalatest.BeforeAndAfterAll

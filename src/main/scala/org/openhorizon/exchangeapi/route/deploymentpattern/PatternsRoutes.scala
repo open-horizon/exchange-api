@@ -17,8 +17,9 @@ import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.route.node.{PatternNodeResponse, PostPatternSearchResponse}
 import org.openhorizon.exchangeapi.route.organization.{NodeHealthHashElement, PostNodeHealthRequest, PostNodeHealthResponse}
+import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.{organization, resourcechange, _}
-import org.openhorizon.exchangeapi.table.deploymentpattern.{PServices, Pattern, PatternKeysTQ, PatternsTQ}
+import org.openhorizon.exchangeapi.table.deploymentpattern.{PServices, Pattern, PatternsTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ

@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.deploymentpattern
 
 import org.openhorizon.exchangeapi.ApiTime
-import org.openhorizon.exchangeapi.table.deploymentpattern.{PatternKey, PatternKeyRow}
+import org.openhorizon.exchangeapi.table.deploymentpattern.key.{PatternKey, PatternKeyRow}
 
 final case class PutPatternKeyRequest(key: String) {
   require(key!=null)

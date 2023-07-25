@@ -8,7 +8,8 @@ import org.junit.runner.RunWith
 import org.openhorizon.exchangeapi.Role
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{BusinessPolicyNodeResponse, PostBusinessPolicySearchRequest, PostBusinessPolicySearchResponse}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
-import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, BusinessPolicyRow, SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ}
+import org.openhorizon.exchangeapi.table.deploymentpolicy.search.{SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ}
+import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, BusinessPolicyRow}
 import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreementRow, NodeAgreementsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}

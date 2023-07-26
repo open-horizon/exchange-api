@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.node
 
-import org.openhorizon.exchangeapi.{ExchMsg, Version, VersionRange}
+import org.openhorizon.exchangeapi.utility.{ExchMsg, Version, VersionRange}
 
 /** 1 generic property that is used in the node search criteria */
 final case class Prop(name: String,

@@ -1,8 +1,9 @@
 package org.openhorizon.exchangeapi.table.agreementbot
 
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.{ApiTime, Role, StrConstants}
+import org.openhorizon.exchangeapi.utility.{ApiTime, StrConstants}
 import slick.jdbc.PostgresProfile.api._
 
 

@@ -6,17 +6,19 @@ import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.table._
-import org.openhorizon.exchangeapi.{Access, ApiResponse, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangeApi, ExchangeApiTables, ExchangePosgtresErrorHandling, HttpCode, Password, Role, TAction}
+import org.openhorizon.exchangeapi.ExchangeApi
 import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{GET, POST, Path}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Password, Role, TAction}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
-import org.openhorizon.exchangeapi.{Access, ApiRespType, AuthCache, AuthenticationSupport, ExchangeApi, ExchangeApiTables, Role}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.ExchangeApi
 import slick.jdbc.PostgresProfile.api._
 
 import java.util.Properties

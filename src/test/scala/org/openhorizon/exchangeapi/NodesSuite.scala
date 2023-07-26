@@ -13,6 +13,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import org.openhorizon.exchangeapi.table._
 import org.json4s.native.JsonMethods
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotMsgsResponse, PostAgbotsMsgsRequest, PutAgbotsRequest}
 import org.openhorizon.exchangeapi.route.deploymentpattern.{PostPatternSearchRequest, PostPutPatternRequest}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.PostPutBusinessPolicyRequest
@@ -31,6 +32,7 @@ import org.openhorizon.exchangeapi.table.node.group.assignment.PostPutNodeGroups
 import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service.{OneProperty, ServicesTQ}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchConfig, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc.PostgresProfile.api._

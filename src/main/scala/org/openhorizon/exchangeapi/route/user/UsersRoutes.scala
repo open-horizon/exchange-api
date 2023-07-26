@@ -12,8 +12,9 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, IUser, Identity, OrgAndId, Password, Role, TUser}
 import org.openhorizon.exchangeapi.table.user.{User, UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Identity, OrgAndId, Password, Role, StrConstants, TUser}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, StrConstants}
 
 //import org.openhorizon.exchangeapi.AuthenticationSupport._
 import org.json4s._

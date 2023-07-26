@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.service
 
-import org.openhorizon.exchangeapi.OrgAndId
+import org.openhorizon.exchangeapi.auth.OrgAndId
 import slick.lifted.{Query, Rep, TableQuery}
 import slick.jdbc.PostgresProfile.api._
 

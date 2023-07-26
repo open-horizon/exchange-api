@@ -8,7 +8,9 @@ import com.github.swagger.akka.model.{Info, License}
 import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import io.swagger.v3.oas.models.ExternalDocumentation
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
+import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
 import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
+import org.openhorizon.exchangeapi.route.catalog.CatalogRoutes
 import org.openhorizon.exchangeapi.route.deploymentpattern.PatternsRoutes
 import org.openhorizon.exchangeapi.route.deploymentpolicy.BusinessRoutes
 import org.openhorizon.exchangeapi.route.managementpolicy.ManagementPoliciesRoutes
@@ -29,7 +31,7 @@ object SwaggerDocService extends SwaggerHttpService {
   //override implicit val actorSystem: ActorSystem = system
   //override implicit val materializer: ActorMaterializer = ActorMaterializer()
   override def apiClasses: Set[Class[_]] =
-    Set(classOf[AgentConfigurationManagementRoutes],
+    Set(classOf[AgentConfigurationManagement],
         classOf[AdminRoutes],
         classOf[AgbotsRoutes],
         classOf[Agreement],

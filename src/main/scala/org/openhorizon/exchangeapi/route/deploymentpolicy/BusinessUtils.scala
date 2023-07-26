@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.deploymentpolicy
 
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BService
-import org.openhorizon.exchangeapi.{ExchMsg, Version}
+import org.openhorizon.exchangeapi.utility.{ExchMsg, Version}
 
 object BusinessUtils {
   def getAnyProblem(service: BService): Option[String] = {

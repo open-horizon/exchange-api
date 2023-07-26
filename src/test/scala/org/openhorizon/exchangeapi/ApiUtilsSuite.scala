@@ -1,6 +1,7 @@
 package org.openhorizon.exchangeapi
 
 import org.junit.runner.RunWith
+import org.openhorizon.exchangeapi.utility.{ApiTime, NodeAgbotTokenValidation}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 

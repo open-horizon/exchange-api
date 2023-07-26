@@ -11,7 +11,9 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
-import org.openhorizon.exchangeapi.{ApiResponse, ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.{TestDBConnection}
+import org.openhorizon.exchangeapi.auth.Role
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner

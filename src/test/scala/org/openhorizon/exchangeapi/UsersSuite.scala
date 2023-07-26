@@ -7,6 +7,7 @@ import scalaj.http._
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.organization.PostPutOrgRequest
 import org.openhorizon.exchangeapi.route.service.PostPutServiceRequest
@@ -16,6 +17,7 @@ import scala.collection.mutable.ListBuffer
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 
 import scala.collection.immutable._

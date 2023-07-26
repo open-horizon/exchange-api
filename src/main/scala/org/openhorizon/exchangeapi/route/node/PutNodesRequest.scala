@@ -5,7 +5,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, NodeType, NodesTQ, RegService}
 import org.openhorizon.exchangeapi.table.service.ServiceRef2
-import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
 
 /** Input format for PUT /orgs/{orgid}/nodes/<node-id> */

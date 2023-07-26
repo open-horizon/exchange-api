@@ -4,7 +4,7 @@ import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.table.managementpolicy.{AgentUpgradePolicy, ManagementPolicyRow}
-import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
 
 final case class PostPutManagementPolicyRequest(label: String,

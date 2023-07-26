@@ -18,7 +18,8 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.{AuthorizationSupport, Creds, ExchangeApi, IUser, Identity, RequestInfo, Role}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ExchConfig, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.{ExchangeApi}
 
 import scala.concurrent.ExecutionContext
 import scalacache._

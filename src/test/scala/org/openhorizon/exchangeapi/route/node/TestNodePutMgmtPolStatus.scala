@@ -1,10 +1,11 @@
 package org.openhorizon.exchangeapi.route.node
 
 import org.openhorizon.exchangeapi
-import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
+import org.openhorizon.exchangeapi.{TestDBConnection}
 import org.checkerframework.checker.units.qual.s
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization.write
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, BusinessPolicyRow}
 import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPolicies, ManagementPoliciesTQ, ManagementPolicyRow}
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{NodeMgmtPolStatusRow, NodeMgmtPolStatuses}
@@ -12,7 +13,8 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.{Role, TestDBConnection}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.{TestDBConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}

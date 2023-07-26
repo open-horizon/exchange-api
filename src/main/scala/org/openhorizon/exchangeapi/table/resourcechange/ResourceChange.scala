@@ -1,9 +1,9 @@
 package org.openhorizon.exchangeapi.table.resourcechange
 
-import org.openhorizon.exchangeapi.ApiTime
 import org.openhorizon.exchangeapi.table.resourcechange.ResChangeCategory.ResChangeCategory
 import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation.ResChangeOperation
 import org.openhorizon.exchangeapi.table.resourcechange.ResChangeResource.ResChangeResource
+import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.DBIO
 
 final case class ResourceChange(changeId: Long,

@@ -27,4 +27,5 @@ trait ExchangePostgresProfile extends PostgresProfile
       ).to(_.toList)
   }
 }
+
 object ExchangePostgresProfile extends ExchangePostgresProfile

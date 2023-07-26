@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.service
 
-import org.openhorizon.exchangeapi.ApiTime
 import org.openhorizon.exchangeapi.table.service.dockerauth.{ServiceDockAuthRow, ServiceDockAuths, ServiceDockAuthsTQ}
+import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.jdbc.PostgresProfile.api._
 
 import scala.util.{Failure, Success, Try}

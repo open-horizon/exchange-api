@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.service
 
-import org.openhorizon.exchangeapi.ApiTime
 import org.openhorizon.exchangeapi.table.service.key.{ServiceKey, ServiceKeyRow}
+import org.openhorizon.exchangeapi.utility.ApiTime
 
 final case class PutServiceKeyRequest(key: String) {
   require(key!=null)

@@ -14,11 +14,11 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, POST, PUT, Path}
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.auth.{AccessDeniedException, DBProcessingError}
+import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthCache, AuthenticationSupport, DBProcessingError, IUser, OrgAndId, TManagementPolicy}
 import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicy}
-import org.openhorizon.exchangeapi.table.{organization, resourcechange, _}
+import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, OrgAndId, TManagementPolicy}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import java.nio.file.AccessDeniedException

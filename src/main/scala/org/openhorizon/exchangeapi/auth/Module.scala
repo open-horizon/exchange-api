@@ -1,7 +1,8 @@
 package org.openhorizon.exchangeapi.auth
 
 import org.openhorizon.exchangeapi._
-import org.openhorizon.exchangeapi.{AuthorizationSupport, ExchMsg, ExchangeApi}
+import org.openhorizon.exchangeapi.utility.ExchMsg
+import org.openhorizon.exchangeapi.{ExchangeApi}
 
 import javax.security.auth._
 import javax.security.auth.callback._

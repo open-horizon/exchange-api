@@ -2,7 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.110.4] - 2023-07-26
+- Back-porting 2.119.0 to 2.110.4
+- Issue 692: Added new attribute `enableNodeLevelSecrets` to `secretBinding` for Deployment Patterns and Policies.
+- Reorganized utility and auth source objects.
+- Renamed a few test source packages.
+
 ## [2.110.3] - 2023-07-25
+- Back-porting 2.118.0 to 2.110.3
 - Rebuilt ../orgs/<org>/changes route.
 - Reorganized the majority of table source.
 - Fixed error message typo.

@@ -220,7 +220,7 @@ class BusinessSuite extends AnyFunSuite {
     val input: PostPutBusinessPolicyRequest = PostPutBusinessPolicyRequest(businessPolicy, Option("desc"),
       BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Option(Map("priority_value" -> 50)), Option(Map("lifecycle" -> "immediate")))), Option(Map("check_agreement_status" -> 120)), Option("namespace")),
       Option(List(OneUserInputService(orgid, svcurl, Option(svcarch), Option(svcversion), List(OneUserInputValue("UI_STRING", "mystr"), OneUserInputValue("UI_INT", 5), OneUserInputValue("UI_BOOLEAN", true))))),
-      Option(List(OneSecretBindingService(orgid, svcurl, Option(svcarch), Option(svcversion), List(Map("servicesecret1" -> "vaultsecret1"))))),
+      Option(List(OneSecretBindingService(orgid, svcurl, Option(svcarch), Option(svcversion), List(Map("servicesecret1" -> "vaultsecret1")), Option(true)))),
       Option(List(OneProperty("purpose", None, "location"))),
       Option(List("a == b"))
     )
@@ -246,7 +246,8 @@ class BusinessSuite extends AnyFunSuite {
     assert(uisElem.serviceVersionRange.getOrElse("") === svcversion)
     val inp = uisElem.secrets
     var inpElem = inp.head.get("servicesecret1")
-    assert((inpElem !== null) && (inpElem === Some("vaultsecret1")))
+    assert((inpElem !== null) && (inpElem === Option("vaultsecret1")))
+    assert(uisElem.enableNodeLevelSecrets === Option(true))
   }
 
   test("POST /orgs/"+orgid+"/business/policies/BusPolNoService - add BusPolNoService as user -- test if service field required") {

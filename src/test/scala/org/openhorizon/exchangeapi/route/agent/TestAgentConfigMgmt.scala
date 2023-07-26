@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.agentconfigurationmanagement
+package org.openhorizon.exchangeapi.route.agent
 
 import org.scalatest.Suites
 

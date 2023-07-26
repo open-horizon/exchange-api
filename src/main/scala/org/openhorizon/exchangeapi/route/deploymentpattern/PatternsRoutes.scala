@@ -370,18 +370,19 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-"secretBinding": [
-   {
+  "secretBinding": [
+    {
       "serviceOrgid": "myorg",
       "serviceUrl": "myservice",
       "serviceArch": "amd64",
       "serviceVersionRange": "x.y.z",
       "secrets": [
-            {"<service-secret-name1>": "<vault-secret-name1>"},
-            {"<service-secret-name2>": "<vault-secret-name2>"}
-         ]
-      }
-   ],
+        {"<service-secret-name1>": "<vault-secret-name1>"},
+        {"<service-secret-name2>": "<vault-secret-name2>"}
+      ],
+      "enableNodeLevelSecrets": false
+    }
+  ],
   "agreementProtocols": [
     {
       "name": "Basic"
@@ -566,18 +567,19 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-"secretBinding": [
-   {
+  "secretBinding": [
+    {
       "serviceOrgid": "myorg",
       "serviceUrl": "myservice",
       "serviceArch": "amd64",
       "serviceVersionRange": "x.y.z",
       "secrets": [
-            {"<service-secret-name1>": "<vault-secret-name1>"},
-            {"<service-secret-name2>": "<vault-secret-name2>"}
-         ]
-      }
-   ],
+        {"<service-secret-name1>": "<vault-secret-name1>"},
+        {"<service-secret-name2>": "<vault-secret-name2>"}
+      ],
+      "enableNodeLevelSecrets": false
+    }
+  ],
   "agreementProtocols": [
     {
       "name": "Basic"
@@ -761,18 +763,19 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
- "secretBinding": [
-   {
+  "secretBinding": [
+    {
       "serviceOrgid": "myorg",
       "serviceUrl": "myservice",
       "serviceArch": "amd64",
       "serviceVersionRange": "x.y.z",
       "secrets": [
-            {"<service-secret-name1>": "<vault-secret-name1>"},
-            {"<service-secret-name2>": "<vault-secret-name2>"}
-         ]
-      }
-   ],
+        {"<service-secret-name1>": "<vault-secret-name1>"},
+        {"<service-secret-name2>": "<vault-secret-name2>"}
+      ],
+      "enableNodeLevelSecrets": false
+    }
+  ],
   "agreementProtocols": [
     {
       "name": "Basic"

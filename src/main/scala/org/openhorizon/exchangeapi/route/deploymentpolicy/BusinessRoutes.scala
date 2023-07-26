@@ -311,17 +311,18 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
   "secretBinding": [
-     {
-       "serviceOrgid": "string",
-        "serviceUrl": "string",
-        "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-         "secrets": [
-            {"<service-secret-name1>": "<vault-secret-name1>"},
-            {"<service-secret-name2>": "<vault-secret-name2>"}
-         ]
-      }
-   ],
+    {
+      "serviceOrgid": "string",
+      "serviceUrl": "string",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        {"<service-secret-name1>": "<vault-secret-name1>"},
+        {"<service-secret-name2>": "<vault-secret-name2>"}
+      ],
+      "enableNodeLevelSecrets": false
+    }
+  ],
   "properties": [
     {
       "name": "mypurpose",
@@ -483,17 +484,18 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     }
   ],
   "secretBinding": [
-     {
-       "serviceOrgid": "string",
-        "serviceUrl": "string",
-        "serviceArch": "amd64",
-        "serviceVersionRange": "x.y.z",
-         "secrets": [
-            {"<service-secret-name1>": "<vault-secret-name1>"},
-            {"<service-secret-name2>": "<vault-secret-name2>"}
-         ]
-      }
-   ],
+    {
+      "serviceOrgid": "string",
+      "serviceUrl": "string",
+      "serviceArch": "amd64",
+      "serviceVersionRange": "x.y.z",
+      "secrets": [
+        {"<service-secret-name1>": "<vault-secret-name1>"},
+        {"<service-secret-name2>": "<vault-secret-name2>"}
+      ],
+      "enableNodeLevelSecrets": false
+    }
+  ],
   "properties": [
     {
       "name": "mypurpose",
@@ -637,7 +639,8 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
       "secrets": [
         {"<service-secret-name1>": "<vault-secret-name1>"},
         {"<service-secret-name2>": "<vault-secret-name2>"}
-      ]
+      ],
+      "enableNodeLevelSecrets": false
     }
   ],
   "properties": [

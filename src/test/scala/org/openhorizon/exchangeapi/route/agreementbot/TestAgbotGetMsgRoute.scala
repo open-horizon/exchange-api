@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.agbot
+package org.openhorizon.exchangeapi.route.agreementbot
 
 import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.DefaultFormats

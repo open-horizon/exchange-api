@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.policy
+package org.openhorizon.exchangeapi.route.deploymentpolicy
 
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite

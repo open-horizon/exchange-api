@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.policy
+package org.openhorizon.exchangeapi.route.deploymentpolicy
 
 import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.jackson.JsonMethods.parse

@@ -1,29 +1,25 @@
-package org.openhorizon.exchangeapi
+package org.openhorizon.exchangeapi.route.catalog
 
-import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.model._
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson._
-
-import scala.concurrent.ExecutionContext
-import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{ArraySchema, Content, ExampleObject, Schema}
-import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
-import org.openhorizon.exchangeapi.table._
-import org.json4s.{DefaultFormats, Formats}
-import org.json4s.jackson.Serialization.read
+import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import jakarta.ws.rs.{GET, Path}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TPattern, TService}
 import org.openhorizon.exchangeapi.route.deploymentpattern.GetPatternsResponse
 import org.openhorizon.exchangeapi.route.service.{GetServicesResponse, GetServicesUtils}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{Pattern, PatternsTQ}
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.service.{Service, ServicesTQ}
+import org.openhorizon.exchangeapi.utility.ExchMsg
 import slick.jdbc.PostgresProfile.api._
 
-import scala.util.{Failure, Success}
+import scala.concurrent.ExecutionContext
 
 
 // Provides routes for browsing the services and patterns in the IBM catalog

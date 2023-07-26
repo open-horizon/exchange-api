@@ -4,6 +4,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
 import org.openhorizon.exchangeapi._
+import org.openhorizon.exchangeapi.utility.{Version, VersionRange}
 
 /**
  * Tests for the Version and VersionRange case classes

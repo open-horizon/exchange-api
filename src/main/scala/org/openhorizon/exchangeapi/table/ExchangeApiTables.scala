@@ -1,12 +1,16 @@
-package org.openhorizon.exchangeapi
+package org.openhorizon.exchangeapi.table
 
 import akka.event.LoggingAdapter
 import org.openhorizon.exchangeapi.ExchangeApiApp.system
+import org.openhorizon.exchangeapi.table.agent.AgentVersionsChangedTQ
+import org.openhorizon.exchangeapi.table.agent.certificate.AgentCertificateVersionsTQ
+import org.openhorizon.exchangeapi.table.agent.configuration.AgentConfigurationVersionsTQ
+import org.openhorizon.exchangeapi.table.agent.software.AgentSoftwareVersionsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ
+import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.AgbotPatternsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.AgbotBusinessPolsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
-import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
-import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.AgbotPatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
@@ -29,14 +33,11 @@ import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyTQ
 import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServicesTQ}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg}
+import org.postgresql.util.PSQLException
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
-import org.openhorizon.exchangeapi.table.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ}
-import org.postgresql.util.PSQLException
-import slick.collection.heterogeneous.Zero.+
-
-import scala.concurrent.Await
+import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success}
 

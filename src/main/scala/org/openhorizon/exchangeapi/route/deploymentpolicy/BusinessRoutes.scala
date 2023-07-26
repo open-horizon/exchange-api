@@ -15,13 +15,13 @@ import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.Serialization.{read, write}
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.table.{organization, resourcechange, _}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, OrgAndId, TBusiness, TNode}
+import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ, BusinessPolicy}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Nth, OrgAndId, TBusiness, TNode, Version}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, Version}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._

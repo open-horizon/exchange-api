@@ -10,8 +10,8 @@ import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import jakarta.ws.rs.{GET, Path}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, TAction}
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api.actionBasedSQLInterpolation
-import org.openhorizon.exchangeapi.{Access, AuthenticationSupport, TAction}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

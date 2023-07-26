@@ -14,9 +14,9 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, PATCH, PUT, Path}
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization.write
-import org.openhorizon.exchangeapi.ApiTime.fixFormatting
+import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.ExchangeApiApp.{exchAuth, validateWithMsg}
-import org.openhorizon.exchangeapi.auth.{AccessDeniedException, BadInputException, DBProcessingError, ResourceNotFoundException}
+import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthCache, AuthRoles, AuthenticationSupport, BadInputException, DBProcessingError, IUser, Identity, OrgAndId, Password, ResourceNotFoundException, TNode}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PatternRow, Patterns, PatternsTQ}
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
@@ -25,7 +25,8 @@ import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service.{SearchServiceKey, SearchServiceTQ, ServicesTQ}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthRoles, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Identity, Nth, OrgAndId, Password, TNode, VersionRange, table}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, VersionRange}
+import org.openhorizon.exchangeapi.{table}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{Compiled, CompiledExecutable}

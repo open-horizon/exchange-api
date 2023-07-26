@@ -11,9 +11,9 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import jakarta.ws.rs.{GET, Path}
+import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.{Node, NodeType, NodesTQ}
-import org.openhorizon.exchangeapi.{Access, AuthRoles, AuthenticationSupport, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
 import slick.jdbc.PostgresProfile.api._
 

@@ -4,13 +4,13 @@ import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.{Access, ApiResponse, AuthenticationSupport, HttpCode, Password, TAction}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.{Operation, responses}
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
-import org.openhorizon.exchangeapi.{Access, AuthenticationSupport, Password}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Password, TAction}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

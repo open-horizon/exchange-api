@@ -1,36 +1,35 @@
-package org.openhorizon.exchangeapi
+package org.openhorizon.exchangeapi.route.agent
 
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Route
-import slick.jdbc.PostgresProfile.api._
-import jakarta.ws.rs.{DELETE, GET, PUT, Path}
-
-import scala.concurrent.ExecutionContext
-import akka.http.scaladsl.model.ContentTypes
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.DBProcessingError
-import org.openhorizon.exchangeapi.table.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsRequest, AgentVersionsResponse, organization, resourcechange}
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
-import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
+import jakarta.ws.rs.{DELETE, GET, PUT, Path}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, TOrg}
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
-import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
-import org.openhorizon.exchangeapi.table.schema.SchemaTQ
-import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.table.agent.certificate.AgentCertificateVersionsTQ
+import org.openhorizon.exchangeapi.table.agent.configuration.AgentConfigurationVersionsTQ
+import org.openhorizon.exchangeapi.table.agent.software.AgentSoftwareVersionsTQ
+import org.openhorizon.exchangeapi.table.agent.{AgentVersionsChangedTQ, AgentVersionsRequest, AgentVersionsResponse}
+import org.openhorizon.exchangeapi.table.resourcechange
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import slick.jdbc.PostgresProfile.api._
 
 import java.sql.Timestamp
 import java.time.ZoneId
+import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 /** Implementation for all of the /orgs/{org}/AgentFileVersion routes */
 @Path("/v1/orgs/{orgid}/AgentFileVersion")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "agent file version")
-trait AgentConfigurationManagementRoutes extends JacksonSupport with AuthenticationSupport {
+trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
   def system: ActorSystem

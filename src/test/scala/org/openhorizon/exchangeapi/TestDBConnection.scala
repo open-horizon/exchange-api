@@ -2,6 +2,7 @@ package org.openhorizon.exchangeapi
 
 import org.openhorizon.exchangeapi.ExchangeApiApp.logger
 import com.mchange.v2.c3p0.ComboPooledDataSource
+import org.openhorizon.exchangeapi.utility.ExchConfig
 import slick.util.AsyncExecutor
 import slick.jdbc.PostgresProfile.api.Database
 

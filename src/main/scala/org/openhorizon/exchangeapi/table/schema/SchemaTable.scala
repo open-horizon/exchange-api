@@ -1,6 +1,5 @@
-package org.openhorizon.exchangeapi.table
+package org.openhorizon.exchangeapi.table.schema
 
-import org.openhorizon.exchangeapi.table.schema.SchemaRow
 import slick.jdbc.PostgresProfile.api._
 
 

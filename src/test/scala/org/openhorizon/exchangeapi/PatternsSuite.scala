@@ -9,6 +9,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.route.deploymentpattern.{GetPatternAttributeResponse, GetPatternsResponse, PostPatternSearchRequest, PostPutPatternRequest}
 import org.openhorizon.exchangeapi.route.node.{PostPatternSearchResponse, PutNodesRequest}
@@ -18,6 +19,7 @@ import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService, OneUserInputValue, PServiceVersions, PServices}
 import org.openhorizon.exchangeapi.table.node.{Prop, RegService}
 import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, HttpCode}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 

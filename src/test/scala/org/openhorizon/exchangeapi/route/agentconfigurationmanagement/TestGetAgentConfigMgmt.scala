@@ -1,14 +1,17 @@
 package org.openhorizon.exchangeapi.route.agentconfigurationmanagement
 
-import org.openhorizon.exchangeapi.table.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, AgentVersionsResponse}
-import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection}
+import org.openhorizon.exchangeapi.{TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
-import org.openhorizon.exchangeapi.Role
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotMsgsResponse, PutAgbotsRequest}
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
+import org.openhorizon.exchangeapi.table.agent.{AgentVersionsChangedTQ, AgentVersionsResponse}
+import org.openhorizon.exchangeapi.table.agent.certificate.AgentCertificateVersionsTQ
+import org.openhorizon.exchangeapi.table.agent.configuration.AgentConfigurationVersionsTQ
+import org.openhorizon.exchangeapi.table.agent.software.AgentSoftwareVersionsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsgRow, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.search.{SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ}
@@ -16,6 +19,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ, Prop, RegServic
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, DoNotDiscover, Suite}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}

@@ -1,27 +1,21 @@
-package org.openhorizon.exchangeapi
+package org.openhorizon.exchangeapi.auth
 
 import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.{Directive, Directive0, ValidationRejection}
-import akka.http.scaladsl.server.Directive1
-import org.openhorizon.exchangeapi.Access.Access
-import org.openhorizon.exchangeapi.AuthenticationSupport._
-import javax.security.auth.login.{AppConfigurationEntry, Configuration}
-
-import scala.util.matching.Regex
 import akka.http.scaladsl.server.Directives._
-import org.openhorizon.exchangeapi.auth._
-import javax.security.auth.Subject
-import javax.security.auth.login.LoginContext
-import org.mindrot.jbcrypt.BCrypt
-import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
+import akka.http.scaladsl.server.{Directive, Directive0, Directive1, ValidationRejection}
+import org.openhorizon.exchangeapi.auth.Access.Access
+import org.openhorizon.exchangeapi.utility.{AuthRejection, ExchConfig}
+import org.openhorizon.exchangeapi.{ExchangeApi, ExchangeApiApp}
 import slick.jdbc.PostgresProfile.api._
 
-import scala.jdk.CollectionConverters.CollectionHasAsScala
-
-import scala.util._
-import scala.concurrent.duration._
-import java.util.Base64
 import java.util
+import java.util.Base64
+import javax.security.auth.Subject
+import javax.security.auth.login.{AppConfigurationEntry, Configuration, LoginContext}
+import scala.concurrent.duration._
+import scala.jdk.CollectionConverters.CollectionHasAsScala
+import scala.util._
+import scala.util.matching.Regex
 
 /* Used by all routes classes to Authenticates the client credentials and then checks the ACLs for authorization.
 The main authenticate/authorization flow is:
@@ -45,7 +39,7 @@ object AuthenticationSupport {
     try {
       val decodedAuthStr = new String(Base64.getDecoder.decode(encodedAuth), "utf-8")
       decodedAuthStr match {
-        case decodedAuthRegex(id, tok) => /*logger.debug("id="+id+",tok="+tok+".");*/ Some(Creds(id, tok))
+        case decodedAuthRegex(id, tok) => /*logger.debug("id="+id+",tok="+tok+".");*/ Option(Creds(id, tok))
         case _ => None
       }
     } catch {
@@ -216,52 +210,6 @@ trait AuthenticationSupport extends AuthorizationSupport {
   }
 }
 
-/** Hash a password or token, and compare a pw/token to its hashed value */
-object Password {
-  // Using jbcrypt, see https://github.com/jeremyh/jBCrypt and http://javadox.com/org.mindrot/jbcrypt/0.3m/org/mindrot/jbcrypt/BCrypt.html
-  val defaultLogRounds = 10 // hashes the pw 2**logRounds times
-  val minimumLogRounds = 4 // lowest brcypt will accept
 
-  /**
-   * Returns the hashed value of the given password or token. Lowest logRounds allowed is 4.
-   * Note: since BCrypt.hashpw() uses a different salt each time, 2 hashes of the same pw will be different. So it is not valid to hash the
-   *     clear pw specified by the user and compare it to the already-hashed pw in the db. You must use BCrypt.checkpw() instead.
-   */
-  def hash(password: String): String = { BCrypt.hashpw(password, BCrypt.gensalt(defaultLogRounds)) }
 
-  def fastHash(password: String): String = { BCrypt.hashpw(password, BCrypt.gensalt(minimumLogRounds)) }
 
-  /** Returns true if plainPw matches hashedPw */
-  def check(plainPw: String, hashedPw: String): Boolean = {
-    if (hashedPw == "") return false // this covers the case when the root user is disabled
-    BCrypt.checkpw(plainPw, hashedPw)
-  }
-
-  /** Returns true if this pw/token is already hashed */
-  def isHashed(password: String): Boolean = {
-    //password.startsWith("""$2a$10$""")
-    // bcrypt puts $2a$10$ at the beginning of encrypted values, where the 10 is the logRounds used (it will always be a 2 digit number)
-    val regex: Regex = raw"""^\$$2a\$$\d\d\$$""".r
-    regex.findFirstIn(password).isDefined
-  }
-
-  /** If already hash, return it, otherwise hash it */
-  def hashIfNot(password: String): String = if (isHashed(password)) password else hash(password)
-}
-
-/** Create and validate web tokens that expire */
-object Token {
-  // From: https://github.com/pauldijou/jwt-scala
-  val defaultExpiration = 600 // seconds
-  val algorithm: JwtAlgorithm.HS256.type = JwtAlgorithm.HS256
-
-  /** Returns a temporary pw reset token. */
-  def create(secret: String, expiration: Int = defaultExpiration): String = {
-    //implicit val clock: Clock = Clock.systemUTC()
-    //Jwt.encode(JwtClaim({"""{"user":1}"""}).issuedNow.expiresIn(defaultExpiration), secret, algorithm)
-    Jwt.encode(JwtClaim({ """{"user":1}""" }).expiresAt(ApiTime.nowSeconds + expiration), secret, algorithm)
-  }
-
-  /** Returns true if the token is correct for this secret and not expired */
-  def isValid(token: String, secret: String): Boolean = { Jwt.isValid(token, secret, Seq(algorithm)) }
-}

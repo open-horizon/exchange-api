@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.route.agreementbot
 
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotRow
-import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.jdbc.PostgresProfile.api._
 
 /** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */

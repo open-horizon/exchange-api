@@ -10,8 +10,8 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotsTQ}
-import org.openhorizon.exchangeapi.{Access, AuthenticationSupport, Identity, OrgAndId, TAgbot}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

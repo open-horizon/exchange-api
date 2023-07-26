@@ -1,19 +1,10 @@
-package org.openhorizon.exchangeapi
+package org.openhorizon.exchangeapi.auth
 
-import java.util.concurrent.TimeUnit
 import akka.event.LoggingAdapter
 import com.google.common.cache
-
-import scala.concurrent.ExecutionContext
-import org.openhorizon.exchangeapi.CacheIdType.CacheIdType
-import org.openhorizon.exchangeapi.table._
-import slick.jdbc.PostgresProfile.api._
-
-import scala.concurrent.Await
-import scala.concurrent.duration._
-import org.openhorizon.exchangeapi.auth._
 import com.google.common.cache.CacheBuilder
-import org.openhorizon.exchangeapi
+import org.openhorizon.exchangeapi.ExchangeApi
+import org.openhorizon.exchangeapi.auth.CacheIdType.CacheIdType
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
@@ -21,21 +12,16 @@ import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.utility.{ExchConfig, ExchMsg}
 import scalacache._
 import scalacache.guava.GuavaCache
 import scalacache.modes.try_._
+import slick.jdbc.PostgresProfile.api._
 
+import java.util.concurrent.TimeUnit
+import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success, Try}
-import scala.xml.MinimizeMode.Value
-
-// Enum for type of id in CacheId class
-object CacheIdType extends Enumeration {
-  type CacheIdType = Value
-  val User: Value = Value("User")
-  val Node: Value = Value("Node")
-  val Agbot: Value = Value("Agbot")
-  val None: Value = Value("None")
-}
 
 /** In-memory cache of the user/pw, node id/token, and agbot id/token, where the pw and tokens are not hashed to speed up validation */
 object AuthCache /* extends Control with ServletApiImplicits */ {

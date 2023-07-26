@@ -18,13 +18,14 @@ import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.route.node.{PatternNodeResponse, PostPatternSearchResponse}
 import org.openhorizon.exchangeapi.route.organization.{NodeHealthHashElement, PostNodeHealthRequest, PostNodeHealthResponse}
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
-import org.openhorizon.exchangeapi.table.{organization, resourcechange, _}
+import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PServices, Pattern, PatternsTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Nth, OrgAndId, RouteUtils, TNode, TPattern, Version, auth}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, RouteUtils, Version}
+import org.openhorizon.exchangeapi.auth
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
@@ -369,18 +370,19 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-"secretBinding": [
-   {
+  "secretBinding": [
+    {
       "serviceOrgid": "myorg",
       "serviceUrl": "myservice",
       "serviceArch": "amd64",
       "serviceVersionRange": "x.y.z",
       "secrets": [
-            {"<service-secret-name1>": "<vault-secret-name1>"},
-            {"<service-secret-name2>": "<vault-secret-name2>"}
-         ]
-      }
-   ],
+        {"<service-secret-name1>": "<vault-secret-name1>"},
+        {"<service-secret-name2>": "<vault-secret-name2>"}
+      ],
+      "enableNodeLevelSecrets": false
+    }
+  ],
   "agreementProtocols": [
     {
       "name": "Basic"
@@ -565,18 +567,19 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
-"secretBinding": [
-   {
+  "secretBinding": [
+    {
       "serviceOrgid": "myorg",
       "serviceUrl": "myservice",
       "serviceArch": "amd64",
       "serviceVersionRange": "x.y.z",
       "secrets": [
-            {"<service-secret-name1>": "<vault-secret-name1>"},
-            {"<service-secret-name2>": "<vault-secret-name2>"}
-         ]
-      }
-   ],
+        {"<service-secret-name1>": "<vault-secret-name1>"},
+        {"<service-secret-name2>": "<vault-secret-name2>"}
+      ],
+      "enableNodeLevelSecrets": false
+    }
+  ],
   "agreementProtocols": [
     {
       "name": "Basic"
@@ -760,18 +763,19 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
       ]
     }
   ],
- "secretBinding": [
-   {
+  "secretBinding": [
+    {
       "serviceOrgid": "myorg",
       "serviceUrl": "myservice",
       "serviceArch": "amd64",
       "serviceVersionRange": "x.y.z",
       "secrets": [
-            {"<service-secret-name1>": "<vault-secret-name1>"},
-            {"<service-secret-name2>": "<vault-secret-name2>"}
-         ]
-      }
-   ],
+        {"<service-secret-name1>": "<vault-secret-name1>"},
+        {"<service-secret-name2>": "<vault-secret-name2>"}
+      ],
+      "enableNodeLevelSecrets": false
+    }
+  ],
   "agreementProtocols": [
     {
       "name": "Basic"

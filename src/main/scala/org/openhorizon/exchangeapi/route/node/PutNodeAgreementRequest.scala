@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.node
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.node.agreement.{NAService, NAgrService, NodeAgreementRow}
-import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 
 /** Input format for PUT /orgs/{orgid}/nodes/{id}/agreements/<agreement-id> */
 final case class PutNodeAgreementRequest(services: Option[List[NAService]], agreementService: Option[NAgrService], state: String) {

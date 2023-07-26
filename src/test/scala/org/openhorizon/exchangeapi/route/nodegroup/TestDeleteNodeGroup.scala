@@ -1,15 +1,16 @@
 package org.openhorizon.exchangeapi.route.nodegroup
 
-import org.openhorizon.exchangeapi.ApiTime.fixFormatting
-import org.openhorizon.exchangeapi.{ApiTime, ApiUtils, HttpCode, Role, TestDBConnection, table}
+import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
+import org.openhorizon.exchangeapi.{TestDBConnection, table}
 import org.json4s.DefaultFormats
-import org.openhorizon.exchangeapi.Role
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ, NodeGroups}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}

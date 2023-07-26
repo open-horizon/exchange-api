@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.service
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.service.{ServiceRef, ServiceRow, ServicesTQ}
-import org.openhorizon.exchangeapi.{ApiTime, ExchMsg, Version}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg, Version}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 

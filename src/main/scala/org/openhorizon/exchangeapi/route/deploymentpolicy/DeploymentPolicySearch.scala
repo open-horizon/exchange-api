@@ -12,11 +12,12 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.search.SearchOffsetPolicyTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthenticationSupport, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Identity, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled
 

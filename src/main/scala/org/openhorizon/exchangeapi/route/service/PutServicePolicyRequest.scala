@@ -4,7 +4,7 @@ import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyRow
-import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 
 final case class PutServicePolicyRequest(label: Option[String],
                                          description: Option[String],

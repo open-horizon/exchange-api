@@ -8,8 +8,9 @@ import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, responses}
 import jakarta.ws.rs.{GET, Path}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Role, TAction}
 import org.openhorizon.exchangeapi.route.administration.AdminDropdbTokenResponse
-import org.openhorizon.exchangeapi.{Access, AuthenticationSupport, HttpCode, Role, TAction}
+import org.openhorizon.exchangeapi.utility.HttpCode
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

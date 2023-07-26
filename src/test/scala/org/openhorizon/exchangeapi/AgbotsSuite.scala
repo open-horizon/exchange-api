@@ -6,6 +6,7 @@ import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http._
 import org.json4s._
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotAgreementsResponse, GetAgbotAttributeResponse, GetAgbotBusinessPolsResponse, GetAgbotPatternsResponse, GetAgbotsResponse, PostAgbotBusinessPolRequest, PostAgbotPatternRequest, PostAgbotsMsgsRequest, PostAgreementsConfirmRequest, PutAgbotAgreementRequest, PutAgbotsRequest}
 import org.openhorizon.exchangeapi.route.deploymentpattern.{GetPatternsResponse, PostPutPatternRequest}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.PostPutBusinessPolicyRequest
@@ -17,6 +18,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.AAService
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PServiceVersions, PServices}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BServiceVersions}
 import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchConfig, HttpCode}
 
 import scala.collection.mutable.ListBuffer
 //import org.json4s.JsonDSL._

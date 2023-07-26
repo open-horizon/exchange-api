@@ -8,6 +8,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.organization.{PostPutOrgRequest, ResourceChangesRequest, ResourceChangesRespObject}
@@ -17,6 +18,7 @@ import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
 import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuth
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicy
 import org.openhorizon.exchangeapi.table.service.{OneProperty, ServiceRef}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, HttpCode}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 

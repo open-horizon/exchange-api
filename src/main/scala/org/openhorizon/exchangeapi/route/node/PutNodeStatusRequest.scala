@@ -2,9 +2,9 @@ package org.openhorizon.exchangeapi.route.node
 
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.ApiTime
 import org.openhorizon.exchangeapi.table.node.OneService
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusRow
+import org.openhorizon.exchangeapi.utility.ApiTime
 
 /** Input body for PUT /orgs/{orgid}/nodes/{id}/status */
 final case class PutNodeStatusRequest(connectivity: Option[Map[String,Boolean]], services: List[OneService]) {

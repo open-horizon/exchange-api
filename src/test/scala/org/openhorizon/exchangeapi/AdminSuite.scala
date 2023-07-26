@@ -6,6 +6,7 @@ import scala.util.matching.Regex
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.route.administration.{AdminHashpwResponse, GetAdminOrgStatusResponse, GetAdminStatusResponse}
 import org.openhorizon.exchangeapi.table.organization.OrgRow
+import org.openhorizon.exchangeapi.utility.ApiTime
 
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
@@ -18,12 +19,7 @@ import org.junit.runner.RunWith
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
-import org.openhorizon.exchangeapi.ApiRespType
-import org.openhorizon.exchangeapi.ApiResponse
-import org.openhorizon.exchangeapi.ApiUtils
-import org.openhorizon.exchangeapi.HttpCode
-import org.openhorizon.exchangeapi.Password
-import org.openhorizon.exchangeapi.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.administration.{AdminHashpwRequest, AdminHashpwResponse, GetAdminStatusResponse}
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.route.deploymentpattern.PostPutPatternRequest
@@ -32,6 +28,7 @@ import org.openhorizon.exchangeapi.route.organization.PostPutOrgRequest
 import org.openhorizon.exchangeapi.route.service.PostPutServiceRequest
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PServiceVersions, PServices}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiUtils, HttpCode}
 
 import scalaj.http.Http
 

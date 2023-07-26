@@ -10,13 +10,14 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, POST, PUT, Path}
-import org.openhorizon.exchangeapi.ApiTime.fixFormatting
-import org.openhorizon.exchangeapi.auth.{AccessDeniedException, BadInputException, ResourceNotFoundException}
+import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
+import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthRoles, AuthenticationSupport, BadInputException, OrgAndId, ResourceNotFoundException, TNode}
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroup, NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignment, NodeGroupAssignmentRow, NodeGroupAssignmentTQ, PostPutNodeGroupsRequest}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, Nodes, NodesTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthRoles, AuthenticationSupport, ExchMsg, HttpCode, OrgAndId, TNode, auth}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.{auth}
 import org.postgresql.util.PSQLException
 import slick.dbio.Effect
 import slick.jdbc.PostgresProfile.api._

@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.node
 
-import org.openhorizon.exchangeapi.Role
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.jdbc.PostgresProfile.api._

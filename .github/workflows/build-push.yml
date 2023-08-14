@@ -14,6 +14,7 @@ env:
   IMAGE_REPO: ${{ vars.DOCKERHUB_REPO }}
   GITHUB_CONTAINER_REGISTRY: ghcr.io/${{ github.repository_owner }}
   BUILD_NUMBER: ${{ github.run_number }}
+  GH_BRANCH: ${{ github.ref_name }} 
 
 # Jobs that will run when the workflow is triggered
 jobs:
@@ -106,9 +107,11 @@ jobs:
       - name: Publish Image to Dockerhub
         run: |
           docker tag openhorizon/amd64_exchange-api:${IMAGE_VERSION} ${IMAGE_REPO}/amd64_exchange-api:testing
-          if [[ "$GITHUB_REF" == 'refs/heads/master' ]]; then \
-          docker push ${IMAGE_REPO}/amd64_exchange-api:testing; \
-          docker tag ${IMAGE_REPO}/amd64_exchange-api:testing ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing; \
-          docker push ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing; \
+          if [[ "$GITHUB_REF" == 'refs/heads/master' ]]; then
+            docker push ${IMAGE_REPO}/amd64_exchange-api:testing
+            docker tag ${IMAGE_REPO}/amd64_exchange-api:testing ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing
+            docker push ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing
+          else
+            docker tag ${IMAGE_REPO}/amd64_exchange-api:testing ${IMAGE_REPO}/amd64_exchange-api:testing_${GH_BRANCH}
+            docker push ${IMAGE_REPO}/amd64_exchange-api:testing_${GH_BRANCH}
           fi
-      

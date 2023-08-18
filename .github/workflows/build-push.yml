@@ -20,6 +20,9 @@ env:
 jobs:
   # This job will build and then push to docker hub
   build-push:
+    # Prevent job from running in forks
+    if: github.repository_owner == 'open_horizon'
+    
     # The type of runner the job will run on
     runs-on: ubuntu-20.04
 

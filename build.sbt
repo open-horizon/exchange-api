@@ -38,7 +38,7 @@ lazy val root = (project in file("."))
     scalaVersion                  := "2.13.10",
     summary                       := "'Open Horizon exchange-api image'",
     vendor                        := "'Open Horizon'",
-    version                       := versionFunc(),
+    version                       := sys.env.getOrElse("IMAGE_VERSION", versionFunc()),
     // ThisBuild / scapegoatVersion := "1.4.4",
     // coverageEnabled               := false,
     
@@ -99,7 +99,7 @@ lazy val root = (project in file("."))
     //javaOptions ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config", "-Djava.security.policy=src/main/resources/auth.policy")
     
     // These settings are for the Docker subplugin within sbt-native-packager. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html
-    Docker / version        := versionFunc(), // overwrite this setting to build a test version of the exchange with a custom tag in docker, defaults to exchange version
+    Docker / version        := sys.env.getOrElse("IMAGE_VERSION", versionFunc()), // overwrite this setting to build a test version of the exchange with a custom tag in docker, defaults to exchange version
     Docker / packageName    := "openhorizon/" ++ name.value,
     Docker / daemonUser     := "exchangeuser",
     Docker / daemonGroup    := "exchangegroup",

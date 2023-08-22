@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.node.group.assignment
 
-import org.openhorizon.exchangeapi.ApiTime
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupRow
+import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.DBIO
 
 final case class PostPutNodeGroupsRequest(description: Option[String], members: Option[Seq[String]]) {

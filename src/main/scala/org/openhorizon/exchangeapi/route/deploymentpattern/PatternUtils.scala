@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.deploymentpattern
 
 import org.openhorizon.exchangeapi.table.deploymentpattern.PServices
-import org.openhorizon.exchangeapi.{ExchMsg, Version}
+import org.openhorizon.exchangeapi.utility.{ExchMsg, Version}
 
 object PatternUtils {
   def validatePatternServices(services: List[PServices]): Option[String] = {

@@ -4,7 +4,7 @@ import org.json4s.jackson.Serialization.{read, write}
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.auth.ResourceNotFoundException
 import org.openhorizon.exchangeapi.table.node.{NodesTQ, RegService}
-import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 

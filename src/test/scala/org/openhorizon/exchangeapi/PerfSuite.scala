@@ -8,6 +8,7 @@ import scalaj.http._
 import org.openhorizon.exchangeapi._
 import org.json4s.native.Serialization.write
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
+import org.openhorizon.exchangeapi.utility.{ApiUtils, HttpCode}
 
 //someday: do some short perf tests here (in addition to scr/test/go) so we get some automatic perf info
 

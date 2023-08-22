@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.service.dockerauth
 
-import org.openhorizon.exchangeapi.ApiTime
+import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.{Effect, NoStream}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.TableQuery

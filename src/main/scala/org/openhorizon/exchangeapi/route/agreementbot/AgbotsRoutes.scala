@@ -13,9 +13,9 @@ import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import org.json4s._
-import org.openhorizon.exchangeapi.auth.DBProcessingError
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, OrgAndId, Password, TAgbot}
 import org.openhorizon.exchangeapi.table._
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, OrgAndId, Password, TAgbot}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._

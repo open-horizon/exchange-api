@@ -2,8 +2,8 @@ package org.openhorizon.exchangeapi.table.organization
 
 import org.json4s._
 import org.json4s.jackson.Serialization.write
-import org.openhorizon.exchangeapi.ApiUtils
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
+import org.openhorizon.exchangeapi.utility.ApiUtils
 
 // Instance to access the orgs table
 object OrgsTQ extends TableQuery(new Orgs(_)){

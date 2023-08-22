@@ -16,11 +16,11 @@ import org.checkerframework.checker.units.qual.t
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi
-import org.openhorizon.exchangeapi.auth.{DBProcessingError, IamAccountInfo, IbmCloudAuth}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IAgbot, INode, IUser, IamAccountInfo, IbmCloudAuth, OrgAndId, TAction, TAgbot, TNode, TOrg}
 import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmRequest
 import org.openhorizon.exchangeapi.route.node.{PostNodeErrorResponse, PostServiceSearchRequest, PostServiceSearchResponse}
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
-import org.openhorizon.exchangeapi.table.{organization, resourcechange, _}
+import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
@@ -32,7 +32,8 @@ import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.schema.SchemaTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, ApiUtils, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangeApi, ExchangePosgtresErrorHandling, HttpCode, IAgbot, INode, IUser, OrgAndId, RouteUtils, TAction, TAgbot, TNode, TOrg, table}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, RouteUtils}
+import org.openhorizon.exchangeapi.{ExchangeApi, table}
 
 import java.lang.IllegalCallerException
 import java.time.ZonedDateTime
@@ -163,7 +164,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   def orgsGetRoute: Route = (path("orgs") & get & parameter("orgtype".?, "label".?)) { (orgType, label) =>
     logger.debug(s"Doing GET /orgs with orgType:$orgType, label:$label")
     // If filter is orgType=IBM then it is a different access required than reading all orgs
-    val access: exchangeapi.Access.Value = if (orgType.getOrElse("").contains("IBM")) Access.READ_IBM_ORGS else Access.READ_OTHER_ORGS
+    val access: Access.Value = if (orgType.getOrElse("").contains("IBM")) Access.READ_IBM_ORGS else Access.READ_OTHER_ORGS
     exchAuth(TOrg("*"), access) { ident =>
       validate(orgType.isEmpty || orgType.get == "IBM", ExchMsg.translate("org.get.orgtype")) {
         complete({ // this is an anonymous function that returns Future[(StatusCode, GetOrgsResponse)]
@@ -451,7 +452,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def orgPutRoute: Route = (path("orgs" / Segment) & put & entity(as[PostPutOrgRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing PUT /orgs/$orgId with orgId:$orgId")
-    val access: exchangeapi.Access.Value = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
+    val access: Access.Value = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     exchAuth(TOrg(orgId), access) { _ =>
       validateWithMsg(reqBody.getAnyProblem(reqBody.limits.getOrElse(OrgLimits(0)).maxNodes)) {
         complete({
@@ -523,7 +524,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def orgPatchRoute: Route = (path("orgs" / Segment) & patch & entity(as[PatchOrgRequest])) { (orgId, reqBody) =>
     logger.debug(s"Doing PATCH /orgs/$orgId with orgId:$orgId")
-    val access: exchangeapi.Access.Value = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
+    val access: Access.Value = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
     exchAuth(TOrg(orgId), access) { _ =>
       validateWithMsg(reqBody.getAnyProblem(reqBody.limits.getOrElse(OrgLimits(0)).maxNodes)) {
         complete({

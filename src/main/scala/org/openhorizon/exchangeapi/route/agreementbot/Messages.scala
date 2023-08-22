@@ -12,12 +12,13 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, POST, Path}
 import org.checkerframework.checker.units.qual.t
-import org.openhorizon.exchangeapi.auth.DBProcessingError
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMsgRow, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Identity, OrgAndId, TAgbot, table}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.table
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

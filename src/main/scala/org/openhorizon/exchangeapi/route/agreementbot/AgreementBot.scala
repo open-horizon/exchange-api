@@ -11,11 +11,12 @@ import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PATCH, PUT, Path}
-import org.openhorizon.exchangeapi.auth.DBProcessingError
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, OrgAndId, Password, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Identity, OrgAndId, Password, TAgbot, table}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.table
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
 

@@ -2,38 +2,60 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.110.3] - 2023-07-25
+## [2.119.0] - 2023-07-26
+- Issue 692: Added new attribute `enableNodeLevelSecrets` to `secretBinding` for Deployment Patterns and Policies.
+- Reorganized utility and auth source objects.
+- Renamed a few test source packages.
+
+## [2.118.0] - 2023-07-25
 - Rebuilt ../orgs/<org>/changes route.
 - Reorganized the majority of table source.
 - Fixed error message typo.
 
-## [2.110.2] - 2023-07-21
-- Back-porting 2.117.0 to 2.110.2
+## [2.117.0] - 2023-07-13
 - Issue 686: Added rest parameter `manifest` to Get /v1/orgs/<org>/managementpolicies route.
+
+## [2.116.0] - 2023-07-11
 - Issue 676: Added `isNamespaceScoped` attribute to Nodes.
 - Reorganized table package object source for Nodes and related.
 - SBT 1.9.0 -> 1.9.2
+
+## [2.115.3] - 2023-07-07
 - Issue 675: Node tokens can be changed by all User types, and public keys can only be [un]set without changing keys by Nodes.
+
+## [2.115.2] - 2023-07-07
 - Issue 675: Removed extra regular expressions modifying searched Service's URL.
+
+## [2.115.1] - 2023-07-06
 - Issue 675: Fixed User and Node access to searching all Patterns and Services within the Node's Organization.
 - Corrected error messages.
+
+## [2.115.0] - 2023-06-28
 - Issue 675: Patch /orgs/<organization>/nodes/<node> No longer allows setting the Node's token if a public key is set.
-  - Added a new database table to handle Service querying and matching.
+    - Added a new database table to handle Service querying and matching.
 - pattern and userInput are now User archetype authorization scoped.
 - Reorganized the Node resource source.
 - postgresql           42.5.3 -> 42.6.0
 - SBT                  1.8.2  -> 1.9.0
 - swagger-scala-module 2.8.2  -> 2.11.0
 - Swagger UI           4.15.5 -> 5.1.0
+
+## [2.114.0] - 2023-05-01
 - Issue 639: Moved top-level attribute clusterNamespace to a sub-attribute under service for Deployment Policies.
+
+## [2.113.0] - 2023-04-26
 - Issue 637 - Added CORS support. Can be configurated via the Exchange's config.json file.
 - Changed Java package path to the prefix org.openhorizon.
 - Moved source handling routing to new sub-package org.openhorizon.route..
-  - AdminRoutes and AgbotRoutes have been further sub-divided based on rest resource.
+    - AdminRoutes and AgbotRoutes have been further sub-divided based on rest resource.
 - Deprecated custom methods for handling Akka configuration parameters in favor of framework defaults.
-  - Backwards compatibility is still maintained.
+    - Backwards compatibility is still maintained.
+
+## [2.112.0] - 2023-04-07
 - Issue 640: Added `clusterNamespace` attribute to Deployment Patterns.
 - Issue 641: Added `clusterNamespace` attribute to Nodes.
+
+## [2.111.0] - 2023-04-03
 - Issue 639: Added `clusterNamespace` attribute to Deployment Policies.
 
 ## [2.110.1] - 2023-03-01
@@ -41,8 +63,8 @@ All notable changes to this project will be documented in this file.
 
 ## [2.110.0] - 2023-02-28
 - Issue 662:
-  - Removed database schema change that was added in error.
-  - Reworked the schema upgrade function to fully roll back to the schema version at boot when encountering an error.
+    - Removed database schema change that was added in error.
+    - Reworked the schema upgrade function to fully roll back to the schema version at boot when encountering an error.
 
 ## [2.109.2] - 2023-02-23
 - Issue 657: Added additional ddl clauses to the Exchange's schema upgrade path.
@@ -51,7 +73,7 @@ All notable changes to this project will be documented in this file.
 - Issue 657: Removed erroneous quotes around column name to be added to database.
 
 ## [2.109.0] - 20230-02-21
-- Issue 657: Restricted Users from adding Nodes generally to any available Node Group. To add a Node to a Node Group that Node Group must be empty, or only have the User's Nodes in the Group. Added a flag for Node Groups that were created by Organization Admins. Users may only remove their owned nodes from these groups, no other desructive operations are allowed.  
+- Issue 657: Restricted Users from adding Nodes generally to any available Node Group. To add a Node to a Node Group that Node Group must be empty, or only have the User's Nodes in the Group. Added a flag for Node Groups that were created by Organization Admins. Users may only remove their owned nodes from these groups, no other desructive operations are allowed.
 
 ## [2.108.2] - 2023-02-08
 - I18n Updates

@@ -2,14 +2,15 @@ package org.openhorizon.exchangeapi.route.administration
 
 import akka.actor.ActorSystem
 import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives.{complete, get, path, pathPrefix, _}
+import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.Route
 import de.heikoseeberger.akkahttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, responses}
 import jakarta.ws.rs.{GET, Path}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, TAction}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
-import org.openhorizon.exchangeapi.{Access, AuthenticationSupport, ExchMsg, HttpCode, TAction}
+import org.openhorizon.exchangeapi.utility.{ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

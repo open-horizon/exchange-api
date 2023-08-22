@@ -10,11 +10,11 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, Path}
-import org.openhorizon.exchangeapi.auth.DBProcessingError
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.{AgbotAgreement, AgbotAgreementsTQ}
 import org.openhorizon.exchangeapi.table.{organization, resourcechange}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, AuthenticationSupport, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

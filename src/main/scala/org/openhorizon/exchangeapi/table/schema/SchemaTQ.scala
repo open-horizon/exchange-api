@@ -1,7 +1,9 @@
 package org.openhorizon.exchangeapi.table.schema
 
 import akka.event.LoggingAdapter
-import org.openhorizon.exchangeapi.ApiTime
+import org.openhorizon.exchangeapi.table.agent.certificate.AgentCertificateVersionsTQ
+import org.openhorizon.exchangeapi.table.agent.configuration.AgentConfigurationVersionsTQ
+import org.openhorizon.exchangeapi.table.agent.software.AgentSoftwareVersionsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.AgbotPatternsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.AgbotBusinessPolsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
@@ -18,7 +20,8 @@ import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuthsTQ
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyTQ
 import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServicesTQ}
-import org.openhorizon.exchangeapi.table.{AgentCertificateVersionsTQ, AgentConfigurationVersionsTQ, AgentSoftwareVersionsTQ, AgentVersionsChangedTQ, SchemaTable}
+import org.openhorizon.exchangeapi.table.agent.AgentVersionsChangedTQ
+import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.TableQuery

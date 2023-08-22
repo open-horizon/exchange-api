@@ -17,7 +17,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
 
 import scala.concurrent.ExecutionContext
-import org.openhorizon.exchangeapi.table.{organization, resourcechange, _}
+import org.openhorizon.exchangeapi.table._
 import org.json4s._
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.Serialization.{read, write}
@@ -41,7 +41,7 @@ import org.openhorizon.exchangeapi.table.node.status.{NodeStatus, NodeStatusTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodesTQ, OneService, RegService}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.OneProperty
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthRoles, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, Nth, OrgAndId, Password, StrConstants, TNode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, StrConstants}
 
 import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.language.postfixOps

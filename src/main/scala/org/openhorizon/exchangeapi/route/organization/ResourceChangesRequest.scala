@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import org.openhorizon.exchangeapi.{ApiTime, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 
 import java.time.ZonedDateTime
 import java.time.format.DateTimeParseException

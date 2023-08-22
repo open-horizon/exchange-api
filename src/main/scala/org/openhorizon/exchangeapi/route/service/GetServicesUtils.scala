@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.service
 
 import org.openhorizon.exchangeapi.table.node.NodeType
-import org.openhorizon.exchangeapi.{ExchMsg, Version}
+import org.openhorizon.exchangeapi.utility.{ExchMsg, Version}
 
 object GetServicesUtils {
   def getServicesProblem(public: Option[String], version: Option[String], nodetype: Option[String]): Option[String] = {

@@ -1,9 +1,9 @@
 package org.openhorizon.exchangeapi.route.node
 
-import org.openhorizon.exchangeapi.StrConstants
 import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, OneService, RegService}
 import org.openhorizon.exchangeapi.table.service.OneProperty
+import org.openhorizon.exchangeapi.utility.StrConstants
 
 case class NodeDetails(arch: Option[String] = None,
                        connectivity: Option[Map[String, Boolean]] = None,

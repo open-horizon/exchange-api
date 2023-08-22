@@ -1,9 +1,10 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import org.openhorizon.exchangeapi.{ApiResponse, ApiTime, ApiUtils, ExchMsg, HttpCode, Password, Role, TestDBConnection}
+import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmRequest
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.{AgbotAgreementRow, AgbotAgreementsTQ}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
@@ -11,6 +12,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, ExchMsg, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}

@@ -10,8 +10,9 @@ import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{POST, Path}
 import org.checkerframework.checker.units.qual.t
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthenticationSupport, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

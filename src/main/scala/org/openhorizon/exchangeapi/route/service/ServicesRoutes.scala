@@ -15,14 +15,14 @@ import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi.auth._
-import org.openhorizon.exchangeapi.table.{organization, resourcechange, _}
+import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.node.NodeType
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.dockerauth.{ServiceDockAuth, ServiceDockAuthsTQ}
 import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
 import org.openhorizon.exchangeapi.table.service.policy.{ServicePolicy, ServicePolicyTQ}
 import org.openhorizon.exchangeapi.table.service.{Service, ServiceRef, ServicesTQ}
-import org.openhorizon.exchangeapi.{Access, ApiRespType, ApiResponse, ApiTime, AuthCache, AuthenticationSupport, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, IUser, OrgAndId, TService, Version, VersionRange}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 

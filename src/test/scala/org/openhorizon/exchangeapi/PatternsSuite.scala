@@ -9,6 +9,7 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
+import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.route.deploymentpattern.{GetPatternAttributeResponse, GetPatternsResponse, PostPatternSearchRequest, PostPutPatternRequest}
 import org.openhorizon.exchangeapi.route.node.{PostPatternSearchResponse, PutNodesRequest}
@@ -18,6 +19,7 @@ import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService, OneUserInputValue, PServiceVersions, PServices}
 import org.openhorizon.exchangeapi.table.node.{Prop, RegService}
 import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, HttpCode}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 
@@ -356,7 +358,7 @@ class PatternsSuite extends AnyFunSuite {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(svcversion), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      Some(List( OneSecretBindingService(orgid,svcurl, Some(svcarch), Some(svcversion), List(Map("servicesecret1"->"vaultsecret1"))))),
+      Some(List( OneSecretBindingService(orgid,svcurl, Some(svcarch), Some(svcversion), List(Map("servicesecret1"->"vaultsecret1")), Option(true)))),
       Some(List(Map("name" -> "Basic")))
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -381,6 +383,7 @@ class PatternsSuite extends AnyFunSuite {
     val inp = uisElem.secrets
     var inpElem = inp.head.get("servicesecret1")
     assert((inpElem !== null) && (inpElem === Some("vaultsecret1")))
+    assert(uisElem.enableNodeLevelSecrets === Option(true))
   }
 
 

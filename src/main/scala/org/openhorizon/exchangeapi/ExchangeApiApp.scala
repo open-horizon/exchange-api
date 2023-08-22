@@ -40,10 +40,13 @@ import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
 import org.openhorizon.exchangeapi.table
-import org.openhorizon.exchangeapi.table.ExchangePostgresProfile
+import org.openhorizon.exchangeapi.table.{ExchangeApiTables, ExchangePostgresProfile}
 import com.typesafe.config.ConfigFactory
 import org.json4s._
+import org.openhorizon.exchangeapi.auth.{AuthCache, AuthenticationSupport}
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
+import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
+import org.openhorizon.exchangeapi.route.catalog.CatalogRoutes
 import org.openhorizon.exchangeapi.route.deploymentpattern.PatternsRoutes
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{BusinessRoutes, DeploymentPolicySearch}
 import org.openhorizon.exchangeapi.route.managementpolicy.ManagementPoliciesRoutes
@@ -55,6 +58,7 @@ import org.openhorizon.exchangeapi.route.user.UsersRoutes
 import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchConfig, ExchMsg, ExchangeRejection, NotFoundRejection}
 import slick.jdbc.TransactionIsolation.Serializable
 
 import java.io.{FileInputStream, InputStream}
@@ -94,7 +98,7 @@ object ExchangeApiConstants {
  */
 object ExchangeApiApp extends App
   with AdminRoutes
-  with AgentConfigurationManagementRoutes
+  with AgentConfigurationManagement
   with Agreement
   with Agreements
   with AgreementBot

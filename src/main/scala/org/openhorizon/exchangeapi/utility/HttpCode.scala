@@ -1,10 +1,10 @@
 package org.openhorizon.exchangeapi.utility
 
-import akka.http.scaladsl.model.StatusCodes
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 
 /** HTTP codes, taken from https://en.wikipedia.org/wiki/List_of_HTTP_status_codes and https://www.restapitutorial.com/httpstatuscodes.html */
 object HttpCode {
-  /* Now using the akka StatusCodes instead
+  /* Now using the pekko StatusCodes instead
   val OK = 200
   val PUT_OK = 201
   val POST_OK = 201

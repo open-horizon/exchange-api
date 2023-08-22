@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.utility
 
-import akka.event.LoggingAdapter
+import org.apache.pekko.event.LoggingAdapter
 import com.typesafe.config.{Config, ConfigFactory, ConfigParseOptions, ConfigSyntax, ConfigValue, ConfigValueFactory}
 import org.json4s.JObject
 import org.json4s.JsonAST.JString
@@ -105,8 +105,8 @@ object ExchConfig {
     var akkaConfig: Map[String, ConfigValue] = config.getObject("api.akka").asScala.toMap
     val secondsToWait: Int = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete")
     
-    akkaConfig = akkaConfig ++ Map[scala.Predef.String, ConfigValue]("akka.coordinated-shutdown.phases.service-unbind.timeout" -> ConfigValueFactory.fromAnyRef(s"${secondsToWait}s"))
-    akkaConfig = akkaConfig ++ Map[scala.Predef.String, ConfigValue]("akka.loglevel" -> ConfigValueFactory.fromAnyRef(ExchConfig.getLogLevel))
+    akkaConfig = akkaConfig ++ Map[scala.Predef.String, ConfigValue]("pekko.coordinated-shutdown.phases.service-unbind.timeout" -> ConfigValueFactory.fromAnyRef(s"${secondsToWait}s"))
+    akkaConfig = akkaConfig ++ Map[scala.Predef.String, ConfigValue]("pekko.loglevel" -> ConfigValueFactory.fromAnyRef(ExchConfig.getLogLevel))
     
     // printf("Running with akka config: %s\n", akkaConfig.toString())
     

@@ -1,12 +1,12 @@
 /** Services routes for all of the /orgs api methods. */
 package org.openhorizon.exchangeapi.route.organization
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import de.heikoseeberger.akkahttpjackson._
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model._
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.Route
+import com.github.pjfanning.pekkohttpjackson._
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
@@ -45,11 +45,11 @@ import scala.math.Ordered.orderingToOrdered
 import scala.util._
 
 /*someday: when we start using actors:
-import akka.actor.{ ActorRef, ActorSystem }
+import org.apache.pekko.actor.{ ActorRef, ActorSystem }
 import scala.concurrent.duration._
 import org.openhorizon.exchangeapi.OrgsActor._
-import akka.pattern.ask
-import akka.util.Timeout
+import org.apache.pekko.pattern.ask
+import org.apache.pekko.util.Timeout
 import scala.concurrent.ExecutionContext
 */
 
@@ -89,7 +89,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
   implicit lazy val timeout = Timeout(5.seconds) //note: get this from the system's configuration
   */
 
-  // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-akka-http/swagger-akka-http
+  // Note: to make swagger work, each route should be returned by its own method: https://github.com/swagger-pekko-http/swagger-pekko-http
   def orgsRoutes: Route = orgsGetRoute ~
                           orgGetRoute ~
                           orgStatusRoute ~
@@ -106,8 +106,8 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
 
   // ====== GET /orgs ================================
 
-  /* Akka-http Directives Notes:
-  * Directives reference: https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/alphabetically.html
+  /* pekko-http Directives Notes:
+  * Directives reference: https://doc.pekko.io/docs/pekko-http/current/routing-dsl/directives/alphabetically.html
   * The path() directive gobbles up the rest of the url path (until the params at ?). So you can't have any other path directives after it (and path directives before it must be pathPrefix())
   * Get variable parts of the route: path("orgs" / Segment) { orgid=>
   * Get the request context: get { ctx => println(ctx.request.method.name)

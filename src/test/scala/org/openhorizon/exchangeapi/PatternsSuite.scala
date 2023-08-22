@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi
 
 import java.time._
-import akka.http.scaladsl.model.StatusCodes
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi._
 import org.openhorizon.exchangeapi.route.administration.{DeleteIBMChangesRequest, DeleteOrgChangesRequest}
 import org.openhorizon.exchangeapi.table._

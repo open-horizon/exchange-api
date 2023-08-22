@@ -1,13 +1,13 @@
 /** Services routes for all of the /admin api methods. */
 package org.openhorizon.exchangeapi.route.administration
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.ExchangeApi
-import de.heikoseeberger.akkahttpjackson._
+import com.github.pjfanning.pekkohttpjackson._
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody

@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table
 
-import akka.event.LoggingAdapter
+import org.apache.pekko.event.LoggingAdapter
 import org.openhorizon.exchangeapi.ExchangeApiApp.system
 import org.openhorizon.exchangeapi.table.agent.AgentVersionsChangedTQ
 import org.openhorizon.exchangeapi.table.agent.certificate.AgentCertificateVersionsTQ

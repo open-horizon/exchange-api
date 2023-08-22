@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.auth
 
-import akka.event.LoggingAdapter
+import org.apache.pekko.event.LoggingAdapter
 import com.google.common.cache
 import com.google.common.cache.CacheBuilder
 import org.openhorizon.exchangeapi.ExchangeApi

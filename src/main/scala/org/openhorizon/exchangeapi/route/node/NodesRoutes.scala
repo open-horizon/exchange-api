@@ -2,14 +2,14 @@
 package org.openhorizon.exchangeapi.route.node
 
 import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.CacheDirectives.public
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model._
+import org.apache.pekko.http.scaladsl.model.headers.CacheDirectives.public
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth._
-import de.heikoseeberger.akkahttpjackson._
+import com.github.pjfanning.pekkohttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{ArraySchema, Content, ExampleObject, Schema}

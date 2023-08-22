@@ -6,46 +6,28 @@
 
 package org.openhorizon.exchangeapi
 
-import java.sql.Timestamp
-import java.util.Optional
-import akka.Done
-import akka.actor.{Actor, ActorRef, ActorSystem, Cancellable, CoordinatedShutdown, Props, Timers}
-import akka.event.{Logging, LoggingAdapter}
-import akka.http.javadsl.model.HttpHeader
-import ch.megard.akka.http.cors.scaladsl.CorsDirectives._
-
-import scala.util.matching.Regex
-import akka.http.scaladsl.server.RouteResult.Rejected
-import akka.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry}
 import com.mchange.v2.c3p0.ComboPooledDataSource
-import com.mchange.v2.log.FallbackMLog
-import slick.jdbc.PostgresProfile.api._
-
-import scala.concurrent.{Await, ExecutionContext, Future}
-import scala.util.{Failure, Success}
-import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
-import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `must-revalidate`, `no-cache`, `no-store`}
-import akka.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
-import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.{ExceptionHandler, Route}
-import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Credentials`, `Access-Control-Allow-Headers`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Origin`}
-import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive0, Route}
-import akka.stream.{ActorMaterializer, Materializer}
-import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
-import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
-import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
-import org.openhorizon.exchangeapi.table
-import org.openhorizon.exchangeapi.table.{ExchangeApiTables, ExchangePostgresProfile}
-import com.typesafe.config.ConfigFactory
+import jakarta.ws.rs.{DELETE, GET, PUT, Path}
+import org.apache.pekko.Done
+import org.apache.pekko.actor.{Actor, ActorRef, ActorSystem, CoordinatedShutdown, Props, Timers}
+import org.apache.pekko.event.{Logging, LoggingAdapter}
+import org.apache.pekko.http.cors.scaladsl.CorsDirectives._
+import org.apache.pekko.http.javadsl.model.HttpHeader
+import org.apache.pekko.http.scaladsl.{ConnectionContext, Http}
+import org.apache.pekko.http.scaladsl.model.{HttpRequest, StatusCodes}
+import org.apache.pekko.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `must-revalidate`, `no-cache`, `no-store`}
+import org.apache.pekko.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
+import org.apache.pekko.http.scaladsl.server.{AuthorizationFailedRejection, ExceptionHandler, MalformedQueryParamRejection, MalformedRequestContentRejection, MethodRejection, Rejection, RejectionHandler, Route, RouteResult, TransformationRejection, ValidationRejection}
+import org.apache.pekko.http.scaladsl.server.RouteResult.Rejected
+import org.apache.pekko.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry}
+import org.apache.pekko.http.scaladsl.server.Directives._
 import org.json4s._
+import org.openhorizon.exchangeapi.SwaggerDocService.complete
 import org.openhorizon.exchangeapi.auth.{AuthCache, AuthenticationSupport}
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
+import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
+import org.openhorizon.exchangeapi.route.agreementbot.{Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
 import org.openhorizon.exchangeapi.route.catalog.CatalogRoutes
 import org.openhorizon.exchangeapi.route.deploymentpattern.PatternsRoutes
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{BusinessRoutes, DeploymentPolicySearch}
@@ -55,17 +37,24 @@ import org.openhorizon.exchangeapi.route.nodegroup.NodeGroupRoutes
 import org.openhorizon.exchangeapi.route.organization.{Changes, MaxChangeId, OrgsRoutes}
 import org.openhorizon.exchangeapi.route.service.ServicesRoutes
 import org.openhorizon.exchangeapi.route.user.UsersRoutes
+import org.openhorizon.exchangeapi.table.ExchangeApiTables
 import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchConfig, ExchMsg, ExchangeRejection, NotFoundRejection}
+import slick.jdbc.PostgresProfile.api._
 import slick.jdbc.TransactionIsolation.Serializable
 
-import java.io.{FileInputStream, InputStream}
+import java.io.FileInputStream
 import java.security.{KeyStore, SecureRandom}
+import java.sql.Timestamp
+import java.util.Optional
 import javax.net.ssl.{KeyManagerFactory, SSLContext, SSLEngine, TrustManagerFactory}
-import scala.io.{BufferedSource, Source}
 import scala.concurrent.duration._
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.io.{BufferedSource, Source}
+import scala.util.matching.Regex
+import scala.util.{Failure, Success}
 
 // Global vals and methods
 object ExchangeApi {
@@ -94,7 +83,7 @@ object ExchangeApiConstants {
 
 
 /**
- * Main akka server for the Exchange REST API.
+ * Main pekko server for the Exchange REST API.
  */
 object ExchangeApiApp extends App
   with AdminRoutes
@@ -142,7 +131,7 @@ object ExchangeApiApp extends App
   //import DefaultJsonProtocol._
   //implicit val apiRespJsonFormat = jsonFormat2(ApiResponse)
 
-  // Using jackson json (un)marshalling instead of sprayjson: https://github.com/hseeberger/akka-http-json
+  // Using jackson json (un)marshalling instead of sprayjson: https://github.com/hseeberger/pekko-http-json
   private implicit val formats: DefaultFormats.type = DefaultFormats
 
   // Set up ActorSystem and other dependencies here
@@ -157,7 +146,7 @@ object ExchangeApiApp extends App
       ExchangeApi.servicePortUnencrypted = pu
   }
 
-  //val actorConfig = ConfigFactory.parseString("akka.loglevel=" + ExchConfig.getLogLevel)
+  //val actorConfig = ConfigFactory.parseString("pekko.loglevel=" + ExchConfig.getLogLevel)
   implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)  // includes the loglevel
   implicit val executionContext: ExecutionContext = system.dispatcher
   ExchangeApi.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit
@@ -166,13 +155,13 @@ object ExchangeApiApp extends App
   ExchangeApi.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
   ExchConfig.createRootInCache()
   
-  // Check common overwritten Akka configuration parameters
-  logger.debug("akka.corrdinated-shutdown:  " + system.settings.config.getConfig("akka.coordinated-shutdown").toString)
-  logger.debug("akka.loglevel: " + system.settings.config.getString("akka.loglevel"))
-  logger.debug("akka.http.parsing: " + system.settings.config.getConfig("akka.http.parsing").toString)
-  logger.debug("akka.http.server: " + system.settings.config.getConfig("akka.http.server").toString)
+  // Check common overwritten pekko configuration parameters
+  logger.debug("pekko.corrdinated-shutdown:  " + system.settings.config.getConfig("pekko.coordinated-shutdown").toString)
+  logger.debug("pekko.loglevel: " + system.settings.config.getString("pekko.loglevel"))
+  logger.debug("pekko.http.parsing: " + system.settings.config.getConfig("pekko.http.parsing").toString)
+  logger.debug("pekko.http.server: " + system.settings.config.getConfig("pekko.http.server").toString)
   
-  // Set a custom exception handler. See https://doc.akka.io/docs/akka-http/current/routing-dsl/exception-handling.html#exception-handling
+  // Set a custom exception handler. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/exception-handling.html#exception-handling
   implicit def myExceptionHandler: ExceptionHandler =
     ExceptionHandler {
       case e: java.util.concurrent.RejectedExecutionException => // this is the exception if any of the routes have trouble reaching the db during a db.run()
@@ -186,7 +175,7 @@ object ExchangeApiApp extends App
         complete((StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, msg)))
     }
 
-  // Set a custom rejection handler. See https://doc.akka.io/docs/akka-http/current/routing-dsl/rejections.html#customizing-rejection-handling
+  // Set a custom rejection handler. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/rejections.html#customizing-rejection-handling
   implicit def myRejectionHandler: RejectionHandler =
     RejectionHandler.newBuilder()
                     // this handles all of our rejections
@@ -213,7 +202,7 @@ object ExchangeApiApp extends App
                     .handleNotFound { complete((StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "unrecognized route"))) }
                     .result()
 
-  // Set a custom logging of requests and responses. See https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/debugging-directives/logRequestResult.html
+  // Set a custom logging of requests and responses. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/directives/debugging-directives/logRequestResult.html
   val basicAuthRegex = new Regex("^Basic ?(.*)$")
   def requestResponseLogging(req: HttpRequest): RouteResult => Option[LogEntry] = {
     case RouteResult.Complete(res) =>
@@ -228,9 +217,9 @@ object ExchangeApiApp extends App
       }
       // Now log all the info
       Option(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.InfoLevel))
-    //case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with: $rejections", Logging.InfoLevel)) // <- left here for when you temporarily want to see the full list of rejections that akka produces
+    //case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with: $rejections", Logging.InfoLevel)) // <- left here for when you temporarily want to see the full list of rejections that pekko produces
     case Rejected(rejections) =>
-      // Sometimes akka produces a bunch of MethodRejection objects (for http methods in the routes that didn't match) and then
+      // Sometimes pekko produces a bunch of MethodRejection objects (for http methods in the routes that didn't match) and then
       // TransformationRejection objects to cancel out those rejections. Filter all of these out.
       var interestingRejections: Seq[Rejection] = rejections.filter({
         case _: TransformationRejection => false
@@ -255,7 +244,7 @@ object ExchangeApiApp extends App
     }
   }
   
-  //someday: use directive https://doc.akka.io/docs/akka-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
+  //someday: use directive https://doc.pekko.io/docs/pekko-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
   lazy val routes: Route =
     DebuggingDirectives.logRequestResult(requestResponseLogging _) {
       pathPrefix("v1") {
@@ -354,7 +343,7 @@ object ExchangeApiApp extends App
   system.registerOnTermination(() => db.close())
 
   /*
-   * When we were using scalatra - left here for reference, until we investigate the CORS support in akka-http
+   * When we were using scalatra - left here for reference, until we investigate the CORS support in pekko-http
    * before() {  // Before every action runs...
    * // We have to set these ourselves because we had to disable scalatra's builtin CorsSupport because for some inexplicable reason it doesn't set Access-Control-Allow-Origin which is critical
    * //response.setHeader("Access-Control-Allow-Origin", "*")  // <- this can only be used for unauthenticated requests
@@ -402,7 +391,7 @@ object ExchangeApiApp extends App
     })
   }
 
-  /** Variables and Akka Actor for trimming `resourcechanges` table */
+  /** Variables and pekko Actor for trimming `resourcechanges` table */
   val Cleanup = "cleanup";
   class ChangesCleanupActor(timerInterval: Int = ExchConfig.getInt("api.resourceChanges.cleanupInterval")) extends Actor with Timers{
     override def preStart(): Unit = {
@@ -430,7 +419,7 @@ object ExchangeApiApp extends App
     })
   }
 
-  /** Variables and Akka Actor for removing expired nodemsgs and agbotmsgs */
+  /** Variables and pekko Actor for removing expired nodemsgs and agbotmsgs */
   val CleanupExpiredMessages = "cleanupExpiredMessages"
   
   class MsgsCleanupActor(timerInterval: Int = ExchConfig.getInt("api.defaults.msgs.expired_msgs_removal_interval")) extends Actor with Timers {
@@ -447,7 +436,7 @@ object ExchangeApiApp extends App
     }
   }
   val msgsCleanupActor: ActorRef = system.actorOf(Props(new MsgsCleanupActor()))
-  val secondsToWait: Int = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete") // ExchConfig.getAkkaConfig() also makes the akka unbind phase this long
+  val secondsToWait: Int = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete") // ExchConfig.getpekkoConfig() also makes the pekko unbind phase this long
   
   var serverBindingHttp: Option[Http.ServerBinding] = None
   var serverBindingHttps: Option[Http.ServerBinding] = None

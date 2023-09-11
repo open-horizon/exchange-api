@@ -4,8 +4,8 @@ on:
   push:
     branches:
       - main # default branch of the project
-      - v.2.110
-      - v.2.87
+      - v2.110
+      - v2.87
 jobs:
   dependency-graph:
     name: Update Dependency Graph

@@ -3,7 +3,7 @@ name: Update Dependency Graph
 on:
   push:
     branches:
-      - main # default branch of the project
+      - master
       - v2.110
       - v2.87
 jobs:

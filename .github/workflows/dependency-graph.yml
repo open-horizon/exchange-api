@@ -6,7 +6,6 @@ on:
       - main # default branch of the project
       - v.2.110
       - v.2.87
-      - dependency-graph
 jobs:
   dependency-graph:
     name: Update Dependency Graph

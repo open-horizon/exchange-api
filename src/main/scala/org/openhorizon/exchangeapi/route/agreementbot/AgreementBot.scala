@@ -113,7 +113,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
              description = "This must be called by the User to add an AgBot, and then can be called by that User or AgBot to update itself.",
              parameters =
                Array(new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization identifier."),
-                     new Parameter(name = "agreeementbot", in = ParameterIn.PATH, description = "Agreement Bot identifier")),
+                     new Parameter(name = "agreementbot", in = ParameterIn.PATH, description = "Agreement Bot identifier")),
              requestBody =
                new RequestBody(content =
                  Array(new Content(examples =

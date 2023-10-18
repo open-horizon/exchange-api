@@ -40,7 +40,7 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
              description = "They will be returned in the order they were sent. All Messages that have been sent to this AgBot will be returned, unless the AgBot has deleted some, or some are past their TTL. Can be run by a User or the AgBot.",
              parameters =
                Array(new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization identifier"),
-                     new Parameter(name = "agreementBot", in = ParameterIn.PATH, description = "Agreement Bot identifier"),
+                     new Parameter(name = "agreementbot", in = ParameterIn.PATH, description = "Agreement Bot identifier"),
                      new Parameter(name = "maxmsgs", in = ParameterIn.QUERY, required = false, description = "Maximum number of Messages returned. If this is less than the number of Messages available, the oldest Messages are returned. Defaults to unlimited.")),
              responses =
                Array(new responses.ApiResponse(responseCode = "200", description = "response body",

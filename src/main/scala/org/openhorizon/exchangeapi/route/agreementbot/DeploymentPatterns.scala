@@ -84,7 +84,7 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
   @Operation(summary = "Returns all patterns served by this agbot",
              description = "Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
              parameters =
-               Array(new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+               Array(new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
                      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
              responses =
                Array(new responses.ApiResponse(responseCode = "200", description = "response body",

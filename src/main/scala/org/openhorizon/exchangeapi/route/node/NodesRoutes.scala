@@ -1,4 +1,4 @@
-/** Services routes for all of the /orgs/{orgid}/nodes api methods. */
+/** Services routes for all of the /orgs/{organization}/nodes api methods. */
 package org.openhorizon.exchangeapi.route.node
 
 import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
@@ -47,8 +47,8 @@ import scala.collection.mutable.{ListBuffer, HashMap => MutableHashMap}
 import scala.language.postfixOps
 
 
-/** Implementation for all of the /orgs/{orgid}/nodes routes */
-@Path("/v1/orgs/{orgid}")
+/** Implementation for all of the /orgs/{organization}/nodes routes */
+@Path("/v1/orgs/{organization}")
 trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -82,20 +82,20 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                            nodePutStatusRoute ~
                            nodesGetDetails
   
-  // =========== POST /orgs/{orgid}/nodes/{id}/services_configstate ===============================
+  // =========== POST /orgs/{organization}/nodes/{node}/services_configstate ===============================
   @POST
-  @Path("nodes/{id}/services_configstate")
+  @Path("nodes/{node}/services_configstate")
   @Operation(
     summary = "Changes config state of registered services",
     description = "Suspends (or resumes) 1 or more services on this edge node. Can be run by the node owner or the node.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
       new Parameter(
-        name = "id",
+        name = "node",
         in = ParameterIn.PATH,
         description = "ID of the node to be updated."
       )
@@ -176,13 +176,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== POST /orgs/{orgid}/nodes/{id}/heartbeat ===============================
+  // =========== POST /orgs/{organization}/nodes/{node}/heartbeat ===============================
   @POST
-  @Path("nodes/{id}/heartbeat")
+  @Path("nodes/{node}/heartbeat")
   @Operation(summary = "Tells the exchange this node is still operating", description = "Lets the exchange know this node is still active so it is still a candidate for contracting. Can be run by the owning user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node to be updated.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[ApiResponse])))),
@@ -211,13 +211,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/nodes/{id}/errors ================================ */
+  /* ====== GET /orgs/{organization}/nodes/{node}/errors ================================ */
   @GET
-  @Path("nodes/{id}/errors")
+  @Path("nodes/{node}/errors")
   @Operation(summary = "Returns the node errors", description = "Returns any node errors. Can be run by any user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[NodeError])))),
@@ -239,20 +239,20 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PUT /orgs/{orgid}/nodes/{id}/errors ===============================
+  // =========== PUT /orgs/{organization}/nodes/{node}/errors ===============================
   @PUT
-  @Path("nodes/{id}/errors")
+  @Path("nodes/{node}/errors")
   @Operation(
     summary = "Adds/updates node error list",
     description = "Adds or updates any error of a node. This is called by the node or owning user.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
       new Parameter(
-        name = "id",
+        name = "node",
         in = ParameterIn.PATH,
         description = "ID of the node to be updated."
       )
@@ -331,13 +331,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/nodes/{id}/errors ===============================
+  // =========== DELETE /orgs/{organization}/nodes/{node}/errors ===============================
   @DELETE
-  @Path("nodes/{id}/errors")
+  @Path("nodes/{node}/errors")
   @Operation(summary = "Deletes the error list of a node", description = "Deletes the error list of a node. Can be run by the owning user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -374,13 +374,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
   }
 
   // Look Here for node management status
-  /* ====== GET /orgs/{orgid}/nodes/{id}/status ================================ */
+  /* ====== GET /orgs/{organization}/nodes/{node}/status ================================ */
   @GET
-  @Path("nodes/{id}/status")
+  @Path("nodes/{node}/status")
   @Operation(summary = "Returns the node status", description = "Returns the node run time status, for example service container status. Can be run by a user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(
@@ -432,20 +432,20 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PUT /orgs/{orgid}/nodes/{id}/status ===============================
+  // =========== PUT /orgs/{organization}/nodes/{node}/status ===============================
   @PUT
-  @Path("nodes/{id}/status")
+  @Path("nodes/{node}/status")
   @Operation(
     summary = "Adds/updates the node status",
     description = "Adds or updates the run time status of a node. This is called by the node or owning user.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
       new Parameter(
-        name = "id",
+        name = "node",
         in = ParameterIn.PATH,
         description = "ID of the node to be updated."
       )
@@ -538,13 +538,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/nodes/{id}/status ===============================
+  // =========== DELETE /orgs/{organization}/nodes/{node}/status ===============================
   @DELETE
-  @Path("nodes/{id}/status")
+  @Path("nodes/{node}/status")
   @Operation(summary = "Deletes the status of a node", description = "Deletes the status of a node. Can be run by the owning user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -580,13 +580,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/nodes/{id}/policy ================================ */
+  /* ====== GET /orgs/{organization}/nodes/{node}/policy ================================ */
   @GET
-  @Path("nodes/{id}/policy")
+  @Path("nodes/{node}/policy")
   @Operation(summary = "Returns the node policy", description = "Returns the node run time policy. Can be run by a user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[NodePolicy])))),
@@ -608,20 +608,20 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PUT /orgs/{orgid}/nodes/{id}/policy ===============================
+  // =========== PUT /orgs/{organization}/nodes/{node}/policy ===============================
   @PUT
-  @Path("nodes/{id}/policy")
+  @Path("nodes/{node}/policy")
   @Operation(
     summary = "Adds/updates the node policy",
     description = "Adds or updates the policy of a node. This is called by the node or owning user.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
       new Parameter(
-        name = "id",
+        name = "node",
         in = ParameterIn.PATH,
         description = "ID of the node to be updated."
       ),
@@ -752,13 +752,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/nodes/{id}/policy ===============================
+  // =========== DELETE /orgs/{organization}/nodes/{node}/policy ===============================
   @DELETE
-  @Path("nodes/{id}/policy")
+  @Path("nodes/{node}/policy")
   @Operation(summary = "Deletes the policy of a node", description = "Deletes the policy of a node. Can be run by the owning user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -799,13 +799,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/nodes/{id}/agreements ================================ */
+  /* ====== GET /orgs/{organization}/nodes/{node}/agreements ================================ */
   @GET
-  @Path("nodes/{id}/agreements")
+  @Path("nodes/{node}/agreements")
   @Operation(summary = "Returns all agreements this node is in", description = "Returns all agreements that this node is part of. Can be run by a user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(
@@ -856,13 +856,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/nodes/{id}/agreements/{agid} ================================ */
+  /* ====== GET /orgs/{organization}/nodes/{node}/agreements/{agid} ================================ */
   @GET
-  @Path("nodes/{id}/agreements/{agid}")
+  @Path("nodes/{node}/agreements/{agid}")
   @Operation(summary = "Returns an agreement for a node", description = "Returns the agreement with the specified agid for the specified node id. Can be run by a user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node."),
       new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -913,20 +913,20 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PUT /orgs/{orgid}/nodes/{id}/agreements/{agid} ===============================
+  // =========== PUT /orgs/{organization}/nodes/{node}/agreements/{agid} ===============================
   @PUT
-  @Path("nodes/{id}/agreements/{agid}")
+  @Path("nodes/{node}/agreements/{agid}")
   @Operation(
     summary = "Adds/updates an agreement of a node",
     description = "Adds a new agreement of a node, or updates an existing agreement. This is called by the node or owning user to give their information about the agreement.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
       new Parameter(
-        name = "id",
+        name = "node",
         in = ParameterIn.PATH,
         description = "ID of the node to be updated."
       ),
@@ -1045,13 +1045,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/nodes/{id}/agreements ===============================
+  // =========== DELETE /orgs/{organization}/nodes/{node}/agreements ===============================
   @DELETE
-  @Path("nodes/{id}/agreements")
+  @Path("nodes/{node}/agreements")
   @Operation(summary = "Deletes all agreements of a node", description = "Deletes all of the current agreements of a node. Can be run by the owning user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -1093,13 +1093,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/nodes/{id}/agreements/{agid} ===============================
+  // =========== DELETE /orgs/{organization}/nodes/{node}/agreements/{agid} ===============================
   @DELETE
-  @Path("nodes/{id}/agreements/{agid}")
+  @Path("nodes/{node}/agreements/{agid}")
   @Operation(summary = "Deletes an agreement of a node", description = "Deletes an agreement of a node. Can be run by the owning user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node."),
       new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement to be deleted.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
@@ -1141,20 +1141,20 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== POST /orgs/{orgid}/nodes/{id}/msgs ===============================
+  // =========== POST /orgs/{organization}/nodes/{node}/msgs ===============================
   @POST
-  @Path("nodes/{id}/msgs")
+  @Path("nodes/{node}/msgs")
   @Operation(
     summary = "Sends a msg from an agbot to a node",
     description = "Sends a msg from an agbot to a node. The agbot must 1st sign the msg (with its private key) and then encrypt the msg (with the node's public key). Can be run by any agbot.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
       new Parameter(
-        name = "id",
+        name = "node",
         in = ParameterIn.PATH,
         description = "ID of the node to send a message to."
       )
@@ -1247,13 +1247,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/nodes/{id}/msgs ================================ */
+  /* ====== GET /orgs/{organization}/nodes/{node}/msgs ================================ */
   @GET
-  @Path("nodes/{id}/msgs")
+  @Path("nodes/{node}/msgs")
   @Operation(summary = "Returns all msgs sent to this node", description = "Returns all msgs that have been sent to this node. They will be returned in the order they were sent. All msgs that have been sent to this node will be returned, unless the node has deleted some, or some are past their TTL. Can be run by a user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node."),
       new Parameter(name = "maxmsgs", in = ParameterIn.QUERY, required = false, description = "Maximum number of messages returned. If this is less than the number of messages available, the oldest messages are returned. Defaults to unlimited.")
     ),
     responses = Array(
@@ -1286,13 +1286,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
   
-  /* ====== GET /orgs/{orgid}/nodes/{id}/msgs/{msgid} ================================ */
+  /* ====== GET /orgs/{organization}/nodes/{node}/msgs/{msgid} ================================ */
   @GET
-  @Path("nodes/{id}/msgs/{msgId}")
+  @Path("nodes/{node}/msgs/{msgid}")
   @Operation(description = "Returns A specific message that has been sent to this node. Deleted/post-TTL (Time To Live) messages will not be returned. Can be run by a user or the node.",
              parameters = Array(new Parameter(description = "ID of the node.",
                                               in = ParameterIn.PATH,
-                                              name = "id",
+                                              name = "node",
                                               required = true),
                                 new Parameter(description = "Specific node message.",
                                               in = ParameterIn.PATH,
@@ -1300,7 +1300,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
                                               required = true),
                                 new Parameter(description = "Organization id.",
                                               in = ParameterIn.PATH,
-                                              name = "orgid",
+                                              name = "organization",
                                               required = true)),
              responses = Array(new responses.ApiResponse(content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[GetNodeMsgsResponse]))),
                                                          description = "response body",
@@ -1352,13 +1352,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
       } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/nodes/{id}/msgs/{msgid} ===============================
+  // =========== DELETE /orgs/{organization}/nodes/{node}/msgs/{msgid} ===============================
   @DELETE
-  @Path("nodes/{id}/msgs/{msgid}")
+  @Path("nodes/{node}/msgs/{msgid}")
   @Operation(summary = "Deletes a msg of an node", description = "Deletes a message that was sent to an node. This should be done by the node after each msg is read. Can be run by the owning user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node."),
       new Parameter(name = "msgid", in = ParameterIn.PATH, description = "ID of the msg to be deleted.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
@@ -1388,7 +1388,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
   
-  // ====== GET /orgs/{orgid}/node-details ===================================
+  // ====== GET /orgs/{organization}/node-details ===================================
   @GET
   @Path("node-details")
   @Operation(description = "Returns all nodes with node errors, policy and status",
@@ -1400,7 +1400,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         required = false),
         new Parameter(description = "Filter results to only include nodes with this id (can include % for wildcard - the URL encoding for % is %25)",
           in = ParameterIn.QUERY,
-          name = "id",
+          name = "node",
           required = false),
         new Parameter(description = "Filter results to only include nodes with this name (can include % for wildcard - the URL encoding for % is %25)",
           in = ParameterIn.QUERY,
@@ -1412,7 +1412,7 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
           required = false),
         new Parameter(description = "Organization id",
           in = ParameterIn.PATH,
-          name = "orgid",
+          name = "organization",
           required = true),
         new Parameter(description = "Filter results to only include nodes with this owner (can include % for wildcard - the URL encoding for % is %25)",
           in = ParameterIn.QUERY,
@@ -1744,13 +1744,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
         } // end of exchAuth
     }
 
-  /* ====== GET /orgs/{orgid}/nodes/{id}/managementStatus ================================ */
+  /* ====== GET /orgs/{organization}/nodes/{node}/managementStatus ================================ */
   @GET
-  @Path("nodes/{id}/managementStatus")
+  @Path("nodes/{node}/managementStatus")
   @Operation(summary = "Returns status for nodeid", description = "Returns the management status of the node (edge device) with the specified id. Can be run by that node, a user, or an agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node."),
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the node resource (not of the services). If not specified, the entire node resource (including services) will be returned")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -1823,13 +1823,13 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of validate
   } // end of exchAuth
   
-  /* ====== GET /orgs/{orgid}/nodes/{id}/managementStatus/{mgmtpolicy} ================================ */
+  /* ====== GET /orgs/{organization}/nodes/{node}/managementStatus/{mgmtpolicy} ================================ */
   @GET
-  @Path("nodes/{id}/managementStatus/{mgmtpolicy}")
+  @Path("nodes/{node}/managementStatus/{mgmtpolicy}")
   @Operation(summary = "Returns status for nodeid", description = "Returns the management status of the node (edge device) with the specified id. Can be run by that node, a user, or an agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node."),
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the node resource (not of the services). If not specified, the entire node resource (including services) will be returned"),
       new Parameter(name = "mgmtpolicy", in = ParameterIn.PATH, description = "ID of the node management policy.")),
     responses = Array(
@@ -1888,20 +1888,20 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of validate
   } // end of exchAuth
   
-  // =========== PUT /orgs/{orgid}/nodes/{id}/managementStatus/{mgmtpolicy} ===============================
+  // =========== PUT /orgs/{organization}/nodes/{node}/managementStatus/{mgmtpolicy} ===============================
   @PUT
-  @Path("nodes/{id}/managementStatus/{mgmtpolicy}")
+  @Path("nodes/{node}/managementStatus/{mgmtpolicy}")
   @Operation(
     summary = "Adds/updates the status of the Management Policy running on the Node.",
     description = "Adds or updates the run time status of a Management Policy running on a Node. This is called by the Agreement Bot.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization identifier"
       ),
       new Parameter(
-        name = "id",
+        name = "node",
         in = ParameterIn.PATH,
         description = "Node identifier"
       ),
@@ -2026,19 +2026,19 @@ trait NodesRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
   
-  // =========== DELETE /orgs/{orgid}/nodes/{id}/managementStatus/{mgmtpolicy} ===============================
+  // =========== DELETE /orgs/{organization}/nodes/{node}/managementStatus/{mgmtpolicy} ===============================
   @DELETE
-  @Path("nodes/{id}/managementStatus/{mgmtpolicy}")
+  @Path("nodes/{node}/managementStatus/{mgmtpolicy}")
   @Operation(
     summary = "Deletes the status of the Management Policy running on the Node",
     description = "Deletes the run time status of a Management Policy running on a Node. This is called by the Agreement Bot.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization identifier."),
       new Parameter(
-        name = "id",
+        name = "node",
         in = ParameterIn.PATH,
         description = "Node identifier"),
       new Parameter(

@@ -8,7 +8,7 @@ import org.openhorizon.exchangeapi.table.service.ServiceRef2
 import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
 
-/** Input format for PUT /orgs/{orgid}/nodes/<node-id> */
+/** Input format for PUT /orgs/{organization}/nodes/<node-id> */
 final case class PutNodesRequest(token: String,
                                  name: String,
                                  nodeType: Option[String],

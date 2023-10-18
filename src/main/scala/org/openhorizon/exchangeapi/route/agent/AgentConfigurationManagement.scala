@@ -27,7 +27,7 @@ import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
 /** Implementation for all of the /orgs/{org}/AgentFileVersion routes */
-@Path("/v1/orgs/{orgid}/AgentFileVersion")
+@Path("/v1/orgs/{organization}/AgentFileVersion")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "agent file version")
 trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -41,12 +41,12 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
     getAgentConfigMgmt ~
     putAgentConfigMgmt
   
-  // =========== DELETE /orgs/{orgid}/AgentFileVersion ===============================
+  // =========== DELETE /orgs/{organization}/AgentFileVersion ===============================
   @DELETE
   @Path("")
   @Operation(summary = "Delete all agent file versions",
              description = "Delete all agent certificate, configuration, and software file versions. Run by agreement bot",
-             parameters = Array(new Parameter(name = "orgid",
+             parameters = Array(new Parameter(name = "organization",
                                               in = ParameterIn.PATH,
                                               description = "Organization id.")),
              responses = Array(new responses.ApiResponse(responseCode = "204", description = "deleted"),
@@ -115,14 +115,14 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
     } // end of exchAuth
   }
   
-  // =========== GET /orgs/{orgid}/AgentFileVersion ===============================
+  // =========== GET /orgs/{organization}/AgentFileVersion ===============================
   @GET
   @Path("")
   @Operation(summary = "Get all agent file versions",
              description = "Get all agent certificate, configuration, and software file versions. Run by agreement bot",
              parameters = Array(new Parameter(description = "Organization identifier",
                                               in = ParameterIn.PATH,
-                                              name = "orgid")),
+                                              name = "organization")),
              responses = Array(new responses.ApiResponse(responseCode = "200", description = "response body",
                content = Array(
                  new Content(
@@ -178,14 +178,14 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
     } // end of exchAuth
   }
   
-  // =========== PUT /orgs/{orgid}/AgentFileVersion ===============================
+  // =========== PUT /orgs/{organization}/AgentFileVersion ===============================
   @PUT
   @Path("")
   @Operation(summary = "Put all agent file versions",
              description = "Put all agent certificate, configuration, and software file versions. Run by agreement bot",
              parameters = Array(new Parameter(description = "Organization identifier",
                in = ParameterIn.PATH,
-               name = "orgid")),
+               name = "organization")),
              requestBody = new RequestBody(
                content = Array(
                  new Content(

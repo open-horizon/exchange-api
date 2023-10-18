@@ -1,4 +1,4 @@
-/** Services routes for all of the /orgs/{orgid}/business api methods. */
+/** Services routes for all of the /orgs/{organization}/business api methods. */
 package org.openhorizon.exchangeapi.route.deploymentpolicy
 
 import akka.actor.ActorSystem
@@ -29,7 +29,7 @@ import scala.concurrent.ExecutionContext
 import scala.util._
 import scala.util.control.Breaks._
 
-@Path("/v1/orgs/{orgid}/business/policies")
+@Path("/v1/orgs/{organization}/business/policies")
 trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -44,12 +44,12 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
                               busPolPatchRoute ~
                               busPolDeleteRoute
 
-  /* ====== GET /orgs/{orgid}/business/policies ================================ */
+  /* ====== GET /orgs/{organization}/business/policies ================================ */
   @GET
   @Path("")
   @Operation(summary = "Returns all business policies", description = "Returns all business policy definitions in this organization. Can be run by any user, node, or agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Identifier (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
       new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Owner (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
       new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include Deployment Policies with this Label (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
@@ -150,12 +150,12 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
         }
     }
 
-  /* ====== GET /orgs/{orgid}/business/policies/{policy} ================================ */
+  /* ====== GET /orgs/{organization}/business/policies/{policy} ================================ */
   @GET
   @Path("{policy}")
   @Operation(summary = "Returns a business policy", description = "Returns the business policy with the specified id. Can be run by a user, node, or agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name."),
       new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire business policy resource will be returned.")),
     responses = Array(
@@ -245,7 +245,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== POST /orgs/{orgid}/business/policies/{policy} ===============================
+  // =========== POST /orgs/{organization}/business/policies/{policy} ===============================
   @POST
   @Path("{policy}")
   @Operation(
@@ -253,7 +253,7 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     description = "Creates a business policy resource. A business policy resource specifies the service that should be deployed based on the specified properties and constraints. This can only be called by a user.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
@@ -429,12 +429,12 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
   
-  // =========== PUT /orgs/{orgid}/business/policies/{policy} ===============================
+  // =========== PUT /orgs/{organization}/business/policies/{policy} ===============================
   @PUT
   @Path("{policy}")
   @Operation(summary = "Updates a business policy", description = "Updates a business policy resource. This can only be called by the user that created it.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
     requestBody = new RequestBody(description = "Business Policy object that needs to be updated. See details in the POST route above.", required = true, content = Array(
       new Content(
@@ -577,12 +577,12 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PATCH /orgs/{orgid}/business/policies/{policy} ===============================
+  // =========== PATCH /orgs/{organization}/business/policies/{policy} ===============================
   @PATCH
   @Path("{policy}")
   @Operation(summary = "Updates 1 attribute of a business policy", description = "Updates one attribute of a business policy. This can only be called by the user that originally created this business policy resource.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
     requestBody = new RequestBody(description = "Specify only **one** of the attributes", required = true, content = Array(
       new Content(
@@ -728,12 +728,12 @@ trait BusinessRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/business/policies/{policy} ===============================
+  // =========== DELETE /orgs/{organization}/business/policies/{policy} ===============================
   @DELETE
   @Path("{policy}")
   @Operation(summary = "Deletes a business policy", description = "Deletes a business policy. Can only be run by the owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),

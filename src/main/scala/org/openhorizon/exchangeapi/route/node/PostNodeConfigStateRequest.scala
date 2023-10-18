@@ -10,7 +10,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.util.matching.Regex
 
-/** Input body for POST /orgs/{orgid}/nodes/{id}/services_configstate */
+/** Input body for POST /orgs/{organization}/nodes/{node}/services_configstate */
 final case class PostNodeConfigStateRequest(org: String, url: String, configState: String, version: Option[String]) {
   require(org!=null && url!=null && configState!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats

@@ -1,4 +1,4 @@
-/** Services routes for all of the /orgs/{orgid}/managementpolicy api methods. */
+/** Services routes for all of the /orgs/{organization}/managementpolicy api methods. */
 package org.openhorizon.exchangeapi.route.managementpolicy
 
 import akka.actor.ActorSystem
@@ -26,7 +26,7 @@ import scala.collection.immutable._
 import scala.concurrent.ExecutionContext
 import scala.util._
 
-@Path("/v1/orgs/{orgid}/managementpolicies")
+@Path("/v1/orgs/{organization}/managementpolicies")
 trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -36,7 +36,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
 
   def managementPoliciesRoutes: Route = mgmtPolsGetRoute ~ mgmtPolGetRoute ~ mgmtPolPostRoute ~ mgmtPolPutRoute /*~ mgmtPolPatchRoute*/ ~ mgmtPolDeleteRoute
 
-  /* ====== GET /orgs/{orgid}/managementpolicies ================================ */
+  /* ====== GET /orgs/{organization}/managementpolicies ================================ */
   @GET
   @Path("")
   @Operation(summary = "Returns all node management policies", description = "Returns all management policy definitions in this organization. Can be run by any user, node, or agbot.",
@@ -45,7 +45,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
       new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this id (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this label (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "manifest", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this manifest (can include % for wildcard - the URL encoding for % is %25)"),
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include management policies with this owner (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -166,12 +166,12 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
         }
     }
 
-  /* ====== GET /orgs/{orgid}/managementpolicies/{mgmtpolicy} ================================ */
+  /* ====== GET /orgs/{organization}/managementpolicies/{mgmtpolicy} ================================ */
   @GET
   @Path("{mgmtpolicy}")
   @Operation(summary = "Returns a node management policy", description = "Returns the management policy with the specified id. Can be run by any user, node, or agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "mgmtpolicy", in = ParameterIn.PATH, description = "Node management policy name."),
       new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire management policy resource will be returned.")),
     responses = Array(
@@ -199,12 +199,12 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
       ],
       "enabled": true,
       "start": "now",
-      "duration": 0
+      "duration": 0,
       "agentUpgradePolicy": {
         "manifest": "<org/manifestId>",
-        "allowDowngrade", false
+        "allowDowngrade": false
       },
-      "lastUpdated": "string",
+      "lastUpdated": "string"
     }
 """
               )
@@ -246,7 +246,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
   } // end of exchAuth
   }
 
-  // =========== POST /orgs/{orgid}/managementpolicies/{mgmtpolicy} ===============================
+  // =========== POST /orgs/{organization}/managementpolicies/{mgmtpolicy} ===============================
   @POST
   @Path("{mgmtpolicy}")
   @Operation(
@@ -254,7 +254,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     description = "Creates a node management policy resource. A node management policy controls the updating of the edge node agents. This can only be called by a user.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
@@ -367,7 +367,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     } // end of exchAuth
   }
 
-  // =========== PUT /orgs/{orgid}/managementpolicies/{policy} ===============================
+  // =========== PUT /orgs/{organization}/managementpolicies/{policy} ===============================
   @PUT
   @Path("{mgmtpolicy}")
   @Operation(
@@ -375,7 +375,7 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     description = "Updates a node management policy resource. A node management policy controls the updating of the edge node agents. This can only be called by a user.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
@@ -478,12 +478,12 @@ trait ManagementPoliciesRoutes extends JacksonSupport with AuthenticationSupport
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/managementpolicies/{mgmtpolicy} ===============================
+  // =========== DELETE /orgs/{organization}/managementpolicies/{mgmtpolicy} ===============================
   @DELETE
   @Path("{mgmtpolicy}")
   @Operation(summary = "Deletes a management policy", description = "Deletes a management policy. Can only be run by the owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "mgmtpolicy", in = ParameterIn.PATH, description = "Management Policy name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),

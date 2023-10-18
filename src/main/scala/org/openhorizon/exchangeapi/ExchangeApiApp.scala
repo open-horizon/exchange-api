@@ -38,6 +38,7 @@ import akka.http.scaladsl.server.{Directive0, Route}
 import akka.stream.{ActorMaterializer, Materializer}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
+import org.openhorizon.exchangeapi.route.agreement.Confirm
 import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
 import org.openhorizon.exchangeapi.table
 import org.openhorizon.exchangeapi.table.{ExchangeApiTables, ExchangePostgresProfile}
@@ -52,9 +53,12 @@ import org.openhorizon.exchangeapi.route.deploymentpolicy.{BusinessRoutes, Deplo
 import org.openhorizon.exchangeapi.route.managementpolicy.ManagementPoliciesRoutes
 import org.openhorizon.exchangeapi.route.node.{Node, Nodes, NodesRoutes}
 import org.openhorizon.exchangeapi.route.nodegroup.NodeGroupRoutes
-import org.openhorizon.exchangeapi.route.organization.{Changes, MaxChangeId, OrgsRoutes}
-import org.openhorizon.exchangeapi.route.service.ServicesRoutes
-import org.openhorizon.exchangeapi.route.user.UsersRoutes
+import org.openhorizon.exchangeapi.route.organization.{Changes, MaxChangeId, MyOrganizations, Organization, Organizations}
+import org.openhorizon.exchangeapi.route.search.{NodeError, NodeErrors, NodeHealth, NodeService}
+import org.openhorizon.exchangeapi.route.service.dockerauth.{DockerAuth, DockerAuths}
+import org.openhorizon.exchangeapi.route.service.key.{Key, Keys}
+import org.openhorizon.exchangeapi.route.service.{Policy, Service, Services}
+import org.openhorizon.exchangeapi.route.user.{ChangePassword, Confirm, User, Users}
 import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
@@ -105,35 +109,52 @@ object ExchangeApiApp extends App
   with AgreementBots
   with BusinessRoutes
   with CatalogRoutes
+  with ChangePassword
   with Changes
   with ClearAuthCache
+  with org.openhorizon.exchangeapi.route.agreement.Confirm
+  with org.openhorizon.exchangeapi.route.user.Confirm
   with Configuration
   with DeploymentPattern
   with DeploymentPatterns
   with DeploymentPolicy
   with DeploymentPolicies
   with DeploymentPolicySearch
+  with DockerAuth
+  with DockerAuths
   with DropDatabase
   with Heartbeat
   with HashPassword
   with InitializeDatabase
+  with Key
+  with Keys
   with ManagementPoliciesRoutes
   with MaxChangeId
   with Message
   with Messages
+  with MyOrganizations
   with Node
+  with NodeError
+  with NodeErrors
+  with NodeHealth
   with Nodes
+  with NodeService
   with NodeGroupRoutes
   with NodesRoutes
+  with Organization
+  with Organizations
   with OrganizationStatus
-  with OrgsRoutes
   with PatternsRoutes
+  with Policy
   with Reload
-  with ServicesRoutes
-  with Status
+  with Service
+  with Services
+  with org.openhorizon.exchangeapi.route.administration.Status
+  with org.openhorizon.exchangeapi.route.organization.Status
   with SwaggerUiService
   with Token
-  with UsersRoutes
+  with User
+  with Users
   with Version {
   
   // An example of using Spray to marshal/unmarshal json. We chose not to use it because it requires an implicit be defined for every class that needs marshalling
@@ -277,37 +298,54 @@ object ExchangeApiApp extends App
                     agreementBots ~
                     businessRoutes ~
                     catalogRoutes ~
+                    changePassword ~
                     changes ~
                     clearAuthCache ~
+                    confirm ~
+                    confirmAgreement ~
                     configuration ~
                     deploymentPatternAgreementBot ~
                     deploymentPatternsAgreementBot ~
                     deploymentPoliciesAgreementBot ~
                     deploymentPolicyAgreementBot ~
                     deploymentPolicySearch ~
+                    dockerAuth ~
+                    dockerAuths ~
                     dropDB ~
                     hashPW ~
                     heartbeatAgreementBot ~
                     initializeDB ~
+                    key ~
+                    keys ~
                     managementPoliciesRoutes ~
                     maxChangeId ~
                     messageAgreementBot ~
                     messagesAgreementBot ~
+                    myOrganizations ~
                     node ~
+                    nodeErrorSearch ~
+                    nodeErrorsSearch ~
+                    nodeHealthSearch ~
                     nodes ~
+                    nodeServiceSearch ~
                     nodesRoutes ~
                     nodeGroupRoutes ~
+                    organization ~
+                    organizations ~
                     organizationStatus ~
-                    orgsRoutes ~
                     patternsRoutes ~
+                    policy ~
                     reload ~
-                    servicesRoutes ~
+                    service ~
+                    services ~
                     status ~
+                    statusOrganization ~
                     SwaggerDocService.routes ~
                     swaggerUiRoutes ~
                     testRoute ~
                     token ~
-                    usersRoutes ~
+                    user ~
+                    users ~
                     version
                   }
                 }

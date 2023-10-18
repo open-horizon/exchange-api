@@ -1,4 +1,4 @@
-/** Services routes for all of the /orgs/{orgid}/patterns api methods. */
+/** Services routes for all of the /orgs/{organization}/patterns api methods. */
 package org.openhorizon.exchangeapi.route.deploymentpattern
 
 import akka.actor.ActorSystem
@@ -34,7 +34,7 @@ import scala.concurrent.ExecutionContext
 import scala.util._
 import scala.util.control.Breaks._
 
-@Path("/v1/orgs/{orgid}/patterns")
+@Path("/v1/orgs/{organization}/patterns")
 trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -57,12 +57,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     patternPuttRoute ~
     patternsGetRoute
 
-  /* ====== GET /orgs/{orgid}/patterns ================================ */
+  /* ====== GET /orgs/{organization}/patterns ================================ */
   @GET
   @Path("")
   @Operation(summary = "Returns all patterns", description = "Returns all pattern definitions in this organization. Can be run by any user, node, or agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include deployment patterns with this id (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
       new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include deployment patterns with this owner (can include '%' for wildcard - the URL encoding for '%' is '%25')"),
       new Parameter(name = "public", in = ParameterIn.QUERY, required = false, description = "Filter results to only include deployment patterns with this public setting"),
@@ -172,12 +172,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/patterns/{pattern} ================================ */
+  /* ====== GET /orgs/{organization}/patterns/{pattern} ================================ */
   @GET
   @Path("{pattern}")
   @Operation(summary = "Returns a pattern", description = "Returns the pattern with the specified id. Can be run by a user, node, or agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern id."),
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire pattern resource will be returned")),
     responses = Array(
@@ -287,7 +287,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== POST /orgs/{orgid}/patterns/{pattern} ===============================
+  // =========== POST /orgs/{organization}/patterns/{pattern} ===============================
   @POST
   @Path("{pattern}")
   @Operation(
@@ -295,7 +295,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     description = "Creates a pattern resource. A pattern resource specifies all of the services that should be deployed for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. This can only be called by a user.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
@@ -496,12 +496,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PUT /orgs/{orgid}/patterns/{pattern} ===============================
+  // =========== PUT /orgs/{organization}/patterns/{pattern} ===============================
   @PUT
   @Path("{pattern}")
   @Operation(summary = "Adds a pattern", description = "Creates a pattern resource. A pattern resource specifies all of the services that should be deployed for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. This can only be called by a user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
     requestBody = new RequestBody(description = "See details in the POST route.", required = true, content = Array(
       new Content(
@@ -692,12 +692,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PATCH /orgs/{orgid}/patterns/{pattern} ===============================
+  // =========== PATCH /orgs/{organization}/patterns/{pattern} ===============================
   @PATCH
   @Path("{pattern}")
   @Operation(summary = "Updates 1 attribute of a pattern", description = "Updates one attribute of a pattern. This can only be called by the user that originally created this pattern resource.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
     requestBody = new RequestBody(description = "Specify only **one** of the attributes", required = true, content = Array(
       new Content(
@@ -894,12 +894,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/patterns/{pattern} ===============================
+  // =========== DELETE /orgs/{organization}/patterns/{pattern} ===============================
   @DELETE
   @Path("{pattern}")
   @Operation(summary = "Deletes a pattern", description = "Deletes a pattern. Can only be run by the owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
@@ -950,7 +950,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // ======== POST /org/{orgid}/patterns/{pattern}/search ========================
+  // ======== POST /org/{organization}/patterns/{pattern}/search ========================
   @POST
   @Path("{pattern}/search")
   @Operation(
@@ -958,7 +958,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     description = "Returns the matching nodes that are using this pattern and do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node).",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
@@ -1131,7 +1131,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // ======== POST /org/{orgid}/patterns/{pattern}/nodehealth ========================
+  // ======== POST /org/{organization}/patterns/{pattern}/nodehealth ========================
   @POST
   @Path("{pattern}/nodehealth")
   @Operation(
@@ -1139,7 +1139,7 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     description = "Returns the lastHeartbeat and agreement times for all nodes that are this pattern and have changed since the specified lastTime. Can be run by a user or agbot (but not a node).",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
@@ -1240,12 +1240,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
 
   //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-  /* ====== GET /orgs/{orgid}/patterns/{pattern}/keys ================================ */
+  /* ====== GET /orgs/{organization}/patterns/{pattern}/keys ================================ */
   @GET
   @Path("{pattern}/keys")
   @Operation(summary = "Returns all keys/certs for this pattern", description = "Returns all the signing public keys/certs for this pattern. Can be run by any credentials able to view the pattern.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -1268,12 +1268,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /orgs/{orgid}/patterns/{pattern}/keys/{keyid} ================================ */
+  /* ====== GET /orgs/{organization}/patterns/{pattern}/keys/{keyid} ================================ */
   @GET
   @Path("{pattern}/keys/{keyid}")
   @Operation(summary = "Returns a key/cert for this pattern", description = "Returns the signing public key/cert with the specified keyid for this pattern. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the pattern.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name."),
       new Parameter(name = "keyid", in = ParameterIn.PATH, description = "Signing public key/certificate identifier.")),
     responses = Array(
@@ -1303,12 +1303,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== PUT /orgs/{orgid}/patterns/{pattern}/keys/{keyid} ===============================
+  // =========== PUT /orgs/{organization}/patterns/{pattern}/keys/{keyid} ===============================
   @PUT
   @Path("{pattern}/keys/{keyid}")
   @Operation(summary = "Adds/updates a key/cert for the pattern", description = "Adds a new signing public key/cert, or updates an existing key/cert, for this pattern. This can only be run by the pattern owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "ID of the pattern to be updated."),
       new Parameter(name = "keyid", in = ParameterIn.PATH, description = "ID of the key to be added/updated.")),
     requestBody = new RequestBody(description = "Note that the input body is just the bytes of the key/cert (not the typical json), so the 'Content-Type' header must be set to 'text/plain'.", required = true, content = Array(
@@ -1371,12 +1371,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/patterns/{pattern}/keys ===============================
+  // =========== DELETE /orgs/{organization}/patterns/{pattern}/keys ===============================
   @DELETE
   @Path("{pattern}/keys")
   @Operation(summary = "Deletes all keys of a pattern", description = "Deletes all of the current keys/certs for this pattern. This can only be run by the pattern owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
@@ -1423,12 +1423,12 @@ trait PatternsRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  // =========== DELETE /orgs/{orgid}/patterns/{pattern}/keys/{keyid} ===============================
+  // =========== DELETE /orgs/{organization}/patterns/{pattern}/keys/{keyid} ===============================
   @DELETE
   @Path("{pattern}/keys/{keyid}")
   @Operation(summary = "Deletes a key of a pattern", description = "Deletes a key/cert for this pattern. This can only be run by the pattern owning user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "pattern", in = ParameterIn.PATH, description = "Pattern name."),
       new Parameter(name = "keyid", in = ParameterIn.PATH, description = "ID of the key.")),
     responses = Array(

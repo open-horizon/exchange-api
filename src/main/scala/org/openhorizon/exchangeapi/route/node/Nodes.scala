@@ -19,6 +19,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 
+@Path("/v1/orgs/{organization}/nodes")
 trait Nodes extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in wDirectives.ith ExchangeApiApp
   def db: Database
@@ -26,12 +27,11 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // ====== GET /orgs/{orgid}/nodes ================================
+  // ====== GET /orgs/{organization}/nodes ================================
   @GET
-  @Path("nodes")
   @Operation(summary = "Returns all nodes", description = "Returns all nodes (edge devices). Can be run by any user or agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this id (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "name", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this name (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include nodes with this owner (can include % for wildcard - the URL encoding for % is %25)"),

@@ -24,6 +24,7 @@ import slick.lifted.Compiled
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
+@Path("/v1/orgs/{organization}/business/policies/{policy}/search")
 trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -31,15 +32,14 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // ======== POST /org/{orgid}/business/policies/{policy}/search ========================
+  // ======== POST /org/{organization}/business/policies/{policy}/search ========================
   @POST
-  @Path("{policy}/search")
   @Operation(
     summary = "Returns matching nodes for this business policy",
     description = "Returns the matching nodes for this business policy that do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node).",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),

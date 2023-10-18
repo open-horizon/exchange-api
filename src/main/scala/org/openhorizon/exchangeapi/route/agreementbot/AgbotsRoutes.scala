@@ -69,7 +69,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("")
   @Operation(summary = "Returns all agbots", description = "Returns all agbots (Agreement Bots). Can be run by any user.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include agbots with this id (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "name", in = ParameterIn.QUERY, required = false, description = "Filter results to only include agbots with this name (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include agbots with this owner (can include % for wildcard - the URL encoding for % is %25)")),
@@ -127,7 +127,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}")
   @Operation(summary = "Returns an agbot", description = "Returns the agbot (Agreement Bot) with the specified id. Can be run by a user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire node resource (including services) will be returned")),
     responses = Array(
@@ -198,7 +198,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     description = "Adds a new agbot (Agreement Bot) to the exchange DB, or updates an existing agbot. This must be called by the user to add an agbot, and then can be called by that user or agbot to update itself.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
@@ -297,7 +297,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}")
   @Operation(summary = "Updates 1 attribute of an agbot", description = "Updates some attributes of an agbot. This can be called by the user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     requestBody = new RequestBody(description = "Specify only **one** of the following attributes", required = true, content = Array(new Content(examples = Array(
         new ExampleObject(
@@ -362,7 +362,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}")
   @Operation(summary = "Deletes an agbot", description = "Deletes an agbot (Agreement Bot), and deletes the agreements stored for this agbot (but does not actually cancel the agreements between the nodes and agbot). Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
@@ -407,7 +407,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/heartbeat")
   @Operation(summary = "Tells the exchange this agbot is still operating", description = "Lets the exchange know this agbot is still active. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot to be updated.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "201", description = "response body",
@@ -446,7 +446,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/patterns")
   @Operation(summary = "Returns all patterns served by this agbot", description = "Returns all patterns that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -501,7 +501,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/patterns/{patid}")
   @Operation(summary = "Returns a pattern this agbot is serving", description = "Returns the pattern with the specified patid for the specified agbot id. The patid should be in the form patternOrgid_pattern. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
     new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the pattern.")),
     responses = Array(
@@ -554,7 +554,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
       description = "Adds a new pattern and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the pattern.",
     parameters = Array(
       new Parameter(
-          name = "orgid", 
+          name = "organization",
           in = ParameterIn.PATH, 
           description = "Organization id."),
       new Parameter(
@@ -634,7 +634,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/patterns")
   @Operation(summary = "Deletes all patterns of an agbot", description = "Deletes all of the current patterns that this agbot was serving. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
@@ -677,7 +677,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/patterns/{patid}")
   @Operation(summary = "Deletes a pattern of an agbot", description = "Deletes a pattern that this agbot was serving. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
     new Parameter(name = "patid", in = ParameterIn.PATH, description = "ID of the pattern to be deleted.")),
     responses = Array(
@@ -724,7 +724,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/businesspols")
   @Operation(summary = "Returns all business policies served by this agbot", description = "Returns all business policies that this agbot is finding nodes for to make agreements with them. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -772,7 +772,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/businesspols/{buspolid}")
   @Operation(summary = "Returns a business policy this agbot is serving", description = "Returns the business policy with the specified patid for the specified agbot id. The patid should be in the form businessPolOrgid_businessPol. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
       new Parameter(name = "buspolid", in = ParameterIn.PATH, description = "ID of the business policy.")),
     responses = Array(
@@ -824,7 +824,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     description = "Adds a new business policy and node org that this agbot should find nodes for to make agreements with them. This is called by the owning user or the agbot to give their information about the business policy.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
@@ -914,7 +914,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/businesspols")
   @Operation(summary = "Deletes all business policies of an agbot", description = "Deletes all of the current business policies that this agbot was serving. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
@@ -957,7 +957,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/businesspols/{buspolid}")
   @Operation(summary = "Deletes a business policy of an agbot", description = "Deletes a business policy that this agbot was serving. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
       new Parameter(name = "buspolid", in = ParameterIn.PATH, description = "ID of the business policy to be deleted.")),
     responses = Array(
@@ -1004,7 +1004,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/agreements")
   @Operation(summary = "Returns all agreements this agbot is in", description = "Returns all agreements that this agbot is part of. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -1058,7 +1058,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/agreements/{agid}")
   @Operation(summary = "Returns an agreement for an agbot", description = "Returns the agreement with the specified agid for the specified agbot id. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
       new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement.")),
     responses = Array(
@@ -1116,7 +1116,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     description = "Adds a new agreement of an agbot to the exchange DB, or updates an existing agreement. This is called by the owning user or the agbot to give their information about the agreement.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
@@ -1214,7 +1214,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/agreements")
   @Operation(summary = "Deletes all agreements of an agbot", description = "Deletes all of the current agreements of an agbot. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
@@ -1257,7 +1257,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/agreements/{agid}")
   @Operation(summary = "Deletes an agreement of an agbot", description = "Deletes an agreement of an agbot. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
       new Parameter(name = "agid", in = ParameterIn.PATH, description = "ID of the agreement to be deleted.")),
     responses = Array(
@@ -1307,7 +1307,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
     description = "Sends a msg from a node to an agbot. The node must 1st sign the msg (with its private key) and then encrypt the msg (with the agbots's public key). Can be run by any node.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
@@ -1406,7 +1406,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/msgs")
   @Operation(summary = "Returns all msgs sent to this agbot", description = "Returns all msgs that have been sent to this agbot. They will be returned in the order they were sent. All msgs that have been sent to this agbot will be returned, unless the agbot has deleted some, or some are past their TTL. Can be run by a user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
       new Parameter(name = "maxmsgs", in = ParameterIn.QUERY, required = false, description = "Maximum number of messages returned. If this is less than the number of messages available, the oldest messages are returned. Defaults to unlimited.")
     ),
@@ -1446,7 +1446,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Operation(description = "Returns A specific message that has been sent to this agreement-bot. Deleted/post-TTL (Time To Live) messages will not be returned. Can be run by a user or the agbot.",
              parameters = Array(new Parameter(description = "Agreement-bot id.",
                                               in = ParameterIn.PATH,
-                                              name = "id",
+                                              name = "node",
                                               required = true),
                                 new Parameter(description = "Message id.",
                                               in = ParameterIn.PATH,
@@ -1454,7 +1454,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
                                               required = true),
                                 new Parameter(description = "Organization id.",
                                               in = ParameterIn.PATH,
-                                              name = "orgid",
+                                              name = "organization",
                                               required = true)),
              responses = Array(new responses.ApiResponse(content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[GetAgbotMsgsResponse]))),
                                                          description = "response body",
@@ -1512,7 +1512,7 @@ trait AgbotsRoutes extends JacksonSupport with AuthenticationSupport {
   @Path("{id}/msgs/{msgid}")
   @Operation(summary = "Deletes a msg of an agbot", description = "Deletes a message that was sent to an agbot. This should be done by the agbot after each msg is read. Can be run by the owning user or the agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the agbot."),
       new Parameter(name = "msgid", in = ParameterIn.PATH, description = "ID of the msg to be deleted.")),
     responses = Array(

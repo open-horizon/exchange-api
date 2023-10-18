@@ -5,20 +5,24 @@ import akka.http.scaladsl.model.headers.LinkParams.title
 import akka.http.scaladsl.server.{Directives, Route}
 import com.github.swagger.akka.SwaggerHttpService
 import com.github.swagger.akka.model.{Info, License}
-import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
+import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import io.swagger.v3.oas.models.ExternalDocumentation
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
+import org.openhorizon.exchangeapi.route.agreement.Confirm
 import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
 import org.openhorizon.exchangeapi.route.catalog.CatalogRoutes
 import org.openhorizon.exchangeapi.route.deploymentpattern.PatternsRoutes
-import org.openhorizon.exchangeapi.route.deploymentpolicy.BusinessRoutes
+import org.openhorizon.exchangeapi.route.deploymentpolicy.{BusinessRoutes, DeploymentPolicySearch}
 import org.openhorizon.exchangeapi.route.managementpolicy.ManagementPoliciesRoutes
-import org.openhorizon.exchangeapi.route.node.NodesRoutes
+import org.openhorizon.exchangeapi.route.node.{Node, Nodes, NodesRoutes}
 import org.openhorizon.exchangeapi.route.nodegroup.NodeGroupRoutes
-import org.openhorizon.exchangeapi.route.organization.OrgsRoutes
-import org.openhorizon.exchangeapi.route.service.ServicesRoutes
-import org.openhorizon.exchangeapi.route.user.UsersRoutes
+import org.openhorizon.exchangeapi.route.organization.{Changes, MaxChangeId, MyOrganizations, Organization, Organizations}
+import org.openhorizon.exchangeapi.route.search.{NodeError, NodeErrors, NodeHealth, NodeService}
+import org.openhorizon.exchangeapi.route.service.dockerauth.{DockerAuth, DockerAuths}
+import org.openhorizon.exchangeapi.route.service.key.{Key, Keys}
+import org.openhorizon.exchangeapi.route.service.{Policy, Service, Services}
+import org.openhorizon.exchangeapi.route.user.{ChangePassword, Confirm, User, Users}
 
 /*Swagger references:
   - Swagger with akka-http: https://github.com/swagger-akka-http/swagger-akka-http
@@ -40,27 +44,51 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[Agreements],
         classOf[BusinessRoutes],
         classOf[CatalogRoutes],
+        classOf[ChangePassword],
+        classOf[Changes],
+        classOf[ClearAuthCache],
+        classOf[org.openhorizon.exchangeapi.route.agreement.Confirm],
+        classOf[org.openhorizon.exchangeapi.route.user.Confirm],
+        classOf[Configuration],
+        classOf[DockerAuth],
+        classOf[DockerAuths],
         classOf[DeploymentPattern],
         classOf[DeploymentPatterns],
         classOf[DeploymentPolicies],
         classOf[DeploymentPolicy],
+        classOf[DeploymentPolicySearch],
         classOf[DropDatabase],
         classOf[HashPassword],
         classOf[Heartbeat],
         classOf[InitializeDatabase],
+        classOf[Key],
+        classOf[Keys],
+        classOf[MaxChangeId],
         classOf[Message],
         classOf[Messages],
         classOf[ManagementPoliciesRoutes],
+        classOf[MyOrganizations],
+        classOf[Node],
+        classOf[NodeError],
+        classOf[NodeErrors],
+        classOf[NodeHealth],
+        classOf[Nodes],
+        classOf[NodeService],
         classOf[NodesRoutes],
         classOf[NodeGroupRoutes],
+        classOf[Organization],
+        classOf[Organizations],
         classOf[OrganizationStatus],
-        classOf[OrgsRoutes],
         classOf[PatternsRoutes],
+        classOf[Policy],
         classOf[Reload],
-        classOf[ServicesRoutes],
-        classOf[Status],
+        classOf[Service],
+        classOf[Services],
+        classOf[org.openhorizon.exchangeapi.route.administration.Status],
+        classOf[org.openhorizon.exchangeapi.route.organization.Status],
         classOf[Token],
-        classOf[UsersRoutes],
+        classOf[User],
+        classOf[Users],
         classOf[Version])
   override def apiDocsPath: String = "api-docs" //where you want the swagger-json endpoint exposed
   // override def basePath: String = ""

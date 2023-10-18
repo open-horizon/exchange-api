@@ -6,7 +6,7 @@ import org.openhorizon.exchangeapi.table.node.OneService
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusRow
 import org.openhorizon.exchangeapi.utility.ApiTime
 
-/** Input body for PUT /orgs/{orgid}/nodes/{id}/status */
+/** Input body for PUT /orgs/{organization}/nodes/{node}/status */
 final case class PutNodeStatusRequest(connectivity: Option[Map[String,Boolean]], services: List[OneService]) {
   require(connectivity!=null && services!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats

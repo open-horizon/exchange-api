@@ -253,12 +253,12 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
   
-  // ====== GET /catalog/{orgid}/services ================================
+  // ====== GET /catalog/{organization}/services ================================
   @GET
-  @Path("{orgid}/services")
+  @Path("{organization}/services")
   @Operation(summary = "Returns all services", description = "Returns all service definitions in this organization and in the IBM organization. Can be run by any user, node, or agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include services with this owner (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "public", in = ParameterIn.QUERY, required = false, description = "Filter results to only include services with this public setting"),
       new Parameter(name = "url", in = ParameterIn.QUERY, required = false, description = "Filter results to only include services with this url (can include % for wildcard - the URL encoding for % is %25)"),
@@ -403,12 +403,12 @@ trait CatalogRoutes extends JacksonSupport with AuthenticationSupport {
     } // end of exchAuth
   }
 
-  /* ====== GET /catalog/{orgid}/patterns ================================ */
+  /* ====== GET /catalog/{organization}/patterns ================================ */
   @GET
-  @Path("{orgid}/patterns")
+  @Path("{organization}/patterns")
   @Operation(summary = "Returns all patterns", description = "Returns all pattern definitions in this organization and in the IBM organization. Can be run by any user, node, or agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "idfilter", in = ParameterIn.QUERY, required = false, description = "Filter results to only include patterns with this id (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "owner", in = ParameterIn.QUERY, required = false, description = "Filter results to only include patterns with this owner (can include % for wildcard - the URL encoding for % is %25)"),
       new Parameter(name = "public", in = ParameterIn.QUERY, required = false, description = "Filter results to only include patterns with this public setting"),

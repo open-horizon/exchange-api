@@ -14,54 +14,31 @@ object ServicesTQ extends TableQuery(new Services(_)) {
   }
   
   def getAllServices(orgid: String): Query[Services, ServiceRow, Seq] = this.filter(_.orgid === orgid)
-  
-  def getDevicServices(orgid: String): Query[Services, ServiceRow, Seq] = this.filter(r => {
-    r.orgid === orgid && r.deployment =!= ""
-  })
-  
-  def getClusterServices(orgid: String): Query[Services, ServiceRow, Seq] = this.filter(r => {
-    r.orgid === orgid && r.clusterDeployment =!= ""
-  })
-  
-  def getService(service: String): Query[Services, ServiceRow, Seq] = if (service.contains("%")) this.filter(_.service like service) else this.filter(_.service === service)
-  
-  def getOwner(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.owner)
-  
-  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
-  
-  def getLabel(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.label)
-  
-  def getDescription(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.description)
-  
-  def getPublic(service: String): Query[Rep[Boolean], Boolean, Seq] = this.filter(_.service === service).map(_.public)
-  
-  def getDocumentation(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.documentation)
-  
-  def getUrl(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.url)
-  
-  def getVersion(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.version)
-  
   def getArch(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.arch)
-  
-  def getSharable(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.sharable)
-  
-  def getMatchHardware(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.matchHardware)
-  
-  def getRequiredServices(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.requiredServices)
-  
-  def getUserInput(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.userInput)
-  
-  def getDeployment(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.deployment)
-  
-  def getDeploymentSignature(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.deploymentSignature)
-  
   def getClusterDeployment(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.clusterDeployment)
-  
   def getClusterDeploymentSignature(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.clusterDeploymentSignature)
+  def getClusterServices(orgid: String): Query[Services, ServiceRow, Seq] = this.filter(r => {r.orgid === orgid && r.clusterDeployment =!= ""})
   
+  /** Returns the actions to delete the service */
+  def getDeleteActions(service: String): DBIO[_] = getService(service).delete
+  def getDeployment(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.deployment)
+  def getDeploymentSignature(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.deploymentSignature)
+  def getDescription(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.description)
+  def getDevicServices(orgid: String): Query[Services, ServiceRow, Seq] = this.filter(r => {r.orgid === orgid && r.deployment =!= ""})
+  def getDocumentation(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.documentation)
   def getImageStore(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.imageStore)
-  
+  def getLabel(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.label)
   def getLastUpdated(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.lastUpdated)
+  def getMatchHardware(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.matchHardware)
+  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
+  def getOwner(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.owner)
+  def getPublic(service: String): Query[Rep[Boolean], Boolean, Seq] = this.filter(_.service === service).map(_.public)
+  def getRequiredServices(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.requiredServices)
+  def getService(service: String): Query[Services, ServiceRow, Seq] = if (service.contains("%")) this.filter(_.service like service) else this.filter(_.service === service)
+  def getSharable(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.sharable)
+  def getUrl(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.url)
+  def getUserInput(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.userInput)
+  def getVersion(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.version)
   
   /** Returns a query for the specified service attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(service: String, attrName: String): Query[_, _, Seq] = {
@@ -88,7 +65,4 @@ object ServicesTQ extends TableQuery(new Services(_)) {
       case _ => null
     }
   }
-  
-  /** Returns the actions to delete the service */
-  def getDeleteActions(service: String): DBIO[_] = getService(service).delete
 }

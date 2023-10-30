@@ -2,7 +2,8 @@
 name: build-push
 
 # This workflow will run when there is a push (including merge) to the listed branches
-on:
+on: 
+  workflow_dispatch:
   push:
     branches:
       - master

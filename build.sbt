@@ -57,7 +57,6 @@ lazy val root = (project in file("."))
       "org.json4s" %% "json4s-jackson" % "4.0.6",
       
       "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0,)",
-      // "org.glassfish.jersey.core" % "jersey-common" % "1.2.1",             // Required at runtime by javax.ws.rs-api
       "com.github.swagger-akka-http" %% "swagger-akka-http" % "[2.6.0]",      // Deprecated in v2.8.0 due to Akka license change to BSL v1.1
       "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.11.0,)",
       "io.swagger.core.v3" % "swagger-core-jakarta" % "[2.1.12]",             // Version 2.1.13+ requires newer versions of slick and slick-hikaricp

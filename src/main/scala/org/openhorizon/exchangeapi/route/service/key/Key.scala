@@ -44,10 +44,10 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getKey(keyId: String,
-             orgid: String,
-             compositeId: String,
-             service: String): Route =
+  def getKeyService(keyId: String,
+                    orgid: String,
+                    compositeId: String,
+                    service: String): Route =
     get {
       complete({
         db.run(ServiceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
@@ -86,10 +86,10 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putKey(keyId: String,
-             orgid: String,
-             compositeId: String,
-             service: String): Route =
+  def putKeyService(keyId: String,
+                    orgid: String,
+                    compositeId: String,
+                    service: String): Route =
     put {
       extractRawBodyAsStr {
         reqBodyAsStr =>
@@ -139,10 +139,10 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteKey(key: String,
-                organization: String,
-                resource: String,
-                service: String): Route =
+  def deleteKeyService(key: String,
+                       organization: String,
+                       resource: String,
+                       service: String): Route =
     delete {
       complete({
         var storedPublicField = false
@@ -180,7 +180,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val key: Route =
+  val keyService: Route =
     path("orgs" / Segment / "services" / Segment / "keys" / Segment) {
       (organization, service, key) =>
         val resource: String = OrgAndId(organization, service).toString
@@ -188,14 +188,14 @@ trait Key extends JacksonSupport with AuthenticationSupport {
         (delete | put) {
           exchAuth(TService(resource), Access.WRITE) {
             _ =>
-              deleteKey(key, organization, resource, service) ~
-              putKey(key, organization, resource, service)
+              deleteKeyService(key, organization, resource, service) ~
+              putKeyService(key, organization, resource, service)
           }
         } ~
         get {
           exchAuth(TService(resource),Access.READ) {
             _ =>
-              getKey(key, organization, resource, service)
+              getKeyService(key, organization, resource, service)
           }
         }
     }

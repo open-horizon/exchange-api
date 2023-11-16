@@ -36,14 +36,9 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  def agentConfigurationManagementRoutes: Route =
-    deleteAgentConfigMgmt ~
-    getAgentConfigMgmt ~
-    putAgentConfigMgmt
   
   // =========== DELETE /orgs/{organization}/AgentFileVersion ===============================
   @DELETE
-  @Path("")
   @Operation(summary = "Delete all agent file versions",
              description = "Delete all agent certificate, configuration, and software file versions. Run by agreement bot",
              parameters = Array(new Parameter(name = "organization",
@@ -54,11 +49,11 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                                new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                                new responses.ApiResponse(responseCode = "403", description = "access denied"),
                                new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteAgentConfigMgmt: Route = (path("orgs" / Segment / "AgentFileVersion") & delete) { (orgId) =>
-    exchAuth(TOrg("IBM"), Access.WRITE_AGENT_CONFIG_MGMT) { _ =>
-      logger.debug(s"DELETE /orgs/$orgId/AgentFileVersion")
+  def deleteAgentConfigMgmt(organization: String): Route =
+    delete {
+      logger.debug(s"DELETE /orgs/$organization/AgentFileVersion")
       complete({
-        orgId match {
+        organization match {
           case "IBM" =>
             db.run({
               val versions =
@@ -109,15 +104,13 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
               case Failure(t) =>
                 (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agent.file.versions.deleted.not.message", t.toString)))
             })
-          case _ => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", orgId)))
+          case _ => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", organization)))
         }
-      }) // end of complete
-    } // end of exchAuth
-  }
+      })
+    }
   
   // =========== GET /orgs/{organization}/AgentFileVersion ===============================
   @GET
-  @Path("")
   @Operation(summary = "Get all agent file versions",
              description = "Get all agent certificate, configuration, and software file versions. Run by agreement bot",
              parameters = Array(new Parameter(description = "Organization identifier",
@@ -144,8 +137,8 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                                new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                                new responses.ApiResponse(responseCode = "403", description = "access denied"),
                                new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getAgentConfigMgmt: Route = (path("orgs" / Segment / "AgentFileVersion") & get) { (orgId) =>
-    exchAuth(TOrg("IBM"), Access.READ_AGENT_CONFIG_MGMT) { _ =>
+  def getAgentConfigMgmt(orgId: String): Route =
+    {
       logger.debug(s"GET /orgs/$orgId/AgentFileVersion")
       complete({
         orgId match {
@@ -174,13 +167,11 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
             })
           case _ => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", orgId)))
         }
-      }) // end of complete
-    } // end of exchAuth
-  }
+      })
+    }
   
   // =========== PUT /orgs/{organization}/AgentFileVersion ===============================
   @PUT
-  @Path("")
   @Operation(summary = "Put all agent file versions",
              description = "Put all agent certificate, configuration, and software file versions. Run by agreement bot",
              parameters = Array(new Parameter(description = "Organization identifier",
@@ -220,47 +211,66 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                  new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                  new responses.ApiResponse(responseCode = "403", description = "access denied"),
                  new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putAgentConfigMgmt: Route = (path("orgs" / Segment / "AgentFileVersion") & put & entity(as[AgentVersionsRequest])) { (orgId, reqBody) =>
-      exchAuth(TOrg("IBM"), Access.WRITE_AGENT_CONFIG_MGMT) { _ =>
-        complete({
-          orgId match {
-            case "IBM" =>
-              db.run((AgentCertificateVersionsTQ.delete) andThen
-                     (AgentConfigurationVersionsTQ.delete) andThen
-                     (AgentSoftwareVersionsTQ.delete) andThen
-                     (AgentCertificateVersionsTQ ++= reqBody.agentCertVersions.zipWithIndex.map(certificates => {(certificates._1, orgId, Option(certificates._2.toLong))})) andThen
-                     (AgentConfigurationVersionsTQ ++= reqBody.agentConfigVersions.zipWithIndex.map(configurations => {(configurations._1, orgId, Option(configurations._2.toLong))})) andThen
-                     (AgentSoftwareVersionsTQ ++= reqBody.agentSoftwareVersions.zipWithIndex.map(software => {(orgId, software._1, Option(software._2.toLong))})) andThen
-                     (AgentVersionsChangedTQ.insertOrUpdate((ApiTime.nowUTCTimestamp, orgId))) andThen
-                     (resourcechange.ResourceChange(category = ResChangeCategory.ORG,
-                                     changeId = 0L,
-                                     id = orgId,
-                                     operation = ResChangeOperation.MODIFIED,
-                                     orgId = orgId,
-                                     public = true,
-                                     resource = ResChangeResource.AGENTFILEVERSION).insert)
-                  .transactionally.asTry.map({
-                  case Success(v) =>
-                    logger.debug("PUT /orgs/" + orgId + "/AgentFileVersion result: " + v)
-                    logger.debug("PUT /orgs/" + orgId + "/AgentFileVersion updating resource status table: " + v)
-
-                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", "AgentFileVersion" ,orgId)))
-                  case Failure(t: org.postgresql.util.PSQLException) =>
-                    if (ExchangePosgtresErrorHandling.isAccessDeniedError(t))
-                      (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.updated", orgId, t.getMessage)))
-                    else
-                      ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.updated", orgId, t.toString))
-                  case Failure(t) =>
-                    if (t.getMessage.startsWith("Access Denied:"))
-                      (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.updated", orgId, t.getMessage)))
-                    else
-                      (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", orgId, t.toString)))
-                })
-              )
-            case _ => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", orgId)))
+  def putAgentConfigMgmt(organization: String): Route =
+    put {
+      entity(as[AgentVersionsRequest]) {
+        reqBody =>
+          complete({
+            organization match {
+             case "IBM" =>
+               db.run((AgentCertificateVersionsTQ.delete) andThen
+                      (AgentConfigurationVersionsTQ.delete) andThen
+                      (AgentSoftwareVersionsTQ.delete) andThen
+                      (AgentCertificateVersionsTQ ++= reqBody.agentCertVersions.zipWithIndex.map(certificates => {(certificates._1, organization, Option(certificates._2.toLong))})) andThen
+                      (AgentConfigurationVersionsTQ ++= reqBody.agentConfigVersions.zipWithIndex.map(configurations => {(configurations._1, organization, Option(configurations._2.toLong))})) andThen
+                      (AgentSoftwareVersionsTQ ++= reqBody.agentSoftwareVersions.zipWithIndex.map(software => {(organization, software._1, Option(software._2.toLong))})) andThen
+                      (AgentVersionsChangedTQ.insertOrUpdate((ApiTime.nowUTCTimestamp, organization))) andThen
+                      (resourcechange.ResourceChange(category = ResChangeCategory.ORG,
+                                                     changeId = 0L,
+                                                     id = organization,
+                                                     operation = ResChangeOperation.MODIFIED,
+                                                     orgId = organization,
+                                                     public = true,
+                                                     resource = ResChangeResource.AGENTFILEVERSION).insert)
+                        .transactionally.asTry.map({
+                          case Success(v) =>
+                            logger.debug("PUT /orgs/" + organization + "/AgentFileVersion result: " + v)
+                            logger.debug("PUT /orgs/" + organization + "/AgentFileVersion updating resource status table: " + v)
+        
+                            (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", "AgentFileVersion" ,organization)))
+                          case Failure(t: org.postgresql.util.PSQLException) =>
+                            if (ExchangePosgtresErrorHandling.isAccessDeniedError(t))
+                              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.updated", organization, t.getMessage)))
+                            else
+                              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.updated", organization, t.toString))
+                          case Failure(t) =>
+                            if (t.getMessage.startsWith("Access Denied:"))
+                              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.updated", organization, t.getMessage)))
+                            else
+                              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", organization, t.toString)))
+                        })
+               )
+             case _ => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", organization)))
+            }
+          })
+      }
+    }
+  
+  val agentConfigurationManagement: Route =
+    path("orgs" / Segment / "AgentFileVersion") {
+      organization =>
+        (delete | put) {
+          exchAuth(TOrg("IBM"), Access.WRITE_AGENT_CONFIG_MGMT) {
+            _ =>
+              deleteAgentConfigMgmt(organization) ~
+              putAgentConfigMgmt(organization)
           }
-        }) // end of complete
-        // } // end of validateWithMsg
-      } // end of exchAuth
+        } ~
+        get {
+          exchAuth(TOrg("IBM"), Access.READ_AGENT_CONFIG_MGMT) {
+            _ =>
+              getAgentConfigMgmt(organization)
+          }
+        }
     }
 }

@@ -37,7 +37,7 @@ import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server.{Directive0, Route}
 import akka.stream.{ActorMaterializer, Materializer}
 import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
-import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
+import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import org.openhorizon.exchangeapi.route.agreement.Confirm
 import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
 import org.openhorizon.exchangeapi.table
@@ -47,13 +47,14 @@ import org.json4s._
 import org.openhorizon.exchangeapi.auth.{AuthCache, AuthenticationSupport}
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
-import org.openhorizon.exchangeapi.route.catalog.CatalogRoutes
-import org.openhorizon.exchangeapi.route.deploymentpattern.PatternsRoutes
-import org.openhorizon.exchangeapi.route.deploymentpolicy.{BusinessRoutes, DeploymentPolicySearch}
-import org.openhorizon.exchangeapi.route.managementpolicy.ManagementPoliciesRoutes
-import org.openhorizon.exchangeapi.route.node.{Node, Nodes, NodesRoutes}
-import org.openhorizon.exchangeapi.route.nodegroup.NodeGroupRoutes
-import org.openhorizon.exchangeapi.route.organization.{Changes, MaxChangeId, MyOrganizations, Organization, Organizations}
+import org.openhorizon.exchangeapi.route.catalog.{OrganizationDeploymentPatterns, OrganizationServices}
+import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
+import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
+import org.openhorizon.exchangeapi.route.managementpolicy.{ManagementPolicies, ManagementPolicy}
+import org.openhorizon.exchangeapi.route.node.managementpolicy.Statuses
+import org.openhorizon.exchangeapi.route.node.{ConfigurationState, Details, Errors, Node, Nodes}
+import org.openhorizon.exchangeapi.route.nodegroup.{NodeGroup, NodeGroups}
+import org.openhorizon.exchangeapi.route.organization.{Changes, Cleanup, MaxChangeId, MyOrganizations, Organization, Organizations}
 import org.openhorizon.exchangeapi.route.search.{NodeError, NodeErrors, NodeHealth, NodeService}
 import org.openhorizon.exchangeapi.route.service.dockerauth.{DockerAuth, DockerAuths}
 import org.openhorizon.exchangeapi.route.service.key.{Key, Keys}
@@ -101,56 +102,79 @@ object ExchangeApiConstants {
  * Main akka server for the Exchange REST API.
  */
 object ExchangeApiApp extends App
-  with AdminRoutes
   with AgentConfigurationManagement
-  with Agreement
-  with Agreements
+  with org.openhorizon.exchangeapi.route.agreementbot.Agreement
+  with org.openhorizon.exchangeapi.route.node.agreement.Agreement
   with AgreementBot
   with AgreementBots
-  with BusinessRoutes
-  with CatalogRoutes
+  with org.openhorizon.exchangeapi.route.agreementbot.Agreements
+  with org.openhorizon.exchangeapi.route.node.agreement.Agreements
   with ChangePassword
   with Changes
+  with Cleanup
   with ClearAuthCache
   with org.openhorizon.exchangeapi.route.agreement.Confirm
   with org.openhorizon.exchangeapi.route.user.Confirm
   with Configuration
-  with DeploymentPattern
-  with DeploymentPatterns
-  with DeploymentPolicy
-  with DeploymentPolicies
+  with ConfigurationState
+  with org.openhorizon.exchangeapi.route.agreementbot.DeploymentPattern
+  with org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPattern
+  with org.openhorizon.exchangeapi.route.agreementbot.DeploymentPatterns
+  with org.openhorizon.exchangeapi.route.catalog.DeploymentPatterns
+  with org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPatterns
+  with org.openhorizon.exchangeapi.route.agreementbot.DeploymentPolicy
+  with org.openhorizon.exchangeapi.route.deploymentpolicy.DeploymentPolicy
+  with org.openhorizon.exchangeapi.route.agreementbot.DeploymentPolicies
+  with org.openhorizon.exchangeapi.route.deploymentpolicy.DeploymentPolicies
   with DeploymentPolicySearch
+  with Details
   with DockerAuth
   with DockerAuths
   with DropDatabase
-  with Heartbeat
+  with Errors
+  with org.openhorizon.exchangeapi.route.agreementbot.Heartbeat
+  with org.openhorizon.exchangeapi.route.node.Heartbeat
   with HashPassword
   with InitializeDatabase
-  with Key
-  with Keys
-  with ManagementPoliciesRoutes
+  with org.openhorizon.exchangeapi.route.deploymentpattern.key.Key
+  with org.openhorizon.exchangeapi.route.service.key.Key
+  with org.openhorizon.exchangeapi.route.deploymentpattern.key.Keys
+  with org.openhorizon.exchangeapi.route.service.key.Keys
+  with ManagementPolicies
+  with ManagementPolicy
   with MaxChangeId
-  with Message
-  with Messages
+  with org.openhorizon.exchangeapi.route.agreementbot.Message
+  with org.openhorizon.exchangeapi.route.node.message.Message
+  with org.openhorizon.exchangeapi.route.agreementbot.Messages
+  with org.openhorizon.exchangeapi.route.node.message.Messages
   with MyOrganizations
   with Node
+  with org.openhorizon.exchangeapi.route.nodegroup.node.Node
   with NodeError
   with NodeErrors
-  with NodeHealth
+  with org.openhorizon.exchangeapi.route.deploymentpattern.NodeHealth
+  with org.openhorizon.exchangeapi.route.search.NodeHealth
   with Nodes
   with NodeService
-  with NodeGroupRoutes
-  with NodesRoutes
+  with NodeGroup
+  with NodeGroups
   with Organization
+  with OrganizationDeploymentPatterns
   with Organizations
+  with OrganizationServices
   with OrganizationStatus
-  with PatternsRoutes
-  with Policy
+  with org.openhorizon.exchangeapi.route.node.Policy
+  with org.openhorizon.exchangeapi.route.service.Policy
   with Reload
+  with Search
   with Service
-  with Services
+  with org.openhorizon.exchangeapi.route.catalog.Services
+  with org.openhorizon.exchangeapi.route.service.Services
   with org.openhorizon.exchangeapi.route.administration.Status
+  with org.openhorizon.exchangeapi.route.node.managementpolicy.Status
+  with org.openhorizon.exchangeapi.route.node.Status
   with org.openhorizon.exchangeapi.route.organization.Status
+  with Statuses
   with SwaggerUiService
   with Token
   with User
@@ -290,56 +314,79 @@ object ExchangeApiApp extends App
               cors() {
                 handleExceptions(myExceptionHandler) {
                   handleRejections(corsRejectionHandler.withFallback(myRejectionHandler)) {
-                    agentConfigurationManagementRoutes ~
-                    adminRoutes ~
+                    agentConfigurationManagement ~
                     agreement ~
-                    agreements ~
                     agreementBot ~
                     agreementBots ~
-                    businessRoutes ~
-                    catalogRoutes ~
+                    agreementNode ~
+                    agreements ~
+                    agreementsNode ~
                     changePassword ~
                     changes ~
+                    cleanup ~
                     clearAuthCache ~
                     confirm ~
                     confirmAgreement ~
                     configuration ~
+                    configurationState ~
+                    deploymentPattern ~
                     deploymentPatternAgreementBot ~
+                    deploymentPatterns ~
                     deploymentPatternsAgreementBot ~
+                    deploymentPatternsCatalog ~
+                    deploymentPolicies ~
                     deploymentPoliciesAgreementBot ~
+                    deploymentPolicy ~
                     deploymentPolicyAgreementBot ~
                     deploymentPolicySearch ~
+                    details ~
                     dockerAuth ~
                     dockerAuths ~
                     dropDB ~
+                    errors ~
                     hashPW ~
                     heartbeatAgreementBot ~
+                    heartbeatNode ~
                     initializeDB ~
-                    key ~
-                    keys ~
-                    managementPoliciesRoutes ~
+                    keyDeploymentPattern ~
+                    keyService ~
+                    keysDeploymentPattern ~
+                    keysService ~
+                    managementPolicies ~
+                    managementPolicy ~
                     maxChangeId ~
                     messageAgreementBot ~
+                    messageNode ~
                     messagesAgreementBot ~
+                    messagesNode ~
                     myOrganizations ~
                     node ~
                     nodeErrorSearch ~
                     nodeErrorsSearch ~
+                    nodeHealthDeploymentPattern ~
                     nodeHealthSearch ~
+                    nodeHighAvailabilityGroup ~
                     nodes ~
                     nodeServiceSearch ~
-                    nodesRoutes ~
-                    nodeGroupRoutes ~
+                    nodeGroup ~
+                    nodeGroups ~
                     organization ~
+                    organizationDeploymentPatterns ~
                     organizations ~
+                    organizationServices ~
                     organizationStatus ~
-                    patternsRoutes ~
-                    policy ~
+                    policyNode ~
+                    policyService ~
                     reload ~
+                    searchNode ~
                     service ~
                     services ~
+                    servicesCatalog ~
                     status ~
+                    statusManagementPolicy ~
+                    statusNode ~
                     statusOrganization ~
+                    statuses ~
                     SwaggerDocService.routes ~
                     swaggerUiRoutes ~
                     testRoute ~

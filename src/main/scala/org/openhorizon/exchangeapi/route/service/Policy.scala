@@ -42,9 +42,9 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getPolicy(organization: String,
-                resource: String,
-                service: String): Route =
+  def getPolicyService(organization: String,
+                       resource: String,
+                       service: String): Route =
     complete({
       db.run(ServicePolicyTQ.getServicePolicy(resource).result).map({
         list =>
@@ -122,9 +122,9 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putPolicy(organization: String,
-                resource: String,
-                service: String): Route =
+  def putPolicyService(organization: String,
+                       resource: String,
+                       service: String): Route =
     put {
       entity(as[PutServicePolicyRequest]) {
         reqBody =>
@@ -172,9 +172,9 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deletePolicy(organization: String,
-                   resource: String,
-                   service: String): Route =
+  def deletePolicyService(organization: String,
+                          resource: String,
+                          service: String): Route =
     delete {
       complete({
         var storedPublicField = false
@@ -212,7 +212,7 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val policy: Route =
+  val policyService: Route =
     path("orgs" / Segment / "services" / Segment / "policy") {
       (organization, service) =>
         val resource: String = OrgAndId(organization, service).toString
@@ -220,14 +220,14 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
         (delete | put) {
           exchAuth(TService(resource), Access.WRITE) {
             _ =>
-              deletePolicy(organization, resource, service) ~
-              putPolicy(organization, resource, service)
+              deletePolicyService(organization, resource, service) ~
+              putPolicyService(organization, resource, service)
           }
         } ~
         get{
           exchAuth(TService(resource), Access.READ) {
             _ =>
-              getPolicy(organization, resource, service)
+              getPolicyService(organization, resource, service)
           }
         }
     }

@@ -40,9 +40,9 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
-  def deleteKeys(organization: String,
-                 resource: String,
-                 service: String): Route =
+  def deleteKeysService(organization: String,
+                        resource: String,
+                        service: String): Route =
     delete {
       complete({
         var storedPublicField = false
@@ -107,9 +107,9 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getKeys(organization: String,
-              resource: String,
-              service: String): Route =
+  def getKeysService(organization: String,
+                     resource: String,
+                     service: String): Route =
     get {
       complete({
         db.run(ServiceKeysTQ.getKeys(resource).result).map({ list =>
@@ -120,7 +120,7 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val keys: Route =
+  val keysService: Route =
     path("orgs" / Segment / "services" / Segment / "keys") {
       (organization, service) =>
         val resource: String = OrgAndId(organization, service).toString
@@ -128,13 +128,13 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
         delete {
           exchAuth(TService(resource), Access.WRITE) {
             _ =>
-              deleteKeys(organization, resource, service)
+              deleteKeysService(organization, resource, service)
           }
         } ~
         get {
           exchAuth(TService(resource), Access.READ) {
             _ =>
-              getKeys(organization, resource, service)
+              getKeysService(organization, resource, service)
           }
         }
     }

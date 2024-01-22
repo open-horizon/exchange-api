@@ -39,7 +39,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
                                    inputChangeId: Long,
                                    maxChangeIdOfTable: Long): ResourceChangesRespObject ={
     // Sort the rows based on the changeId. Default order is ascending, which is what we want
-    logger.info(s"POST /orgs/{orgid}/changes sorting ${inputList.size} rows")
+    logger.info(s"POST /orgs/{organization}/changes sorting ${inputList.size} rows")
     // val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
 
     // fill in some values we can before processing
@@ -69,15 +69,15 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
     ResourceChangesRespObject(changesList, maxChangeId, hitMaxRecords, exchangeVersion)
   }
 
-  /* ====== POST /orgs/{orgid}/changes ================================ */
+  /* ====== POST /orgs/{organization}/changes ================================ */
   @POST
-  @Path("orgs/{orgid}/changes")
+  @Path("orgs/{organization}/changes")
   @Operation(
     summary = "Returns recent changes in this org",
     description = "Returns all the recent resource changes within an org that the caller has permissions to view.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       )

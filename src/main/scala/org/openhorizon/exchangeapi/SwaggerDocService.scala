@@ -1,5 +1,11 @@
 package org.openhorizon.exchangeapi
 
+import akka.event.Logging.Info
+import akka.http.scaladsl.model.headers.LinkParams.title
+import akka.http.scaladsl.server.{Directives, Route}
+import com.github.swagger.akka.SwaggerHttpService
+import com.github.swagger.akka.model.{Info, License}
+import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import org.apache.pekko.event.Logging.Info
 import org.apache.pekko.http.scaladsl.model.headers.LinkParams.title
 import org.apache.pekko.http.scaladsl.server.{Directives, Route}
@@ -9,16 +15,21 @@ import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, DropDataba
 import io.swagger.v3.oas.models.ExternalDocumentation
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
+import org.openhorizon.exchangeapi.route.agreement.Confirm
 import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
-import org.openhorizon.exchangeapi.route.catalog.CatalogRoutes
-import org.openhorizon.exchangeapi.route.deploymentpattern.PatternsRoutes
-import org.openhorizon.exchangeapi.route.deploymentpolicy.BusinessRoutes
-import org.openhorizon.exchangeapi.route.managementpolicy.ManagementPoliciesRoutes
-import org.openhorizon.exchangeapi.route.node.NodesRoutes
-import org.openhorizon.exchangeapi.route.nodegroup.NodeGroupRoutes
-import org.openhorizon.exchangeapi.route.organization.OrgsRoutes
-import org.openhorizon.exchangeapi.route.service.ServicesRoutes
-import org.openhorizon.exchangeapi.route.user.UsersRoutes
+import org.openhorizon.exchangeapi.route.catalog.{OrganizationDeploymentPatterns, OrganizationServices}
+import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
+import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
+import org.openhorizon.exchangeapi.route.managementpolicy.{ManagementPolicies, ManagementPolicy}
+import org.openhorizon.exchangeapi.route.node.managementpolicy.Statuses
+import org.openhorizon.exchangeapi.route.node.{ConfigurationState, Details, Errors, Node, Nodes}
+import org.openhorizon.exchangeapi.route.nodegroup.{NodeGroup, NodeGroups}
+import org.openhorizon.exchangeapi.route.organization.{Changes, Cleanup, MaxChangeId, MyOrganizations, Organization, Organizations}
+import org.openhorizon.exchangeapi.route.search.{NodeError, NodeErrors, NodeHealth, NodeService}
+import org.openhorizon.exchangeapi.route.service.dockerauth.{DockerAuth, DockerAuths}
+import org.openhorizon.exchangeapi.route.service.key.{Key, Keys}
+import org.openhorizon.exchangeapi.route.service.{Policy, Service, Services}
+import org.openhorizon.exchangeapi.route.user.{ChangePassword, Confirm, User, Users}
 
 /*Swagger references:
   - Swagger with pekko-http: https://github.com/swagger-pekko-http/swagger-pekko-http
@@ -32,35 +43,82 @@ object SwaggerDocService extends SwaggerHttpService {
   //override implicit val materializer: ActorMaterializer = ActorMaterializer()
   override def apiClasses: Set[Class[_]] =
     Set(classOf[AgentConfigurationManagement],
-        classOf[AdminRoutes],
+        classOf[Cleanup],
         classOf[AgbotsRoutes],
-        classOf[Agreement],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.Agreement],
+        classOf[org.openhorizon.exchangeapi.route.node.agreement.Agreement],
         classOf[AgreementBot],
         classOf[AgreementBots],
-        classOf[Agreements],
-        classOf[BusinessRoutes],
-        classOf[CatalogRoutes],
-        classOf[DeploymentPattern],
-        classOf[DeploymentPatterns],
-        classOf[DeploymentPolicies],
-        classOf[DeploymentPolicy],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.Agreements],
+        classOf[org.openhorizon.exchangeapi.route.node.agreement.Agreements],
+        classOf[OrganizationDeploymentPatterns],
+        classOf[ChangePassword],
+        classOf[Changes],
+        classOf[ClearAuthCache],
+        classOf[org.openhorizon.exchangeapi.route.agreement.Confirm],
+        classOf[org.openhorizon.exchangeapi.route.user.Confirm],
+        classOf[Configuration],
+        classOf[ConfigurationState],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPattern],
+        classOf[org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPattern],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPatterns],
+        classOf[org.openhorizon.exchangeapi.route.catalog.DeploymentPatterns],
+        classOf[org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPatterns],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPolicies],
+        classOf[org.openhorizon.exchangeapi.route.deploymentpolicy.DeploymentPolicies],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPolicy],
+        classOf[org.openhorizon.exchangeapi.route.deploymentpolicy.DeploymentPolicy],
+        classOf[DeploymentPolicySearch],
+        classOf[Details],
+        classOf[DockerAuth],
+        classOf[DockerAuths],
         classOf[DropDatabase],
+        classOf[Errors],
         classOf[HashPassword],
-        classOf[Heartbeat],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.Heartbeat],
+        classOf[org.openhorizon.exchangeapi.route.node.Heartbeat],
         classOf[InitializeDatabase],
-        classOf[Message],
-        classOf[Messages],
-        classOf[ManagementPoliciesRoutes],
-        classOf[NodesRoutes],
-        classOf[NodeGroupRoutes],
+        classOf[org.openhorizon.exchangeapi.route.deploymentpattern.key.Key],
+        classOf[org.openhorizon.exchangeapi.route.service.key.Key],
+        classOf[org.openhorizon.exchangeapi.route.deploymentpattern.key.Keys],
+        classOf[org.openhorizon.exchangeapi.route.service.key.Keys],
+        classOf[MaxChangeId],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.Message],
+        classOf[org.openhorizon.exchangeapi.route.node.message.Message],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.Messages],
+        classOf[org.openhorizon.exchangeapi.route.node.message.Messages],
+        classOf[ManagementPolicies],
+        classOf[ManagementPolicy],
+        classOf[MyOrganizations],
+        classOf[Node],
+        classOf[org.openhorizon.exchangeapi.route.nodegroup.node.Node],
+        classOf[NodeError],
+        classOf[NodeErrors],
+        classOf[org.openhorizon.exchangeapi.route.deploymentpattern.NodeHealth],
+        classOf[org.openhorizon.exchangeapi.route.search.NodeHealth],
+        classOf[Nodes],
+        classOf[NodeService],
+        classOf[NodeGroup],
+        classOf[NodeGroups],
+        classOf[Organization],
+        classOf[OrganizationDeploymentPatterns],
+        classOf[Organizations],
+        classOf[OrganizationServices],
         classOf[OrganizationStatus],
-        classOf[OrgsRoutes],
-        classOf[PatternsRoutes],
+        classOf[org.openhorizon.exchangeapi.route.node.Policy],
+        classOf[org.openhorizon.exchangeapi.route.service.Policy],
         classOf[Reload],
-        classOf[ServicesRoutes],
-        classOf[Status],
+        classOf[Search],
+        classOf[Service],
+        classOf[org.openhorizon.exchangeapi.route.catalog.Services],
+        classOf[org.openhorizon.exchangeapi.route.service.Services],
+        classOf[org.openhorizon.exchangeapi.route.administration.Status],
+        classOf[org.openhorizon.exchangeapi.route.node.Status],
+        classOf[org.openhorizon.exchangeapi.route.organization.Status],
+        classOf[Statuses],
         classOf[Token],
-        classOf[UsersRoutes],
+        classOf[User],
+        classOf[Users],
         classOf[Version])
   override def apiDocsPath: String = "api-docs" //where you want the swagger-json endpoint exposed
   // override def basePath: String = ""

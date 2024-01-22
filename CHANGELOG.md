@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.121.0] - 2023-11-16
+- Restructured the source for Catalog, Deployment Patterns and Policies, Management Policies, Nodes, Node Groups, and Services.
+
+## [2.120.0] - 2023-10-18
+- Restructured the source for Users, Services, Organizations, and some of the search routes.
+- Corrected a few Swagger documentation errors.
+- Sbt 1.9.2 -> 1.9.6
+
 ## [2.119.0] - 2023-07-26
 - Issue 692: Added new attribute `enableNodeLevelSecrets` to `secretBinding` for Deployment Patterns and Policies.
 - Reorganized utility and auth source objects.

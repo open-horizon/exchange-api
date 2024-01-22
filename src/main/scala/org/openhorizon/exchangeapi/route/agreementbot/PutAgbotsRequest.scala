@@ -5,7 +5,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.AgbotRow
 import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.jdbc.PostgresProfile.api._
 
-/** Input format for PUT /orgs/{orgid}/agbots/<agbot-id> */
+/** Input format for PUT /orgs/{organization}/agbots/<agbot-id> */
 final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[String], publicKey: String) {
   require(token!=null && name!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats

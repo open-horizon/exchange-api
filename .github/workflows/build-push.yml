@@ -2,7 +2,8 @@
 name: build-push
 
 # This workflow will run when there is a push (including merge) to the listed branches
-on:
+on: 
+  workflow_dispatch:
   push:
     branches:
       - master
@@ -28,31 +29,48 @@ jobs:
       # Ensure that the repo variables and secrets are set before running any other steps
       - name: Check User Set Variables
         run: |
-          if [[ -z "$DOCKER_USER" ]]; then \
-          echo "::error::Secret DOCKER_USER was not set"; \
-          exit 1; \
+          if [[ -z "$DOCKER_USER" ]]; then
+            echo "::error::Secret DOCKER_USER was not set"
+            exit 1
           fi
-          if [[ -z "$DOCKER_TOKEN" ]]; then \
-          echo "::error::Secret DOCKER_TOKEN was not set"; \
-          exit 1; \
+          if [[ -z "$DOCKER_TOKEN" ]]; then
+            echo "::error::Secret DOCKER_TOKEN was not set"
+            exit 1
           fi
-          if [[ -z "$IMAGE_REPO" ]]; then \
-          echo "::error::Variable DOCKERHUB_REPO was not set"; \
-          exit 1; \
+          if [[ -z "$IMAGE_REPO" ]]; then
+            echo "::error::Variable DOCKERHUB_REPO was not set"
+            exit 1
           fi
-          if [[ -z "$RUN_NUMBER_OFFSET" ]]; then \
-          echo "::error::Variable RUN_NUMBER_OFFSET was not set"; \
-          exit 1; \
+          if [[ -z "$RUN_NUMBER_OFFSET" ]]; then
+            echo "::error::Variable RUN_NUMBER_OFFSET was not set"
+            exit 1
           fi
         env:
           DOCKER_USER: ${{ secrets.DOCKER_USER }}
           DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}
 
+      # Checkout our Github repo
+      - name: Checkout Github Repo
+        uses: actions/checkout@v3
+  
       # Offset our version build number to prevent collisions
-      - name: Offset Build Number
-        id: offset
+      - name: Configure Env Vars
         run: |
-          echo "BUILD_NUMBER=$(($RUN_NUMBER + $RUN_NUMBER_OFFSET))" >> $GITHUB_ENV
+          BUILD_NUMBER=$(($RUN_NUMBER + $RUN_NUMBER_OFFSET))
+          echo "IMAGE_VERSION=$(head -n 1 src/main/resources/version.txt)-$BUILD_NUMBER" >> $GITHUB_ENV
+          echo "GIT_SHORT_SHA=$(git rev-parse --short "$GITHUB_SHA")" >> $GITHUB_ENV
+
+      - name: Validate Env Vars
+        run: |
+          echo "Using SHORT SHA: $GIT_SHORT_SHA"
+          if [[ -z "$GIT_SHORT_SHA" ]]; then 
+            echo "::error::unable to get short sha from $GITHUB_SHA"
+            exit 1
+          fi
+          if [[ -z "$IMAGE_VERSION" ]]; then 
+            echo "::error::unable to get IMAGE_VERSION"
+            exit 1
+          fi
 
       # Upgrade Docker engine version, needed for building images.
       - name: Install Latest Docker Version
@@ -63,6 +81,11 @@ jobs:
           sudo add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/ubuntu  $(lsb_release -cs)  stable"
           sudo apt-get update
           sudo apt-get install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+
+      # Setup Scala
+      # Comes from open source action: https://github.com/coursier/setup-action
+      - name: Setup Scala
+        uses: coursier/setup-action@v1
 
       # Authenticate Dockerhub to allow pushing to our image repo
       - name: Login to Dockerhub
@@ -78,21 +101,6 @@ jobs:
           registry: ghcr.io
           username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
-      # Checkout our Github repo
-      - name: Checkout Github Repo
-        uses: actions/checkout@v3
-
-      # Setup Scala
-      # Comes from open source action: https://github.com/coursier/setup-action
-      - name: Setup Scala
-        uses: coursier/setup-action@v1
-
-      # Configure version variables
-      - name: Config Version Variables
-        id: config-version
-        run: |
-          echo "IMAGE_VERSION=$(head -n 1 src/main/resources/version.txt)-$BUILD_NUMBER" >> $GITHUB_ENV
       
       # Compile
       - name: Compile

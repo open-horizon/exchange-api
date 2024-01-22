@@ -38,6 +38,7 @@ import scala.concurrent.ExecutionContext
 import scala.util.control.Breaks.{break, breakable}
 import scala.util.{Failure, Success}
 
+@Path("/v1/orgs/{organization}")
 trait Node extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in wDirectives.ith ExchangeApiApp
   def db: Database
@@ -45,13 +46,13 @@ trait Node extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // =========== DELETE /orgs/{orgid}/nodes/{id} ===============================
+  // =========== DELETE /orgs/{organization}/nodes/{node} ===============================
   @DELETE
-  @Path("nodes/{id}")
+  @Path("nodes/{node}")
   @Operation(summary = "Deletes a node", description = "Deletes a node (RPi), and deletes the agreements stored for this node (but does not actually cancel the agreements between the node and agbots). Can be run by the owning user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -94,13 +95,13 @@ trait Node extends JacksonSupport with AuthenticationSupport {
       } // end of exchAuth
    }
   
-  /* ====== GET /orgs/{orgid}/nodes/{id} ================================ */
+  /* ====== GET /orgs/{organization}/nodes/{node} ================================ */
   @GET
-  @Path("nodes/{id}")
+  @Path("nodes/{node}")
   @Operation(summary = "Returns a node", description = "Returns the node (edge device) with the specified id. Can be run by that node, a user, or an agbot.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node."),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node."),
       new Parameter(name = "attribute", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified, and it must be 1 of the direct attributes of the node resource (not of the services). If not specified, the entire node resource (including services) will be returned")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
@@ -228,13 +229,13 @@ trait Node extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  // =========== PATCH /orgs/{orgid}/nodes/{id} ===============================
+  // =========== PATCH /orgs/{organization}/nodes/{node} ===============================
   @PATCH
-  @Path("nodes/{id}")
+  @Path("nodes/{node}")
   @Operation(summary = "Updates 1 attribute of a node", description = "Updates some attributes of a node. This can be called by the user or the node.",
     parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "id", in = ParameterIn.PATH, description = "ID of the node.")),
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
+      new Parameter(name = "node", in = ParameterIn.PATH, description = "ID of the node.")),
     requestBody = new RequestBody(description = "Specify only **one** of the following attributes", required = true, content = Array(
       new Content(
         examples = Array(
@@ -599,20 +600,20 @@ trait Node extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  // =========== PUT /orgs/{orgid}/nodes/{id} ===============================
+  // =========== PUT /orgs/{organization}/nodes/{node} ===============================
   @PUT
-  @Path("nodes/{id}")
+  @Path("nodes/{node}")
   @Operation(
     summary = "Add/updates a node",
     description = "Adds a new edge node, or updates an existing node. This must be called by the user to add a node, and then can be called by that user or node to update itself.",
     parameters = Array(
       new Parameter(
-        name = "orgid",
+        name = "organization",
         in = ParameterIn.PATH,
         description = "Organization id."
       ),
       new Parameter(
-        name = "id",
+        name = "node",
         in = ParameterIn.PATH,
         description = "ID of the node."
       ),

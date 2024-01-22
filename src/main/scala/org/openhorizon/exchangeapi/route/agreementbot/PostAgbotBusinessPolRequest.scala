@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.agreementbot
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.{AgbotBusinessPol, AgbotBusinessPolRow}
 import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 
-/** Input format for POST /orgs/{orgid}/agbots/{id}/businesspols */
+/** Input format for POST /orgs/{organization}/agbots/{id}/businesspols */
 final case class PostAgbotBusinessPolRequest(businessPolOrgid: String, businessPol: String, nodeOrgid: Option[String]) {
   require(businessPolOrgid!=null && businessPol!=null)
   def toAgbotBusinessPol: AgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)

@@ -22,7 +22,6 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
-import scala.util.parsing.json
 
 class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with BeforeAndAfterEach {
   private val ACCEPT: (String, String) = ("Accept","application/json")

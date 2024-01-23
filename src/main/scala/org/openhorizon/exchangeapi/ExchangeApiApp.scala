@@ -12,20 +12,6 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import akka.http.scaladsl.{ConnectionContext, Http, HttpsConnectionContext}
-import akka.http.scaladsl.Http.ServerBinding
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `must-revalidate`, `no-cache`, `no-store`}
-import akka.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
-import akka.http.scaladsl.server._
-import akka.http.scaladsl.server.{ExceptionHandler, Route}
-import akka.http.scaladsl.model.HttpMethods._
-import akka.http.scaladsl.model.headers.{`Access-Control-Allow-Credentials`, `Access-Control-Allow-Headers`, `Access-Control-Allow-Methods`, `Access-Control-Allow-Origin`}
-import akka.http.scaladsl.model.{HttpResponse, StatusCodes}
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive0, Route}
-import akka.stream.{ActorMaterializer, Materializer}
-import ch.megard.akka.http.cors.scaladsl.settings.CorsSettings
 import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import org.openhorizon.exchangeapi.route.agreement.Confirm
 import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}

@@ -1,17 +1,12 @@
 package org.openhorizon.exchangeapi
 
-import akka.event.Logging.Info
-import akka.http.scaladsl.model.headers.LinkParams.title
-import akka.http.scaladsl.server.{Directives, Route}
-import com.github.swagger.akka.SwaggerHttpService
-import com.github.swagger.akka.model.{Info, License}
 import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import org.apache.pekko.event.Logging.Info
 import org.apache.pekko.http.scaladsl.model.headers.LinkParams.title
 import org.apache.pekko.http.scaladsl.server.{Directives, Route}
 import com.github.swagger.pekko.SwaggerHttpService
 import com.github.swagger.pekko.model.{Info, License}
-import org.openhorizon.exchangeapi.route.administration.{AdminRoutes, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
+import org.openhorizon.exchangeapi.route.administration.{DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import io.swagger.v3.oas.models.ExternalDocumentation
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement

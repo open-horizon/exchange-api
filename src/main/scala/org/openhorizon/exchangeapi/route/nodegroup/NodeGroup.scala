@@ -1,18 +1,19 @@
 package org.openhorizon.exchangeapi.route.nodegroup
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import de.heikoseeberger.akkahttpjackson.JacksonSupport
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, POST, PUT, Path}
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.server.Directives.path
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, post, put, _}
+import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthRoles, AuthenticationSupport, BadInputException, Identity, OrgAndId, ResourceNotFoundException, TNode}
-import org.openhorizon.exchangeapi.table.node.group.{NodeGroup, NodeGroupRow, NodeGroupTQ}
+import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignment, NodeGroupAssignmentRow, NodeGroupAssignmentTQ, PostPutNodeGroupsRequest}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, Nodes, NodesTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}

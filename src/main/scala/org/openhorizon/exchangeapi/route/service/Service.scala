@@ -1,16 +1,16 @@
 package org.openhorizon.exchangeapi.route.service
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import akka.http.scaladsl.server.Directives.{complete, entity, parameter, path, post, _}
-import akka.http.scaladsl.server.{Directives, Route}
-import de.heikoseeberger.akkahttpjackson.JacksonSupport
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
+import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, patch, path, put, _}
+import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, OrgAndId, TService}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service

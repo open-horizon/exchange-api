@@ -1,14 +1,14 @@
 package org.openhorizon.exchangeapi.route.search
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives.{complete, get, path, _}
-import akka.http.scaladsl.server.Route
-import de.heikoseeberger.akkahttpjackson.JacksonSupport
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, _}
+import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, IUser, Identity, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.organization.{AllNodeErrorsInOrgResp, NodeErrorsResp}
 import org.openhorizon.exchangeapi.table.node.NodesTQ

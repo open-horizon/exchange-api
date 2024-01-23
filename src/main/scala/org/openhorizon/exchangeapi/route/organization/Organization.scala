@@ -1,16 +1,16 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.model.{StatusCode, StatusCodes}
-import akka.http.scaladsl.server.Directives.{complete, delete, entity, get, parameter, patch, path, post, put, validate, _}
-import akka.http.scaladsl.server.Route
-import de.heikoseeberger.akkahttpjackson.JacksonSupport
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
+import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, patch, path, post, put, _}
+import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IbmCloudAuth, TOrg}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ

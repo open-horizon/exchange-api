@@ -32,10 +32,10 @@ lazy val root = (project in file("."))
     name                          := "amd64_exchange-api",
     organization                  := "org.openhorizon",
     pekkoHttpVersion              := "[1.0.0]",
-    pekkoVersion                  := "[1.0.0]",
+    pekkoVersion                  := "[1.0.2]",
     release                       := sys.env.getOrElse("GIT_SHORT_SHA", versionFunc()),
     resolvers                     += Classpaths.typesafeReleases,
-    scalaVersion                  := "2.13.10",
+    scalaVersion                  := "2.13.11",
     summary                       := "'Open Horizon exchange-api image'",
     vendor                        := "'Open Horizon'",
     version                       := sys.env.getOrElse("IMAGE_VERSION", versionFunc()),
@@ -57,16 +57,16 @@ lazy val root = (project in file("."))
       
       "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0,)",
       // "org.glassfish.jersey.core" % "jersey-common" % "1.2.1",             // Required at runtime by javax.ws.rs-api
-      "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.11.0]",      // Deprecated in v2.8.0 due to Akka license change to BSL v1.1
-      "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.11.0,)",
-      "io.swagger.core.v3" % "swagger-core-jakarta" % "[2.1.12]",             // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
-      "io.swagger.core.v3" % "swagger-jaxrs2-jakarta" % "[2.1.12]",           // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
+      "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.12.0]",      // Deprecated in v2.8.0 due to Akka license change to BSL v1.1
+      "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.12.0,)",
+      //"io.swagger.core.v3" % "swagger-core-jakarta" % "[2.1.12]",             // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
+      //"io.swagger.core.v3" % "swagger-jaxrs2-jakarta" % "[2.1.12]",           // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
       
       // "com.typesafe.slick" %% "slick" % "[3.3.3]",             // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
-      "com.typesafe.slick" %% "slick-hikaricp" % "[3.3.3]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
+      "com.typesafe.slick" %% "slick-hikaricp" % "[3.4.1]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       // "com.github.tminglei" %% "slick-pg" % "[0.20.4]",        // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
-      "com.github.tminglei" %% "slick-pg_json4s" % "[0.20.4]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
-      "org.postgresql" % "postgresql" % "[42.6.0,)",
+      "com.github.tminglei" %% "slick-pg_json4s" % "[0.21.0]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
+      "org.postgresql" % "postgresql" % "[42.7.1,)",
       // "com.zaxxer" % "HikariCP" % "[3.4.5,)",
       // "org.slf4j" % "slf4j-simple" % "[1.7.25]",               // Version 1.7.35+ requires newer versions of slick and slick-hikaricp
       // "ch.qos.logback" % "logback-classic" % "1.3.0-alpha5",

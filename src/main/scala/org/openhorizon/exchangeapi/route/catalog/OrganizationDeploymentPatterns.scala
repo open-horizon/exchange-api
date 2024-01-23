@@ -1,15 +1,15 @@
 package org.openhorizon.exchangeapi.route.catalog
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import de.heikoseeberger.akkahttpjackson._
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import jakarta.ws.rs.{GET, Path}
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, parameter, validate, _}
+import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, OrgAndId, TPattern, TService}
 import org.openhorizon.exchangeapi.route.deploymentpattern.GetPatternsResponse
 import org.openhorizon.exchangeapi.route.service.{GetServicesResponse, GetServicesUtils}

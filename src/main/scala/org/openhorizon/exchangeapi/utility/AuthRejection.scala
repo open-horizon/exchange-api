@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.utility
 
-import akka.http.scaladsl.model.{StatusCode, StatusCodes}
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.openhorizon.exchangeapi.auth.AuthException
 
 // Converts an exception into an auth rejection

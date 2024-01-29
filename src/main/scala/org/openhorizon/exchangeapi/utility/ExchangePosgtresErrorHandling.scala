@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.utility
 
-import akka.http.scaladsl.model.StatusCode
+import org.apache.pekko.http.scaladsl.model.StatusCode
 
 object ExchangePosgtresErrorHandling {
   def isDuplicateKeyError(serverError: org.postgresql.util.PSQLException): Boolean = {

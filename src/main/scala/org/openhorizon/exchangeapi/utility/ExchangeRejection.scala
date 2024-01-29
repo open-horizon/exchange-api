@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.utility
 
-import akka.http.scaladsl.model.StatusCode
-import akka.http.scaladsl.server.Rejection
+import org.apache.pekko.http.scaladsl.model.StatusCode
+import org.apache.pekko.http.scaladsl.server.Rejection
 import org.json4s.DefaultFormats
 import org.json4s.jackson.Serialization
 

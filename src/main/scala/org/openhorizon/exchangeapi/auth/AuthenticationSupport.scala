@@ -1,8 +1,8 @@
 package org.openhorizon.exchangeapi.auth
 
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directive, Directive0, Directive1, ValidationRejection}
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.{Directive, Directive0, Directive1, ValidationRejection}
 import org.openhorizon.exchangeapi.auth.Access.Access
 import org.openhorizon.exchangeapi.utility.{AuthRejection, ExchConfig}
 import org.openhorizon.exchangeapi.{ExchangeApi, ExchangeApiApp}
@@ -87,7 +87,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
     }
   }
 
-  // Custom directive, like validate() from akka.http.scaladsl.directives.MiscDirectives, except that the checking function returns
+  // Custom directive, like validate() from pekko.http.scaladsl.directives.MiscDirectives, except that the checking function returns
   // an Option[String] (instead of a boolean) so if invalid input is found, it can return an error msg specific to the problem.
   def validateWithMsg(check: => Option[String]): Directive0 =
     Directive {
@@ -95,7 +95,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
       inner => if (errorMsg.isEmpty) inner(()) else reject(ValidationRejection(errorMsg.get))
     }
 
-  /* some past attempts at using the akka authenticateBasic directive, and a custom directive
+  /* some past attempts at using the pekko authenticateBasic directive, and a custom directive
   def exchangeAuth(credentials: Credentials): Option[AuthenticatedIdentity] = {
     logger.debug(s"exchangeAuth: credentials: $credentials")
     credentials match {

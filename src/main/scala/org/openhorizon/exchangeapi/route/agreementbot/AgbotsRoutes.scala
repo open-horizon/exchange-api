@@ -1,26 +1,13 @@
 /** Services routes for all of the /agbots api methods. */
 package org.openhorizon.exchangeapi.route.agreementbot
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import de.heikoseeberger.akkahttpjackson._
-import io.swagger.v3.oas.annotations._
-import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
-import io.swagger.v3.oas.annotations.parameters.RequestBody
-import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
-import org.json4s._
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, OrgAndId, Password, TAgbot}
-import org.openhorizon.exchangeapi.table._
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import com.github.pjfanning.pekkohttpjackson._
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.openhorizon.exchangeapi.auth.AuthenticationSupport
 import slick.jdbc.PostgresProfile.api._
 
-import scala.collection.immutable._
 import scala.concurrent.ExecutionContext
-import scala.util._
 
 //====== These are the input and output structures for /agbots routes. Swagger and/or json seem to require they be outside the trait.
 

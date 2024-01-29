@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.auth
 
-import akka.event.LoggingAdapter
+import org.apache.pekko.event.LoggingAdapter
 
 import javax.security.auth.Subject
 import scala.jdk.CollectionConverters.CollectionHasAsScala

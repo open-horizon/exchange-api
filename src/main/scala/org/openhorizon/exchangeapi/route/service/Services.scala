@@ -1,17 +1,17 @@
 /** Services routes for all of the /orgs/{organization}/services api methods. */
 package org.openhorizon.exchangeapi.route.service
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives.{entity, _}
-import akka.http.scaladsl.server.Route
-import de.heikoseeberger.akkahttpjackson._
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
+import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, get, path, parameter, post, _}
+import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi.auth._

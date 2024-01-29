@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.auth
 
-import akka.event.LoggingAdapter
+import org.apache.pekko.event.LoggingAdapter
 import org.openhorizon.exchangeapi.auth.Access.Access
 
 import scala.util.{Failure, Try}

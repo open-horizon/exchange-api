@@ -2,6 +2,22 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.122.0] - 2024-01-23
+- Issue 646: Transitioned The Exchange to Apache Pekko from Lightbind's Akka.
+- akka-http                  10.2.7 -> pekko-http 1.0.0
+- akka-http-testkit          10.2.7 -> pekko-http-testkit 1.0.0
+- akka-http-xml              10.2.7 -> pekko-http-xml 1.0.0
+- akka-stream-testkit        2.6.16 -> pekko-stream-testkit 1.0.2
+- akka-testkit               2.6.16 -> pekko-testkit 1.0.2
+- Scala                     2.13.10 -> Scala 2.13.11
+- akka-http-cors              1.1.2 -> pekko-http-cors 1.0.0
+- akka-http-jackson          1.39.2 -> pekko-http-jackson 2.0.0
+- postgresql                 42.6.0 -> 42.7.1
+- SBT                         1.9.6 -> 1.9.8
+- swagger-akka-http           2.6.0 -> swagger-pekko-http 2.12.0
+- swagger-scala-module       2.11.0 -> 2.12.0
+- Swagger UI                  5.1.0 -> 5.11.0
+
 ## [2.121.0] - 2023-11-16
 - Restructured the source for Catalog, Deployment Patterns and Policies, Management Policies, Nodes, Node Groups, and Services.
 

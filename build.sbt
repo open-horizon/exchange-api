@@ -8,8 +8,8 @@ import com.typesafe.sbt.packager.docker._
 enablePlugins(JavaAppPackaging, DockerPlugin)
 
 // For latest versions, see https://mvnrepository.com/
-lazy val akkaHttpVersion = settingKey[String]("Version of Akka-Http")
-lazy val akkaVersion     = settingKey[String]("Version of Akka")
+lazy val pekkoHttpVersion = settingKey[String]("Version of Pekko-Http")
+lazy val pekkoVersion     = settingKey[String]("Version of Pekko")
 
 // Red Hat certification Docker labels.
 lazy val release = settingKey[String]("A number used to identify the specific build for this image.")
@@ -28,14 +28,14 @@ Global / excludeLintKeys += dockerEnvVars
 
 lazy val root = (project in file("."))
   .settings(
-    akkaHttpVersion               := "[10.2.7]",
-    akkaVersion                   := "[2.6.16]",
     description                   := "'Containerized exchange-api'",
     name                          := "amd64_exchange-api",
     organization                  := "org.openhorizon",
+    pekkoHttpVersion              := "[1.0.0]",
+    pekkoVersion                  := "[1.0.2]",
     release                       := sys.env.getOrElse("GIT_SHORT_SHA", versionFunc()),
     resolvers                     += Classpaths.typesafeReleases,
-    scalaVersion                  := "2.13.10",
+    scalaVersion                  := "2.13.11",
     summary                       := "'Open Horizon exchange-api image'",
     vendor                        := "'Open Horizon'",
     version                       := sys.env.getOrElse("IMAGE_VERSION", versionFunc()),
@@ -45,28 +45,28 @@ lazy val root = (project in file("."))
     
     // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-http"            % akkaHttpVersion.value,
-      "com.typesafe.akka" %% "akka-http-xml"        % akkaHttpVersion.value,
-      // "com.typesafe.akka" %% "akka-stream"          % "[2.6.14,)",
-      // "com.typesafe.akka" %% "akka-http-spray-json" % "[10.2.1,)",
-      "de.heikoseeberger" %% "akka-http-jackson" % "[1.39.2]",
-      // "com.typesafe.akka" %% "akka-http-jackson" % "[10.2.1,)",    // Can not find any recent documentation on how to use this
-      "ch.megard" %% "akka-http-cors" % "[1.1.2]",
+      "org.apache.pekko" %% "pekko-http"            % pekkoHttpVersion.value,
+      "org.apache.pekko" %% "pekko-http-xml"        % pekkoHttpVersion.value,
+      // "org.apache.pekko" %% "pekko-stream"          % "[2.6.14,)",
+      // "org.apache.pekko" %% "pekko-http-spray-json" % "[10.2.1,)",
+      "com.github.pjfanning" %% "pekko-http-jackson" % "[2.0.0,)",
+      "org.apache.pekko" %% "pekko-http-cors" % "[1.0.0,)",
       
       "org.json4s" %% "json4s-native" % "4.0.6",
       "org.json4s" %% "json4s-jackson" % "4.0.6",
       
       "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0,)",
-      "com.github.swagger-akka-http" %% "swagger-akka-http" % "[2.6.0]",      // Deprecated in v2.8.0 due to Akka license change to BSL v1.1
-      "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.11.0,)",
-      "io.swagger.core.v3" % "swagger-core-jakarta" % "[2.1.12]",             // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
-      "io.swagger.core.v3" % "swagger-jaxrs2-jakarta" % "[2.1.12]",           // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
+      // "org.glassfish.jersey.core" % "jersey-common" % "1.2.1",             // Required at runtime by javax.ws.rs-api
+      "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.12.0]",      // Deprecated in v2.8.0 due to Akka license change to BSL v1.1
+      "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.12.0,)",
+      //"io.swagger.core.v3" % "swagger-core-jakarta" % "[2.1.12]",             // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
+      //"io.swagger.core.v3" % "swagger-jaxrs2-jakarta" % "[2.1.12]",           // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
       
       // "com.typesafe.slick" %% "slick" % "[3.3.3]",             // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
-      "com.typesafe.slick" %% "slick-hikaricp" % "[3.3.3]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
+      "com.typesafe.slick" %% "slick-hikaricp" % "[3.4.1]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       // "com.github.tminglei" %% "slick-pg" % "[0.20.4]",        // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
-      "com.github.tminglei" %% "slick-pg_json4s" % "[0.20.4]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
-      "org.postgresql" % "postgresql" % "[42.6.0,)",
+      "com.github.tminglei" %% "slick-pg_json4s" % "[0.21.0]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
+      "org.postgresql" % "postgresql" % "[42.7.1,)",
       // "com.zaxxer" % "HikariCP" % "[3.4.5,)",
       // "org.slf4j" % "slf4j-simple" % "[1.7.25]",               // Version 1.7.35+ requires newer versions of slick and slick-hikaricp
       // "ch.qos.logback" % "logback-classic" % "1.3.0-alpha5",
@@ -78,9 +78,9 @@ lazy val root = (project in file("."))
       "com.github.cb372" %% "scalacache-guava" % "[0.28.0,)",
       "com.osinka.i18n" %% "scala-i18n" % "[1.0.3,)",
       
-      "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpVersion.value  % Test,
-      "com.typesafe.akka" %% "akka-testkit"         % akkaVersion.value      % Test,
-      "com.typesafe.akka" %% "akka-stream-testkit"  % akkaVersion.value      % Test,
+      "org.apache.pekko" %% "pekko-http-testkit"    % pekkoHttpVersion.value  % Test,
+      "org.apache.pekko" %% "pekko-testkit"         % pekkoVersion.value      % Test,
+      "org.apache.pekko" %% "pekko-stream-testkit"  % pekkoVersion.value      % Test,
       
       "org.scalatest" %% "scalatest" % "[3.3.0-SNAP2,)" % "test",
       "org.scalatestplus" %% "junit-4-12" % "[3.3.0.0-SNAP2,)" % "test",

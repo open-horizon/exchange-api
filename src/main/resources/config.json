@@ -1,5 +1,5 @@
 {
-  "akka": {
+  "pekko": {
     "coordinated-shutdown": {
       "phases.service-unbind.timeout": "60s"
     },
@@ -20,7 +20,7 @@
       }
     }
   },
-  "akka-http-cors": {
+  "pekko-http-cors": {
     "allow-credentials": true,
     "allow-generic-http-requests": true,
     "allowed-headers": ["*"],

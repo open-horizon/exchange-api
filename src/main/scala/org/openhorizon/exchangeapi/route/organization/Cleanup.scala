@@ -1,12 +1,12 @@
 /** Services routes for all of the /admin api methods. */
 package org.openhorizon.exchangeapi.route.organization
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import de.heikoseeberger.akkahttpjackson._
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import jakarta.ws.rs.Path
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, path, _}
+import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, TAction}
 import org.openhorizon.exchangeapi.route.administration.DeleteOrgChangesRequest
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ

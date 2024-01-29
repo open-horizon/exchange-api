@@ -1,11 +1,11 @@
 package org.openhorizon.exchangeapi.route.administration
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.{Directives, Route}
-import de.heikoseeberger.akkahttpjackson.JacksonSupport
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.{Directives, Route}
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.{Operation, responses}
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import jakarta.ws.rs.{GET, Path}

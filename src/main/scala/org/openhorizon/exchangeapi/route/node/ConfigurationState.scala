@@ -1,18 +1,18 @@
 /** Services routes for all of the /orgs/{organization}/nodes api methods. */
 package org.openhorizon.exchangeapi.route.node
 
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import jakarta.ws.rs.{POST, Path}
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth._
-import de.heikoseeberger.akkahttpjackson._
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.tags.Tag
 import io.swagger.v3.oas.annotations._
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
+import org.apache.pekko.http.scaladsl.server.Route
 
 import scala.concurrent.ExecutionContext
 import slick.jdbc.PostgresProfile.api._

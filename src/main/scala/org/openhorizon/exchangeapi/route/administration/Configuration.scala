@@ -1,10 +1,10 @@
 package org.openhorizon.exchangeapi.route.administration
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import de.heikoseeberger.akkahttpjackson.JacksonSupport
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.Route
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, TAction}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._

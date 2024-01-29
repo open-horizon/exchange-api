@@ -1,17 +1,17 @@
 /** Services routes for all of the /orgs/{organization}/managementpolicy api methods. */
 package org.openhorizon.exchangeapi.route.managementpolicy
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.model._
-import akka.http.scaladsl.server.Directives._
-import akka.http.scaladsl.server.Route
-import de.heikoseeberger.akkahttpjackson._
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, POST, PUT, Path}
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
+import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.ExchangeApiApp.exchAuth

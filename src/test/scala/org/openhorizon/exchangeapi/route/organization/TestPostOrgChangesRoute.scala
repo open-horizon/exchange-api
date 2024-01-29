@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import akka.http.scaladsl.model.headers.CacheDirectives.public
+import org.apache.pekko.http.scaladsl.model.headers.CacheDirectives.public
 import org.openhorizon.exchangeapi.{ExchangeApi, TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods

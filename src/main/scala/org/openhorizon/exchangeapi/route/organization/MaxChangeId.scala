@@ -1,11 +1,11 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import akka.actor.ActorSystem
-import akka.event.LoggingAdapter
-import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.server.Directives.{complete, path, _}
-import akka.http.scaladsl.server.{Directives, Route}
-import de.heikoseeberger.akkahttpjackson.JacksonSupport
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, path, _}
+import org.apache.pekko.http.scaladsl.server.{Directives, Route}
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.{Content, Schema}

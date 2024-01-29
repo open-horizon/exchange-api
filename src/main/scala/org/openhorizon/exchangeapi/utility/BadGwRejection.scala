@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.utility
 
-import akka.http.scaladsl.model.StatusCodes
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 
 final case class BadGwRejection(apiRespMsg: String) extends ExchangeRejection {
   def httpCode: StatusCodes.ServerError = StatusCodes.BadGateway

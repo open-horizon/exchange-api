@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.auth
 
-import akka.http.scaladsl.model.StatusCode
+import org.apache.pekko.http.scaladsl.model.StatusCode
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
 
 import javax.security.auth.login.LoginException

@@ -31,7 +31,7 @@ lazy val root = (project in file("."))
     description                   := "'Containerized exchange-api'",
     name                          := "amd64_exchange-api",
     organization                  := "org.openhorizon",
-    pekkoHttpVersion              := "[1.0.0]",
+    pekkoHttpVersion              := "[1.0.1]",
     pekkoVersion                  := "[1.0.2]",
     release                       := sys.env.getOrElse("GIT_SHORT_SHA", versionFunc()),
     resolvers                     += Classpaths.typesafeReleases,
@@ -49,13 +49,13 @@ lazy val root = (project in file("."))
       "org.apache.pekko" %% "pekko-http-xml"        % pekkoHttpVersion.value,
       // "org.apache.pekko" %% "pekko-stream"          % "[2.6.14,)",
       // "org.apache.pekko" %% "pekko-http-spray-json" % "[10.2.1,)",
-      "com.github.pjfanning" %% "pekko-http-jackson" % "[2.0.0,)",
-      "org.apache.pekko" %% "pekko-http-cors" % "[1.0.0,)",
+      "com.github.pjfanning" %% "pekko-http-jackson" % "[2.3.3,)",
+      "org.apache.pekko" %% "pekko-http-cors" % "[1.0.0]",
       
       "org.json4s" %% "json4s-native" % "4.0.6",
       "org.json4s" %% "json4s-jackson" % "4.0.6",
       
-      "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0,)",
+      "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0]",
       // "org.glassfish.jersey.core" % "jersey-common" % "1.2.1",             // Required at runtime by javax.ws.rs-api
       "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.12.0]",      // Deprecated in v2.8.0 due to Akka license change to BSL v1.1
       "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.12.0,)",
@@ -72,7 +72,7 @@ lazy val root = (project in file("."))
       // "ch.qos.logback" % "logback-classic" % "1.3.0-alpha5",
       "com.mchange" % "c3p0" % "[0.9.5.5,)",
       "org.scalaj" %% "scalaj-http" % "[2.4.2]",                  // Deprecated as of April 2022, in v2.4.2
-      "com.typesafe" % "config" % "[1.4.0,)",
+      "com.typesafe" % "config" % "[1.4.3,)",
       "org.mindrot" % "jbcrypt" % "[0.4,)",                       // Last version (v0.4) release February 13, 2017
       "com.pauldijou" %% "jwt-core" % "[5.0.0,)",
       "com.github.cb372" %% "scalacache-guava" % "[0.28.0,)",

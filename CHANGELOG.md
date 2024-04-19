@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.123.0] - 2024-04-19
+- pekko-http-xml 1.0.0 -> 1.0.1
+- Reorganized class references in the Swagger documentation generator.
+
 ## [2.122.0] - 2024-01-23
 - Issue 646: Transitioned The Exchange to Apache Pekko from Lightbind's Akka.
 - akka-http                  10.2.7 -> pekko-http 1.0.0

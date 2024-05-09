@@ -6,6 +6,7 @@ on:
       - master
       - v2.87
       - v2.110
+      - v2.121
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:

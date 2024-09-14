@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.organization
 
 import org.apache.pekko.http.scaladsl.model.headers.CacheDirectives.public
-import org.openhorizon.exchangeapi.{ExchangeApi, TestDBConnection}
+import org.openhorizon.exchangeapi.ExchangeApi
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -11,11 +11,11 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
-import org.openhorizon.exchangeapi.{ExchangeApi, TestDBConnection}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
@@ -26,7 +26,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   private val ACCEPT: (String, String) = ("Accept","application/json")
   private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val ROUTE = "/changes"
 
@@ -173,7 +173,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
       )
     )
 
-  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val HUBADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
   private val ORG1USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
   private val ORG2USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG2USERPASSWORD))
@@ -288,7 +288,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   var lastChangeId: Long = 0L //will be set in beforeAll()
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       (OrgsTQ ++= TESTORGS) andThen
         (UsersTQ ++= TESTUSERS) andThen
       (ResourceChangesTQ ++= TESTRESOURCECHANGES) andThen
@@ -296,7 +296,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         (NodesTQ ++= TESTNODES)
         ), AWAITDURATION
     )
-    lastChangeId = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ //get changeId of last RC added to DB
+    lastChangeId = Await.result(DBCONNECTION.run(ResourceChangesTQ //get changeId of last RC added to DB
       .filter(_.orgId startsWith "testPostOrgChangesRoute")
       .sortBy(_.changeId.desc)
       .take(1)
@@ -304,17 +304,15 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "testPostOrgChangesRoute").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testPostOrgChangesRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testPostOrgChangesRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/testPostOrgChangesRouteHubAdmin").delete andThen
       AgbotsTQ.filter(_.id startsWith "IBM/testPostOrgChangesRouteIBMAgbot").delete), AWAITDURATION)
-    
-    DBCONNECTION.getDb.close()
   }
 
   override def afterEach(): Unit = {
     //need to reset heartbeat each time to ensure it actually gets changed in each test
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       NodesTQ.update(TESTNODES(0)) andThen //can't do "updateAll", so do them individually
       NodesTQ.update(TESTNODES(1)) andThen
       AgbotsTQ.update(TESTAGBOTS(0)) andThen
@@ -327,10 +325,10 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   //only does one at a time for ease of deleting when finished
   def fixtureResourceChange(testCode: ResourceChangeRow => Any, testData: ResourceChangeRow): Any = {
     try{
-      Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ += testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(ResourceChangesTQ += testData), AWAITDURATION)
       testCode(testData)
     }
-    //finally Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(x => x.orgId === testData.orgId && x.resource === testData.resource && x.id === testData.id).delete), AWAITDURATION)
+    //finally Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(x => x.orgId === testData.orgId && x.resource === testData.resource && x.id === testData.id).delete), AWAITDURATION)
   }
 
   def assertResourceChangeExists(rc: ResourceChangeRow, body: ResourceChangesRespObject): Unit = {
@@ -442,7 +440,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assertResourceChangeExists(TESTRESOURCECHANGES(9), responseObj)
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
     //check that heartbeat of caller was updated
-    assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.id === TESTAGBOTS(2).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(2).lastHeartbeat)
+    assert(Await.result(DBCONNECTION.run(AgbotsTQ.filter(_.id === TESTAGBOTS(2).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(2).lastHeartbeat)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- " + TESTORGS(0).orgId + " wildcard '*' -- success") {
@@ -465,7 +463,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assertResourceChangeExists(TESTRESOURCECHANGES(9), responseObj)
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
     //check that heartbeat of caller was updated
-    assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.id === TESTAGBOTS(2).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(2).lastHeartbeat)
+    assert(Await.result(DBCONNECTION.run(AgbotsTQ.filter(_.id === TESTAGBOTS(2).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(2).lastHeartbeat)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- " + TESTORGS(0).orgId + " wildcard '' (empty string) -- success") {
@@ -488,7 +486,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assertResourceChangeExists(TESTRESOURCECHANGES(9), responseObj)
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
     //check that heartbeat of caller was updated
-    assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.id === TESTAGBOTS(2).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(2).lastHeartbeat)
+    assert(Await.result(DBCONNECTION.run(AgbotsTQ.filter(_.id === TESTAGBOTS(2).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(2).lastHeartbeat)
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as agbot in org -- success") {
@@ -504,7 +502,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assertResourceChangeExists(TESTRESOURCECHANGES(9), responseObj)
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
     //check that heartbeat of caller was updated
-    assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.id === TESTAGBOTS(0).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(0).lastHeartbeat)
+    assert(Await.result(DBCONNECTION.run(AgbotsTQ.filter(_.id === TESTAGBOTS(0).id).result), AWAITDURATION).head.lastHeartbeat > TESTAGBOTS(0).lastHeartbeat)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as agbot in other org -- 403 access denied") {
@@ -513,7 +511,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
     //insure heartbeat hasn't changed
-    assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.id === TESTAGBOTS(1).id).result), AWAITDURATION).head.lastHeartbeat === TESTAGBOTS(1).lastHeartbeat)
+    assert(Await.result(DBCONNECTION.run(AgbotsTQ.filter(_.id === TESTAGBOTS(1).id).result), AWAITDURATION).head.lastHeartbeat === TESTAGBOTS(1).lastHeartbeat)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as node in org -- success") {
@@ -531,7 +529,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assertResourceChangeExists(TESTRESOURCECHANGES(9), responseObj)
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
     //check that heartbeat of caller was updated
-    assert(Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === TESTNODES(0).id).result), AWAITDURATION).head.lastHeartbeat.get > TESTNODES(0).lastHeartbeat.get)
+    assert(Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === TESTNODES(0).id).result), AWAITDURATION).head.lastHeartbeat.get > TESTNODES(0).lastHeartbeat.get)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as node in other org -- 403 access denied") {
@@ -540,7 +538,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
     //insure heartbeat hasn't changed
-    assert(Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === TESTNODES(1).id).result), AWAITDURATION).head.lastHeartbeat === TESTNODES(1).lastHeartbeat)
+    assert(Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === TESTNODES(1).id).result), AWAITDURATION).head.lastHeartbeat === TESTNODES(1).lastHeartbeat)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as root -- success") {

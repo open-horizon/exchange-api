@@ -214,7 +214,7 @@ trait Search extends JacksonSupport with AuthenticationSupport {
     }
   
   val searchNode: Route =
-    path("orgs" / Segment / "patterns" / Segment / "search") {
+    path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns") / Segment / "search") {
       (organization,
        deploymentPattern) =>
         val resource: String = OrgAndId(organization, deploymentPattern).toString

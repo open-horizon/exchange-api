@@ -305,7 +305,7 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
     })
   
   def deploymentPolicySearch: Route =
-    path("orgs" / Segment / "business" / "policies" / Segment / "search") {
+    path("orgs" / Segment / ("business" | "deployment") / "policies" / Segment / "search") {
       (organization,
        policy) =>
         post {

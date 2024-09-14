@@ -26,6 +26,8 @@ val versionFunc = () => {
 Global / excludeLintKeys += daemonGroupGid  // was getting unused error, even tho i think they are used
 Global / excludeLintKeys += dockerEnvVars
 
+//Global / envVars := Map("HZN_ORG_ID" -> "mycluster")
+
 lazy val root = (project in file("."))
   .settings(
     description                   := "'Containerized exchange-api'",
@@ -35,7 +37,7 @@ lazy val root = (project in file("."))
     pekkoVersion                  := "[1.0.2]",
     release                       := sys.env.getOrElse("GIT_SHORT_SHA", versionFunc()),
     resolvers                     += Classpaths.typesafeReleases,
-    scalaVersion                  := "2.13.11",
+    scalaVersion                  := "2.13.14",
     summary                       := "'Open Horizon exchange-api image'",
     vendor                        := "'Open Horizon'",
     version                       := sys.env.getOrElse("IMAGE_VERSION", versionFunc()),
@@ -51,6 +53,7 @@ lazy val root = (project in file("."))
       // "org.apache.pekko" %% "pekko-http-spray-json" % "[10.2.1,)",
       "com.github.pjfanning" %% "pekko-http-jackson" % "[2.3.3,)",
       "org.apache.pekko" %% "pekko-http-cors" % "[1.0.0]",
+      "org.apache.pekko" %% "pekko-slf4j" % "[1.0.1]",
       
       "org.json4s" %% "json4s-native" % "4.0.6",
       "org.json4s" %% "json4s-jackson" % "4.0.6",
@@ -62,6 +65,8 @@ lazy val root = (project in file("."))
       //"io.swagger.core.v3" % "swagger-core-jakarta" % "[2.1.12]",             // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
       //"io.swagger.core.v3" % "swagger-jaxrs2-jakarta" % "[2.1.12]",           // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
       
+      "ch.qos.logback" % "logback-classic" % "1.5.6",
+      //"net.logstash.logback" % "logstash-logback-encoder" % "[7.4,)",
       // "com.typesafe.slick" %% "slick" % "[3.3.3]",             // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       "com.typesafe.slick" %% "slick-hikaricp" % "[3.4.1]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       // "com.github.tminglei" %% "slick-pg" % "[0.20.4]",        // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
@@ -70,7 +75,7 @@ lazy val root = (project in file("."))
       // "com.zaxxer" % "HikariCP" % "[3.4.5,)",
       // "org.slf4j" % "slf4j-simple" % "[1.7.25]",               // Version 1.7.35+ requires newer versions of slick and slick-hikaricp
       // "ch.qos.logback" % "logback-classic" % "1.3.0-alpha5",
-      "com.mchange" % "c3p0" % "[0.9.5.5,)",
+      //"com.mchange" % "c3p0" % "[0.9.5.5,)",
       "org.scalaj" %% "scalaj-http" % "[2.4.2]",                  // Deprecated as of April 2022, in v2.4.2
       "com.typesafe" % "config" % "[1.4.3,)",
       "org.mindrot" % "jbcrypt" % "[0.4,)",                       // Last version (v0.4) release February 13, 2017
@@ -89,6 +94,7 @@ lazy val root = (project in file("."))
     ),
     scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
     javacOptions ++= Seq("-source", "17", "-target", "17", "-Xlint"),
+    //javaOptions ++= Seq("-Dconfig.file=/home/naphelps/git/exchange-api/target/config.json"),
     fork := true,
     Test / javaOptions ++= Seq("--add-opens", "java.base/java.net=ALL-UNNAMED"),
     // Used when running test suites with HTTPS.
@@ -108,15 +114,12 @@ lazy val root = (project in file("."))
     dockerBaseImage         := "registry.access.redhat.com/ubi9-minimal:latest",
     dockerEnvVars := Map("JAVA_OPTS" -> ""),   // this is here so JAVA_OPTS can be overridden on the docker run cmd with a value like: -Xmx1G
     // dockerEntrypoint ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config")  // <- had trouble getting this to work
-    Docker / mappings ++= Seq((baseDirectory.value / "LICENSE.txt") -> "/1/licenses/LICENSE.txt",
-                              (baseDirectory.value / "config" / "exchange-api.tmpl") -> "/2/etc/horizon/exchange/exchange-api.tmpl"
-                             ),
+    Docker / mappings ++= Seq((baseDirectory.value / "LICENSE.txt") -> "/1/licenses/LICENSE.txt"),
     dockerCommands           := Seq(Cmd("FROM", dockerBaseImage.value ++ " as stage0"),
                                     Cmd("LABEL", "snp-multi-stage='intermediate'"),
                                     Cmd("LABEL", "snp-multi-stage-id='6466ecf3-c305-40bb-909a-47e60bded33d'"),
                                     Cmd("WORKDIR", "/etc/horizon/exchange"),
                                     Cmd("COPY", "2/etc/horizon/exchange /2/etc/horizon/exchange"),
-                                    Cmd("RUN", "> /2/etc/horizon/exchange/config.json"),
                                     Cmd("WORKDIR", "/licenses"),
                                     Cmd("COPY", "1/licenses /1/licenses"),
                                     Cmd("WORKDIR", "/opt/docker"),
@@ -149,12 +152,7 @@ lazy val root = (project in file("."))
                                     Cmd("EXPOSE", "8080"),
                                     Cmd("EXPOSE", "8083"),
                                     Cmd("USER", "1001:1001"),
-                                    /*
-                                     * If bind-mounting your own config.json rename the configuration file in the container's filesystem to exchange-api.tmpl. This will overwrite the
-                                     * exchange-api.tmpl provided in this docker image and prevent cases where a bind-mount config.json is set with read-only permissions.
-                                     * Any mounted config.json can choose to use variables to take advantage of the substitution below.
-                                     */
-                                    Cmd("ENTRYPOINT", "/usr/bin/envsubst $ENVSUBST_CONFIG < /etc/horizon/exchange/exchange-api.tmpl > /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value),
+                                    Cmd("ENTRYPOINT", "/opt/docker/bin/" ++ name.value),
                                     Cmd("CMD", "[]")
                                   )
   )

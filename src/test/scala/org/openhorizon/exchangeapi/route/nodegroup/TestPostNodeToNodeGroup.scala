@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.nodegroup
 
-import org.openhorizon.exchangeapi.{TestDBConnection}
 import org.checkerframework.checker.units.qual.A
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization.write
@@ -12,10 +11,11 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api.{anyToShapedValue, columnExtensionMethods, columnToOrdered, longColumnType, queryDeleteActionExtensionMethods, queryInsertActionExtensionMethods, streamableQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType}
 
 import scala.concurrent.Await
@@ -24,9 +24,9 @@ import scala.concurrent.duration.{Duration, DurationInt}
 class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAndAfterEach {
   private val ACCEPT: (String, String) = ("Content-Type", "application/json")
   private val CONTENT: (String, String) = ACCEPT
-  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
@@ -113,40 +113,38 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
   
   
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGS) andThen
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
                                        (UsersTQ ++= TESTUSERS) andThen
                                        (NodesTQ ++= TESTNODES) andThen
                                        (NodeGroupTQ ++= TESTNODEGROUPS)), AWAITDURATION)
     
-    val nodeGroup: Long = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.head.name).map(_.group).result.head), AWAITDURATION)
+    val nodeGroup: Long = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.head.name).map(_.group).result.head), AWAITDURATION)
     val TESTNODEGROUPASSIGNMENTS: Seq[NodeGroupAssignmentRow] =
       Seq(NodeGroupAssignmentRow(group = nodeGroup,
                                  node = TESTNODES.head.id))
     
-    Await.ready(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS), AWAITDURATION)
+    Await.ready(DBCONNECTION.run(NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS), AWAITDURATION)
   
     //Http(URL + TESTORGS.head.orgId + "/users/u1").postData(write(PostPutUsersRequest("u1pw", admin = true, Option(false), "u1@hotmail.com"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeToNodeGroup").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeToNodeGroup").delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestPostNodeToNodeGroup").delete), AWAITDURATION)
-    
-    DBCONNECTION.getDb.close()
   }
   
   override def afterEach(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeToNodeGroup").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeToNodeGroup").delete), AWAITDURATION)
   }
   
   // Nodes that are dynamically needed, specific to the test case.
   def fixtureNodes(testCode: Seq[NodeRow] => Any, testData: Seq[NodeRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(NodesTQ ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodesTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
   }
   
   
@@ -263,7 +261,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     
     assert(response.code === HttpCode.POST_OK.intValue)
     
-    val assignedNodes: Seq[(String, String, String)] = Await.result(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ.join(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId)).on(_.group === _.group).sortBy(_._1.node.asc.nullsLast).map(records => {(records._2.name, records._1.node, records._2.organization)}).result), AWAITDURATION)
+    val assignedNodes: Seq[(String, String, String)] = Await.result(DBCONNECTION.run(NodeGroupAssignmentTQ.join(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId)).on(_.group === _.group).sortBy(_._1.node.asc.nullsLast).map(records => {(records._2.name, records._1.node, records._2.organization)}).result), AWAITDURATION)
     assert(assignedNodes.size === 2)
     
     assert(assignedNodes.head._1 === TESTNODEGROUPS.head.name)
@@ -274,7 +272,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(assignedNodes.last._2 === TESTNODES.last.id)
     assert(assignedNodes.last._3 === TESTNODEGROUPS.head.organization)
     
-    val changeRecords: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeToNodeGroup").sortBy(_.category.asc.nullsLast).result), AWAITDURATION)
+    val changeRecords: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeToNodeGroup").sortBy(_.category.asc.nullsLast).result), AWAITDURATION)
     assert(changeRecords.size === 2)
     
     assert(changeRecords.head.category === ResChangeCategory.NODEGROUP.toString)
@@ -319,14 +317,14 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
       
         assert(response.code === HttpCode.POST_OK.intValue)
       
-        val assignedNodes: Seq[(String, String, String)] = Await.result(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ.join(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).filter(_.name === TESTNODEGROUPS.last.name)).on(_.group === _.group).sortBy(_._1.node.asc.nullsLast).map(records => {(records._2.name, records._1.node, records._2.organization)}).result), AWAITDURATION)
+        val assignedNodes: Seq[(String, String, String)] = Await.result(DBCONNECTION.run(NodeGroupAssignmentTQ.join(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).filter(_.name === TESTNODEGROUPS.last.name)).on(_.group === _.group).sortBy(_._1.node.asc.nullsLast).map(records => {(records._2.name, records._1.node, records._2.organization)}).result), AWAITDURATION)
         assert(assignedNodes.size === 1)
       
         assert(assignedNodes.head._1 === TESTNODEGROUPS.last.name)
         assert(assignedNodes.head._2 === TESTNODES.head.id)
         assert(assignedNodes.head._3 === TESTNODEGROUPS.last.organization)
       
-        val changeRecords: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeToNodeGroup").sortBy(_.category.asc.nullsLast).result), AWAITDURATION)
+        val changeRecords: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeToNodeGroup").sortBy(_.category.asc.nullsLast).result), AWAITDURATION)
         assert(changeRecords.size === 2)
       
         assert(changeRecords.head.category === ResChangeCategory.NODEGROUP.toString)

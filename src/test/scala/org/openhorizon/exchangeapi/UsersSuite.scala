@@ -17,8 +17,9 @@ import scala.collection.mutable.ListBuffer
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.BeforeAndAfterAll
+import slick.jdbc
 
 import scala.collection.immutable._
 import scala.concurrent.Await
@@ -80,7 +81,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
   val creds4new = orguser4 + ":" + pw4new
   val USERAUTH4NEW = ("Authorization", "Basic " + ApiUtils.encode(creds4new))
   val rootuser = Role.superUser
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "") // need to put this same root pw in config.json
+  val rootpw = (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" }) // need to put this same root pw in config.json
   val ROOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(rootuser + ":" + rootpw))
   val CONNTIMEOUT = HttpOptions.connTimeout(20000)
   val READTIMEOUT = HttpOptions.readTimeout(20000)
@@ -142,8 +143,8 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
       assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
     }
   }
-
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val AWAITDURATION: Duration = 15.seconds
 
   private val TESTORGANIZATIONS: Seq[OrgRow] =
@@ -189,14 +190,12 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
         limits             = ""))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGANIZATIONS)), AWAITDURATION)
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS)), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "UsersSuiteTest").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "UsersSuiteTest").delete andThen
       OrgsTQ.filter(_.orgid startsWith "UsersSuiteTest").delete), AWAITDURATION)
-
-    DBCONNECTION.getDb.close()
   }
 
 
@@ -379,7 +378,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   test("Multitenancy Pathway") {
     //todo: ICP_EXTERNAL_MGMT_INGRESS is not used in these tests, so we should not require it be set
-    if((sys.env.getOrElse("ICP_EXTERNAL_MGMT_INGRESS", "") != "") && ocpAccountId.nonEmpty && iamKey.nonEmpty && iamUser.nonEmpty){
+    if(Configuration.getConfig.hasPath("ibm.common-services.external-management-ingress") && ocpAccountId.nonEmpty && iamKey.nonEmpty && iamUser.nonEmpty){
       info("Try deleting the test org first in case it stuck around")
       val responseOrg = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+responseOrg.code+", response.body: "+responseOrg.body)

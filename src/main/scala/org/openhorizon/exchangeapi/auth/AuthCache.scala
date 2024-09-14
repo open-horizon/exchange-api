@@ -5,6 +5,7 @@ import com.google.common.cache
 import com.google.common.cache.CacheBuilder
 import org.openhorizon.exchangeapi.ExchangeApi
 import org.openhorizon.exchangeapi.auth.CacheIdType.CacheIdType
+import org.openhorizon.exchangeapi.auth.cloud.IbmCloudAuth
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
@@ -12,7 +13,7 @@ import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ExchConfig, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{Configuration, ExchMsg}
 import scalacache._
 import scalacache.guava.GuavaCache
 import scalacache.modes.try_._
@@ -27,8 +28,9 @@ import scala.util.{Failure, Success, Try}
 object AuthCache /* extends Control with ServletApiImplicits */ {
   def logger: LoggingAdapter = ExchangeApi.defaultLogger
   implicit def executionContext: ExecutionContext = ExchangeApi.defaultExecutionContext
-
-  var cacheType = "" // set from the config file by ExchConfig.load(). Note: currently there is no other value besides guava
+  
+  // set from the config file by ExchConfig.load(). Note: currently there is no other value besides guava
+  val cacheType: String = Configuration.getConfig.getString("api.cache.type")
 
   // The unhashed and hashed values of the token are not always both set, but if they are they are in sync.
   final case class Tokens(unhashed: String, hashed: String)
@@ -40,8 +42,8 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     case class CacheVal(hashedToken: String, unhashedToken: String = "", idType: CacheIdType = CacheIdType.None)
 
     private val guavaCache: cache.Cache[String, Entry[CacheVal]] = CacheBuilder.newBuilder()
-                                                                               .maximumSize(ExchConfig.getInt("api.cache.idsMaxSize"))
-                                                                               .expireAfterWrite(ExchConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
+                                                                               .maximumSize(Configuration.getConfig.getInt("api.cache.idsMaxSize"))
+                                                                               .expireAfterWrite(Configuration.getConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
                                                                                .build[String, Entry[CacheVal]] // the cache key is <org>/<id>, and the value is CacheVal
     implicit val userCache: GuavaCache[CacheVal] = GuavaCache(guavaCache) // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
@@ -102,7 +104,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
       //val dbAction = NodesTQ.getToken(id).result
       val dbHashedTok: String = try {
         //logger.debug("awaiting for DB query of local exchange creds for "+id+"...")
-        val respVector: Seq[String] = Await.result(db.run(dbAction), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+        val respVector: Seq[String] = Await.result(db.run(dbAction), Duration(Configuration.getConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.debug("...back from awaiting for DB query of local exchange creds for "+id+".")
         if (respVector.nonEmpty) respVector.head else ""
       } catch {
@@ -170,7 +172,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
 
     private val guavaCache: cache.Cache[String, Entry[Boolean]] = CacheBuilder.newBuilder()
                                                                               .maximumSize(maxSize)
-                                                                              .expireAfterWrite(ExchConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
+                                                                              .expireAfterWrite(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
                                                                               .build[String, Entry[Boolean]] // the cache key is org/id, and the value is admin priv or isPublic
     implicit val userCache: GuavaCache[Boolean] = GuavaCache(guavaCache) // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
@@ -194,7 +196,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
       //val dbAction = UsersTQ.getAdmin(id).result
       try {
         //logger.debug("CacheBoolean:getId(): awaiting for DB query of local exchange bool value for "+id+"...")
-        val respVector: Seq[Boolean] = Await.result(db.run(getDbAction(id)), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+        val respVector: Seq[Boolean] = Await.result(db.run(getDbAction(id)), Duration(Configuration.getConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.debug("CacheBoolean:getId(): ...back from awaiting for DB query of local exchange bool value for "+id+".")
         if (respVector.nonEmpty) {
           val isValue: Boolean = respVector.head
@@ -228,19 +230,19 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     }
   } // end of class CacheBoolean
 
-  class CacheAdmin() extends CacheBoolean("admin", ExchConfig.getInt("api.cache.resourcesMaxSize")) {
+  class CacheAdmin() extends CacheBoolean("admin", Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[Boolean]] = UsersTQ.getAdmin(id).result
   }
 
-  class CacheHubAdmin() extends CacheBoolean("hubadmin", ExchConfig.getInt("api.cache.resourcesMaxSize")) {
+  class CacheHubAdmin() extends CacheBoolean("hubadmin", Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[Boolean]] = UsersTQ.getHubAdmin(id).result
   }
 
-  class CachePublicService() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourcesMaxSize")) {
+  class CachePublicService() extends CacheBoolean("public", Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[Boolean]] = ServicesTQ.getPublic(id).result
   }
 
-  class CachePublicPattern() extends CacheBoolean("public", ExchConfig.getInt("api.cache.resourcesMaxSize")) {
+  class CachePublicPattern() extends CacheBoolean("public", Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[Boolean]] = PatternsTQ.getPublic(id).result
   }
 
@@ -266,7 +268,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
 
     private val guavaCache: cache.Cache[String, Entry[String]] = CacheBuilder.newBuilder()
                                                                              .maximumSize(maxSize)
-                                                                             .expireAfterWrite(ExchConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
+                                                                             .expireAfterWrite(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
                                                                              .build[String, Entry[String]] // the cache key is org/id, and the value is the owner
     implicit val userCache: GuavaCache[String] = GuavaCache(guavaCache) // needed so ScalaCache API can find it. Another effect of this is that these methods don't need to be qualified
     private var db: Database = _
@@ -289,7 +291,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
       logger.debug("CacheOwner:getId(): " + id + " was not in the cache, so attempting to get it from the db")
       try {
         //logger.debug("CacheOwner:getId(): awaiting for DB query of local exchange admin value for "+id+"...")
-        val respVector: Seq[String] = Await.result(db.run(getDbAction(id)), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+        val respVector: Seq[String] = Await.result(db.run(getDbAction(id)), Duration(Configuration.getConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.debug("CacheOwner:getId(): ...back from awaiting for DB query of local exchange admin value for "+id+".")
         if (respVector.nonEmpty) {
           val owner: String = respVector.head
@@ -323,27 +325,27 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     }
   } // end of class CacheOwner
 
-  class CacheOwnerNode() extends CacheOwner(ExchConfig.getInt("api.cache.idsMaxSize")) {
+  class CacheOwnerNode() extends CacheOwner(Configuration.getConfig.getInt("api.cache.idsMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = NodesTQ.getOwner(id).result
   }
 
-  class CacheOwnerAgbot() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
+  class CacheOwnerAgbot() extends CacheOwner(Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = AgbotsTQ.getOwner(id).result
   }
 
-  class CacheOwnerService() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
+  class CacheOwnerService() extends CacheOwner(Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = ServicesTQ.getOwner(id).result
   }
 
-  class CacheOwnerPattern() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
+  class CacheOwnerPattern() extends CacheOwner(Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = PatternsTQ.getOwner(id).result
   }
 
-  class CacheOwnerBusiness() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
+  class CacheOwnerBusiness() extends CacheOwner(Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = BusinessPoliciesTQ.getOwner(id).result
   }
 
-  class CacheOwnerManagementPolicy() extends CacheOwner(ExchConfig.getInt("api.cache.resourcesMaxSize")) {
+  class CacheOwnerManagementPolicy() extends CacheOwner(Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
     def getDbAction(id: String): DBIO[Seq[String]] = ManagementPoliciesTQ.getOwner(id).result
   }
 
@@ -536,7 +538,6 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
   }
 
   def initAllCaches(db: Database, includingIbmAuth: Boolean): Unit = {
-    ExchConfig.createRoot(db)
     ids.init(db)
     usersAdmin.init(db)
     usersHubAdmin.init(db)
@@ -565,4 +566,23 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
   val patternsPublic = new CachePublicPattern()
   val businessPublic = new CachePublicBusiness()
   val managementPolicyPublic = new CachePublicManagementPolicy()
+  
+  // Put the root user in the auth cache in case the db has not been inited yet and they need to be able to run POST /admin/initdb
+  def createRootInCache(): Unit = {
+    val configRootPasswdHashed = {
+      try {
+        if(Configuration.getConfig.getBoolean("api.root.enabled"))
+          Password.hashIfNot(Configuration.getConfig.getString("api.root.password"))
+        else
+          ""
+      }
+      catch {
+        case _: Exception => ""
+      }
+    }
+    
+    putUser(Role.superUser, configRootPasswdHashed, "")
+    
+    logger.info("Root user from config.json added to the in-memory authentication cache")
+  }
 }

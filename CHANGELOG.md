@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.124.0] - 2024-09-14
+- Application configuration overhaul.
+  - Some database configuration changes are not backwards compatible. 
+- GET methods for Node resources no longer return passwords for admin user types, unless directly owned.
+- Added new rest paths for deployment patterns and policies aligning and clarifying these resources.
+  - `.../v1/orgs/<organization>/deployment/patterns/...`
+  - `.../v1/orgs/<organization>/deployment/policies/...`
+
 ## [2.123.0] - 2024-04-19
 - pekko-http-xml 1.0.0 -> 1.0.1
 - Reorganized class references in the Swagger documentation generator.

@@ -4,7 +4,7 @@ import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
 import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, ExchConfig, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, ExchMsg}
 import slick.dbio.DBIO
 
 import scala.concurrent.ExecutionContext
@@ -18,7 +18,7 @@ final case class PatchOrgRequest(orgType: Option[String],
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   def getAnyProblem(orgMaxNodes: Int): Option[String] = {
-    val exchangeMaxNodes: Int = ExchConfig.getInt("api.limits.maxNodes")
+    val exchangeMaxNodes: Int = Configuration.getConfig.getInt("api.limits.maxNodes")
     if (orgMaxNodes > exchangeMaxNodes) Some.apply(ExchMsg.translate("org.limits.cannot.be.over.exchange.limits", orgMaxNodes, exchangeMaxNodes))
     else None
   }

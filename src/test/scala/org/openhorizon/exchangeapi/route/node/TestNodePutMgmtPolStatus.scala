@@ -1,7 +1,6 @@
 package org.openhorizon.exchangeapi.route.node
 
 import org.openhorizon.exchangeapi
-import org.openhorizon.exchangeapi.{TestDBConnection}
 import org.checkerframework.checker.units.qual.s
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization.write
@@ -13,11 +12,11 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
-import org.openhorizon.exchangeapi.{TestDBConnection}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
@@ -28,10 +27,10 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
   private val AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodePutMgmtPolStatus" + "/" + "a1" + ":" + "a1pw"))
   private val AWAITDURATION: Duration = 15.seconds
   private val CONTENT: (String, String) = ("Content-Type","application/json")
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodePutMgmtPolStatus" + "/" + "n1" + ":" + "n1pw"))
   // private val ORGID = "TestNodePutMgmtPolStatus"
-  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodePutMgmtPolStatus" + "/" + "u1" + ":" + "u1pw"))
   
@@ -92,7 +91,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
   
   // Build test harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ += TESTORGANIZATION) andThen
+    Await.ready(DBCONNECTION.run((OrgsTQ += TESTORGANIZATION) andThen
                                        (UsersTQ += TESTUSER) andThen
                                        (NodesTQ += TESTNODE) andThen
                                        (ManagementPoliciesTQ += TESTMANAGEMENTPOLICY)), AWAITDURATION)
@@ -100,14 +99,12 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
   
   // Teardown test harness.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodePutMgmtPolStatus").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodePutMgmtPolStatus").delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestNodePutMgmtPolStatus").delete), AWAITDURATION)
-    
-    DBCONNECTION.getDb.close()
   }
   
   override def afterEach(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.filter(_.node === TESTNODE.id).delete andThen
+    Await.ready(DBCONNECTION.run(NodeMgmtPolStatuses.filter(_.node === TESTNODE.id).delete andThen
                                        ResourceChangesTQ.filter(_.orgId === TESTORGANIZATION.orgId).delete), AWAITDURATION)
   }
   
@@ -131,7 +128,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
     
     assert(response.code === HttpCode.PUT_OK.intValue)
     
-    val status: Seq[NodeMgmtPolStatusRow] = Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(TESTNODE.id, TESTMANAGEMENTPOLICY.managementPolicy).result), AWAITDURATION)
+    val status: Seq[NodeMgmtPolStatusRow] = Await.result(DBCONNECTION.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(TESTNODE.id, TESTMANAGEMENTPOLICY.managementPolicy).result), AWAITDURATION)
     
     assert(status.length === 1)
     
@@ -146,7 +143,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
     assert(status.head.softwareVersion      === requestBody.agentUpgradePolicyStatus.upgradedVersions.get.softwareVersion)
     assert(status.head.updated.isEmpty      === false)
   
-    val change: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestNodePutMgmtPolStatus").result), AWAITDURATION)
+    val change: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === "TestNodePutMgmtPolStatus").result), AWAITDURATION)
     
     assert(change.length === 1)
     
@@ -174,7 +171,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
                            status               = Option("in progress"),
                            updated              = ApiTime.pastUTC(120))
     
-    Await.ready(DBCONNECTION.getDb.run(NodeMgmtPolStatuses += mgmtPolStatus), AWAITDURATION)
+    Await.ready(DBCONNECTION.run(NodeMgmtPolStatuses += mgmtPolStatus), AWAITDURATION)
   
     val requestBody: PutNodeMgmtPolStatusRequest =
       PutNodeMgmtPolStatusRequest(
@@ -194,7 +191,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
     
     assert(response.code === HttpCode.PUT_OK.intValue)
     
-    val status: Seq[NodeMgmtPolStatusRow] = Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(TESTNODE.id, TESTMANAGEMENTPOLICY.managementPolicy).result), AWAITDURATION)
+    val status: Seq[NodeMgmtPolStatusRow] = Await.result(DBCONNECTION.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(TESTNODE.id, TESTMANAGEMENTPOLICY.managementPolicy).result), AWAITDURATION)
     
     assert(status.length === 1)
     
@@ -209,7 +206,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
     assert(status.head.softwareVersion      === requestBody.agentUpgradePolicyStatus.upgradedVersions.get.softwareVersion)
     assert(status.head.updated.isEmpty      === false)
     
-    val change: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "TestNodePutMgmtPolStatus").result), AWAITDURATION)
+    val change: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === "TestNodePutMgmtPolStatus").result), AWAITDURATION)
     
     assert(change.length === 1)
     
@@ -243,7 +240,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
   
     assert(response.code === HttpCode.PUT_OK.intValue)
   
-    val status: Seq[NodeMgmtPolStatusRow] = Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(TESTNODE.id, TESTMANAGEMENTPOLICY.managementPolicy).result), AWAITDURATION)
+    val status: Seq[NodeMgmtPolStatusRow] = Await.result(DBCONNECTION.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(TESTNODE.id, TESTMANAGEMENTPOLICY.managementPolicy).result), AWAITDURATION)
   
     assert(status.length === 1)
   
@@ -276,7 +273,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
     
     assert(response.code === HttpCode.PUT_OK.intValue)
     
-    val status: Seq[NodeMgmtPolStatusRow] = Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(TESTNODE.id, TESTMANAGEMENTPOLICY.managementPolicy).result), AWAITDURATION)
+    val status: Seq[NodeMgmtPolStatusRow] = Await.result(DBCONNECTION.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(TESTNODE.id, TESTMANAGEMENTPOLICY.managementPolicy).result), AWAITDURATION)
     
     assert(status.length === 1)
     

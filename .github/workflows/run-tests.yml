@@ -4,8 +4,9 @@ on:
   pull_request:
     branches:
       - master
-      - v2.87
+      - v2.122
       - v2.110
+      - v2.87
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -19,6 +20,7 @@ jobs:
       DOCKER_NETWORK: exchange-api-network
       DOCKER_REGISTRY: openhorizon
       EXCHANGE_FE_HEADER: issuer
+      EXCHANGE_PEKKO_LOGLEVEL: debug
       EXCHANGE_ROOTPW: ci-password
       POSTGRES_DB_NAME: exchange
       POSTGRES_DB_PORT: 5432

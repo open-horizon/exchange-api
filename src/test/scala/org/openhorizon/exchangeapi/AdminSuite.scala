@@ -6,7 +6,7 @@ import scala.util.matching.Regex
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.route.administration.{AdminHashpwResponse, GetAdminOrgStatusResponse, GetAdminStatusResponse}
 import org.openhorizon.exchangeapi.table.organization.OrgRow
-import org.openhorizon.exchangeapi.utility.ApiTime
+import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration}
 
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
@@ -52,7 +52,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   private val CONTENT             = ("Content-Type", "application/json")
   private val NODE: String        = "node"
   private val PATTERN: String     = "pattern"
-  private val ROOTAUTH            = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "") /* need to put this root pw in config.json */))
+  private val ROOTAUTH            = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val SERVICE: String     = "service"
   private val URL                 = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1"
   private val USERS: List[String] = List("admin", "user")

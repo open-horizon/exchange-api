@@ -21,7 +21,7 @@ import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPol
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, Version}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, Version}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
@@ -486,7 +486,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
             case Success(num) =>
               logger.debug("POST /orgs/" + organization + "/business/policies" + deploymentPolicy + " num owned by " + owner + ": " + num)
               val numOwned: Int = num
-              val maxBusinessPolicies: Int = ExchConfig.getInt("api.limits.maxBusinessPolicies")
+              val maxBusinessPolicies: Int = Configuration.getConfig.getInt("api.limits.maxBusinessPolicies")
               if (maxBusinessPolicies == 0 || numOwned <= maxBusinessPolicies) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                 reqBody.getDbInsert(resource, organization, owner).asTry
               }
@@ -669,7 +669,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
   
   
   val deploymentPolicy: Route =
-    path("orgs" / Segment / "business" / "policies" / Segment) {
+    path("orgs" / Segment / ("business" | "deployment") / "policies" / Segment) {
       (organization, deploymentPolicy) =>
         val resource: String = OrgAndId(organization, deploymentPolicy).toString
         

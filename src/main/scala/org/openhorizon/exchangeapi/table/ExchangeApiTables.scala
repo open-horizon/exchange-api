@@ -1,7 +1,10 @@
 package org.openhorizon.exchangeapi.table
 
 import org.apache.pekko.event.LoggingAdapter
+import org.json4s.{DefaultFormats, Formats, JObject, JString, JValue, _}
+import org.json4s.native.JsonMethods._
 import org.openhorizon.exchangeapi.ExchangeApiApp.system
+import org.openhorizon.exchangeapi.auth.{AuthCache, Password, Role}
 import org.openhorizon.exchangeapi.table.agent.AgentVersionsChangedTQ
 import org.openhorizon.exchangeapi.table.agent.certificate.AgentCertificateVersionsTQ
 import org.openhorizon.exchangeapi.table.agent.configuration.AgentConfigurationVersionsTQ
@@ -15,6 +18,7 @@ import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.search.SearchOffsetPolicyTQ
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
@@ -25,20 +29,25 @@ import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignme
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.NodeMgmtPolStatuses
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
-import org.openhorizon.exchangeapi.table.organization.OrgsTQ
-import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.schema.{SchemaRow, SchemaTQ}
 import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuthsTQ
 import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyTQ
 import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServicesTQ}
-import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg}
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg}
 import org.postgresql.util.PSQLException
-import slick.jdbc.PostgresProfile.api._
+//import slick.jdbc.PostgresProfile.api._
 
+import java.sql.Timestamp
+import java.time.ZoneId
+import scala.collection.mutable
 import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters.CollectionHasAsScala
 import scala.util.{Failure, Success}
 
 /** The umbrella class for the DB tables. The specific table classes are in the tables subdir. */
@@ -133,6 +142,173 @@ object ExchangeApiTables {
     sqlu"DROP TABLE IF EXISTS public.blockchains CASCADE",
     sqlu"DROP TABLE IF EXISTS public.bctypes CASCADE")
 
+  /** Create the root user in the DB. This is done separately from load() because we need the db execution context */
+  def createRoot(db: Database)(implicit logger: LoggingAdapter, executionContext: ExecutionContext): Unit = {
+    val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
+    val timeStamp: String = fixFormatting(changeTimestamp.toInstant.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("UTC")).toString)
+    val configHubAdmins: scala.collection.mutable.Map[String, UserRow] = mutable.Map.empty[String, UserRow]
+    
+    // IBM Cloud Account ID for the root Organization
+    val ibmCloudAcctID: Option[JValue] =
+      try {
+        Some(JObject("ibmcloud_id" -> JString(Configuration.getConfig.getString("api.root.account_id"))))
+      }
+      catch {
+        case _: Exception => None
+      }
+    
+    implicit val jsonFormats: Formats = DefaultFormats
+    
+    val InitialOrganizations =
+      Seq(OrgRow(description = "Organization containing IBM services",
+                 heartbeatIntervals = "",
+                 label = "IBM Org",
+                 lastUpdated = timeStamp,
+                 limits = "",
+                 orgId = "IBM",
+                 orgType = "IBM",
+                 tags = None),
+          OrgRow(description = "Organization for the root user only",
+                 heartbeatIntervals = "",
+                 label = "Root Org",
+                 lastUpdated = timeStamp,
+                 limits = "",
+                 orgId = "root",
+                 orgType = "",
+                 tags = ibmCloudAcctID))
+    
+    Configuration.getConfig.getObjectList("api.hubadmins").asScala.foreach({
+      hubAdminConfigObject =>
+        try {
+          val organization = hubAdminConfigObject.toConfig.getString("org")
+          val user = hubAdminConfigObject.toConfig.getString("user")
+          val resource = organization + "/" + user
+          
+          if(organization.nonEmpty && organization == "root") {
+            if(user.nonEmpty && user != "root") {
+              configHubAdmins += (resource ->
+                   UserRow(admin = false,
+                           email = "",
+                           hashedPw =
+                             try {
+                               Password.hashIfNot(hubAdminConfigObject.toConfig.getString("password"))
+                             }
+                             catch {
+                               case _: Exception => ""
+                             },
+                           hubAdmin = true,
+                           lastUpdated = timeStamp,
+                           orgid = organization,
+                           username = resource,
+                           updatedBy = ""))
+            }
+            else
+              logger.error(s"Hub Admin user cannot be root")
+          } else
+            logger.error(s"Hub Admin user {} must be a member of the root organization", resource)
+        }
+        catch {
+          case _: Exception =>
+            logger.error(s"Hub Admin user not created from configuration.")
+        }
+    })
+    
+    // Root is disabled on type mismatches, null values, and explicit disables in config.
+    val configRootPasswdHashed = {
+      try {
+        if(Configuration.getConfig.getBoolean("api.root.enabled"))
+            Password.hashIfNot(Configuration.getConfig.getString("api.root.password"))
+        else
+          ""
+      }
+      catch {
+        case _: Exception => ""
+      }
+    }
+    
+    val something =
+      for {
+        numOrgsUpdated <-
+          Compiled(OrgsTQ.filter(_.orgid === "root")
+                         .map(organization => (organization.lastUpdated, organization.tags)))
+                    .update((timeStamp, ibmCloudAcctID))
+        
+        organizationUpdated: Seq[ResourceChangeRow] =
+          if(numOrgsUpdated.equals(1))
+            Seq(ResourceChangeRow(category = ResChangeCategory.ORG.toString,
+                                  changeId = 0L,
+                                  id = "root",
+                                  lastUpdated = changeTimestamp,
+                                  operation = ResChangeOperation.MODIFIED.toString,
+                                  orgId = "root",
+                                  public = "false",
+                                  resource = ResChangeResource.ORG.toString))
+          else
+            Seq.empty[ResourceChangeRow]
+        
+        requiredOrgs <-
+          Compiled(OrgsTQ.filter(_.orgid inSet Seq("IBM", "root"))
+                         .map(_.orgid))
+                    .result
+        
+        createdOrgs <-
+          (OrgsTQ returning OrgsTQ.map(_.orgid)) ++=
+            InitialOrganizations.filterNot(organization =>
+                                            requiredOrgs.nonEmpty &&
+                                            requiredOrgs.contains(organization.orgId))
+        
+        organizationsCreated: Seq[ResourceChangeRow] =
+          organizationUpdated :++ createdOrgs.map(
+            organization =>
+              (ResourceChangeRow(category = ResChangeCategory.ORG.toString,
+                                 changeId = 0L,
+                                 id = organization,
+                                 lastUpdated = changeTimestamp,
+                                 operation = ResChangeOperation.CREATED.toString,
+                                 orgId = organization,
+                                 public = "false",
+                                 resource = ResChangeResource.ORG.toString))
+          )
+        
+        _ <-
+          ResourceChangesTQ ++= organizationsCreated
+        
+        numUsersUpdated <-
+          Compiled(UsersTQ.filter(_.username === "root/root")
+                          .map(user => (user.lastUpdated, user.password)))
+                    .update((timeStamp, configRootPasswdHashed))
+        
+        existingUsers <-
+          Compiled(UsersTQ.filter(_.orgid === "root")
+                          .map(_.username))
+                    .result
+        
+        createdUsers <-
+          (UsersTQ returning UsersTQ.map(_.username)) ++= {
+            if (numUsersUpdated == 1)
+              configHubAdmins.filterNot(hubadmin => existingUsers.contains(hubadmin._1)).values.toSeq
+            else
+              configHubAdmins.filterNot(hubadmin => existingUsers.contains(hubadmin._1)).values.toSeq :+
+              UserRow(admin = true, email = "", hashedPw = configRootPasswdHashed, hubAdmin = true, lastUpdated = timeStamp, orgid = "root", username = "root/root", updatedBy = "")
+          }
+        
+        _ = {
+          AuthCache.putUser(Role.superUser, configRootPasswdHashed, "")
+          for (user <- createdUsers.filterNot(_ == "root/root")) {
+            AuthCache.putUser(user, configHubAdmins(user).hashedPw, "")
+          }
+        }
+        
+      } yield()
+    
+    db.run(something.transactionally.asTry).map({
+      case Success(_) =>
+        logger.info("Successfully updated/inserted root org, root user, IBM org, and hub admins from config")
+      case Failure(t) =>
+        logger.error(s"Failed to update/insert root org, root user, IBM org, and hub admins from config: ${t.toString}")
+    })
+  }
+  
   /** Upgrades the db schema, or inits the db if necessary. Called every start up. */
   // The timeout exception that this can throw is handled by the caller of upgradeDb()
   def upgradeDb(db: Database)(implicit logger: LoggingAdapter, executionContext: ExecutionContext): Unit = {
@@ -186,7 +362,7 @@ object ExchangeApiTables {
                           else
                             ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.upgraded", t.toString))
                      }),
-                   Duration(ExchConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS)) // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete
+                   Duration(Configuration.getConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS)) // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete
     
     
     val initializeSchema =
@@ -241,7 +417,7 @@ object ExchangeApiTables {
                             ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.upgraded", t.toString))
                          }
                        }),
-                     Duration(ExchConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS))
+                     Duration(Configuration.getConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS))
       else
         ApiResponse(ApiRespType.OK, ExchMsg.translate("db.upgraded.successfully"))
     }
@@ -261,6 +437,8 @@ object ExchangeApiTables {
       logger.error("ERROR: failure to upgrade db: " + upgradeResult.msg)
       system.terminate()
     }
+    
+    createRoot(db)
   }
     /* The timeout exception that this can throw is handled by the caller of upgradeDb()
     val upgradeResult: ApiResponse = Await.result(db.run(SchemaTQ.getSchemaRow.result.asTry.flatMap({ xs =>
@@ -300,5 +478,5 @@ object ExchangeApiTables {
           else
             ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.not.upgraded", t.toString)) // we hit some problem
       }
-    }), Duration(ExchConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS)) // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete */
+    }), Duration(Configuration.getConfig.getInt("api.db.upgradeTimeoutSeconds"), SECONDS)) // this is the rest of Await.result(), wait 1 minute for db init/upgrade to complete */
 }

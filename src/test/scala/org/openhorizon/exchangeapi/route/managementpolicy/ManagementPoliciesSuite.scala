@@ -11,13 +11,13 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, HttpCode}
-import org.openhorizon.exchangeapi.{TestDBConnection}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.openhorizon.exchangeapi.auth.Role
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.mutable.ListBuffer
@@ -51,14 +51,14 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   val pw: String = user + "pw"
   val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(orguser + ":" + pw))
   val rootuser: String = Role.superUser
-  val rootpw: String = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
+  val rootpw: String = (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })      // need to put this root pw in config.json
   val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(rootuser + ":" + rootpw))
   val managementPolicy = "mymgmtpol"
   val orgManagementPolicy: String = authpref + managementPolicy
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
   val NOORGURL: String = urlRoot + "/v1"
   val orgsList = new ListBuffer[String]()
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
 
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
@@ -76,25 +76,23 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   
   // Begin building testing harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ += TESTORGANIZATION)), AWAITDURATION)
+    Await.ready(DBCONNECTION.run((OrgsTQ += TESTORGANIZATION)), AWAITDURATION)
   }
   
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "MgmtPolSuite").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "MgmtPolSuite").delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "MgmtPolSuite").delete), AWAITDURATION)
-    
-    DBCONNECTION.getDb.close()
   }
   
   // Nodes that are dynamically needed, specific to the test case.
   def fixtureNodes(testCode: Seq[NodeRow] => Any, testData: Seq[NodeRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(NodesTQ ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodesTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
   }
   
   //~~~~~ Clean up from previous run, and create orgs, users ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

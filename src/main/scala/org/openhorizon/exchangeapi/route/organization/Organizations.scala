@@ -10,13 +10,14 @@ import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, parameter, validate, _}
+import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.checkerframework.checker.units.qual.t
 import org.json4s._
 import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IAgbot, INode, IUser, IamAccountInfo, IbmCloudAuth, Identity, OrgAndId, TAction, TAgbot, TNode, TOrg}
+import org.openhorizon.exchangeapi.auth.cloud.{IamAccountInfo, IbmCloudAuth}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IAgbot, INode, IUser, Identity, OrgAndId, TAction, TAgbot, TNode, TOrg}
 import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmRequest
 import org.openhorizon.exchangeapi.route.node.{PostNodeErrorResponse, PostServiceSearchRequest, PostServiceSearchResponse}
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
@@ -32,7 +33,7 @@ import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.schema.SchemaTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, RouteUtils}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, RouteUtils}
 import org.openhorizon.exchangeapi.{ExchangeApi, table}
 
 import java.lang.IllegalCallerException

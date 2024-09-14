@@ -4,14 +4,14 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.{Directive, Directive0, Directive1, ValidationRejection}
 import org.openhorizon.exchangeapi.auth.Access.Access
-import org.openhorizon.exchangeapi.utility.{AuthRejection, ExchConfig}
+import org.openhorizon.exchangeapi.utility.{AuthRejection, Configuration}
 import org.openhorizon.exchangeapi.{ExchangeApi, ExchangeApiApp}
 import slick.jdbc.PostgresProfile.api._
 
 import java.util
 import java.util.Base64
 import javax.security.auth.Subject
-import javax.security.auth.login.{AppConfigurationEntry, Configuration, LoginContext}
+import javax.security.auth.login.{AppConfigurationEntry, LoginContext}
 import scala.concurrent.duration._
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 import scala.util._
@@ -55,7 +55,7 @@ object AuthenticationSupport {
       };
     But i had trouble getting it loaded from the docker image that the sbt-native-packager builds. So just putting the config in our code for now.
   */
-  val loginConfig: Configuration = new Configuration {
+  val loginConfig: javax.security.auth.login.Configuration = new javax.security.auth.login.Configuration {
     override def getAppConfigurationEntry(name: String): Array[AppConfigurationEntry] = {
       Array[AppConfigurationEntry](
         new AppConfigurationEntry("org.openhorizon.exchangeapi.auth.IbmCloudModule", AppConfigurationEntry.LoginModuleControlFlag.SUFFICIENT, new util.HashMap[String, String]()),
@@ -82,7 +82,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
   //    error 'Substream Source cannot be materialized more than once'. So if you use this directive, you'll have to use
   //    parse(request.body).extract[PatchNodesRequest] yourself to unmarshal the request body.
   def extractRawBodyAsStr: Directive1[String] = {
-    extractStrictEntity(Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS)).flatMap { entity =>
+    extractStrictEntity(Duration(Configuration.getConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS)).flatMap { entity =>
       provide(entity.data.utf8String)
     }
   }

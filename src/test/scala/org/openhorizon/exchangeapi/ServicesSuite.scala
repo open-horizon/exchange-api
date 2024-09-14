@@ -18,7 +18,7 @@ import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
 import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuth
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicy
 import org.openhorizon.exchangeapi.table.service.{OneProperty, ServiceRef}
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, HttpCode}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 
@@ -58,7 +58,7 @@ class ServicesSuite extends AnyFunSuite {
   val pw2 = user2+"pw"
   val USER2AUTH = ("Authorization","Basic "+ApiUtils.encode(orguser2+":"+pw2))
   val rootuser = Role.superUser
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
+  val rootpw = (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   val nodeId = "9912"     // the 1st node created, that i will use to run some rest methods
   val nodeToken = nodeId+"TokAbcDefGh1"
@@ -463,7 +463,7 @@ class ServicesSuite extends AnyFunSuite {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       ExchConfig.load()
-      val origMaxServices = ExchConfig.getInt("api.limits.maxServices")
+      val origMaxServices = Configuration.getConfig.getInt("api.limits.maxServices")
       info(origMaxServices.toString)
       val NOORGURL = urlRoot+"/v1"
 

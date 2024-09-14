@@ -6,7 +6,7 @@ import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, TAction}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import java.util.Properties
@@ -29,7 +29,7 @@ trait Configuration extends JacksonSupport with AuthenticationSupport {
         complete({
           val props = new Properties()
           props.setProperty(reqBody.varPath, reqBody.value)
-          ExchConfig.mod(props)
+          Configuration.reload(properties = props)
           (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("config.value.set")))
         }) // end of complete
     }

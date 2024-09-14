@@ -111,7 +111,7 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
     }
   
   val keysDeploymentPattern: Route =
-    path("orgs" / Segment / "patterns" / Segment / "keys") {
+    path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns") / Segment / "keys") {
       (organization, deploymentPattern) =>
         val resource: String = OrgAndId(organization, deploymentPattern).toString
         

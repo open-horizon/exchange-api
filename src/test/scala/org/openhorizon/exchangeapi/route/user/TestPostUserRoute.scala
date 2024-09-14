@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.user
 
-import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -11,10 +10,11 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
@@ -25,7 +25,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
   private val ACCEPT = ("Accept","application/json")
   private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val ROUTE = "/users/"
 
@@ -131,7 +131,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       )
     )
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
   private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORGADMINPASSWORD))
   private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORGUSERPASSWORD))
@@ -139,7 +139,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
   private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       (OrgsTQ ++= TESTORGS) andThen
       (UsersTQ ++= TESTUSERS) andThen
       (AgbotsTQ ++= TESTAGBOTS) andThen
@@ -148,16 +148,15 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       ResourceChangesTQ.filter(_.orgId startsWith "testPostUserRoute").delete andThen
         OrgsTQ.filter(_.orgid startsWith "testPostUserRoute").delete andThen
         UsersTQ.filter(_.username startsWith "root/TestPostUserRouteHubAdmin").delete
     ), AWAITDURATION)
-    DBCONNECTION.getDb.close()
   }
 
   override def afterEach(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       UsersTQ.filter(_.username startsWith (TESTORGS(0).orgId + "/newUser")).delete andThen
       UsersTQ.filter(_.username startsWith "root/TestPostUserRouteNewUser").delete
     ), AWAITDURATION)
@@ -183,7 +182,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.INTERNAL_ERROR.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === "doesNotExist/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === "doesNotExist/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- empty body -- 400 bad input") {
@@ -191,7 +190,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- null password -- 400 bad input") {
@@ -205,7 +204,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- null email -- 400 bad input") {
@@ -219,7 +218,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- blank password -- as org admin -- 400 bad input") {
@@ -235,7 +234,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(response.code === HttpCode.BAD_INPUT.intValue)
     val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
     assert(responseBody.msg === ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- blank password -- as root -- 201 OK") {
@@ -250,7 +249,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).head
     assert(newUser.username === TESTORGS(0).orgId + "/newUser")
     assert(newUser.orgid === TESTORGS(0).orgId)
     assert(newUser.updatedBy === "root/root") //updated by root
@@ -270,7 +269,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(response.code === HttpCode.BAD_INPUT.intValue)
     val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
     assert(responseBody.msg === ExchMsg.translate("only.super.users.make.hub.admins"))
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/root" + ROUTE + "TestPostUserRouteNewUser -- hub admin creates new hub admin -- 201 OK") {
@@ -285,7 +284,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username ===  "root/TestPostUserRouteNewUser").result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username ===  "root/TestPostUserRouteNewUser").result), AWAITDURATION).head
     assert(newUser.username === "root/TestPostUserRouteNewUser")
     assert(newUser.orgid === "root")
     assert(newUser.updatedBy === TESTUSERS(0).username) //updated by hub admin
@@ -305,7 +304,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(response.code === HttpCode.BAD_INPUT.intValue)
     val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
     assert(responseBody.msg === ExchMsg.translate("hub.admins.in.root.org"))
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/root" + ROUTE + "newUser -- try to create regular user in root org -- 400 bad input") {
@@ -315,7 +314,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(response.code === HttpCode.BAD_INPUT.intValue)
     val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
     assert(responseBody.msg === ExchMsg.translate("user.cannot.be.in.root.org"))
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === "root/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === "root/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- hub admin tries to create regular user -- 400 bad input") {
@@ -325,7 +324,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(response.code === HttpCode.BAD_INPUT.intValue)
     val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
     assert(responseBody.msg === ExchMsg.translate("hub.admins.only.write.admins"))
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/root" + ROUTE + "newUser -- try to make a user who is both admin and hub admin -- 400 bad input") {
@@ -341,7 +340,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(response.code === HttpCode.BAD_INPUT.intValue)
     val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
     assert(responseBody.msg === "User cannot be admin and hubAdmin at the same time")
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === "root/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === "root/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "orgUser -- try to create user with existing username -- 400 bad input") {
@@ -349,7 +348,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/orgUser").result), AWAITDURATION).length === 1) //insure only one exists
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/orgUser").result), AWAITDURATION).length === 1) //insure only one exists
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- as org admin -- 201 OK") {
@@ -364,7 +363,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).head
     assert(newUser.username === TESTORGS(0).orgId + "/newUser")
     assert(newUser.orgid === TESTORGS(0).orgId)
     assert(newUser.updatedBy === TESTUSERS(1).username) //updated by org admin
@@ -376,7 +375,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(1).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(1).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- as regular user -- 403 access denied") {
@@ -384,7 +383,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- as agbot -- 403 access denied") {
@@ -392,7 +391,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- as node -- 403 access denied") {
@@ -400,7 +399,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
 }

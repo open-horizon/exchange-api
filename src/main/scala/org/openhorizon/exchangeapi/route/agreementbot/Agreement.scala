@@ -15,7 +15,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Composit
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.{AgbotAgreement, AgbotAgreementsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import org.openhorizon.exchangeapi.table
 import slick.jdbc.PostgresProfile.api._
 
@@ -185,7 +185,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
-              val maxAgreements: Int = ExchConfig.getInt("api.limits.maxAgreements")
+              val maxAgreements: Int = Configuration.getConfig.getInt("api.limits.maxAgreements")
               val getNumOwnedDbio =
                 if (maxAgreements == 0)
                   DBIO.successful(0)

@@ -18,15 +18,15 @@ import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.ExchangeApiApp.{exchAuth, validateWithMsg}
 import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthCache, AuthRoles, AuthenticationSupport, BadInputException, DBProcessingError, IUser, Identity, OrgAndId, Password, ResourceNotFoundException, TNode}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PatternRow, Patterns, PatternsTQ}
+import org.openhorizon.exchangeapi.table.node.{Node, NodeRow, NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
-import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service.{SearchServiceKey, SearchServiceTQ, ServicesTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, VersionRange}
-import org.openhorizon.exchangeapi.{table}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, VersionRange}
+import org.openhorizon.exchangeapi.table
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{Compiled, CompiledExecutable}
@@ -199,33 +199,138 @@ trait Node extends JacksonSupport with AuthenticationSupport {
       parameter ("attribute".?) {
         attribute =>
         logger.debug(s"Doing GET /orgs/$organization/nodes/$node")
-        exchAuth(TNode(resource), Access.READ) { ident =>
-          val q = if (attribute.isDefined) NodesTQ.getAttribute(resource, attribute.get) else null
-          validate(attribute.isEmpty || q != null, ExchMsg.translate("node.name.not.in.resource")) {
+        exchAuth(TNode(resource), Access.READ) {
+          ident =>
             complete({
+              
+              val nodes =
+                NodesTQ.filter(_.id === resource)
+                       .filter(_.orgid === organization)
+                       .filterIf(!ident.isAdmin && !ident.role.equals(AuthRoles.Agbot) && !ident.role.equals(AuthRoles.Node))(_.owner === ident.identityString)
+                       .filterIf(ident.role.equals(AuthRoles.Node))(_.id === ident.identityString)
+                       //.filterIf(!(!ident.isMultiTenantAgbot && ident.role.equals(AuthRoles.Agbot)))(_.owner === ident.identityString)
+                       .map(node =>
+                         (node.arch,
+                          node.clusterNamespace,
+                          node.heartbeatIntervals,
+                          node.id,
+                          node.isNamespaceScoped,
+                          node.lastHeartbeat,
+                          node.lastUpdated,
+                          node.msgEndPoint,
+                          node.name,
+                          node.nodeType,
+                          //node.orgid,  TODO:
+                          node.owner,
+                          node.pattern,
+                          node.publicKey,
+                          node.regServices,
+                          node.softwareVersions,
+                          node.owner.toString() != ident.identityString match {
+                            case true => node.id.substring(0, 0) ++ "***************"  // Do NOT query the Token
+                            case _ => node.token
+                           },
+                          node.userInput))
+              
+              def validAttributes(attribute: String): Boolean =
+                attribute match {
+                  case "arch" |
+                       "clusterNamespace" |
+                       "ha_group" |
+                       "heartbeatIntervals" |
+                       "id" |
+                       "lastHeartbeat" |
+                       "lastUpdated" |
+                       "msgEndPoint" |
+                       "name" |
+                       "nodeType" |
+                       "owner" |
+                       "pattern" |
+                       "publicKey" |
+                       "registeredServices" |
+                       "softwareVersions" |
+                       "token" |
+                       "userInput" => true
+                  case _ => false
+                }
+                
               attribute match {
-                case Some(attr) => // Only returning 1 attr of the node
-                  val q = NodesTQ.getAttribute(resource, attr)
-                  if (q == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("not.a.node.attribute", attr))) else db.run(q.result).map({ list =>
-                    logger.debug("GET /orgs/" + organization + "/nodes/" + node + " attribute result: " + list.size)
-                    if (list.nonEmpty) (HttpCode.OK, GetNodeAttributeResponse(attr, list.head.toString)) else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))) // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
+                case Some(attribute) if attribute.nonEmpty && validAttributes(attribute) => // Only returning 1 attr of the node
+                  val filteredNodeAttribute =
+                    for {
+                      value <-
+                        if (attribute == "ha_group")
+                          (nodes joinLeft NodeGroupAssignmentTQ on ((someNode, assignment) => someNode._4 === assignment.node))
+                            .joinLeft(NodeGroupTQ).on(_._2.map(_.group) === _.group)    // ((A left Join B) Left Join C)
+                            .map(record => record._2.map(_.name).getOrElse(""))
+                        else if (attribute == "isNamespaceScoped")
+                          nodes.map(record => record._5.toString())
+                        else
+                          nodes.map(record =>
+                            attribute match {
+                              case "arch" => record._1
+                              case "clusterNamespace" => record._2.getOrElse("")
+                              case "heartbeatIntervals" => record._3
+                              case "id" => record._4
+                              case "lastHeartbeat" => record._6.getOrElse("")
+                              case "lastUpdated" => record._7
+                              case "msgEndPoint" => record._8
+                              case "name" => record._9
+                              case "nodeType" => record._10
+                              case "owner" => record._11
+                              case "pattern" => record._12
+                              case "publicKey" => record._13
+                              case "registeredServices" => record._14
+                              case "softwareVersions" => record._15
+                              case "token" => record._16
+                              case "userInput" => record._17})
+                    } yield((attribute, value))
+                  
+                  db.run(Compiled(filteredNodeAttribute).result.transactionally).map({
+                    result =>
+                      if (result.length == 1)
+                        (HttpCode.OK, GetNodeAttributeResponse(result.head._1, result.head._2))
+                      else
+                        (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))) // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
                   })
-                case None => // Return the whole node
-                  val q = for {((node, _), group) <- (NodesTQ.getNode(resource) joinLeft NodeGroupAssignmentTQ on (_.id === _.node)).joinLeft(NodeGroupTQ).on(_._2.map(_.group) === _.group)} yield (node, group.map(_.name))
-                  db.run(q.result).map({ list =>
-                    logger.debug("GET /orgs/" + organization + "/nodes/" + node + " result: " + list.size)
-                    if (list.nonEmpty) {
-                      //val nodes = NodesTQ.parseJoin(ident.isSuperUser, list)
-                      val nodes: Map[String, table.node.Node] = list.map(e => e._1.id -> e._1.toNode(ident.isSuperUser, e._2)).toMap
-                      (HttpCode.OK, GetNodesResponse(nodes, 0))
-                    } else {
-                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))) // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
-                    }
-                  })
-              }
-            }) // end of complete
-          } // end of validate
-        } // end of exchAuth
+                case _ => // Return the whole node
+                  val filteredNode =
+                    for {
+                      node <-
+                        (nodes joinLeft NodeGroupAssignmentTQ on ((someNode, assignment) => someNode._4 === assignment.node))
+                          .joinLeft(NodeGroupTQ).on(_._2.map(_.group) === _.group)    // ((A left Join B) Left Join C)
+                          .map(record =>
+                            (record._1._1._4,           // Node.id
+                              (record._1._1._1,          // Node.arch
+                                record._1._1._2,          // Node.clusterNamespace
+                                record._2.map(_.name),    // NodeGroup.group
+                                record._1._1._3,          // Node.heartbeatIntervals
+                                record._1._1._5,          // Node.isNamespaceScoped
+                                record._1._1._6,          // Node.lastHeartbeat
+                                record._1._1._7,          // Node.lastUpdated
+                                record._1._1._8,          // Node.msgEndPoint
+                                record._1._1._9,          // Node.name
+                                record._1._1._10,         // Node.nodeType
+                                // record._1._1._11,         // Node.orgid  TODO:
+                                record._1._1._11,         // Node.owner
+                                record._1._1._12,         // Node.pattern
+                                record._1._1._13,         // Node.publicKey
+                                record._1._1._14,         // Node.regServices
+                                record._1._1._15,         // Node.softwareVersions
+                                record._1._1._16,         // Node.token
+                                record._1._1._17)))       // Node.userInput
+                    } yield (node)
+                    
+                    db.run(Compiled(filteredNode).result.transactionally).map({
+                      result =>
+                        if (result.length == 1)
+                          (HttpCode.OK, GetNodesResponse((result.map(node => node._1 -> new org.openhorizon.exchangeapi.table.node.Node(node = node._2.copy())).toMap), 0))
+                        else
+                          (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))) // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
+                    })
+                }
+            })
+        }
       }
     }
   
@@ -774,7 +879,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   case Failure(t) => DBIO.failed(t).asTry
                   }).flatMap({ case Success(numOwned) => // Check if num nodes owned is below limit, then create/update node
                     logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " num owned: " + numOwned)
-                    val maxNodes: Int = ExchConfig.getInt("api.limits.maxNodes")
+                    val maxNodes: Int = Configuration.getConfig.getInt("api.limits.maxNodes")
                     if (maxNodes == 0 || numOwned <= maxNodes || owner == "") // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
                       NodesTQ.getLastHeartbeat(resource).result.asTry else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.nodes", maxNodes))).asTry
                   case Failure(t) => DBIO.failed(t).asTry
@@ -835,33 +940,33 @@ trait Node extends JacksonSupport with AuthenticationSupport {
      * additional overhead of adding the records in at the beginning and then removing the
      * records at the end.
      */
-  /*(ServicesTQ.filterIf(!ident.isSuperUser &&
-                       ident.isAdmin)
-                          (service =>
-                            (service.orgid === orgid ||
-                             service.public === true))
-             .filterIf(!(ident.isAdmin ||
-                         ident.isSuperUser ||
-                         ident.isHubAdmin))
-                            (service =>
-                              ((service.orgid === orgid ||
-                                service.public === true) &&
-                               service.owner === ident.identityString))
-             .map(service =>
-                    (service.arch,
-                      service.orgid,
-                      service.service,
-                      service.url,
-                      service.version)))
-    .filter({
-      service =>
-                                    servicesToSearch.foldLeft[Rep[Boolean]](false) {
-                                      case (matched, searchKey) =>
-                                        matched || ((service._1 like searchKey.architecture) &&
-                                              service._2 === searchKey.organization &&
-                                              service._4 === searchKey.domain &&
-                                                    (service._5 like searchKey.version))
-                                    }
-                                })
-                                .result*/
+  /* (ServicesTQ.filterIf(!ident.isSuperUser &&
+                          ident.isAdmin)
+                  (service =>
+                     (service.orgid === orgid ||
+                      service.public === true))
+                .filterIf(!(ident.isAdmin ||
+                            ident.isSuperUser ||
+                            ident.isHubAdmin))
+                  (service =>
+                    ((service.orgid === orgid ||
+                      service.public === true) &&
+                     service.owner === ident.identityString))
+                .map(service =>
+                  (service.arch,
+                   service.orgid,
+                   service.service,
+                   service.url,
+                   service.version)))
+       .filter({
+         service =>
+           servicesToSearch.foldLeft[Rep[Boolean]](false) {
+             case (matched, searchKey) =>
+               matched || ((service._1 like searchKey.architecture) &&
+                           service._2 === searchKey.organization &&
+                           service._4 === searchKey.domain &&
+                           (service._5 like searchKey.version))
+           }
+       })
+       .result */
 }

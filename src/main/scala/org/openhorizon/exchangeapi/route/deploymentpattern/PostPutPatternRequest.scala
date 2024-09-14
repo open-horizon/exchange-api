@@ -4,7 +4,7 @@ import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService, PServices, PatternRow, PatternsTQ}
 import org.openhorizon.exchangeapi.table.service.ServiceRef2
-import org.openhorizon.exchangeapi.utility.{ApiTime, ExchConfig, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, ExchMsg}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
@@ -30,9 +30,9 @@ final case class PostPutPatternRequest(label: String,
   // Note: write() handles correctly the case where the optional fields are None.
   def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
     // The nodeHealth field is optional, so fill in a default in each element of services if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
-    val agrChkDefault: Int = ExchConfig.getInt("api.defaults.pattern.check_agreement_status")
+    val agrChkDefault: Int = Configuration.getConfig.getInt("api.defaults.pattern.check_agreement_status")
     val agreementProtocols2: Option[List[Map[String, String]]] = agreementProtocols.orElse(Option(List(Map("name" -> "Basic"))))
-    val hbDefault: Int = ExchConfig.getInt("api.defaults.pattern.missing_heartbeat_interval")
+    val hbDefault: Int = Configuration.getConfig.getInt("api.defaults.pattern.missing_heartbeat_interval")
     val services2: Seq[PServices] =
       if (services.nonEmpty) {
         services.map({

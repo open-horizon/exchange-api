@@ -11,7 +11,7 @@ import jakarta.ws.rs.{POST, Path}
 import org.checkerframework.checker.units.qual.t
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, TAction}
 import org.openhorizon.exchangeapi.table.ExchangeApiTables
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -40,13 +40,12 @@ trait InitializeDatabase extends JacksonSupport with AuthenticationSupport{
                      new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def postInitializeDB: Route = {
     logger.debug("Doing POST /admin/initdb")
-    ExchConfig.createRootInCache() // need to do this before authenticating, because dropdb cleared it out (can not do this in dropdb, because it might expire)
     complete ({
       db.run(ExchangeApiTables.initDB.transactionally.asTry)
         .map({
           case Success(v) =>
             logger.debug(s"POST /admin/initdb result: $v")
-            ExchConfig.createRoot(db) // initialize the users table with the root user from config.json
+            ExchangeApiTables.upgradeDb(db = db)(logger = logger, executionContext = executionContext) // initialize the users table with the root user from config.json
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("db.init")))
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("db.not.init", t.toString))
@@ -59,6 +58,7 @@ trait InitializeDatabase extends JacksonSupport with AuthenticationSupport{
   val initializeDB: Route =
     path("admin" / "initdb") {
       post {
+        AuthCache.createRootInCache() // need to do this before authenticating, because dropdb cleared it out (can not do this in dropdb, because it might expire)
         exchAuth(TAction(), Access.ADMIN, hint = "token") {
           _ =>
             postInitializeDB

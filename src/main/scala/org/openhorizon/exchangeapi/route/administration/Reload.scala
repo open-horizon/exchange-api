@@ -12,7 +12,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{OPTIONS, POST, Path}
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Password, Role, TAction}
 import org.openhorizon.exchangeapi.table.ExchangeApiTables
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import java.util.Properties
@@ -47,7 +47,7 @@ trait Reload extends JacksonSupport with AuthenticationSupport {
   def postReload: Route = {
     logger.debug("Doing POST /admin/reload")
       complete({
-        ExchConfig.reload()
+        Configuration.reload()
         (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("reload.successful")))
       }) // end of complete
   }

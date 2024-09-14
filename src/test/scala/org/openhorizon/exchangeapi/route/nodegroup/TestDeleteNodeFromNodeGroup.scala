@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.nodegroup
 
-import org.openhorizon.exchangeapi.{TestDBConnection}
 import org.checkerframework.checker.units.qual.A
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.auth.Role
@@ -10,19 +9,12 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
-import slick.jdbc.PostgresProfile.api.{anyToShapedValue,
-                                       columnExtensionMethods,
-                                       columnToOrdered,
-                                       longColumnType,
-                                       queryDeleteActionExtensionMethods,
-                                       queryInsertActionExtensionMethods,
-                                       streamableQueryActionExtensionMethods,
-                                       stringColumnExtensionMethods,
-                                       stringColumnType}
+import slick.jdbc
+import slick.jdbc.PostgresProfile.api.{anyToShapedValue, columnExtensionMethods, columnToOrdered, longColumnType, queryDeleteActionExtensionMethods, queryInsertActionExtensionMethods, streamableQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType}
 
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -30,9 +22,9 @@ import scala.concurrent.duration.{Duration, DurationInt}
 class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT: (String, String) = ("Content-Type", "application/json")
   private val CONTENT: (String, String) = ACCEPT
-  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
@@ -99,26 +91,24 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
   
   
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGS) andThen
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
                                        (UsersTQ ++= TESTUSERS) andThen
                                        (NodesTQ ++= TESTNODES) andThen
                                        (NodeGroupTQ ++= TESTNODEGROUPS)), AWAITDURATION)
   
-    val nodeGroup: Long = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.head.name).map(_.group).result.head), AWAITDURATION)
+    val nodeGroup: Long = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.head.name).map(_.group).result.head), AWAITDURATION)
     val TESTNODEGROUPASSIGNMENTS: Seq[NodeGroupAssignmentRow] =
       Seq(NodeGroupAssignmentRow(group = nodeGroup,
                                  node = TESTNODES.head.id),
           NodeGroupAssignmentRow(group = nodeGroup,
                                  node = TESTNODES.last.id))
                                  
-    Await.ready(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS), AWAITDURATION)
+    Await.ready(DBCONNECTION.run(NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS), AWAITDURATION)
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteNodeFromNodeGroup").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteNodeFromNodeGroup").delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestDeleteNodeFromNodeGroup").delete), AWAITDURATION)
-    
-    DBCONNECTION.getDb.close()
   }
   
   test("DELETE /orgs/someorg/hagroup/ng0/nodes/n1 -- 404 not found - Bad Organization") {
@@ -152,11 +142,11 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
   
     assert(response.code === HttpCode.DELETED.intValue)
   
-    val nodeAssignments: Seq[NodeGroupAssignmentRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ.join(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId)).on(_.group === _.group).map(_._1).result), AWAITDURATION)
+    val nodeAssignments: Seq[NodeGroupAssignmentRow] = Await.result(DBCONNECTION.run(NodeGroupAssignmentTQ.join(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId)).on(_.group === _.group).map(_._1).result), AWAITDURATION)
     assert(nodeAssignments.size === 1)
     assert(nodeAssignments.head.node === TESTNODES(1).id)
   
-    val changeRecords: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS.head.orgId).sortBy(_.category.asc.nullsLast).result), AWAITDURATION)
+    val changeRecords: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS.head.orgId).sortBy(_.category.asc.nullsLast).result), AWAITDURATION)
     assert(changeRecords.size === 2)
   
     assert(changeRecords.head.category  === ResChangeCategory.NODEGROUP.toString)

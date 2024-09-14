@@ -15,7 +15,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSuppor
 import org.openhorizon.exchangeapi.table.deploymentpattern.{Pattern, PatternsTQ}
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
@@ -582,7 +582,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
               case Success(num) =>
                 logger.debug("POST /orgs/" + organization + "/patterns" + deploymentPattern + " num owned by " + owner + ": " + num)
                 val numOwned: Int = num
-                val maxPatterns: Int = ExchConfig.getInt("api.limits.maxPatterns")
+                val maxPatterns: Int = Configuration.getConfig.getInt("api.limits.maxPatterns")
                 if (maxPatterns == 0 || numOwned <= maxPatterns) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                   reqBody.toPatternRow(resource, organization, owner).insert.asTry
                 }
@@ -812,7 +812,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
     }
   
   val deploymentPattern: Route =
-    path("orgs" / Segment / "patterns" / Segment) {
+    path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns") / Segment) {
       (organization,
        deploymentPattern) =>
         val resource: String = OrgAndId(organization, deploymentPattern).toString

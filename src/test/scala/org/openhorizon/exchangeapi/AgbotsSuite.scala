@@ -18,7 +18,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.AAService
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PServiceVersions, PServices}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BServiceVersions}
 import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchConfig, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, Configuration, HttpCode}
 
 import scala.collection.mutable.ListBuffer
 //import org.json4s.JsonDSL._
@@ -59,7 +59,7 @@ class AgbotsSuite extends AnyFunSuite {
   val USERAUTH2 = ("Authorization","Basic "+ApiUtils.encode(authpref2+user+":"+pw))
   val BADAUTH = ("Authorization","Basic "+ApiUtils.encode(authpref+user+":"+pw+"x"))
   val rootuser = Role.superUser
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
+  val rootpw = (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   val agbotId = "9930"
   val orgagbotId = authpref+agbotId
@@ -855,8 +855,8 @@ class AgbotsSuite extends AnyFunSuite {
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/9952 - with low maxAgreements") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
-      ExchConfig.load()
-      val origMaxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
+      Configuration.reload()
+      val origMaxAgreements = Configuration.getConfig.getInt("api.limits.maxAgreements")
 
       // Change the maxAgreements config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxAgreements", "1")
@@ -1006,7 +1006,7 @@ class AgbotsSuite extends AnyFunSuite {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- done up above
-      val origMaxAgbots = ExchConfig.getInt("api.limits.maxAgbots")
+      val origMaxAgbots = Configuration.getConfig.getInt("api.limits.maxAgbots")
 
       // Change the maxAgbots config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxAgbots", "1")
@@ -1055,8 +1055,8 @@ class AgbotsSuite extends AnyFunSuite {
   test("PUT /orgs/"+orgid+"/changes - with low maxRecords") {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
-      ExchConfig.load()
-      val origMaxRecords = ExchConfig.getInt("api.resourceChanges.maxRecordsCap")
+      Configuration.reload()
+      val origMaxRecords = Configuration.getConfig.getInt("api.resourceChanges.maxRecordsCap")
       val newMaxRecords = 1
       // Change the maxNodes config value in the svr
       var configInput = AdminConfigRequest("api.resourceChanges.maxRecordsCap", newMaxRecords.toString)
@@ -1082,7 +1082,7 @@ class AgbotsSuite extends AnyFunSuite {
       response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.PUT_OK.intValue)
-      val origMaxRecords2 = ExchConfig.getInt("api.resourceChanges.maxRecordsCap")
+      val origMaxRecords2 = Configuration.getConfig.getInt("api.resourceChanges.maxRecordsCap")
       assert(origMaxRecords == origMaxRecords2)
     }
   }

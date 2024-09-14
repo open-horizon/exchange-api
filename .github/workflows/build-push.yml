@@ -7,8 +7,9 @@ on:
   push:
     branches:
       - master
-      - v2.87
+      - v2.122
       - v2.110
+      - v2.87
 
 # Variables available to all jobs
 env:
@@ -23,7 +24,7 @@ jobs:
   # This job will build and then push to docker hub
   build-push:
     # The type of runner the job will run on
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     
     steps:
       # Ensure that the repo variables and secrets are set before running any other steps

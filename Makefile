@@ -188,7 +188,7 @@ target/localhost.crt: target/docker/stage/Dockerfile
     printf "[dn]\nCN=localhost\n[req]\ndistinguished_name = dn\n[EXT]\nsubjectAltName=DNS:localhost\nkeyUsage=digitalSignature\nextendedKeyUsage=serverAuth")
 
 
-/etc/horizon/exchange/localhost.p12: /etc/horizon/exchange target/localhost.crt
+/etc/horizon/exchange/localhost.p12: target/localhost.crt
 	openssl pkcs12 -export -out target/localhost.p12 -in target/localhost.crt -inkey target/localhost.key -aes-256-cbc -passout pass:$(EXCHANGE_TRUST_PW)
 	chmod o+r target/localhost.p12
 	sudo chown root:root target/localhost.p12
@@ -201,21 +201,22 @@ truststore: /etc/horizon/exchange/localhost.p12
 # Run -------------------------------------------------------------------------
 ## Run - Docker -----------------------
 ## For Continuous Integration testing
-target/docker/.run-docker: /etc/horizon/exchange/config-http.json target/docker/.docker-network
-	sudo -- bash -c "cp /etc/horizon/exchange/config-http.json /etc/horizon/exchange/config.json"
+#-e EXCHANGE_DB_HOST=$(POSTGRES_CONTAINER_ADDRESS) \
+#-e EXCHANGE_DB_NAME=$(POSTGRES_DB_NAME) \
+#-e EXCHANGE_DB_USER=$(POSTGRES_DB_USER)
+target/docker/.run-docker: target/docker/.docker-network
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
       -d -t \
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
-      -e EXCHANGE_DB_HOST=$(POSTGRES_CONTAINER_ADDRESS) \
+      -e "EXCHANGE_DB_HOST=$$POSTGRES_CONTAINER_ADDRESS" \
       -e EXCHANGE_DB_NAME=$(POSTGRES_DB_NAME) \
       -e EXCHANGE_DB_PORT=$(POSTGRES_DB_PORT) \
       -e EXCHANGE_DB_USER=$(POSTGRES_DB_USER) \
       -e EXCHANGE_PEKKO_HTTP_PORT=$(EXCHANGE_CONTAINER_PORT_HTTP) \
-      -e EXCHANGE_PEKKO_LOGLEVEL=$(EXCHANGE_LOG_LEVEL) \
+      -e "EXCHANGE_PEKKO_LOGLEVEL=$$EXCHANGE_PEKKO_LOGLEVEL" \
       -e "EXCHANGE_ROOT_PW=$$EXCHANGE_ROOT_PW" \
-      -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
 
@@ -224,7 +225,6 @@ run-docker: target/docker/.run-docker
 
 ## config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
 target/docker/.run-docker-icp-https: target/docker/.docker-network /etc/horizon/exchange/localhost.p12 target/docker/.run-docker-db-postgres-https
-	sudo -- bash -c "cp /etc/horizon/exchange/config-https.json /etc/horizon/exchange/config.json"
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
@@ -243,9 +243,8 @@ target/docker/.run-docker-icp-https: target/docker/.docker-network /etc/horizon/
       -e EXCHANGE_TLS_TRUSTSTORE=/etc/horizon/exchange/localhost.p12 \
       -e "JAVA_OPTS=$(JAVA_OPTS)" \
       -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
-      -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) \
-      -v $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12:ro \
+      -v /etc/horizon/exchange/localhost.p12:$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12:ro \
       -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) \
       $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
@@ -256,22 +255,18 @@ run-docker-icp-https: target/docker/.run-docker-icp-https
 ## config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Bind-mounting it with read-only permissions prevents the container from attempting to overwrite it.
 #
 target/docker/.run-docker-icp: target/docker/.docker-network
-	sudo -- bash -c "cp /etc/horizon/exchange/config-http.json /etc/horizon/exchange/config.json"
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
       -d -t \
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
-      -e EXCHANGE_DB_HOST=$(POSTGRES_CONTAINER_ADDRESS) \
-      -e EXCHANGE_DB_NAME=$(POSTGRES_DB_NAME) \
-      -e EXCHANGE_DB_PORT=$(POSTGRES_DB_PORT) \
-      -e EXCHANGE_DB_USER=$(POSTGRES_DB_USER) \
-      -e EXCHANGE_PEKKO_HTTP_PORT=$(EXCHANGE_CONTAINER_PORT_HTTP) \
+      -e "EXCHANGE_DB_NAME=$$EXCHANGE_DB_NAME" \
+      -e "EXCHANGE_DB_PW=$$EXCHANGE_DB_PW" \
+      -e "EXCHANGE_DB_USER=$$EXCHANGE_DB_USER" \
       -e EXCHANGE_PEKKO_LOGLEVEL=$(EXCHANGE_LOG_LEVEL) \
       -e "EXCHANGE_ROOT_PW=$$EXCHANGE_ROOT_PW" \
       -e "JAVA_OPTS=$(JAVA_OPTS)" \
       -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
-      -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
 

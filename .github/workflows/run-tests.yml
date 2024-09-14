@@ -34,6 +34,8 @@ jobs:
       # Comes from open source action: https://github.com/coursier/setup-action
       - name: Setup Scala
         uses: coursier/setup-action@v1
+        with:
+          jvm: openjdk:17
 
       - name: Create Docker Env
         run: |

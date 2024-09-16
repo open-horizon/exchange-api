@@ -309,7 +309,7 @@ docker-push-version-only:
 # Must an Exchange instance running locally or in docker
 .PHONY: test
 test:
-	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
+	: $${EXCHANGE_ROOT_PW:?}   # this verifies these env vars are set
 	sbt test
 
 

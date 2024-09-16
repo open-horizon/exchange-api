@@ -51,8 +51,4 @@ jobs:
           make run-docker
           docker ps -a
           docker network ls
-          export EXCHANGE_CONTAINER=$(docker ps -aqf 'name=amd64_exchange-api')
-          echo ---- EXCHANGE CONTAINER LOG ----
-          docker logs $EXCHANGE_CONTAINER
-          echo --------
           make test

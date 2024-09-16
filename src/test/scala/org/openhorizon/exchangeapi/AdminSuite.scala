@@ -64,7 +64,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   private val orgsList            = List(ORGS.head)
   private var resources           = new ListBuffer[String]()
 
-  implicit val FORMATS            = DefaultFormats // Brings in default date formats etc.
+  implicit val FORMATS: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
   val TESTORGS: Seq[OrgRow] =
     Seq(OrgRow(description = "AdminSuite Test Organization",

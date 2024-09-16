@@ -29,7 +29,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
   private val ROUTE1 = "/users/"
   private val ROUTE2 = "/changepw"
 
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORG1ADMINPASSWORD = "org1adminpassword"

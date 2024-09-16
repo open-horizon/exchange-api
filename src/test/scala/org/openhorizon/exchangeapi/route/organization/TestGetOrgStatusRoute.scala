@@ -30,7 +30,7 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ROUTE = "/status"
   private val SCHEMAVERSION: Int = Await.result(DBCONNECTION.run(SchemaTQ.getSchemaVersion.result), AWAITDURATION).head
 
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val USER1PASSWORD = "user1password"

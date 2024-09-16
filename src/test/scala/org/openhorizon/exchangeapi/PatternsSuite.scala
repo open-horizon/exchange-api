@@ -151,7 +151,7 @@ class PatternsSuite extends AnyFunSuite {
   val secondsAgo = 120
   val orgsList = List(orgid, orgid2, orgid3)
 
-  implicit val formats = DefaultFormats // Brings in default date formats etc.
+  implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
   /** Delete all the test users */
   def deleteAllUsers() = {

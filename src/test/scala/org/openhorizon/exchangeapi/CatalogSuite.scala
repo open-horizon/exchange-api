@@ -28,7 +28,7 @@ import scala.collection.mutable.ListBuffer
 @RunWith(classOf[JUnitRunner])
 class CatalogSuite extends AnyFunSuite {
 
-  implicit val formats = DefaultFormats // Brings in default date formats etc.
+  implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
   val localUrlRoot = "http://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)

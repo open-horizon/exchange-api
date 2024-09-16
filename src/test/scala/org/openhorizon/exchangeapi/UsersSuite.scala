@@ -113,7 +113,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
   val orgadmin = "orgadmin"
   val orgsList = ListBuffer(orgid, orgid2)
 
-  implicit val formats = DefaultFormats // Brings in default date formats etc.
+  implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
   //todo: figure out how to run https client requests and add those to all the test suites
 

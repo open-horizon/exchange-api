@@ -33,16 +33,6 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
   private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val ROUTE = "/hagroups/"
-  
-  println("EXCHANGE_DB_HOST:  " + sys.env.getOrElse("EXCHANGE_DB_HOST", "NONE"))
-  println("exchange-db-connection.properties.serverName:  " + Configuration.getConfig.getString("exchange-db-connection.properties.serverName"))
-  println("EXCHANGE_DB_NAME:  " + sys.env.getOrElse("EXCHANGE_DB_NAME", "NONE"))
-  println("exchange-db-connection.properties.databaseName:  " + Configuration.getConfig.getString("exchange-db-connection.properties.databaseName"))
-  println("EXCHANGE_DB_PORT:  " + sys.env.getOrElse("EXCHANGE_DB_PORT", "NONE"))
-  println("exchange-db-connection.properties.portNumber:  " + Configuration.getConfig.getString("exchange-db-connection.properties.portNumber"))
-  println("EXCHANGE_DB_PW:  " + (if(sys.env.getOrElse("EXCHANGE_DB_PORT", "NONE") == "NONE") "NONE" else "*******"))
-  println("EXCHANGE_DB_USER:  " + sys.env.getOrElse("EXCHANGE_DB_USER", "NONE"))
-  println("exchange-db-connection.properties.user:  " + Configuration.getConfig.getString("exchange-db-connection.properties.user"))
 
 
   private implicit val formats: DefaultFormats.type = DefaultFormats

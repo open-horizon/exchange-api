@@ -15,16 +15,18 @@ jobs:
     # The type of runner that the job will run on
     runs-on: ubuntu-latest
     env:
-      GOPATH: /home/runner/work/anax/anax/go
       DEBIAN_FRONTEND: noninteractive
       DOCKER_NETWORK: exchange-api-network
       DOCKER_REGISTRY: openhorizon
-      EXCHANGE_FE_HEADER: issuer
-      EXCHANGE_PEKKO_LOGLEVEL: debug
-      EXCHANGE_ROOT_PW: ci-password
       EXCHANGE_DB_NAME: exchange
+      # ((Core Count * 2) + Spindle Count); Default is 20
+      EXCHANGE_DB_NUMTHREADS: 9
       EXCHANGE_DB_PORT: 5432
       EXCHANGE_DB_USER: admin
+      EXCHANGE_PEKKO_LOGLEVEL: debug
+      EXCHANGE_ROOT_PW: ci-password
+      GOPATH: /home/runner/work/anax/anax/go
+
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -48,7 +50,9 @@ jobs:
           export EXCHANGE_DB_HOST=$POSTGRES_CONTAINER_ADDRESS
           make run-docker
           docker ps -a
-          export EXCHANGE_CONTAINER=$(docker ps -aqf "name=amd64_exchange-api")
-          docker logs $EXCHANGE_CONTAINER
           docker network ls
+          export EXCHANGE_CONTAINER=$(docker ps -aqf 'name=amd64_exchange-api')
+          echo ---- EXCHANGE CONTAINER LOG ----
+          docker logs $EXCHANGE_CONTAINER
+          echo --------
           make test

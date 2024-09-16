@@ -26,7 +26,7 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ROUTE1 = "/users/"
   private val ROUTE2 = "/confirm"
 
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORGADMINPASSWORD = "orgadminpassword"

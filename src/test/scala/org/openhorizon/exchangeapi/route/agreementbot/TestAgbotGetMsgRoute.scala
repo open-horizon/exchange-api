@@ -28,7 +28,7 @@ class TestAgbotGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/TestAgbotGetMsgRoute/agbots/a1/msgs/"
   
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
   
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestAgbotGetMsgRoute/a1",

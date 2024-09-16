@@ -21,7 +21,7 @@ jobs:
       DOCKER_REGISTRY: openhorizon
       EXCHANGE_FE_HEADER: issuer
       EXCHANGE_PEKKO_LOGLEVEL: debug
-      EXCHANGE_ROOTPW: ci-password
+      EXCHANGE_ROOT_PW: ci-password
       POSTGRES_DB_NAME: exchange
       POSTGRES_DB_PORT: 5432
       POSTGRES_DB_USER: admin
@@ -29,11 +29,14 @@ jobs:
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
       - uses: actions/checkout@v3
+      - uses: coursier/cache-action@v6
       
       # Setup Scala
       # Comes from open source action: https://github.com/coursier/setup-action
       - name: Setup Scala
         uses: coursier/setup-action@v1
+        with:
+          jvm: adoptium:1.17
 
       - name: Create Docker Env
         run: |
@@ -42,6 +45,7 @@ jobs:
           make docker-network
           docker run -d -e POSTGRES_HOST_AUTH_METHOD=trust -e POSTGRES_DB=$POSTGRES_DB_NAME -e POSTGRES_USER=$POSTGRES_DB_USER --network $DOCKER_NETWORK --name postgres postgres
           export POSTGRES_CONTAINER_ADDRESS=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' postgres)
+          export EXCHANGE_DB_HOST=$POSTGRES_CONTAINER_ADDRESS
           make run-docker
           docker ps -a
           docker network ls

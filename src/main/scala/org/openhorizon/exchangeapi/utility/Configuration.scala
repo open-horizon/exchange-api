@@ -28,6 +28,7 @@ case object Configuration {
     val config = ConfigFactory.load(configResource)
     
     config.checkValid(ConfigFactory.defaultReference(), "api")
+    config.checkValid(ConfigFactory.defaultReference(), "exchange-db-connection")
     
     config
   }
@@ -45,6 +46,7 @@ case object Configuration {
     val config = ConfigFactory.parseProperties(properties, ConfigParseOptions.defaults()).withFallback(ConfigFactory.load(configResource))
     
     config.checkValid(ConfigFactory.defaultReference(), "api")
+    config.checkValid(ConfigFactory.defaultReference(), "exchange-db-connection")
     
     config
   }

@@ -48,5 +48,7 @@ jobs:
           export EXCHANGE_DB_HOST=$POSTGRES_CONTAINER_ADDRESS
           make run-docker
           docker ps -a
+          export EXCHANGE_CONTAINER=$(docker ps -aqf "name=amd64_exchange-api")
+          docker logs $EXCHANGE_CONTAINER
           docker network ls
           make test

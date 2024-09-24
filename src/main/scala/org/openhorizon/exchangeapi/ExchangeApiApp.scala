@@ -187,17 +187,7 @@ object ExchangeApiApp extends App
   
   implicit val system: ActorSystem = ActorSystem("actors", ConfigFactory.load("exchange")) // includes the loglevel
   
-  val serviceHost = system.settings.config.getString("api.service.host")
-  val servicePortEncrypted =
-    if (system.settings.config.hasPath("pekko.http.server.default-https-port"))
-      Option(system.settings.config.getInt("pekko.http.server.default-https-port"))
-    else
-      None
-  val servicePortUnencrypted =
-    if (system.settings.config.hasPath("pekko.http.server.default-http-port"))
-      Option(system.settings.config.getInt("pekko.http.server.default-http-port"))
-    else
-      None
+  
   
   implicit val executionContext: ExecutionContext = system.dispatcher
   ExchangeApi.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit
@@ -511,6 +501,7 @@ object ExchangeApiApp extends App
   
   var serverBindingHttp: Option[Http.ServerBinding] = None
   var serverBindingHttps: Option[Http.ServerBinding] = None
+  val serviceHost = system.settings.config.getString("api.service.host")
   
   val truststore: Option[String] =
     try {
@@ -576,7 +567,7 @@ object ExchangeApiApp extends App
     }
   }
   
-  if(servicePortUnencrypted.isDefined) {
+  if(system.settings.config.hasPath("pekko.http.server.default-http-port")) {
     Http().newServerAt(serviceHost, -1) // pekko.http.server.default-http-port
           .bind(routes) //.bind(cors.corsHandler(routes))
           .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))

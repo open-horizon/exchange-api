@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.route.nodegroup
 
 import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
-import org.openhorizon.exchangeapi.{TestDBConnection, table}
+import org.openhorizon.exchangeapi.table
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ, NodeGroups}
@@ -10,11 +10,12 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import slick.dbio.{Effect, NoStream}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api.{anyToShapedValue, columnExtensionMethods, columnToOrdered, longColumnType, queryDeleteActionExtensionMethods, queryInsertActionExtensionMethods, streamableQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType}
 import slick.sql.FixedSqlAction
 
@@ -28,9 +29,9 @@ import scala.math.Ordered.orderingToOrdered
 class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAndAfterEach {
   private val ACCEPT: (String, String) = ("Content-Type", "application/json")
   private val CONTENT: (String, String) = ACCEPT
-  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
@@ -227,7 +228,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
   
   // Build test harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGS) andThen
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
                                        (UsersTQ ++= TESTUSERS) andThen
                                        (NodesTQ ++= TESTNODES) andThen
                                        (NodeGroupTQ ++= TESTNODEGROUPS)), AWAITDURATION)
@@ -235,25 +236,23 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
   
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
-     Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteNodeGroup").delete andThen
+     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestDeleteNodeGroup").delete andThen
                                         OrgsTQ.filter(_.orgid startsWith "TestDeleteNodeGroup").delete), AWAITDURATION)
-    
-    DBCONNECTION.getDb.close()
   }
   
   override def afterEach(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPutNodeGroup").delete), AWAITDURATION)
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPutNodeGroup").delete), AWAITDURATION)
   }
   
   // Node Groups that are dynamically needed, specific to the test case.
   def fixtureNodeGroups(testCode: Seq[NodeGroupRow] => Any, testData: Seq[NodeGroupRow]): Any = {
     var nodeGroups: Seq[NodeGroupRow] = Seq()
     try {
-      nodeGroups = Await.result(DBCONNECTION.getDb.run((NodeGroupTQ returning NodeGroupTQ) ++= testData), AWAITDURATION)
+      nodeGroups = Await.result(DBCONNECTION.run((NodeGroupTQ returning NodeGroupTQ) ++= testData), AWAITDURATION)
       testCode(nodeGroups)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.group inSet nodeGroups.map(_.group)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.group inSet nodeGroups.map(_.group)).delete), AWAITDURATION)
   }
   
   test("DELETE /orgs/TestDeleteNodeGroup/hagroups/randomgroup -- 404 not found - bad group - root") {
@@ -282,7 +281,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
     
     fixtureNodeGroups(
       assignedTestNodeGroups => {
-        Await.ready(DBCONNECTION.getDb.run(
+        Await.ready(DBCONNECTION.run(
           NodeGroupAssignmentTQ += NodeGroupAssignmentRow(group = assignedTestNodeGroups.head.group,
                                                           node = TESTNODES.head.id)), AWAITDURATION)
         
@@ -292,17 +291,17 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
         
         assert(response.code === HttpCode.DELETED.intValue)
         
-        val nodeGroups: Seq[NodeGroupRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).result), AWAITDURATION)
+        val nodeGroups: Seq[NodeGroupRow] = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).result), AWAITDURATION)
         assert(nodeGroups.sizeIs == 1)
   
         assert(nodeGroups.head.organization === TESTNODEGROUPS.head.organization)
         assert(nodeGroups.head.lastUpdated === TESTNODEGROUPS.head.lastUpdated)
         assert(nodeGroups.head.name === TESTNODEGROUPS.head.name)
         
-        val assignedNodes: Seq[NodeGroupAssignmentRow] = Await.result(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ.filter(_.group === assignedTestNodeGroups.head.group).result), AWAITDURATION)
+        val assignedNodes: Seq[NodeGroupAssignmentRow] = Await.result(DBCONNECTION.run(NodeGroupAssignmentTQ.filter(_.group === assignedTestNodeGroups.head.group).result), AWAITDURATION)
         assert(assignedNodes.sizeIs == 0)
         
-        val changes: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTNODEGROUP.head.organization).sortBy(change => (change.category.asc.nullsLast, change.id.asc.nullsLast)).result), AWAITDURATION)
+        val changes: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTNODEGROUP.head.organization).sortBy(change => (change.category.asc.nullsLast, change.id.asc.nullsLast)).result), AWAITDURATION)
         assert(changes.sizeIs == 2)
   
         assert(changes.head.category === ResChangeCategory.NODEGROUP.toString)
@@ -336,7 +335,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
   
     fixtureNodeGroups(
       assignedTestNodeGroups => {
-        Await.ready(DBCONNECTION.getDb.run(
+        Await.ready(DBCONNECTION.run(
           NodeGroupAssignmentTQ += NodeGroupAssignmentRow(group = assignedTestNodeGroups.head.group,
                                                           node = TESTNODES.head.id)), AWAITDURATION)
       
@@ -358,7 +357,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                        organization = TESTORGS.head.orgId))
     
     fixtureNodeGroups(assignedTestNodeGroups => {
-      Await.ready(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ += NodeGroupAssignmentRow(group = assignedTestNodeGroups.head.group,
+      Await.ready(DBCONNECTION.run(NodeGroupAssignmentTQ += NodeGroupAssignmentRow(group = assignedTestNodeGroups.head.group,
                                                                                          node = TESTNODES(3).id)), AWAITDURATION)
       
       val response: HttpResponse[String] = Http(URL + TESTNODEGROUP.head.organization + "/hagroups/" + TESTNODEGROUP.head.name).method("delete").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode("TestDeleteNodeGroup/u1" + ":" + "u1pw"))).asString

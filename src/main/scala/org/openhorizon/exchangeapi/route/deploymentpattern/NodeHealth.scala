@@ -135,7 +135,7 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
     }
   
   val nodeHealthDeploymentPattern: Route =
-    path("orgs" / Segment / "patterns" / Segment / "nodehealth") {
+    path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns") / Segment / "nodehealth") {
       (organization,
        deploymentPattern) =>
         post {

@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.route.node
 
-import org.openhorizon.exchangeapi.{TestDBConnection, table}
+import org.openhorizon.exchangeapi.table
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.openhorizon.exchangeapi.auth.Role
@@ -10,11 +10,11 @@ import org.openhorizon.exchangeapi.table.node.message.{NodeMsgRow, NodeMsgsTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
-import org.openhorizon.exchangeapi.TestDBConnection
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
@@ -23,12 +23,12 @@ import scala.concurrent.duration.{Duration, DurationInt}
 class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   // private val ORGID = "TestNodeGetMsgRoute"
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/TestNodeGetMsgRoute/nodes/n1/msgs/"
   
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
   
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestNodeGetMsgRoute/a1",
@@ -85,7 +85,7 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   
   
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
                                        (UsersTQ ++= TESTUSERS) andThen
                                        (AgbotsTQ += TESTAGBOT) andThen
                                        (NodesTQ ++= TESTNODES) andThen
@@ -93,10 +93,8 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodeGetMsgRoute").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodeGetMsgRoute").delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestNodeGetMsgRoute").delete), AWAITDURATION)
-    
-    DBCONNECTION.getDb.close()
   }
   
   
@@ -109,7 +107,7 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   
   test("GET /orgs/" + "TestNodeGetMsgRoute" + "/nodes/" + "n1" + "/msgs/{msgid} -- Message") {
     val TESTNODEMESSAGEID: Int =
-      Await.result(DBCONNECTION.getDb.run(NodeMsgsTQ
+      Await.result(DBCONNECTION.run(NodeMsgsTQ
                                                     .filter(_.agbotId === TESTNODEMESSAGES(0).agbotId)
                                                     .filter(_.agbotPubKey === TESTNODEMESSAGES(0).agbotPubKey)
                                                     .filter(_.nodeId === TESTNODEMESSAGES(0).nodeId)

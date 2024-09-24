@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.DefaultFormats
@@ -9,10 +8,11 @@ import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
@@ -22,10 +22,10 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs"
 
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val USERPASSWORD = "userpassword"
@@ -106,22 +106,21 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
       )
     )
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
   private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USERPASSWORD))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       (OrgsTQ ++= TESTORGS) andThen
         (UsersTQ ++= TESTUSERS)), AWAITDURATION
     )
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetOrgsRoute").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetOrgsRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testGetOrgsRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/TestGetOrgsRouteHubAdmin").delete), AWAITDURATION)
-    DBCONNECTION.getDb.close()
   }
 
   def assertOrgsEqual(org1: Org, org2: OrgRow): Unit = {

@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.nodegroup
 
-import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
@@ -11,10 +10,11 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
@@ -24,7 +24,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT: (String, String) = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val ROUTE = "/hagroups"
 
@@ -235,7 +235,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
 
   //since 'group' is dynamically set when Node Groups are added to the DB, we must define NodeGroupAssignments after Node Groups are added (dynamically in beforeAll())
 
-  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val HUBADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
   private val ORGADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORGADMINPASSWORD))
   private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + USERPASSWORD))
@@ -243,15 +243,15 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
   private val AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       (OrgsTQ ++= TESTORGS) andThen
       (UsersTQ ++= TESTUSERS) andThen
       (AgbotsTQ ++= TESTAGBOTS) andThen
       (NodesTQ ++= TESTNODES) andThen
       (NodeGroupTQ ++= TESTNODEGROUPS)
     ), AWAITDURATION)
-    val mainGroup: Long = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS(1).name).result), AWAITDURATION).head.group
-    val nodeGroupAdmin: Long = Await.result(DBCONNECTION.getDb.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.last.name).result), AWAITDURATION).head.group
+    val mainGroup: Long = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS(1).name).result), AWAITDURATION).head.group
+    val nodeGroupAdmin: Long = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.last.name).result), AWAITDURATION).head.group
     val TESTNODEGROUPASSIGNMENTS: Seq[NodeGroupAssignmentRow] =
       Seq(NodeGroupAssignmentRow(group = mainGroup,
                                  node = TESTNODES.head.id),
@@ -264,16 +264,15 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
           NodeGroupAssignmentRow(group = nodeGroupAdmin,
                                  node = TESTNODES.last.id))
     
-    Await.ready(DBCONNECTION.getDb.run(NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS), AWAITDURATION)
+    Await.ready(DBCONNECTION.run(NodeGroupAssignmentTQ ++= TESTNODEGROUPASSIGNMENTS), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       ResourceChangesTQ.filter(_.orgId startsWith "testGetAllNodeGroupsRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testGetAllNodeGroupsRoute").delete andThen
       UsersTQ.filter(_.username startsWith TESTUSERS(0).username).delete
     ), AWAITDURATION)
-    DBCONNECTION.getDb.close()
   }
 
   test("GET /orgs/doesNotExist" + ROUTE + " -- 404 NOT FOUND") {

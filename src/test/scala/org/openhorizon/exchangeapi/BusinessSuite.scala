@@ -20,7 +20,7 @@ import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BServiceVer
 import org.openhorizon.exchangeapi.table.node.{Prop, RegService}
 import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
 import org.openhorizon.exchangeapi.table.service.OneProperty
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, HttpCode}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http._
@@ -63,7 +63,7 @@ class BusinessSuite extends AnyFunSuite {
   val pw2 = user2+"pw"
   val USER2AUTH = ("Authorization","Basic "+ApiUtils.encode(orguser2+":"+pw2))
   val rootuser = Role.superUser
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
+  val rootpw = (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   val nodeId = "9913"     // the 1st node created, that i will use to run some rest methods
   val nodeToken = nodeId+"TokAbcDefGh1234"
@@ -92,7 +92,7 @@ class BusinessSuite extends AnyFunSuite {
   val secondsAgo = 120
   val orgsList = new ListBuffer[String]()
 
-  implicit val formats = DefaultFormats // Brings in default date formats etc.
+  implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
   /** Delete all the test users */
   def deleteAllUsers() = {
@@ -798,7 +798,7 @@ class BusinessSuite extends AnyFunSuite {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
-      val origMaxBusinessPolicies = ExchConfig.getInt("api.limits.maxBusinessPolicies")
+      val origMaxBusinessPolicies = Configuration.getConfig.getInt("api.limits.maxBusinessPolicies")
       info(origMaxBusinessPolicies.toString)
       // Change the maxMessagesInMailbox config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxBusinessPolicies", "1")

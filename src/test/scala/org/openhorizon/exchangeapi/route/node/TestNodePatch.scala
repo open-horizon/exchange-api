@@ -13,11 +13,11 @@ import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service.{ServiceRow, ServicesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
-import org.openhorizon.exchangeapi.TestDBConnection
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import java.time.ZoneId
@@ -29,10 +29,10 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
   private val ADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodePatch" + "/" + "u2" + ":" + "u2pw"))
   private val AWAITDURATION: Duration = 15.seconds
   private val CONTENT: (String, String) = ("Content-Type","application/json")
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodePatch" + "/" + "n2" + ":" + "n2tok"))
   // private val ORGID = "TestNodePatch"
-  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodePatch" + "/" + "u1" + ":" + "u1pw"))
   
@@ -295,25 +295,23 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
   
   
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
                                        (UsersTQ ++= TESTUSERS) andThen
                                        (PatternsTQ ++= TESTPATTERNS) andThen
                                        (ServicesTQ ++= TESTSERVICES)), AWAITDURATION)
   }
   
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodePatch").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodePatch").delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestNodePatch").delete), AWAITDURATION)
-    
-    DBCONNECTION.getDb.close()
   }
   
   
   def fixtureNodes(testCode: Seq[NodeRow] => Any, testData: Seq[NodeRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(NodesTQ ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodesTQ ++= testData), AWAITDURATION)
       testCode(testData)
-    } finally Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
+    } finally Await.result(DBCONNECTION.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
   }
   
   
@@ -553,7 +551,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.arch === testnodes(0).arch)
         assert(node.clusterNamespace.isDefined)
@@ -575,7 +573,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         assert(node.token === testnodes(0).token)
         assert(node.userInput === testnodes(0).userInput)
         
-        val change: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId like "TestNodePatch").result), AWAITDURATION)
+        val change: Seq[ResourceChangeRow] = Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId like "TestNodePatch").result), AWAITDURATION)
         assert(change.length === 1)
         
         assert(change.head.category === ResChangeCategory.NODE.toString)
@@ -629,7 +627,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.arch === testnodes(0).arch)
         assert(node.clusterNamespace === testnodes(0).clusterNamespace)
@@ -700,7 +698,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.arch === testnodes(0).arch)
         assert(node.clusterNamespace === testnodes(0).clusterNamespace)
@@ -764,7 +762,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.msgEndPoint === input.msgEndPoint.get)
       }, testnodes)
@@ -895,7 +893,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(Password.check(plainPw = input.token.get, hashedPw = node.token) === true)
       }, testnodes)
@@ -983,7 +981,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(Password.check(plainPw = input.token.get, hashedPw = node.token) === true)
       }, testnodes)
@@ -1030,7 +1028,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.name === input.name.get)
       }, testnodes)
@@ -1077,7 +1075,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.nodeType === input.nodeType.get)
       }, testnodes)
@@ -1124,7 +1122,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1170,7 +1168,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1216,7 +1214,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1262,7 +1260,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1308,7 +1306,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1354,7 +1352,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1400,7 +1398,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1489,7 +1487,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1535,7 +1533,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1581,7 +1579,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1669,7 +1667,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1758,7 +1756,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1804,7 +1802,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -1934,7 +1932,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -2023,7 +2021,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -2069,7 +2067,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -2199,7 +2197,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.pattern === input.pattern.get)
       }, testnodes)
@@ -2288,7 +2286,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.publicKey === input.publicKey.get)
       }, testnodes)
@@ -2334,7 +2332,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.publicKey === input.publicKey.get)
       }, testnodes)
@@ -2380,7 +2378,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.publicKey === input.publicKey.get)
       }, testnodes)
@@ -2510,7 +2508,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         
         assert(node.publicKey === input.publicKey.get)
       }, testnodes)
@@ -2577,7 +2575,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         val services: Seq[RegService] = parse(node.regServices).extract[Seq[RegService]]
         assert(services.nonEmpty)
         assert(services.length === 2)
@@ -2651,7 +2649,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         val versions: Map[String, String] = parse(node.softwareVersions).extract[Map[String, String]]
         assert(versions.nonEmpty)
         assert(versions.size === 2)
@@ -2732,7 +2730,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         assert(node.userInput.nonEmpty)
         
         val userInputs: Seq[OneUserInputService] = parse(node.userInput).extract[Seq[OneUserInputService]]
@@ -2812,7 +2810,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         assert(node.userInput.nonEmpty)
         
         val userInputs: Seq[OneUserInputService] = parse(node.userInput).extract[Seq[OneUserInputService]]
@@ -3133,7 +3131,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
         
         assert(response.code === HttpCode.POST_OK.intValue)
         
-        val node: NodeRow = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
+        val node: NodeRow = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === testnodes.head.id).result), AWAITDURATION).head
         assert(node.userInput.nonEmpty)
         
         val userInputs: Seq[OneUserInputService] = parse(node.userInput).extract[Seq[OneUserInputService]]

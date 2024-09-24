@@ -10,7 +10,7 @@ import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, get, path, parameter, post, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, get, parameter, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s._
 import org.json4s.jackson.Serialization.write
@@ -22,7 +22,7 @@ import org.openhorizon.exchangeapi.table.service.dockerauth.{ServiceDockAuth, Se
 import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
 import org.openhorizon.exchangeapi.table.service.policy.{ServicePolicy, ServicePolicyTQ}
 import org.openhorizon.exchangeapi.table.service.{Service, ServiceRef, ServicesTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
@@ -315,7 +315,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
               case Success(num) =>
                 logger.debug("POST /orgs/" + organization + "/services num owned by " + owner + ": " + num)
                 val numOwned: Int = num
-                val maxServices: Int = ExchConfig.getInt("api.limits.maxServices")
+                val maxServices: Int = Configuration.getConfig.getInt("api.limits.maxServices")
                 if (maxServices == 0 || maxServices >= numOwned) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                   reqBody.toServiceRow(service, organization, owner).insert.asTry
                 }

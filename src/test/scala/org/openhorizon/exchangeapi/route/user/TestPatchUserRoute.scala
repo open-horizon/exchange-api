@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.user
 
-import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -11,10 +10,11 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
@@ -25,11 +25,11 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
   private val ACCEPT = ("Accept","application/json")
   private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val ROUTE = "/users/"
 
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORG1ADMINPASSWORD = "org1adminpassword"
@@ -151,7 +151,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
       )
     )
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
   private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1ADMINPASSWORD))
   private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG1USERPASSWORD))
@@ -159,7 +159,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
   private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       (OrgsTQ ++= TESTORGS) andThen
         (UsersTQ ++= TESTUSERS) andThen
         (AgbotsTQ ++= TESTAGBOTS) andThen
@@ -168,16 +168,15 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       ResourceChangesTQ.filter(_.orgId startsWith "testPatchUserRoute").delete andThen
         OrgsTQ.filter(_.orgid startsWith "testPatchUserRoute").delete andThen
         UsersTQ.filter(_.username startsWith "root/TestPatchUserRouteHubAdmin").delete
     ), AWAITDURATION)
-    DBCONNECTION.getDb.close()
   }
 
   override def afterEach(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       TESTUSERS(0).updateUser() andThen
         TESTUSERS(2).updateUser() andThen
         TESTUSERS(4).updateUser
@@ -185,7 +184,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
   }
 
   def assertNoChanges(user: UserRow): Unit = {
-    val dbUser: UserRow = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === user.username).result), AWAITDURATION).head
+    val dbUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === user.username).result), AWAITDURATION).head
     assert(dbUser.username === user.username)
     assert(dbUser.orgid === user.orgid)
     assert(dbUser.hashedPw === user.hashedPw)
@@ -263,7 +262,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
     assert(newUser.username === TESTUSERS(2).username)
     assert(newUser.orgid === TESTORGS(0).orgId)
     assert(newUser.updatedBy === "root/root") //updated by root
@@ -334,7 +333,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTUSERS(0).username).result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(0).username).result), AWAITDURATION).head
     assert(newUser.username === TESTUSERS(0).username)
     assert(newUser.orgid === TESTUSERS(0).orgid)
     assert(newUser.updatedBy === "root/root") //updated by root
@@ -389,7 +388,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTUSERS(4).username).result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(4).username).result), AWAITDURATION).head
     assert(newUser.username === TESTUSERS(4).username)
     assert(newUser.orgid === TESTUSERS(4).orgid)
     assert(newUser.updatedBy === TESTUSERS(1).username) //updated by org admin
@@ -414,7 +413,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
     assert(newUser.username === TESTUSERS(2).username)
     assert(newUser.orgid === TESTUSERS(2).orgid)
     assert(newUser.updatedBy === TESTUSERS(2).username) //updated by self
@@ -462,7 +461,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
     assert(newUser.username === TESTUSERS(2).username)
     assert(newUser.orgid === TESTUSERS(2).orgid)
     assert(newUser.updatedBy === "root/root") //updated by root
@@ -485,7 +484,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
     assert(newUser.username === TESTUSERS(2).username)
     assert(newUser.orgid === TESTUSERS(2).orgid)
     assert(newUser.updatedBy === "root/root") //updated by root

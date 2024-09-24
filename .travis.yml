@@ -1,9 +1,9 @@
 services: docker
 language: scala
 dist: focal
-jdk: openjdk11
+jdk: openjdk17
 scala:
-  - 2.13.5
+  - 2.13.14
 notifications:
   slack:
     secure: nPoYZ8FqRziV5+rQAc9GXFWtNsThBbOdxYOY8HpPwNWsWHtC2ZyPJBnNE6XIkmzR7+D5U8yOYqlk2CiqYLlSwa1+bqKuAyOBBhz51pDi8z+YXsjvgTpkxVmKv8N6jntAqo5eBFbVUW+/FPhKBD6qZIkbfRyThZSNZTSTv9oZ02Ynfb4NKuXgZeuinSotOaICiCvzfY4kYoe7EKss/XY6ON8qHUOcIQBsckDHrFEYwF270qNEIccZIkrOr3PKg3mXz2n+65T5i/UDNw3Z8RKDc32Y+TCfyAc3kyuQQYhKhL6/TLwAW/IPNGaFkUfR+2FH+C1VlLJpm1/mBj6uDvHBVRHSEL3ZofYFd5TTzUqkQRINATRQNpFNfjlMT3ifJrSyopKXyMsiea2y3EvM4/D3I5pHRvX2/BqidjJV3b5UIllirq/jk4PrCKshkKEZtC0CBNj4T8ewa9Qr3IxlKTFVHwnW1RWQmAXgFDFpbDzJ4vuLbUDhAKDXukWqoiwxTC3egMPQVnEFvxHVDAqdQUztsUjtg3LVXagLLl6+tYTwY53124aUXSkQMbANL+2ISZuRmg4dheTtaK/bE8L4dCQyyy7HFh03IbZGnGz3bhpDGxTBFAhnEQ4XWzYNpz8rEr0unvQTfBt2dUq4AH5bh1QseFh77lpBYWj9jxndZMbP9Pw=
@@ -17,6 +17,7 @@ env:
   DOCKER_NETWORK=exchange-api-network
   DOCKER_REGISTRY=openhorizon
   EXCHANGE_FE_HEADER=issuer
+  EXCHANGE_PEKKO_LOGLEVEL=debug
   EXCHANGE_ROOTPW=ci-password
   POSTGRES_DB=exchange
   POSTGRES_PORT=5432
@@ -37,7 +38,6 @@ before_script:
 - 'sudo bash -c "echo ''{ \"api\": { \"db\": { \"jdbcUrl\": \"jdbc:postgresql://$POSTGRES_HOST:$POSTGRES_PORT/$POSTGRES_DB\",
   \"user\": \"$POSTGRES_USER\" }, \"root\": { \"password\": \"$EXCHANGE_ROOTPW\",
   \"frontEndHeader\": \"$EXCHANGE_FE_HEADER\" } } }'' > /etc/horizon/exchange/config.json"'
-- cat /etc/horizon/exchange/config.json
 - unset SBT_OPTS
 - make travis-test
 

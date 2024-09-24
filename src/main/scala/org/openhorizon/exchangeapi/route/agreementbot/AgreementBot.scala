@@ -15,7 +15,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSuppor
 import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import org.openhorizon.exchangeapi.table
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
@@ -158,7 +158,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                                xs =>
                                  logger.debug("PUT /orgs/" + organization + "/agbots/" + agreementBot + " num owned: " + xs)
                                  val numOwned: Int = xs
-                                 val maxAgbots: Int = ExchConfig.getInt("api.limits.maxAgbots")
+                                 val maxAgbots: Int = Configuration.getConfig.getInt("api.limits.maxAgbots")
                                  if (maxAgbots == 0 ||
                                      numOwned <= maxAgbots ||
                                      owner == "") { // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway

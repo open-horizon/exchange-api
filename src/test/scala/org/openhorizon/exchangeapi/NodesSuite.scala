@@ -32,9 +32,10 @@ import org.openhorizon.exchangeapi.table.node.group.assignment.PostPutNodeGroups
 import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service.{OneProperty, ServicesTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchConfig, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{Await, Future}
@@ -81,7 +82,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   val USERAUTH2 = ("Authorization", "Basic " + ApiUtils.encode(org2user + ":" + pw))
   val BADAUTH = ("Authorization", "Basic " + ApiUtils.encode(orguser + ":" + pw + "x"))
   val rootuser = Role.superUser
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
+  val rootpw = (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   val nodeId = "n1"     // the 1st node created, that i will use to run some rest methods
   val orgnodeId = authpref+nodeId
@@ -153,7 +154,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   val orgsList = List(orgid, orgid2, orgid3)
   
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   
   implicit val formats: Formats = DefaultFormats.withLong // Brings in default date formats etc.
   
@@ -161,15 +162,13 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   
   // Teardown test harness.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(record =>
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(record =>
                                                                 ((record.orgId startsWith "NodesSuiteTests") || (record.orgId startsWith "NodeSuit") ||
                                                                   (record.category === ResChangeCategory.SERVICE.toString &&
                                                                    record.orgId === "IBM" &&
                                                                    record.id === (ibmService + "_" + svcversion2 + "_" + svcarch2)))).delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "NodesSuiteTests").delete andThen
                                        ServicesTQ.filter(_.service === "IBM/" + ibmService + "_" + svcversion2 + "_" + svcarch2).delete), AWAITDURATION)
-    
-    DBCONNECTION.getDb.close()
   }
   
   
@@ -183,7 +182,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   def patchNodePublicKey(nodeid: String, publicKey: String): Unit = {
-    val result: Int = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === nodeid).map(_.publicKey).update(publicKey)), AWAITDURATION)
+    val result: Int = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === nodeid).map(_.publicKey).update(publicKey)), AWAITDURATION)
     
     // val jsonInput = """{ "publicKey": """"+publicKey+"""" }"""
     // val response = Http(URL + "/nodes/" + nodeid).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -192,7 +191,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   def patchNodePattern(nodeid: String, pattern: String): Unit = {
-    val result: Int = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id === nodeid).map(_.pattern).update(pattern)), AWAITDURATION)
+    val result: Int = Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === nodeid).map(_.pattern).update(pattern)), AWAITDURATION)
     
     // val jsonInput = """{ "pattern": """"+pattern+"""" }"""
     // val response = Http(URL + "/nodes/" + nodeid).postData(jsonInput).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -404,7 +403,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   
   //~~~~~ Create nodes ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
-  ExchConfig.load()
+  Configuration.reload()
   
   test("PUT /orgs/"+orgid+"/nodes/iamapikey - add node with id iamapikey - should fail") {
     val input = PutNodesRequest(nodeToken, "bad", None, "", None, None, None, None, "", None, None)
@@ -2468,7 +2467,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
-      val origMaxAgreements = ExchConfig.getInt("api.limits.maxAgreements")
+      val origMaxAgreements = Configuration.getConfig.getInt("api.limits.maxAgreements")
 
       // Change the maxAgreements config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxAgreements", "1")
@@ -2521,7 +2520,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
-      val origMaxNodes = ExchConfig.getInt("api.limits.maxNodes")
+      val origMaxNodes = Configuration.getConfig.getInt("api.limits.maxNodes")
 
       // Change the maxNodes config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxNodes", "2")
@@ -2869,7 +2868,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
-      val origMaxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+      val origMaxMessagesInMailbox = Configuration.getConfig.getInt("api.limits.maxMessagesInMailbox")
 
       // Change the maxMessagesInMailbox config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", "3")
@@ -2911,7 +2910,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
       // Get the current config value so we can restore it afterward
       // ExchConfig.load  <-- already do this earlier
-      val origMaxMessagesInMailbox = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+      val origMaxMessagesInMailbox = Configuration.getConfig.getInt("api.limits.maxMessagesInMailbox")
 
       // Change the maxMessagesInMailbox config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxMessagesInMailbox", "3")
@@ -3354,7 +3353,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.OK.intValue)
     val responseBody = parse(response.body).extract[GetNodesResponse].nodes
     assert(responseBody.contains(orgid+"/"+nodeId))
-    assert(responseBody(orgid+"/"+nodeId).ha_group.get === "ng")
+    assert(responseBody(orgid+"/"+nodeId).ha_group.getOrElse("") === "ng")
   }
 
   test("GET /orgs/"+orgid+"/nodes - make sure node group is in response body") {
@@ -3364,7 +3363,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.OK.intValue)
     val responseBody = parse(response.body).extract[GetNodesResponse].nodes
     assert(responseBody.contains(orgid+"/"+nodeId))
-    assert(responseBody(orgid+"/"+nodeId).ha_group.get === "ng")
+    assert(responseBody(orgid+"/"+nodeId).ha_group.getOrElse("") === "ng")
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId+" - get only node group") {

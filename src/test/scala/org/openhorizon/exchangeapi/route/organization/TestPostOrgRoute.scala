@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -9,10 +8,11 @@ import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, ExchConfig, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
@@ -23,10 +23,10 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
   private val ACCEPT = ("Accept","application/json")
   private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
 
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val USER1PASSWORD = "user1password"
@@ -67,23 +67,22 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
       )
     )
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
   private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USER1PASSWORD))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       (OrgsTQ ++= TESTORGS) andThen
       (UsersTQ ++= TESTUSERS)), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       ResourceChangesTQ.filter(_.orgId startsWith "TEMPtestPostOrgRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "TEMPtestPostOrgRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/TestPostOrgRouteHubAdmin").delete //this guy doesn't get deleted on cascade
     ), AWAITDURATION)
-    DBCONNECTION.getDb.close()
   }
 
   private val orgId: String = "testPostOrgRoute1"
@@ -103,7 +102,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     ))
 
   override def afterEach(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       ResourceChangesTQ.filter(_.orgId startsWith "testPostOrgRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testPostOrgRoute").delete), AWAITDURATION)
   }
@@ -119,7 +118,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
 
   def assertCreatedEntryExists(orgId: String): Unit = {
     assert(
-      Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      Await.result(DBCONNECTION.run(ResourceChangesTQ
         .filter(_.orgId === orgId)
         .filter(_.id === orgId)
         .filter(_.category === ResChangeCategory.ORG.toString)
@@ -136,9 +135,9 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
+    assert(Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
   }
 
   test("POST /orgs/" + orgId + " -- null label -- 400 bad input") {
@@ -154,9 +153,9 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
+    assert(Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
   }
 
   //error message "requirement failed" isn't very descriptive here
@@ -173,13 +172,13 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
+    assert(Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
   }
 
   test("POST /orgs/" + orgId + " -- max nodes too large -- 400 bad input") {
-    val exchangeMaxNodes: Int = ExchConfig.getInt("api.limits.maxNodes")
+    val exchangeMaxNodes: Int = Configuration.getConfig.getInt("api.limits.maxNodes")
     val requestBody: PostPutOrgRequest = PostPutOrgRequest(
       orgType = None,
       label = "label",
@@ -192,9 +191,9 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
+    assert(Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
   }
 
   test("POST /orgs/" + orgId + " as root -- normal success") {
@@ -202,7 +201,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val newOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === orgId).take(1).result), AWAITDURATION).head
+    val newOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === orgId).take(1).result), AWAITDURATION).head
     assert(newOrg.orgId === orgId)
     assertOrgsEqual(normalRequestBody, newOrg)
     assertCreatedEntryExists(orgId)
@@ -213,7 +212,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.POST_OK.intValue)
-    val newOrg: OrgRow = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === orgId).take(1).result), AWAITDURATION).head
+    val newOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === orgId).take(1).result), AWAITDURATION).head
     assert(newOrg.orgId === orgId)
     assertOrgsEqual(normalRequestBody, newOrg)
     assertCreatedEntryExists(orgId)
@@ -224,10 +223,10 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.ACCESS_DENIED.intValue)
-    val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).length
+    val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).length
     assert(numOrgs === 0) //make sure org didn't actually get added to DB
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + " -- 409 conflict (already exists)") {
@@ -235,10 +234,10 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + request.code)
     info("body: " + request.body)
     assert(request.code === HttpCode.ALREADY_EXISTS2.intValue)
-    val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.getOrgid(TESTORGS(0).orgId).result), AWAITDURATION).length
+    val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(TESTORGS(0).orgId).result), AWAITDURATION).length
     assert(numOrgs === 1)
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
   }
 
 }

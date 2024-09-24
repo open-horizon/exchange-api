@@ -19,7 +19,7 @@ import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService, OneUserInputValue, PServiceVersions, PServices}
 import org.openhorizon.exchangeapi.table.node.{Prop, RegService}
 import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, HttpCode}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 
@@ -70,7 +70,7 @@ class PatternsSuite extends AnyFunSuite {
   val pw4 = user4+"pw"
   val USER4AUTH = ("Authorization","Basic "+ApiUtils.encode(org3user4+":"+pw4))
   val rootuser = Role.superUser
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
+  val rootpw = (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   val nodeId = "9913"     // the 1st node created, that i will use to run some rest methods
   val nodeToken = nodeId+"TokAbcDefGh1"
@@ -151,7 +151,7 @@ class PatternsSuite extends AnyFunSuite {
   val secondsAgo = 120
   val orgsList = List(orgid, orgid2, orgid3)
 
-  implicit val formats = DefaultFormats // Brings in default date formats etc.
+  implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
   /** Delete all the test users */
   def deleteAllUsers() = {
@@ -715,7 +715,7 @@ class PatternsSuite extends AnyFunSuite {
       // Get the current config value so we can restore it afterward
       ExchConfig.load()
       val NOORGURL = urlRoot+"/v1"
-      val origMaxPatterns = ExchConfig.getInt("api.limits.maxPatterns")
+      val origMaxPatterns = Configuration.getConfig.getInt("api.limits.maxPatterns")
 
       // Change the maxPatterns config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxPatterns", "1")    // user only owns 1 currently

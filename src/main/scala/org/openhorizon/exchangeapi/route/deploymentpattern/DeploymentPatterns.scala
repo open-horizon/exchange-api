@@ -24,7 +24,7 @@ import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, RouteUtils, Version}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, RouteUtils, Version}
 import org.openhorizon.exchangeapi.auth
 import slick.jdbc.PostgresProfile.api._
 
@@ -168,7 +168,7 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
     }
   
   val deploymentPatterns: Route =
-    path("orgs" / Segment / "patterns") {
+    path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns")) {
       organization =>
         get {
           exchAuth(TPattern(OrgAndId(organization, "*").toString), Access.READ) {

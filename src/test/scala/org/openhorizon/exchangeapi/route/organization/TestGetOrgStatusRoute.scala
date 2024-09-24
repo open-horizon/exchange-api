@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
@@ -12,11 +11,11 @@ import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.schema.SchemaTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, ExchMsg, HttpCode}
-import org.openhorizon.exchangeapi.TestDBConnection
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -26,12 +25,12 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val ROUTE = "/status"
-  private val SCHEMAVERSION: Int = Await.result(DBCONNECTION.getDb.run(SchemaTQ.getSchemaVersion.result), AWAITDURATION).head
+  private val SCHEMAVERSION: Int = Await.result(DBCONNECTION.run(SchemaTQ.getSchemaVersion.result), AWAITDURATION).head
 
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val USER1PASSWORD = "user1password"
@@ -192,13 +191,13 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
       timeSent = ApiTime.nowUTC,
       timeExpires = ApiTime.futureUTC(120)))
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
   private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USER1PASSWORD))
   private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + USER2PASSWORD))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       (OrgsTQ ++= TESTORGS) andThen
         (UsersTQ ++= TESTUSERS) andThen
         (AgbotsTQ ++= TESTAGBOTS) andThen
@@ -209,10 +208,9 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetOrgStatusRoute").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetOrgStatusRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testGetOrgStatusRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/TestGetOrgStatusRouteHubAdmin").delete), AWAITDURATION)
-    DBCONNECTION.getDb.close()
   }
 
   //is this intended? I would think this should fail with 404 not found

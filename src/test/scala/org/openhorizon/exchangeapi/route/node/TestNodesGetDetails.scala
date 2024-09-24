@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.node
 
-import org.openhorizon.exchangeapi.{TestDBConnection}
 import org.json4s.DefaultFormats
 import org.{json4s, scalatest}
 import org.json4s.{DefaultFormats, convertToJsonInput}
@@ -17,10 +16,11 @@ import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode, StrConstants}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode, StrConstants}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import org.scalatest.BeforeAndAfterAll
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable.{List, Map}
@@ -33,10 +33,10 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
   private val AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodesGetDetails" + "/" + "a1" + ":" + "a1pw"))
   private val AWAITDURATION: Duration = 15.seconds
   private val CONTENT: (String, String) = ("Content-Type","application/json")
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodesGetDetails" + "/" + "n1" + ":" + "n1pw"))
   // private val ORGID = "TestNodesGetDetails"
-  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodesGetDetails" + "/" + "u1" + ":" + "u1pw"))
   
@@ -208,7 +208,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
   
   // Build test harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
                                        (UsersTQ ++= TESTUSERS) andThen
                                        (AgbotsTQ += TESTAGBOT) andThen
                                        (NodesTQ ++= TESTNODES) andThen
@@ -219,10 +219,8 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
   
   // Teardown test harness.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodesGetDetails").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodesGetDetails").delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestNodesGetDetails").delete), AWAITDURATION)
-  
-    DBCONNECTION.getDb.close()
   }
   
   

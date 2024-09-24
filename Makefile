@@ -56,6 +56,8 @@ EXCHANGE_HOST_TRUST_DIR ?= $(PROJECT_DIRECTORY)/target/etc/horizon/exchange/trus
 EXCHANGE_ICP_CERT_FILE ?= /etc/horizon/exchange/icp/ca.crt
 # Set to "DEBUG" to turn on debugging
 EXCHANGE_LOG_LEVEL ?= DEBUG#INFO
+EXCHANGE_PEKKO_LOG_LEVEL ?= $(EXCHANGE_LOG_LEVEL)
+EXCHANGE_ROOT_PW ?=
 # Number of days the SSL certificate is valid for
 EXCHANGE_TRUST_DUR ?= 1
 EXCHANGE_TRUST_PW ?=
@@ -64,11 +66,14 @@ JAVA_OPTS ?=#-Xmx1G
 POSTGRES_CONTAINER_ADDRESS ?= $(shell docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' $(POSTGRES_CONTAINER_NAME))
 POSTGRES_CONTAINER_NAME ?= postgres
 POSTGRES_DB_NAME ?= exchange
+EXCHANGE_DB_NAME ?= $(POSTGRES_DB_NAME)
 POSTGRES_DB_PORT ?= 5432
+EXCHANGE_DB_PORT ?= $(POSTGRES_DB_PORT)
 POSTGRES_DB_USER ?= admin
+EXCHANGE_DB_USER ?= $(POSTGRES_DB_USER)
 PROJECT_DIRECTORY ?= $(shell pwd)
 # Try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.sbt
-SCALA_VERSION ?= 2.13.10
+SCALA_VERSION ?= 2.13.14
 SCALA_VERSION_SHORT ?= 2.13
 
 
@@ -175,58 +180,6 @@ run-docker-db-postgres-https: target/docker/.run-docker-db-postgres-https
 /etc/horizon/exchange:
 	sudo mkdir -p /etc/horizon/exchange
 
-/etc/horizon/exchange/config-http.json: /etc/horizon/exchange
-	: $${EXCHANGE_ROOTPW:?}
-	sudo -- bash -c "printf \
-'{\n'\
-'  \"api\": {\n'\
-'    \"db\": {\n'\
-'      \"jdbcUrl\": \"jdbc:postgresql://$(POSTGRES_CONTAINER_ADDRESS):$(POSTGRES_DB_PORT)/$(POSTGRES_DB_NAME)\",\n'\
-'      \"user\": \"$(POSTGRES_DB_USER)\"\n'\
-'    },\n'\
-'    \"logging\": {\n'\
-'      \"level\": \"$(EXCHANGE_LOG_LEVEL)\"\n'\
-'    },\n'\
-'    \"root\": {\n'\
-'      \"password\": \"$(EXCHANGE_ROOTPW)\",\n'\
-'      \"frontEndHeader\": \"$(EXCHANGE_FE_HEADER)\"\n'\
-'    },\n'\
-'    \"service\": {\n'\
-'      \"port\": $(EXCHANGE_CONTAINER_PORT_HTTP),\n'\
-'      \"portEncrypted\": null\n'\
-'    }\n'\
-'  }\n'\
-'}' > /etc/horizon/exchange/config-http.json"
-	sudo chmod o+r /etc/horizon/exchange/config-http.json
-
-/etc/horizon/exchange/config-https.json: /etc/horizon/exchange target/docker/.run-docker-db-postgres-https
-	: $${EXCHANGE_ROOTPW:?}
-	sudo -- bash -c "printf \
-'{\n'\
-'  \"api\": {\n'\
-'    \"db\": {\n'\
-'      \"jdbcUrl\": \"jdbc:postgresql://$(POSTGRES_CONTAINER_ADDRESS):$(POSTGRES_DB_PORT)/$(POSTGRES_DB_NAME)\",\n'\
-'      \"user\": \"$(POSTGRES_DB_USER)\"\n'\
-'    },\n'\
-'    \"logging\": {\n'\
-'      \"level\": \"$(EXCHANGE_LOG_LEVEL)\"\n'\
-'    },\n'\
-'    \"root\": {\n'\
-'      \"password\": \"$(EXCHANGE_ROOTPW)\",\n'\
-'      \"frontEndHeader\": \"$(EXCHANGE_FE_HEADER)\"\n'\
-'    },\n'\
-'    \"service\": {\n'\
-'      \"port\": $(EXCHANGE_CONTAINER_PORT_HTTP),\n'\
-'      \"portEncrypted\": $(EXCHANGE_CONTAINER_PORT_HTTPS)\n'\
-'    },\n'\
-'    \"tls\": {\n'\
-'      \"password\": \"$(EXCHANGE_TRUST_PW)\",\n'\
-'      \"truststore\": \"/etc/horizon/exchange/localhost.p12\"\n'\
-'    }\n'\
-'  }\n'\
-'}' > /etc/horizon/exchange/config-https.json"
-	sudo chmod o+r /etc/horizon/exchange/config-https.json
-
 ## Pre-Run - TLS Truststore -----------
 ## Only do this once to create the exchange truststore for https (which includes the private key, and cert with multiple names).
 $(EXCHANGE_HOST_TRUST_DIR): /etc/horizon/exchange
@@ -253,14 +206,22 @@ truststore: /etc/horizon/exchange/localhost.p12
 # Run -------------------------------------------------------------------------
 ## Run - Docker -----------------------
 ## For Continuous Integration testing
-target/docker/.run-docker: /etc/horizon/exchange/config-http.json target/docker/.docker-network
-	sudo -- bash -c "cp /etc/horizon/exchange/config-http.json /etc/horizon/exchange/config.json"
+#-e EXCHANGE_DB_HOST=$(POSTGRES_CONTAINER_ADDRESS) \
+#-e EXCHANGE_DB_NAME=$(POSTGRES_DB_NAME) \
+#-e EXCHANGE_DB_USER=$(POSTGRES_DB_USER)
+target/docker/.run-docker: target/docker/.docker-network
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
       -d -t \
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
-      -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
+      -e EXCHANGE_DB_HOST=$(POSTGRES_CONTAINER_ADDRESS) \
+      -e EXCHANGE_DB_NAME=$(EXCHANGE_DB_NAME) \
+      -e EXCHANGE_DB_PORT=$(EXCHANGE_DB_PORT) \
+      -e EXCHANGE_DB_USER=$(EXCHANGE_DB_USER) \
+      -e EXCHANGE_PEKKO_HTTP_PORT=$(EXCHANGE_CONTAINER_PORT_HTTP) \
+      -e EXCHANGE_PEKKO_LOGLEVEL=$(EXCHANGE_PEKKO_LOGLEVEL) \
+      -e EXCHANGE_ROOT_PW=$(EXCHANGE_ROOT_PW) \
       $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
 
@@ -268,19 +229,27 @@ target/docker/.run-docker: /etc/horizon/exchange/config-http.json target/docker/
 run-docker: target/docker/.run-docker
 
 ## config.json is renamed to exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Prevents the container from attempting to overwrite a bind-mounted config.json with read-only permissions.
-target/docker/.run-docker-icp-https: /etc/horizon/exchange/config-https.json target/docker/.docker-network /etc/horizon/exchange/localhost.p12 target/docker/.run-docker-db-postgres-https
-	sudo -- bash -c "cp /etc/horizon/exchange/config-https.json /etc/horizon/exchange/config.json"
+target/docker/.run-docker-icp-https: target/docker/.docker-network /etc/horizon/exchange/localhost.p12 target/docker/.run-docker-db-postgres-https
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
       -d -t \
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
       -p $(EXCHANGE_HOST_PORT_HTTPS):$(EXCHANGE_CONTAINER_PORT_HTTPS) \
+      -e EXCHANGE_DB_HOST=$(POSTGRES_CONTAINER_ADDRESS) \
+      -e EXCHANGE_DB_NAME=$(EXCHANGE_DB_NAME) \
+      -e EXCHANGE_DB_PORT=$(EXCHANGE_DB_PORT) \
+      -e EXCHANGE_DB_USER=$(EXCHANGE_DB_USER) \
+      -e EXCHANGE_PEKKO_HTTP_PORT=$(EXCHANGE_CONTAINER_PORT_HTTP) \
+      -e EXCHANGE_PEKKO_HTTPS_PORT=$(EXCHANGE_CONTAINER_PORT_HTTPS) \
+      -e EXCHANGE_PEKKO_LOGLEVEL=$(EXCHANGE_PEKKO_LOGLEVEL) \
+      -e EXCHANGE_ROOT_PW=$(EXCHANGE_ROOT_PW) \
+      -e EXCHANGE_TLS_PASSWORD=$(EXCHANGE_TRUST_PW) \
+      -e EXCHANGE_TLS_TRUSTSTORE=/etc/horizon/exchange/localhost.p12 \
       -e "JAVA_OPTS=$(JAVA_OPTS)" \
       -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
-      -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       -v $(EXCHANGE_HOST_ICP_CERT_FILE):$(EXCHANGE_ICP_CERT_FILE) \
-      -v $(EXCHANGE_HOST_TRUST_DIR)/localhost.p12:$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12:ro \
+      -v /etc/horizon/exchange/localhost.p12:$(EXCHANGE_CONTAINER_TRUST_DIR)/localhost.p12:ro \
       -v $(EXCHANGE_HOST_POSTGRES_CERT_FILE):$(EXCHANGE_CONTAINER_POSTGRES_CERT_FILE) \
       $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
@@ -290,16 +259,19 @@ run-docker-icp-https: target/docker/.run-docker-icp-https
 
 ## config.json is mounted into the container as exchange-api.tmpl to overwrite the provided file of the same name in the Docker image. Bind-mounting it with read-only permissions prevents the container from attempting to overwrite it.
 #
-target/docker/.run-docker-icp: /etc/horizon/exchange/config-http.json target/docker/.docker-network
-	sudo -- bash -c "cp /etc/horizon/exchange/config-http.json /etc/horizon/exchange/config.json"
+target/docker/.run-docker-icp: target/docker/.docker-network
 	docker run \
       --name $(DOCKER_NAME) \
       --network $(DOCKER_NETWORK) \
       -d -t \
       -p $(EXCHANGE_HOST_PORT_HTTP):$(EXCHANGE_CONTAINER_PORT_HTTP) \
+      -e EXCHANGE_DB_NAME=$(EXCHANGE_DB_NAME) \
+      -e EXCHANGE_DB_PORT=$(EXCHANGE_DB_PORT) \
+      -e EXCHANGE_DB_USER=$(EXCHANGE_DB_USER) \
+      -e EXCHANGE_PEKKO_LOGLEVEL=$(EXCHANGE_LOG_LEVEL) \
+      -e EXCHANGE_ROOT_PW=$(EXCHANGE_ROOT_PW) \
       -e "JAVA_OPTS=$(JAVA_OPTS)" \
       -e "ICP_EXTERNAL_MGMT_INGRESS=$$ICP_EXTERNAL_MGMT_INGRESS" \
-      -v /etc/horizon/exchange/config.json:/etc/horizon/exchange/exchange-api.tmpl:ro \
       $(IMAGE_STRING):$(DOCKER_TAG)
 	@touch $@
 
@@ -340,7 +312,7 @@ docker-push-version-only:
 # Must an Exchange instance running locally or in docker
 .PHONY: test
 test:
-	: $${EXCHANGE_ROOTPW:?}   # this verifies these env vars are set
+	: $${EXCHANGE_ROOT_PW:?}   # this verifies these env vars are set
 	sbt test
 
 
@@ -382,7 +354,6 @@ clean: clean-docker clean-truststore
 
 .PHONY: cleaner
 cleaner: clean cleaner-docker cleaner-truststore
-	sudo rm -fr /etc/horizon/exchange/config*.json
 
 .PHONY: cleanest
 cleanest: cleaner cleanest-docker cleanest-truststore

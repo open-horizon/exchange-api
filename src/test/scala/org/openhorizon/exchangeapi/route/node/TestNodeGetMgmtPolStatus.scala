@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.node
 
-import org.openhorizon.exchangeapi.{TestDBConnection}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.openhorizon.exchangeapi.auth.Role
@@ -10,11 +9,11 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
-import org.openhorizon.exchangeapi.{TestDBConnection}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
@@ -24,9 +23,9 @@ import scala.concurrent.duration.{Duration, DurationInt}
 class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT: (String, String) = ("Content-Type", "application/json")
   private val CONTENT: (String, String) = ACCEPT
-  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   val managementPolicy1: String = "pol1"
@@ -124,7 +123,7 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
   
   // Build test harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ += TESTORGANIZATION) andThen
+    Await.ready(DBCONNECTION.run((OrgsTQ += TESTORGANIZATION) andThen
                                        (UsersTQ += TESTUSER) andThen
                                        (NodesTQ += TESTNODE) andThen
                                        (ManagementPoliciesTQ ++= TESTMANAGEMENTPOLICY) andThen
@@ -133,29 +132,27 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
 
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodeGetMgmtPolStatus").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodeGetMgmtPolStatus").delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestNodeGetMgmtPolStatus").delete), AWAITDURATION)
-
-    DBCONNECTION.getDb.close()
   }
 
   // Management Policies that are dynamically needed, specific to the test case.
   def fixtureNodeMgmtPol(testCode: Seq[ManagementPolicyRow] => Any, testData: Seq[ManagementPolicyRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(ManagementPoliciesTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(ManagementPoliciesTQ.filter(_.managementPolicy inSet testData.map(_.managementPolicy)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.run(ManagementPoliciesTQ.filter(_.managementPolicy inSet testData.map(_.managementPolicy)).delete), AWAITDURATION)
   }
 
   def fixtureNodeMgmtPolStatus(testCode: Seq[NodeMgmtPolStatusRow] => Any, testData: Seq[NodeMgmtPolStatusRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodeMgmtPolStatuses ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(NodeMgmtPolStatuses.filter(_.policy inSet testData.map(_.policy)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodeMgmtPolStatuses.filter(_.policy inSet testData.map(_.policy)).delete), AWAITDURATION)
   }
   
   test("GET /orgs/TestNodeGetMgmtPolStatus-someorganization/nodes/n1/managementStatus/pol1 -- 404 Not Found - Organization") {

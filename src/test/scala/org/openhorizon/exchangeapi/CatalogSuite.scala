@@ -14,7 +14,7 @@ import org.openhorizon.exchangeapi.route.organization.PostPutOrgRequest
 import org.openhorizon.exchangeapi.route.service.{GetServicesResponse, PostPutServiceRequest}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PServiceVersions, PServices}
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiUtils, Configuration, HttpCode}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 
@@ -28,7 +28,7 @@ import scala.collection.mutable.ListBuffer
 @RunWith(classOf[JUnitRunner])
 class CatalogSuite extends AnyFunSuite {
 
-  implicit val formats = DefaultFormats // Brings in default date formats etc.
+  implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
   val localUrlRoot = "http://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
@@ -50,7 +50,7 @@ class CatalogSuite extends AnyFunSuite {
   val orguser3 = orgid3+"/"+user
   val USERAUTH3 = ("Authorization","Basic "+ApiUtils.encode(orguser3+":"+pw))
   val rootuser = Role.superUser
-  val rootpw = sys.env.getOrElse("EXCHANGE_ROOTPW", "")      // need to put this root pw in config.json
+  val rootpw = (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })      // need to put this root pw in config.json
   val ROOTAUTH = ("Authorization","Basic "+ApiUtils.encode(rootuser+":"+rootpw))
   // node and agbot in the 1st org
   val nodeId = "n1"     // the 1st node created, that i will use to run some rest methods

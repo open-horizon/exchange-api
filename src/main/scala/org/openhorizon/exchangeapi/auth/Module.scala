@@ -2,7 +2,8 @@ package org.openhorizon.exchangeapi.auth
 
 import org.openhorizon.exchangeapi._
 import org.openhorizon.exchangeapi.utility.ExchMsg
-import org.openhorizon.exchangeapi.{ExchangeApi}
+import org.openhorizon.exchangeapi.ExchangeApi
+import org.openhorizon.exchangeapi.auth.cloud.IbmCloudAuth
 
 import javax.security.auth._
 import javax.security.auth.callback._

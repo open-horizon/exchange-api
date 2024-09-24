@@ -34,5 +34,5 @@ object Password {
   }
 
   /** If already hash, return it, otherwise hash it */
-  def hashIfNot(password: String): String = if (isHashed(password)) password else hash(password)
+  def hashIfNot(password: String): String = if (password.isEmpty || isHashed(password)) password else hash(password)
 }

@@ -17,7 +17,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMs
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import org.openhorizon.exchangeapi.table
 import slick.jdbc.PostgresProfile.api._
 
@@ -124,7 +124,7 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
         complete({
           val nodeId: String = identity.creds.id //somday: handle the case where the acls allow users to send msgs
           var msgNum = ""
-          val maxMessagesInMailbox: Int = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+          val maxMessagesInMailbox: Int = Configuration.getConfig.getInt("api.limits.maxMessagesInMailbox")
           val getNumOwnedDbio =
             if (maxMessagesInMailbox == 0)
               DBIO.successful(0)

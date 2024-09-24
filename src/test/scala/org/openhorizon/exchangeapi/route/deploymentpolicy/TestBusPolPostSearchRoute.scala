@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.deploymentpolicy
 
-import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable}
 import org.json4s.native.Serialization.write
@@ -16,11 +15,12 @@ import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.service.{ServiceRow, ServicesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable
@@ -32,10 +32,10 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   private val ACCEPT: (String, String) = ("Content-Type", "application/json")
   private val AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestPolicySearchPost/a1" + ":" + "a1tok"))
   private val CONTENT: (String, String) = ACCEPT
-  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/" + "TestPolicySearchPost"
   private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestPolicySearchPost/u1" + ":" + "u1pw"))
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   
   private val AWAITDURATION: Duration = 15.seconds
   
@@ -106,7 +106,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   
   // Begin building testing harness.
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run((OrgsTQ += TESTORGANIZATION) andThen
+    Await.ready(DBCONNECTION.run((OrgsTQ += TESTORGANIZATION) andThen
                                        (UsersTQ += TESTUSER) andThen
                                        (AgbotsTQ += TESTAGBOT) andThen
                                        (ServicesTQ ++= TESTSERVICES)), AWAITDURATION)
@@ -114,53 +114,51 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPolicySearchPost").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPolicySearchPost").delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestPolicySearchPost").delete), AWAITDURATION)
-    
-    DBCONNECTION.getDb.close()
   }
   
   // Isolates test cases.
   override def afterEach(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.dropAllOffsets()), AWAITDURATION)
+    Await.ready(DBCONNECTION.run(SearchOffsetPolicyTQ.dropAllOffsets()), AWAITDURATION)
   }
   
   // Node Agreements that are dynamically needed, specific to the test case.
   def fixtureNodeAgreements(testCode: Seq[NodeAgreementRow] => Any, testData: Seq[NodeAgreementRow]): Any = {
     // Create resources and continue.
     try {
-      Await.result(DBCONNECTION.getDb.run(NodeAgreementsTQ ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodeAgreementsTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     // Teardown created resources.
     finally
-      Await.result(DBCONNECTION.getDb.run(NodeAgreementsTQ.filter(_.agId inSet testData.map(_.agId)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodeAgreementsTQ.filter(_.agId inSet testData.map(_.agId)).delete), AWAITDURATION)
   }
   
   // Nodes that are dynamically needed, specific to the test case.
   def fixtureNodes(testCode: Seq[NodeRow] => Any, testData: Seq[NodeRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(NodesTQ ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodesTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
   }
   
   // Organizations that are dynamically needed, specific to the test case.
   def fixtureOrganizations(testCode: Seq[OrgRow] => Any, testData: Seq[OrgRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(OrgsTQ ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(OrgsTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid inSet testData.map(_.orgId)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid inSet testData.map(_.orgId)).delete), AWAITDURATION)
   }
   
   // Offsets/Sessions that are dynamically needed, specific to the test case.
   def fixturePagination(testCode: Seq[SearchOffsetPolicyAttributes] => Any, testData: Seq[SearchOffsetPolicyAttributes]): Any = {
     try{
-      Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(SearchOffsetPolicyTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
@@ -170,11 +168,11 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   // Policies that are dynamically needed, specific to the test case.
   def fixturePolicies(testCode: Seq[BusinessPolicyRow] => Any, testData: Seq[BusinessPolicyRow]): Any = {
     try {
-      Await.result(DBCONNECTION.getDb.run(BusinessPoliciesTQ ++= testData), AWAITDURATION)
+      Await.result(DBCONNECTION.run(BusinessPoliciesTQ ++= testData), AWAITDURATION)
       testCode(testData)
     }
     finally
-      Await.result(DBCONNECTION.getDb.run(BusinessPoliciesTQ.filter(_.businessPolicy inSet testData.map(_.businessPolicy)).delete), AWAITDURATION)
+      Await.result(DBCONNECTION.run(BusinessPoliciesTQ.filter(_.businessPolicy inSet testData.map(_.businessPolicy)).delete), AWAITDURATION)
   }
   
   
@@ -204,7 +202,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
         assert(responseBody.nodes.isEmpty)
         assert(responseBody.offsetUpdated === false)
     
-        //val offset: Seq[(Option[String], Long)] = Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
+        //val offset: Seq[(Option[String], Long)] = Await.result(DBCONNECTION.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
         //assert(offset.nonEmpty)
         //assert(offset.head._1.isEmpty)
         //assert(offset.head._2 === 0L)
@@ -231,7 +229,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
             assert(responseBody.nodes.isEmpty)
             assert(responseBody.offsetUpdated === false)
     
-            val offset: Seq[(Option[String], Option[String])] = Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
+            val offset: Seq[(Option[String], Option[String])] = Await.result(DBCONNECTION.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
             assert(offset.nonEmpty)
             assert(offset.head._1 === TESTOFFSET.head.offset)
             assert(offset.head._2 === TESTOFFSET.head.session)
@@ -938,7 +936,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 assert(RESPONSEBODY.offsetUpdated === true)
                 assert(RESPONSEBODY.nodes.head.id === "TestPolicySearchPost/n1")
                 
-                val offset: Seq[(Option[String], Option[String])] = Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
+                val offset: Seq[(Option[String], Option[String])] = Await.result(DBCONNECTION.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
                 assert(offset.nonEmpty)
                 assert(offset.head._1 === Some(TESTNODE.head.lastUpdated))
                 assert(offset.head._2 === Some("token"))
@@ -1003,7 +1001,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 assert(RESPONSEBODY.offsetUpdated === true)
                 assert(RESPONSEBODY.nodes.head.id === "TestPolicySearchPost/n1")
                 
-                val offset: Seq[(Option[String], Option[String])] = Await.result(DBCONNECTION.getDb.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
+                val offset: Seq[(Option[String], Option[String])] = Await.result(DBCONNECTION.run(SearchOffsetPolicyTQ.getOffsetSession("TestPolicySearchPost/a1", "TestPolicySearchPost/pol1").result), AWAITDURATION)
                 assert(offset.nonEmpty)
                 assert(offset.head._1 === Some(TESTNODE.head.lastUpdated))
                 assert(offset.head._2 === Some("token"))

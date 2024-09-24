@@ -9,14 +9,14 @@ import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, parameter, put, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.{GetNodeAgreementsResponse, PutNodeAgreementRequest}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreement, NodeAgreementsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
@@ -172,7 +172,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
               validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
                 complete({
                   val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
-                  val maxAgreements: Int = ExchConfig.getInt("api.limits.maxAgreements")
+                  val maxAgreements: Int = Configuration.getConfig.getInt("api.limits.maxAgreements")
                   val getNumOwnedDbio = if (maxAgreements == 0) DBIO.successful(0) else NodeAgreementsTQ.getNumOwned(resource).result // avoid DB read for this if there is no max
                   db.run(getNumOwnedDbio.flatMap({ xs =>
                     if (maxAgreements != 0) logger.debug("PUT /orgs/"+organization+"/nodes/"+node+"/agreements/"+agreement+" num owned: "+xs)

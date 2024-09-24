@@ -16,7 +16,7 @@ import org.openhorizon.exchangeapi.route.node.{GetNodeMsgsResponse, PostNodesMsg
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.message.{NodeMsg, NodeMsgRow, NodeMsgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
@@ -139,7 +139,7 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
         complete({
           val agbotId: String = identity.creds.id      //someday: handle the case where the acls allow users to send msgs
           var msgNum = ""
-          val maxMessagesInMailbox: Int = ExchConfig.getInt("api.limits.maxMessagesInMailbox")
+          val maxMessagesInMailbox: Int = Configuration.getConfig.getInt("api.limits.maxMessagesInMailbox")
           val getNumOwnedDbio = if (maxMessagesInMailbox == 0) DBIO.successful(0) else NodeMsgsTQ.getNumOwned(resource).result // avoid DB read for this if there is no max
           // Remove msgs whose TTL is past, then check the mailbox is not full, then get the agbot publicKey, then write the nodemsgs row, all in the same db.run thread
           db.run(getNumOwnedDbio.flatMap({ xs =>

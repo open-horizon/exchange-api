@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
@@ -9,11 +8,11 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
-import org.openhorizon.exchangeapi.TestDBConnection
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -23,10 +22,10 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
 
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
 
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val USERPASSWORD = "userpassword"
@@ -127,18 +126,18 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
         token              = "",
         userInput          = ""))
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
   private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USERPASSWORD))
   private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORGADMINPASSWORD))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(UsersTQ += TESTUSERS(0)), AWAITDURATION) //add hub admin
+    Await.ready(DBCONNECTION.run(UsersTQ += TESTUSERS(0)), AWAITDURATION) //add hub admin
   }
 
   override def beforeEach(): Unit = {
     info("beforeEach running")
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       ResourceChangesTQ.filter(_.orgId startsWith "testDeleteOrgRoute").delete andThen
       OrgsTQ.insertOrUpdate(TESTORGS(0)) andThen //can't do "insertOrUpdateAll", so do them individually
       UsersTQ.insertOrUpdate(TESTUSERS(1)) andThen
@@ -150,22 +149,21 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "testDeleteOrgRoute").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testDeleteOrgRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testDeleteOrgRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/TestDeleteOrgRouteHubAdmin").delete), AWAITDURATION)
-    DBCONNECTION.getDb.close()
   }
 
   def assertDbClear(orgId: String): Unit = {
-    assert(Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure org is gone
-    assert(Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure users are gone
-    assert(Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure nodes are gone
-    assert(Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure agbots are gone
+    assert(Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure org is gone
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure users are gone
+    assert(Await.result(DBCONNECTION.run(NodesTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure nodes are gone
+    assert(Await.result(DBCONNECTION.run(AgbotsTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure agbots are gone
   }
 
   def assertDeletedEntryCreated(orgId: String): Unit = {
     assert(
-      Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      Await.result(DBCONNECTION.run(ResourceChangesTQ
         .filter(_.orgId === orgId)
         .filter(_.id === orgId)
         .filter(_.category === ResChangeCategory.ORG.toString)
@@ -178,7 +176,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
 
   def assertDeletedEntryNotCreated(orgId: String): Unit = {
     assert(
-      Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+      Await.result(DBCONNECTION.run(ResourceChangesTQ
         .filter(_.orgId === orgId)
         .filter(_.id === orgId)
         .filter(_.category === ResChangeCategory.ORG.toString)
@@ -195,7 +193,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
     //insure nothing was added to resource changes table
-    assert(Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId === "doesNotExist").result), AWAITDURATION).isEmpty)
+    assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === "doesNotExist").result), AWAITDURATION).isEmpty)
   }
 
   test("DELETE /orgs/root -- 403 access denied") {
@@ -203,7 +201,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "root").result), AWAITDURATION).length
+    val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === "root").result), AWAITDURATION).length
     assert(numOrgs === 1) //insure root org is still there
     assertDeletedEntryNotCreated("root")
   }
@@ -214,16 +212,16 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.DELETED.intValue)
-    val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
-    val numUsers: Int = Await.result(DBCONNECTION.getDb.run(UsersTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
-    val numNodes: Int = Await.result(DBCONNECTION.getDb.run(NodesTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
-    val numAgbots: Int = Await.result(DBCONNECTION.getDb.run(AgbotsTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
+    val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
+    val numUsers: Int = Await.result(DBCONNECTION.run(UsersTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
+    val numNodes: Int = Await.result(DBCONNECTION.run(NodesTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
+    val numAgbots: Int = Await.result(DBCONNECTION.run(AgbotsTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
     assert(numOrgs === 0) //insure ibm org is gone
     assert(numUsers === 0) //insure users are gone
     assert(numNodes === 0) //insure nodes are gone
     assert(numAgbots === 0) //insure agbots are gone
     //insure entry was created in Resource Changes table
-    val rcEntryExists: Boolean = Await.result(DBCONNECTION.getDb.run(ResourceChangesTQ
+    val rcEntryExists: Boolean = Await.result(DBCONNECTION.run(ResourceChangesTQ
       .filter(_.orgId === "IBM")
       .filter(_.id === "IBM")
       .filter(_.category === ResChangeCategory.ORG.toString)
@@ -256,7 +254,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).length
+    val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).length
     assert(numOrgs === 1) //insure org is still there
     assertDeletedEntryNotCreated(TESTORGS(0).orgId)
   }
@@ -266,7 +264,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val numOrgs: Int = Await.result(DBCONNECTION.getDb.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).length
+    val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).length
     assert(numOrgs === 1) //insure org is still there
     assertDeletedEntryNotCreated(TESTORGS(0).orgId)
   }

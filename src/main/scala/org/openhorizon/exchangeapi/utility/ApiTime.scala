@@ -49,20 +49,22 @@ object ApiTime {
   }
   
   def fixFormatting(time: String): String = {
-    val timeLength: Int = time.length /*
-    This implementation uses length of the string instead of a regex to make it as fast as possible
-    The problem that was happening is described here: https://bugs.openjdk.java.net/browse/JDK-8193307
-    Essentially the returned string would truncate milliseconds or seconds and milliseconds if those values happened to be 0
-    So we would be getting:
-    uuuu-MM-dd'T'HH:mm (Ex: "2020-02-05T20:28Z[UTC]")
-    uuuu-MM-dd'T'HH:mm:ss (Ex: "2020-02-05T20:28:14Z[UTC]")
-    Instead of what we want : uuuu-MM-dd'T'HH:mm:ss.SSS  (Ex: "2020-02-05T20:28:14.469Z[UTC]")
-    This implementation serves to ensure we always get time in the format we expect
-    This is explained in the docs here: https://docs.oracle.com/javase/9/docs/api/java/time/LocalDateTime.html#toString--
-    length when time is fully filled out is 29
-    length when time has no milliseconds 25
-    length when time has no seconds and no milliseconds is 22
-    */ if (timeLength >= 29) { // if its the correct length just return it
+    val timeLength: Int = time.length
+    /*
+     This implementation uses length of the string instead of a regex to make it as fast as possible
+     The problem that was happening is described here: https://bugs.openjdk.java.net/browse/JDK-8193307
+     Essentially the returned string would truncate milliseconds or seconds and milliseconds if those values happened to be 0
+     So we would be getting:
+     uuuu-MM-dd'T'HH:mm (Ex: "2020-02-05T20:28Z[UTC]")
+     uuuu-MM-dd'T'HH:mm:ss (Ex: "2020-02-05T20:28:14Z[UTC]")
+     Instead of what we want : uuuu-MM-dd'T'HH:mm:ss.SSS  (Ex: "2020-02-05T20:28:14.469Z[UTC]")
+     This implementation serves to ensure we always get time in the format we expect
+     This is explained in the docs here: https://docs.oracle.com/javase/9/docs/api/java/time/LocalDateTime.html#toString--
+     length when time is fully filled out is 29
+     length when time has no milliseconds 25
+     length when time has no seconds and no milliseconds is 22
+     */
+    if (timeLength >= 29) { // if its the correct length just return it
       time
     } else if (timeLength == 25) { // need to add milliseconds on
       time.substring(0, 19) + ".000Z[UTC]"

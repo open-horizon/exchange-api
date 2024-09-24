@@ -5,7 +5,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ, BusinessPolicyRow}
 import org.openhorizon.exchangeapi.table.service.{OneProperty, ServiceRef2}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ExchConfig}
+import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
@@ -32,8 +32,8 @@ final case class PostPutBusinessPolicyRequest(label: String,
   // The nodeHealth field is optional, so fill in a default in service if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
   def defaultNodeHealth(service: BService): BService = {
     if (service.nodeHealth.nonEmpty) return service
-    val agrChkDefault: Int = ExchConfig.getInt("api.defaults.businessPolicy.check_agreement_status")
-    val hbDefault: Int = ExchConfig.getInt("api.defaults.businessPolicy.missing_heartbeat_interval")
+    val agrChkDefault: Int = Configuration.getConfig.getInt("api.defaults.businessPolicy.check_agreement_status")
+    val hbDefault: Int = Configuration.getConfig.getInt("api.defaults.businessPolicy.missing_heartbeat_interval")
     val nodeHealth2: Option[Map[String, Int]] = Option(Map("missing_heartbeat_interval" -> hbDefault, "check_agreement_status" -> agrChkDefault)) // provide defaults for node health
    
     BService(arch = service.arch,

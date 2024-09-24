@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.organization
 
-import org.openhorizon.exchangeapi.TestDBConnection
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -11,10 +10,11 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
@@ -25,11 +25,11 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT = ("Accept","application/json")
   private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: TestDBConnection = new TestDBConnection
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val ROUTE = "/search/nodehealth"
 
-  private implicit val formats = DefaultFormats
+  private implicit val formats: DefaultFormats.type = DefaultFormats
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val ORG1USERPASSWORD = "org1userpassword"
@@ -255,7 +255,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
       lastUpdated   = ApiTime.nowUTC)
   )
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + sys.env.getOrElse("EXCHANGE_ROOTPW", "")))
+  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
   private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
   private val ORG2USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG2USERPASSWORD))
@@ -266,7 +266,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(3).username + ":" + ORG1ADMINPASSWORD))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(
+    Await.ready(DBCONNECTION.run(
       (OrgsTQ ++= TESTORGS) andThen
         (UsersTQ ++= TESTUSERS) andThen
         (AgbotsTQ ++= TESTAGBOTS) andThen
@@ -276,10 +276,9 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   override def afterAll(): Unit = {
-    Await.ready(DBCONNECTION.getDb.run(ResourceChangesTQ.filter(_.orgId startsWith "testPostNodeHealthRoute").delete andThen
+    Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testPostNodeHealthRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testPostNodeHealthRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/TestPostNodeHealthRouteHubAdmin").delete), AWAITDURATION)
-    DBCONNECTION.getDb.close()
   }
 
   private val oneMinuteAgo: PostNodeHealthRequest = PostNodeHealthRequest(ApiTime.pastUTC(60), None) //not sure what nodeOrgIds is for... it is never referenced in the Route

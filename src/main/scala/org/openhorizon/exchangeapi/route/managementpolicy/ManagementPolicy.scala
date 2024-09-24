@@ -14,7 +14,7 @@ import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, OrgAndId, TManagementPolicy}
 import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -203,7 +203,7 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
                 case Success(num) =>
                   logger.debug("POST /orgs/" + organization + "/managementpolicies" + managementPolicy + " num owned by " + owner + ": " + num)
                   val numOwned: Int = num
-                  val maxManagementPolicies: Int = ExchConfig.getInt("api.limits.maxManagementPolicies")
+                  val maxManagementPolicies: Int = Configuration.getConfig.getInt("api.limits.maxManagementPolicies")
                   if (maxManagementPolicies == 0 || numOwned <= maxManagementPolicies) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                     reqBody.getDbInsert(resource, organization, owner).asTry
                   }

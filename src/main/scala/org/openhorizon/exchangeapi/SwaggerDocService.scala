@@ -17,7 +17,7 @@ import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, 
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
 import org.openhorizon.exchangeapi.route.managementpolicy.{ManagementPolicies, ManagementPolicy}
 import org.openhorizon.exchangeapi.route.node.managementpolicy.Statuses
-import org.openhorizon.exchangeapi.route.node.{ConfigurationState, Details, Errors, Node, Nodes}
+import org.openhorizon.exchangeapi.route.node.{ConfigurationState, Details, Errors, Node, NodeDetails, Nodes}
 import org.openhorizon.exchangeapi.route.nodegroup.{NodeGroup, NodeGroups}
 import org.openhorizon.exchangeapi.route.organization.{Changes, Cleanup, MaxChangeId, MyOrganizations, Organization, Organizations}
 import org.openhorizon.exchangeapi.route.search.{NodeError, NodeErrors, NodeHealth, NodeService}
@@ -25,6 +25,8 @@ import org.openhorizon.exchangeapi.route.service.dockerauth.{DockerAuth, DockerA
 import org.openhorizon.exchangeapi.route.service.key.{Key, Keys}
 import org.openhorizon.exchangeapi.route.service.{Policy, Service, Services}
 import org.openhorizon.exchangeapi.route.user.{ChangePassword, Confirm, User, Users}
+import org.openhorizon.exchangeapi.table.node.OneService
+import org.openhorizon.exchangeapi.utility.Configuration
 
 /*Swagger references:
   - Swagger with pekko-http: https://github.com/swagger-pekko-http/swagger-pekko-http
@@ -87,6 +89,7 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[org.openhorizon.exchangeapi.route.node.message.Message],
         classOf[org.openhorizon.exchangeapi.route.node.message.Messages],
         classOf[org.openhorizon.exchangeapi.route.node.Node],
+        classOf[org.openhorizon.exchangeapi.route.node.NodeDetails],
         classOf[org.openhorizon.exchangeapi.route.node.Nodes],
         classOf[org.openhorizon.exchangeapi.route.node.Policy],
         classOf[org.openhorizon.exchangeapi.route.node.Status],
@@ -118,7 +121,28 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[org.openhorizon.exchangeapi.route.user.Users])
   override def apiDocsPath: String = "api-docs" //where you want the swagger-json endpoint exposed
   // override def basePath: String = ""
-  override def host: String = (if(ExchangeApi.serviceHost.equals("0.0.0.0")) "localhost" else ExchangeApi.serviceHost) + ":" + ExchangeApi.servicePortEncrypted.getOrElse(ExchangeApi.servicePortUnencrypted) //the url of your api, not swagger's json endpoint
+  private def domain: String = {
+    val configServiceHost = Configuration.getConfig.getString("api.service.host")
+    if (configServiceHost.equals("0.0.0.0"))
+      "localhost"
+    else
+      configServiceHost
+  }
+  
+  private def servicePortEncrypted: Option[Int] =
+    if (Configuration.getConfig.hasPath("pekko.http.server.default-https-port"))
+      Option(Configuration.getConfig.getInt("pekko.http.server.default-https-port"))
+    else
+      None
+  
+  private def servicePortUnencrypted: Option[Int] =
+    if (Configuration.getConfig.hasPath("pekko.http.server.default-http-port"))
+      Option(Configuration.getConfig.getInt("pekko.http.server.default-http-port"))
+    else
+      None
+  
+  override def host: String = domain + ":" + servicePortEncrypted.getOrElse(servicePortUnencrypted) //the url of your api, not swagger's json endpoint
+  
   override def info: com.github.swagger.pekko.model.Info =
     com.github.swagger.pekko.model.Info(
     description = "<b>Note:</b> Test the API with curl:<br><br><code>curl -sS -u &lt;org&gt;/iamapikey:&lt;key&gt; https://&lt;host&gt;:&lt;port&gt;/edge-exchange/v1/orgs/... | jq</code></br></br>This API specification is intended to be used by developers",
@@ -128,12 +152,14 @@ object SwaggerDocService extends SwaggerHttpService {
 
   override def externalDocs: Option[ExternalDocumentation] = Option(new ExternalDocumentation().description("Open-horizon ExchangeAPI").url("https://github.com/open-horizon/exchange-api"))
   override def schemes: List[String] =
-    if (ExchangeApi.servicePortEncrypted.isDefined)
+    if (servicePortEncrypted.isDefined)
       List("http", "https")
     else
       List("http")
   //override val securitySchemeDefinitions = Map("basicAuth" -> new BasicAuthDefinition())
   override def unwantedDefinitions: Seq[String] = Seq("Function1", "Function1RequestContextFutureRouteResult")
+  
+  
 }
 
 /* Defines a route (that can be used in a browser) to return the swagger.json file that is built by SwaggerDocService.

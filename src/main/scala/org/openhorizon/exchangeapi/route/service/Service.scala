@@ -15,7 +15,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSuppor
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service
 import org.openhorizon.exchangeapi.table.service.{ServiceRef, ServiceRow, Services, ServicesTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchConfig, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
 import slick.jdbc.PostgresProfile.api._
 
 import java.lang.IllegalStateException

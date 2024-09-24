@@ -1,18 +1,19 @@
 package org.openhorizon.exchangeapi.auth
 
+import com.typesafe.config.ConfigValue
 import org.apache.pekko.event.LoggingAdapter
 import org.openhorizon.exchangeapi.auth.Access.Access
+import org.openhorizon.exchangeapi.utility.Configuration
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
+import scala.jdk.CollectionConverters.{CollectionHasAsScala, MapHasAsScala}
+import scala.language.postfixOps
 
 /** Who is allowed to do what. */
 object Role {
   // the list of roles and their permissions are in config.json
   type AccessList = Set[String]
   //case class AccessList extends Set[String]
-
-  // Making the roles and their ACLs a map, so it is more flexible at runtime
-  val roles = new MutableHashMap[String, AccessList]()
 
   // Sets the access list to the specified role
   def setRole(role: String, accessValues: AccessList): Option[AccessList] = roles.put(role, accessValues)
@@ -22,6 +23,16 @@ object Role {
   def haveRequiredRoles: Boolean = roles.keySet == AuthRoles.requiredRoles   // will return true even if the elements are in a different order
 
   val allAccessValues: Set[String] = Access.values.map(_.toString)
+  
+  // Making the roles and their ACLs a map, so it is more flexible at runtime
+  var roles: MutableHashMap[String, AccessList] = {
+    val roles: MutableHashMap[String, AccessList] = loadRoles()
+    
+    if (!AuthRoles.requiredRoles.subsetOf(roles.keySet))
+      println("Error: at least these roles must be set in the config file: " + AuthRoles.requiredRoles.mkString(", "))
+    
+    roles
+  }
 
   // Returns true if the specified access string is valid. Used to check input from config.json.
   def isValidAcessValues(accessValues: AccessList): Boolean = {
@@ -41,6 +52,22 @@ object Role {
         logger.error (s"Role.hasAuthorization: role $role does not exist")
         false
     }
+  }
+  
+  def loadRoles(): MutableHashMap[String, AccessList] = {
+    // Read the ACLs and set them in our Role object
+    val something = new MutableHashMap[String, AccessList]
+    for ((role, _) <- Configuration.getConfig.getObject("api.acls").asScala.toMap) {
+      val accessSet: Set[String] = Configuration.getConfig.getStringList("api.acls." + role).asScala.toSet
+      if (!isValidAcessValues(accessSet))
+        println("Error: invalid value in ACLs in config file for role " + role)
+      else
+        something.put(role, accessSet)
+    }
+    
+    println(s"Roles: ${something}")
+    
+    something
   }
 
   def superUser = "root/root"

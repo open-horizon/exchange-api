@@ -124,7 +124,7 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
     }
   
   val deploymentPolicies: Route =
-    path("orgs" / Segment / "business" / "policies") {
+    path("orgs" / Segment / ("business" | "deployment") / "policies") {
       organization =>
         get {
           exchAuth(TBusiness(OrgAndId(organization, "*").toString), Access.READ) {

@@ -27,7 +27,7 @@ class PerfSuite extends AnyFunSuite {
   val agbotToken = agbotId+"tok"
   val AGBOTAUTH = ("Authorization","Basic "+ApiUtils.encode(agbotId+":"+agbotToken))
 
-  implicit val formats = DefaultFormats // Brings in default date formats etc.
+  implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
   def createAgbot = {
     val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", /*List[APattern](),*/ None, "ABC")

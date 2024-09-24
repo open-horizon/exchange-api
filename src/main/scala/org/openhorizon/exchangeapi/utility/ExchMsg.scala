@@ -7,10 +7,10 @@ object ExchMsg {
   def translate(key: String, args: Any*): String = {
     try {
       //todo: remove these 2 debug statements
-      val exchLang: String = sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en"))
+      val exchLang: String = getLang
       if (exchLang.startsWith("zh") || exchLang.startsWith("pt")) println("using lang for msgs: " + exchLang)
       
-      implicit val userLang: Lang = Lang(sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en")))
+      implicit val userLang: Lang = Lang(exchLang)
       if (args.nonEmpty) {
         return Messages(key, args: _*)
       }
@@ -20,5 +20,10 @@ object ExchMsg {
     }
   }
   
-  def getLang: String = sys.env.getOrElse("HZN_EXCHANGE_LANG", sys.env.getOrElse("LANG", "en"))
+  def getLang: String =
+    try
+      Configuration.getConfig.getString("api.language")
+    catch {
+      case _: Exception => "en"
+    }
 }

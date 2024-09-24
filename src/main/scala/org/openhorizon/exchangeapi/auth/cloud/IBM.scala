@@ -1,36 +1,30 @@
-package org.openhorizon.exchangeapi.auth
+package org.openhorizon.exchangeapi.auth.cloud
 
-import org.apache.pekko.event.LoggingAdapter
 import com.google.common.cache
-
-import java.io.{BufferedInputStream, File, FileInputStream}
-import java.security.cert.{Certificate, CertificateFactory}
-import java.util.concurrent.TimeUnit
-import java.security.KeyStore
 import com.google.common.cache.CacheBuilder
-import org.openhorizon.exchangeapi._
-
-import javax.net.ssl.{SSLContext, SSLSocketFactory, TrustManagerFactory}
-import javax.security.auth._
-import javax.security.auth.callback._
-import javax.security.auth.spi.LoginModule
+import org.apache.pekko.event.LoggingAdapter
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
+import org.openhorizon.exchangeapi.ExchangeApi
+import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ExchConfig, ExchMsg, HttpCode}
-import org.openhorizon.exchangeapi.{ExchangeApi}
-
-import scala.concurrent.ExecutionContext
+import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, ExchMsg, HttpCode}
 import scalacache._
 import scalacache.guava.GuavaCache
 import scalacache.modes.try_._
 import scalaj.http._
-import slick.dbio.Effect
-import slick.sql.SqlAction
 
+import java.io.{BufferedInputStream, File, FileInputStream}
+import java.security.KeyStore
+import java.security.cert.{Certificate, CertificateFactory}
+import java.util.concurrent.TimeUnit
+import javax.net.ssl.{SSLContext, SSLSocketFactory, TrustManagerFactory}
+import javax.security.auth._
+import javax.security.auth.callback._
+import javax.security.auth.spi.LoginModule
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.Await
+import scala.concurrent.{Await, ExecutionContext}
 import scala.concurrent.duration._
 import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
@@ -177,15 +171,36 @@ object IbmCloudAuth {
   def logger: LoggingAdapter = ExchangeApi.defaultLogger
 
   private val guavaCache: cache.Cache[String, Entry[String]] = CacheBuilder.newBuilder()
-                                                                           .maximumSize(ExchConfig.getInt("api.cache.IAMusersMaxSize"))
-                                                                           .expireAfterWrite(ExchConfig.getInt("api.cache.IAMusersTtlSeconds"), TimeUnit.SECONDS)
+                                                                           .maximumSize(Configuration.getConfig.getInt("api.cache.IAMusersMaxSize"))
+                                                                           .expireAfterWrite(Configuration.getConfig.getInt("api.cache.IAMusersTtlSeconds"), TimeUnit.SECONDS)
                                                                            .build[String, Entry[String]] // the cache key is <org>/<keytype>:<apikey> (where keytype is iamapikey or iamtoken), and the value is <org>/<username>
   implicit val userCache: GuavaCache[String] = GuavaCache(guavaCache) // the effect of this is that these methods don't need to be qualified
+  
+  def getICPExternalMgmtIngress: String =
+    try
+      Configuration.getConfig.getString("ibm.common-services.external-management-ingress")
+    catch {
+      case _: Exception => ""
+    }
+  
+  def getICPManagementIngressServicePort: String =
+    try
+      Configuration.getConfig.getString("ibm.common-services.management-ingress-service-port")
+    catch {
+      case _: Exception => "8443"
+    }
+  
+  def getPlatformIdentityProviderServicePort: String =
+    try
+      Configuration.getConfig.getString("ibm.common-services.identity-provider-service-port")
+    catch {
+      case _: Exception => "4300"
+    }
 
   // Called by ExchangeApiApp after db is established and upgraded
   def init(db: Database): Unit = {
     this.db = db
-    logger.info(s"IBM authentication-related env vars: PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT=${sys.env.get("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT")}, ICP_EXTERNAL_MGMT_INGRESS=${sys.env.get("ICP_EXTERNAL_MGMT_INGRESS")}, ICP_MANAGEMENT_INGRESS_SERVICE_PORT=${sys.env.get("ICP_MANAGEMENT_INGRESS_SERVICE_PORT")}")
+    logger.debug(s"IBM authentication-related env vars: PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT=$getPlatformIdentityProviderServicePort, ICP_EXTERNAL_MGMT_INGRESS=$getICPExternalMgmtIngress, ICP_MANAGEMENT_INGRESS_SERVICE_PORT=$getICPManagementIngressServicePort")
     if (isIcp) {
       this.sslSocketFactory = buildSslSocketFactory(getIcpCertFile)
       getIcpClusterName   // this caches the result in member var icpClusterNameTry
@@ -223,44 +238,37 @@ object IbmCloudAuth {
     removeAll().map(_ => ()) // i think this map() just transforms the removeAll() return of a future into Unit
   }
 
-  // Note: we need these 2 methods because if the env var is set to "", sys.env.get() will return Some("") instead of None
-  private def isEnvSet(envVarName: String): Boolean = sys.env.get(envVarName) match {
-    case Some(v) => v != ""
-    case None => false
-  }
-  private def getEnv(envVarName: String, defaultVal: String): String = sys.env.get(envVarName) match {
-    case Some(v) => if (v == "") defaultVal else v
-    case None => defaultVal
-  }
-
   private def isIcp: Boolean = {
     // ICP kube automatically sets the 1st one, our development environment sets the 2nd one when locally testing
     //logger.debug("isIcp: ICP_EXTERNAL_MGMT_INGRESS: " + sys.env.get("ICP_EXTERNAL_MGMT_INGRESS"))
-    isEnvSet("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT") || isEnvSet("ICP_EXTERNAL_MGMT_INGRESS")
+    (Configuration.getConfig.hasPath("ibm.cloud.platform-identity-provider-service-port") ||
+     Configuration.getConfig.hasPath("ibm.cloud.icp-external-management-ingress"))
   }
 
+  // Common Services IAM
   private def getIcpIdentityProviderUrl: String = {
     // https://$ICP_EXTERNAL_MGMT_INGRESS/idprovider  or  https://platform-identity-provider:$PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT
-    if (isEnvSet("ICP_EXTERNAL_MGMT_INGRESS")) {
-      var ICP_EXTERNAL_MGMT_INGRESS: String = getEnv("ICP_EXTERNAL_MGMT_INGRESS", "")
+    if (Configuration.getConfig.hasPath("ibm.cloud.icp-external-management-ingress")) {
+      var ICP_EXTERNAL_MGMT_INGRESS: String = getICPExternalMgmtIngress
       if (!ICP_EXTERNAL_MGMT_INGRESS.startsWith("https://")) ICP_EXTERNAL_MGMT_INGRESS = s"https://$ICP_EXTERNAL_MGMT_INGRESS"
       s"$ICP_EXTERNAL_MGMT_INGRESS/idprovider"
     } else {
       // ICP kube automatically sets this env var and hostname
-      val PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT: String = getEnv("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT", "4300")
+      val PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT: String = getPlatformIdentityProviderServicePort
       s"https://platform-identity-provider:$PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT"
     }
   }
 
+  //
   private def getIcpMgmtIngressUrl: String = {
     // https://$ICP_EXTERNAL_MGMT_INGRESS  or  https://icp-management-ingress.kube-system:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT
-    if (isEnvSet("ICP_EXTERNAL_MGMT_INGRESS")) {
-      var ICP_EXTERNAL_MGMT_INGRESS: String = getEnv("ICP_EXTERNAL_MGMT_INGRESS", "")
+    if (Configuration.getConfig.hasPath("ibm.cloud.icp-external-management-ingress")) {
+      var ICP_EXTERNAL_MGMT_INGRESS: String = getICPExternalMgmtIngress
       if (!ICP_EXTERNAL_MGMT_INGRESS.startsWith("https://")) ICP_EXTERNAL_MGMT_INGRESS = s"https://$ICP_EXTERNAL_MGMT_INGRESS"
       ICP_EXTERNAL_MGMT_INGRESS
     } else {
       // ICP kube automatically sets this env var and hostname
-      val ICP_MANAGEMENT_INGRESS_SERVICE_PORT: String = getEnv("ICP_MANAGEMENT_INGRESS_SERVICE_PORT", "8443")
+      val ICP_MANAGEMENT_INGRESS_SERVICE_PORT: String = getICPManagementIngressServicePort
       s"https://icp-management-ingress.kube-system:$ICP_MANAGEMENT_INGRESS_SERVICE_PORT"
     }
   }
@@ -292,6 +300,7 @@ object IbmCloudAuth {
   }
 
   // Internal method called from getIcpClusterName
+  // Common Services
   private def _getIcpClusterName: Try[String] = {
     for (i <- 1 to iamRetryNum) {
       try {
@@ -348,7 +357,7 @@ object IbmCloudAuth {
   // Using the IAM token get the ibm cloud account id (which we'll use to verify the exchange org) and users email (which we'll use as the exchange user)
   // For ICP IAM see: https://github.ibm.com/IBMPrivateCloud/roadmap/blob/master/feature-specs/security/security-services-apis.md
   private def getUserInfo(token: IamToken, authInfo: IamAuthCredentials): Try[IamUserInfo] = {
-    if (isIcp && token.tokenType.getOrElse("") == "iamapikey") {
+    if (isIcp && token.tokenType.getOrElse("") == "iamapikey") { // Common Services IAM
       // An icp platform apikey that we can use directly to authenticate and get the username
       var delayedReturn: Try[IamUserInfo] = Failure(new IamApiTimeoutException(ExchMsg.translate("iam.return.value.not.set", "GET introspect", iamRetryNum)))
       for (i <- 1 to iamRetryNum) {
@@ -373,7 +382,7 @@ object IbmCloudAuth {
         }
       }
       delayedReturn // if we tried the max times and never got a successful positive or negative, return what we last got
-    } else if (isIcp) {
+    } else if (isIcp) { // Common Services Identity Provider
       // An icp token from the UI
       var delayedReturn: Try[IamUserInfo] = Failure(new IamApiTimeoutException(ExchMsg.translate("iam.return.value.not.set", "GET userinfo", iamRetryNum)))
       for (i <- 1 to iamRetryNum) {
@@ -422,6 +431,7 @@ object IbmCloudAuth {
     }
   }
 
+  // Common Services
   def getOIDCToken(icpapikey: IamToken) : Try[IamToken]  = {
     /*
     curl -k -X POST -H "Content-Type: application/x-www-form-urlencoded" -H "Accept: application/json"
@@ -441,6 +451,7 @@ object IbmCloudAuth {
     } else Failure(new InvalidCredentialsException(ExchMsg.translate("invalid.iam.token")))
   }
 
+  // Common Services
   def getUserAccounts(token: IamToken, userInfo: IamUserInfo) : Try[List[IamAccountInfo]] = {
     if (isIcp){
       /*
@@ -499,7 +510,7 @@ object IbmCloudAuth {
         //logger.debug("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+"...")
         if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") {
           Success(UserRow(userInfo.user, "", "", admin = false, hubAdmin = false, "", "", ""))
-        } else Await.result(db.run(userQuery.transactionally), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+        } else Await.result(db.run(userQuery.transactionally), Duration(Configuration.getConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.debug("...back from awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+".")
       } catch {
         // Handle any exceptions, including db problems. Note: exceptions from this get caught in login() above

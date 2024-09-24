@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.table.node
 
+import org.openhorizon.exchangeapi.auth.Identity
 import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ

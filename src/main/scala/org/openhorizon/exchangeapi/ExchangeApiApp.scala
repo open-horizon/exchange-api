@@ -6,8 +6,6 @@
 
 package org.openhorizon.exchangeapi
 
-import com.mchange.v2.c3p0.ComboPooledDataSource
-import com.mchange.v2.log.FallbackMLog
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -17,7 +15,7 @@ import org.openhorizon.exchangeapi.route.agreement.Confirm
 import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
 import org.openhorizon.exchangeapi.table
 import org.openhorizon.exchangeapi.table.{ExchangeApiTables, ExchangePostgresProfile}
-import com.typesafe.config.ConfigFactory
+import com.typesafe.config.{ConfigFactory, ConfigParseOptions, ConfigSyntax, ConfigValue}
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import org.apache.pekko.Done
 import org.apache.pekko.actor.{Actor, ActorRef, ActorSystem, CoordinatedShutdown, Props, Timers}
@@ -30,11 +28,11 @@ import org.apache.pekko.http.scaladsl.model.headers.CacheDirectives.{`max-age`, 
 import org.apache.pekko.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
 import org.apache.pekko.http.scaladsl.server.{AuthorizationFailedRejection, ExceptionHandler, MalformedQueryParamRejection, MalformedRequestContentRejection, MethodRejection, Rejection, RejectionHandler, Route, RouteResult, TransformationRejection, ValidationRejection}
 import org.apache.pekko.http.scaladsl.server.RouteResult.Rejected
-import org.apache.pekko.http.scaladsl.server.directives.{DebuggingDirectives, LogEntry}
+import org.apache.pekko.http.scaladsl.server.directives.{Credentials, DebuggingDirectives, LogEntry}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.json4s._
 import org.openhorizon.exchangeapi.SwaggerDocService.complete
-import org.openhorizon.exchangeapi.auth.{AuthCache, AuthenticationSupport}
+import org.openhorizon.exchangeapi.auth.{AuthCache, AuthenticationSupport, InvalidCredentialsException, Password, Token}
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
 import org.openhorizon.exchangeapi.route.catalog.{OrganizationDeploymentPatterns, OrganizationServices}
@@ -52,28 +50,30 @@ import org.openhorizon.exchangeapi.route.service.{Policy, Service, Services}
 import org.openhorizon.exchangeapi.route.user.{ChangePassword, Confirm, User, Users}
 import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchConfig, ExchMsg, ExchangeRejection, NotFoundRejection}
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, ExchangeRejection, NotFoundRejection}
 import slick.jdbc.TransactionIsolation.Serializable
 
-import java.io.{FileInputStream, InputStream}
+import java.io.{File, FileInputStream, InputStream}
 import java.security.{KeyStore, SecureRandom}
 import java.sql.Timestamp
-import java.util.Optional
+import java.util
+import java.util.{Map, Optional}
 import javax.net.ssl.{KeyManagerFactory, SSLContext, SSLEngine, TrustManagerFactory}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.io.{BufferedSource, Source}
+import scala.jdk.CollectionConverters.CollectionHasAsScala
 import scala.util.matching.Regex
+import scala.util.Properties
 import scala.util.{Failure, Success}
 
 // Global vals and methods
 object ExchangeApi {
   // Global vals - these values are stored here instead of in ExchangeApiApp, because the latter extends DelayedInit, so the compiler checking wouldn't know when they are available. See https://stackoverflow.com/questions/36710169/why-are-implicit-variables-not-initialized-in-scala-when-called-from-unit-test/36710170
   // But putting them here and using them from here implies we have to manually verify that we set them before they are used
-  var serviceHost = ""
-  var servicePortEncrypted: Option[Int] = scala.None
-  var servicePortUnencrypted: Option[Int] = scala.None
   var defaultExecutionContext: ExecutionContext = _
   var defaultLogger: LoggingAdapter = _
 
@@ -83,14 +83,6 @@ object ExchangeApi {
   versionSource.close()
   def adminVersion(): String = versionText
 }
-
-/* moved to config.json
-object ExchangeApiConstants {
-  //val serviceHost = "localhost"
-  val serviceHost = "0.0.0.0"
-  val servicePort = 8080
-}
-*/
 
 
 /**
@@ -187,24 +179,23 @@ object ExchangeApiApp extends App
 
   // Set up ActorSystem and other dependencies here
   println(s"Running with java arguments: ${ApiUtils.getJvmArgs}")
-  ExchConfig.load() // get config file, normally in /etc/horizon/exchange/config.json
-  //val something = ConfigFactory.load("config.json")
-  //(ExchangeApi.serviceHost, ExchangeApi.servicePort) = ExchConfig.getHostAndPort  // <- scala does not support this
-  ExchConfig.getHostAndPort match {
-    case (h, pe, pu) =>
-      ExchangeApi.serviceHost = h
-      ExchangeApi.servicePortEncrypted = pe
-      ExchangeApi.servicePortUnencrypted = pu
-  }
 
+  
   //val actorConfig = ConfigFactory.parseString("pekko.loglevel=" + ExchConfig.getLogLevel)
-  implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)  // includes the loglevel
+  //implicit val system: ActorSystem = ActorSystem("actors", ExchConfig.getAkkaConfig)
+  //implicit val system: ActorSystem = ActorSystem("actors", ConfigFactory.parseFile(new File("/etc/horizon/exchange/config.json"), ConfigParseOptions.defaults().setSyntax(ConfigSyntax.JSON).setAllowMissing(false)).withFallback(ConfigFactory.load("application")))
+  
+  implicit val system: ActorSystem = ActorSystem("actors", ConfigFactory.load("exchange")) // includes the loglevel
+  
+  
+  
   implicit val executionContext: ExecutionContext = system.dispatcher
   ExchangeApi.defaultExecutionContext = executionContext // need this set in an object that doesn't use DelayedInit
 
-  implicit val logger: LoggingAdapter = Logging(system, "ExchApi")
+  implicit val logger: LoggingAdapter = Logging(system, "Exchange")
   ExchangeApi.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
-  ExchConfig.createRootInCache()
+  
+  AuthCache.createRootInCache()
   
   // Check common overwritten pekko configuration parameters
   logger.debug("pekko.corrdinated-shutdown:  " + system.settings.config.getConfig("pekko.coordinated-shutdown").toString)
@@ -288,12 +279,38 @@ object ExchangeApiApp extends App
   def testRoute = {
     path("test") {
       get {
-        logger.debug("In /test")
-        
         complete(testResp())
       }
     }
   }
+  
+  
+// TODO: Basic authentication idea
+/*  def myUserPassAuthenticator(credentials: Credentials): Future[Option[String]] = {
+    credentials match {
+      case p @ Credentials.Provided(username) =>
+        Future {
+          AuthCache.getUser(username) match {
+            case Some(userHashedTok) =>
+              if(p.verify(secret = userHashedTok,
+                          hasher =
+                            {
+                              unhashedCred =>
+                                if (Password.check(unhashedCred, userHashedTok))
+                                  userHashedTok
+                                else
+                                  ""
+                            }))  // Need to use verify to prevent timing attacks. Need to use BCrypt's builtin comparator to evaluate equality of hashes.
+                Some(username)
+              else
+                None
+            case None => None
+          }
+        }
+      case _ =>
+        Future.successful(None)
+    }
+  } */
   
   //someday: use directive https://doc.pekko.io/docs/pekko-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
   lazy val routes: Route =
@@ -309,86 +326,89 @@ object ExchangeApiApp extends App
               cors() {
                 handleExceptions(myExceptionHandler) {
                   handleRejections(corsRejectionHandler.withFallback(myRejectionHandler)) {
-                    agentConfigurationManagement ~
-                    agreement ~
-                    agreementBot ~
-                    agreementBots ~
-                    agreementNode ~
-                    agreements ~
-                    agreementsNode ~
-                    changePassword ~
-                    changes ~
-                    cleanup ~
-                    clearAuthCache ~
-                    confirm ~
-                    confirmAgreement ~
-                    configuration ~
-                    configurationState ~
-                    deploymentPattern ~
-                    deploymentPatternAgreementBot ~
-                    deploymentPatterns ~
-                    deploymentPatternsAgreementBot ~
-                    deploymentPatternsCatalog ~
-                    deploymentPolicies ~
-                    deploymentPoliciesAgreementBot ~
-                    deploymentPolicy ~
-                    deploymentPolicyAgreementBot ~
-                    deploymentPolicySearch ~
-                    details ~
-                    dockerAuth ~
-                    dockerAuths ~
-                    dropDB ~
-                    errors ~
-                    hashPW ~
-                    heartbeatAgreementBot ~
-                    heartbeatNode ~
-                    initializeDB ~
-                    keyDeploymentPattern ~
-                    keyService ~
-                    keysDeploymentPattern ~
-                    keysService ~
-                    managementPolicies ~
-                    managementPolicy ~
-                    maxChangeId ~
-                    messageAgreementBot ~
-                    messageNode ~
-                    messagesAgreementBot ~
-                    messagesNode ~
-                    myOrganizations ~
-                    node ~
-                    nodeErrorSearch ~
-                    nodeErrorsSearch ~
-                    nodeHealthDeploymentPattern ~
-                    nodeHealthSearch ~
-                    nodeHighAvailabilityGroup ~
-                    nodes ~
-                    nodeServiceSearch ~
-                    nodeGroup ~
-                    nodeGroups ~
-                    organization ~
-                    organizationDeploymentPatterns ~
-                    organizations ~
-                    organizationServices ~
-                    organizationStatus ~
-                    policyNode ~
-                    policyService ~
-                    reload ~
-                    searchNode ~
-                    service ~
-                    services ~
-                    servicesCatalog ~
-                    status ~
-                    statusManagementPolicy ~
-                    statusNode ~
-                    statusOrganization ~
-                    statuses ~
-                    SwaggerDocService.routes ~
-                    swaggerUiRoutes ~
-                    testRoute ~
-                    token ~
-                    user ~
-                    users ~
-                    version
+//                    authenticateBasicAsync(realm = "Exchange", myUserPassAuthenticator) {  // TODO: Basic authentication idea, does not cover other auth types.
+//                      cred =>
+                      agentConfigurationManagement ~
+                        agreement ~
+                        agreementBot ~
+                        agreementBots ~
+                        agreementNode ~
+                        agreements ~
+                        agreementsNode ~
+                        changePassword ~
+                        changes ~
+                        cleanup ~
+                        clearAuthCache ~
+                        confirm ~
+                        confirmAgreement ~
+                        configuration ~
+                        configurationState ~
+                        deploymentPattern ~
+                        deploymentPatternAgreementBot ~
+                        deploymentPatterns ~
+                        deploymentPatternsAgreementBot ~
+                        deploymentPatternsCatalog ~
+                        deploymentPolicies ~
+                        deploymentPoliciesAgreementBot ~
+                        deploymentPolicy ~
+                        deploymentPolicyAgreementBot ~
+                        deploymentPolicySearch ~
+                        details ~
+                        dockerAuth ~
+                        dockerAuths ~
+                        dropDB ~
+                        errors ~
+                        hashPW ~
+                        heartbeatAgreementBot ~
+                        heartbeatNode ~
+                        initializeDB ~
+                        keyDeploymentPattern ~
+                        keyService ~
+                        keysDeploymentPattern ~
+                        keysService ~
+                        managementPolicies ~
+                        managementPolicy ~
+                        maxChangeId ~
+                        messageAgreementBot ~
+                        messageNode ~
+                        messagesAgreementBot ~
+                        messagesNode ~
+                        myOrganizations ~
+                        node ~
+                        nodeErrorSearch ~
+                        nodeErrorsSearch ~
+                        nodeHealthDeploymentPattern ~
+                        nodeHealthSearch ~
+                        nodeHighAvailabilityGroup ~
+                        nodes ~
+                        nodeServiceSearch ~
+                        nodeGroup ~
+                        nodeGroups ~
+                        organization ~
+                        organizationDeploymentPatterns ~
+                        organizations ~
+                        organizationServices ~
+                        organizationStatus ~
+                        policyNode ~
+                        policyService ~
+                        reload ~
+                        searchNode ~
+                        service ~
+                        services ~
+                        servicesCatalog ~
+                        status ~
+                        statusManagementPolicy ~
+                        statusNode ~
+                        statusOrganization ~
+                        statuses ~
+                        SwaggerDocService.routes ~
+                        swaggerUiRoutes ~
+                        testRoute ~
+                        token ~
+                        user ~
+                        users ~
+                        version
+//                    }
                   }
                 }
               }
@@ -397,66 +417,16 @@ object ExchangeApiApp extends App
         }
       }
     }
-
-  // Load the db backend. The db access info must be in config.json
-  // https://www.mchange.com/projects/c3p0/#configuration_properties
   
-  var cpds: ComboPooledDataSource = new ComboPooledDataSource()
-  cpds.setAcquireIncrement(ExchConfig.getInt("api.db.acquireIncrement"))
-  cpds.setDriverClass(ExchConfig.getString("api.db.driverClass")) //loads the jdbc driver
-  cpds.setIdleConnectionTestPeriod(ExchConfig.getInt("api.db.idleConnectionTestPeriod"))
-  cpds.setInitialPoolSize(ExchConfig.getInt("api.db.initialPoolSize"))
-  cpds.setJdbcUrl(ExchConfig.getString("api.db.jdbcUrl"))
-  cpds.setMaxConnectionAge(ExchConfig.getInt("api.db.maxConnectionAge"))
-  cpds.setMaxIdleTimeExcessConnections(ExchConfig.getInt("api.db.maxIdleTimeExcessConnections"))
-  cpds.setMaxPoolSize(ExchConfig.getInt("api.db.maxPoolSize"))
-  cpds.setMaxStatementsPerConnection(ExchConfig.getInt("api.db.maxStatementsPerConnection"))
-  cpds.setMinPoolSize(ExchConfig.getInt("api.db.minPoolSize"))
-  cpds.setNumHelperThreads(ExchConfig.getInt("api.db.numHelperThreads"))
-  cpds.setPassword(ExchConfig.getString("api.db.password"))
-  cpds.setTestConnectionOnCheckin(ExchConfig.getBoolean("api.db.testConnectionOnCheckin"))
-  cpds.setUser(ExchConfig.getString("api.db.user"))
-
-  // maxConnections, maxThreads, and minThreads should all be the same size.
-  val maxConns: Int = ExchConfig.getInt("api.db.maxPoolSize")
-  val db: Database =
-    if (cpds != null) {
-      Database.forDataSource(
-        cpds,
-        Option(maxConns),
-        AsyncExecutor("ExchangeExecutor", maxConns, maxConns, ExchConfig.getInt("api.db.queueSize"), maxConns))
-    }
-    else
-      null
-
+  val db: Database = DatabaseConnection.getDatabase//Database.forConfig("exchange-db-connection", system.settings.config.getConfig("exchange-db-connection"))
   def getDb: Database = db
 
   system.registerOnTermination(() => db.close())
 
-  /*
-   * When we were using scalatra - left here for reference, until we investigate the CORS support in pekko-http
-   * before() {  // Before every action runs...
-   * // We have to set these ourselves because we had to disable scalatra's builtin CorsSupport because for some inexplicable reason it doesn't set Access-Control-Allow-Origin which is critical
-   * //response.setHeader("Access-Control-Allow-Origin", "*")  // <- this can only be used for unauthenticated requests
-   * response.setHeader("Access-Control-Allow-Origin", request.getHeader("Origin"))
-   * response.setHeader("Access-Control-Allow-Credentials", "true")
-   * response.setHeader("Access-Control-Allow-Headers", request.getHeader("Access-Control-Request-Headers"))
-   * //response.setHeader("Access-Control-Allow-Headers", "Cookie,Host,X-Forwarded-For,Accept-Charset,If-Modified-Since,Accept-Language,X-Forwarded-Port,Connection,X-Forwarded-Proto,User-Agent,Referer,Accept-Encoding,X-Requested-With,Authorization,Accept,Content-Type,X-Requested-With")  // this is taken from what CorsSupport sets
-   * response.setHeader("Access-Control-Max-Age", "1800")
-   * response.setHeader("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,HEAD,OPTIONS,PATCH")
-   * }
-   */
-
-  // Browsers sometimes do a preflight check of this before making the real rest api call
-  //options("/*"){
-  //  val creds = credsForAnonymous()
-  //  val userOrId = if (creds.isAnonymous) "(anonymous)" else creds.id
-  //  val clientIp = request.header("X-Forwarded-For").orElse(Option(request.getRemoteAddr)).get      // haproxy inserts the real client ip into the header for us
-  //  logger.info("User or id "+userOrId+" from "+clientIp+" running "+request.getMethod+" "+request.getPathInfo+" with request header "+request.getHeader("Access-Control-Request-Headers"))
-  //}
-
   // Upgrade the db if necessary
-  try { ExchangeApiTables.upgradeDb(db) }
+  try {
+    ExchangeApiTables.upgradeDb(db)
+  }
   catch {
     // Handle db problems
     case timeout: java.util.concurrent.TimeoutException =>
@@ -473,7 +443,7 @@ object ExchangeApiApp extends App
   /** Task for trimming `resourcechanges` table */
   def trimResourceChanges(): Unit ={
     // Get the time for trimming rows from the table
-    val timeExpires: Timestamp = ApiTime.pastUTCTimestamp(ExchConfig.getInt("api.resourceChanges.ttl"))
+    val timeExpires: Timestamp = ApiTime.pastUTCTimestamp(system.settings.config.getInt("api.resourceChanges.ttl"))
     db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.asTry).map({
       case Success(v) =>
         if (v <= 0) logger.debug("No resource changes to trim")
@@ -484,7 +454,7 @@ object ExchangeApiApp extends App
 
   /** Variables and pekko Actor for trimming `resourcechanges` table */
   val Cleanup = "cleanup";
-  class ChangesCleanupActor(timerInterval: Int = ExchConfig.getInt("api.resourceChanges.cleanupInterval")) extends Actor with Timers{
+  class ChangesCleanupActor(timerInterval: Int = system.settings.config.getInt("api.resourceChanges.cleanupInterval")) extends Actor with Timers{
     override def preStart(): Unit = {
       timers.startTimerAtFixedRate(interval = timerInterval.seconds, key = "trimResourceChanges", msg = Cleanup)
       logger.info("Scheduling change record cleanup every "+ timerInterval.seconds + " seconds")
@@ -513,7 +483,7 @@ object ExchangeApiApp extends App
   /** Variables and pekko Actor for removing expired nodemsgs and agbotmsgs */
   val CleanupExpiredMessages = "cleanupExpiredMessages"
   
-  class MsgsCleanupActor(timerInterval: Int = ExchConfig.getInt("api.defaults.msgs.expired_msgs_removal_interval")) extends Actor with Timers {
+  class MsgsCleanupActor(timerInterval: Int = system.settings.config.getInt("api.defaults.msgs.expired_msgs_removal_interval")) extends Actor with Timers {
     override def preStart(): Unit = {
       timers.startSingleTimer(key = "removeExpiredMsgsOnStart", msg = CleanupExpiredMessages, timeout = 0.seconds)
       timers.startTimerAtFixedRate(interval = timerInterval.seconds, key = "removeExpiredMsgs", msg = CleanupExpiredMessages)
@@ -527,14 +497,15 @@ object ExchangeApiApp extends App
     }
   }
   val msgsCleanupActor: ActorRef = system.actorOf(Props(new MsgsCleanupActor()))
-  val secondsToWait: Int = ExchConfig.getInt("api.service.shutdownWaitForRequestsToComplete") // ExchConfig.getpekkoConfig() also makes the pekko unbind phase this long
+  val secondsToWait: Int = system.settings.config.getInt("api.service.shutdownWaitForRequestsToComplete") // ExchConfig.getpekkoConfig() also makes the pekko unbind phase this long
   
   var serverBindingHttp: Option[Http.ServerBinding] = None
   var serverBindingHttps: Option[Http.ServerBinding] = None
+  val serviceHost = system.settings.config.getString("api.service.host")
   
   val truststore: Option[String] =
     try {
-      Option(ExchConfig.getString("api.tls.truststore"))
+      Option(system.settings.config.getString("api.tls.truststore"))
     }
     catch {
       case _: Exception => None
@@ -548,15 +519,15 @@ object ExchangeApiApp extends App
     
     try {
       keyStore.load(new FileInputStream(truststore.get),
-                                        ExchConfig.getString("api.tls.password").toCharArray)
-      keyManager.init(keyStore, ExchConfig.getString("api.tls.password").toCharArray)
+                                        system.settings.config.getString("api.tls.password").toCharArray)
+      keyManager.init(keyStore, system.settings.config.getString("api.tls.password").toCharArray)
       trustManager.init(keyStore)
       sslContext.init(keyManager.getKeyManagers,
                       trustManager.getTrustManagers,
                       new SecureRandom)
   
       // Start serving client requests
-      Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePortEncrypted.get)
+      Http().newServerAt(serviceHost, -1) // pekko.http.server.default-https-port
             .enableHttps(ConnectionContext.httpsServer(() => {               // Custom TLS parameters
               val engine: SSLEngine = sslContext.createSSLEngine()
               
@@ -572,7 +543,7 @@ object ExchangeApiApp extends App
             .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
             .onComplete {
               case Success(binding) =>
-                logger.info("Server online at "+ s"https://${ExchangeApi.serviceHost}:${binding.localAddress.getPort}/") // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
+                logger.info("Server online at "+ s"https://${serviceHost}:${binding.localAddress.getPort}/") // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
                 serverBindingHttps = Option(binding)
               case Failure(e) =>
                 logger.error("HTTPS server could not start!")
@@ -596,13 +567,13 @@ object ExchangeApiApp extends App
     }
   }
   
-  if(ExchangeApi.servicePortUnencrypted.isDefined) {
-    Http().newServerAt(ExchangeApi.serviceHost, ExchangeApi.servicePortUnencrypted.get)
+  if(system.settings.config.hasPath("pekko.http.server.default-http-port")) {
+    Http().newServerAt(serviceHost, -1) // pekko.http.server.default-http-port
           .bind(routes) //.bind(cors.corsHandler(routes))
           .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
           .onComplete {
             case Success(binding) =>
-              logger.info("Server online at "+ s"http://${ExchangeApi.serviceHost}:${binding.localAddress.getPort}/") // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
+              logger.info("Server online at "+ s"http://${serviceHost}:${binding.localAddress.getPort}/") // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
               serverBindingHttp = Option(binding)
             case Failure(e) =>
               logger.error("HTTP server could not start!")

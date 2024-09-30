@@ -531,11 +531,9 @@ object ExchangeApiApp extends App
             .enableHttps(ConnectionContext.httpsServer(() => {               // Custom TLS parameters
               val engine: SSLEngine = sslContext.createSSLEngine()
               
-              engine.setEnabledProtocols(Array("TLSv1.3", "TLSv1.2"))                       // TLSv1.2 is in support of OpenShift 4.6. HAPoxy router is built on top of RHEL7 which does not support TLSv1.3.
+              engine.setEnabledProtocols(Array("TLSv1.3"))
               engine.setEnabledCipherSuites(Array("TLS_AES_256_GCM_SHA384",
-                                                  "TLS_CHACHA20_POLY1305_SHA256",
-                                                  "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384",
-                                                  "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384"))
+                                                  "TLS_CHACHA20_POLY1305_SHA256"))
               engine.setUseClientMode(false)
               engine
             }))

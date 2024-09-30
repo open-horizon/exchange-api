@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.125.0] - 2024-09-30
+- Removed support for TLS v1.2.
+- Removed an API key authentication pathway.
+
 ## [2.124.0] - 2024-09-14
 - Application configuration overhaul.
   - Some database configuration changes are not backwards compatible. 

@@ -3,6 +3,9 @@ package org.openhorizon.exchangeapi.route.organization
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
+import org.openhorizon.exchangeapi.route.administration.AdminStatus
+import org.openhorizon.exchangeapi.table.agreementbot.agreement.{AgbotAgreementRow, AgbotAgreementsTQ}
+import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsgRow, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreementRow, NodeAgreementsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
@@ -11,6 +14,8 @@ import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.schema.SchemaTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.tag.AdminStatusTest
+import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
@@ -20,6 +25,13 @@ import slick.jdbc
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 import slick.jdbc.PostgresProfile.api._
+
+import java.sql.Timestamp
+import java.time.ZoneId
+import scala.annotation.unused
+import org.scalatest.Tag
+
+
 
 class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
 
@@ -32,179 +44,278 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
 
-  private val HUBADMINPASSWORD = "adminpassword"
-  private val USER1PASSWORD = "user1password"
-  private val USER2PASSWORD = "user2password"
+  private val PASSWORD = "password"
+  
+  private val TIMESTAMP: Timestamp = ApiTime.nowUTCTimestamp
+  private val TIMESTAMPSTRING: String = fixFormatting(TIMESTAMP.toInstant.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("UTC")).toString)
 
   private val TESTORGS: Seq[OrgRow] =
-    Seq(
-      OrgRow(
-        heartbeatIntervals =
-          """
-            |{
-            | "minInterval": 1,
-            | "maxInterval": 2,
-            | "intervalAdjustment": 3
-            |}
-            |""".stripMargin,
-        description        = "Test Organization 1",
-        label              = "testGetOrgStatus",
-        lastUpdated        = ApiTime.nowUTC,
-        limits             =
-          """
-            |{
-            | "maxNodes": 100
-            |}
-            |""".stripMargin,
-        orgId              = "testGetOrgStatusRoute1",
-        orgType            = "testGetOrgStatus",
-        tags               = None),
-      OrgRow(
-        heartbeatIntervals =
-          """
-            |{
-            | "minInterval": 4,
-            | "maxInterval": 5,
-            | "intervalAdjustment": 6
-            |}
-            |""".stripMargin,
-        description        = "Test Organization 2",
-        label              = "sampleGetOrgStatus",
-        lastUpdated        = ApiTime.nowUTC,
-        limits             =
-          """
-            |{
-            | "maxNodes": 5
-            |}
-            |""".stripMargin,
-        orgId              = "testGetOrgStatusRoute2",
-        orgType            = "testGetOrgStatus",
-        tags               = Some(JsonMethods.parse(
-          """
-            |{
-            | "tagName": "tagValue"
-            |}
-            |""".stripMargin
-        ))))
+    Seq(OrgRow(description = "",
+               heartbeatIntervals = "",
+               label = "",
+               lastUpdated = TIMESTAMPSTRING,
+               limits = "",
+               orgId = "testGetOrgStatusRoute0",
+               orgType = "",
+               tags = None),
+        OrgRow(description = "",
+               heartbeatIntervals = "",
+               label = "",
+               lastUpdated = TIMESTAMPSTRING,
+               limits = "",
+               orgId = "testGetOrgStatusRoute1",
+               orgType = "",
+               tags = None))
 
   private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestGetOrgStatusRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestGetOrgStatusRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/TestGetOrgStatusRouteUser1",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(USER1PASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "TestGetOrgStatusRouteUser1@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/TestGetOrgStatusRouteUser2",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = Password.hash(USER2PASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "TestGetOrgStatusRouteUser2@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      )
-    )
+  Seq(UserRow(admin       = false,
+              email       = "",
+              hashedPw    = Password.hash(PASSWORD),
+              hubAdmin    = true,
+              lastUpdated = TIMESTAMPSTRING,
+              orgid       = "root",
+              updatedBy   = "",
+              username    = "root/TestGetOrgStatusRouteHubAdmin0"),
+      UserRow(admin       = true,
+              email       = "",
+              hashedPw    = Password.hash(PASSWORD),
+              hubAdmin    = false,
+              lastUpdated = TIMESTAMPSTRING,
+              orgid       = "testGetOrgStatusRoute0",
+              updatedBy   = "",
+              username    = "testGetOrgStatusRoute0/admin0"),
+      UserRow(admin       = false,
+              email       = "",
+              hashedPw    = Password.hash(PASSWORD),
+              hubAdmin    = false,
+              lastUpdated = TIMESTAMPSTRING,
+              orgid       = "testGetOrgStatusRoute0",
+              updatedBy   = "",
+              username    = "testGetOrgStatusRoute0/user0"),
+      UserRow(admin       = false,
+              email       = "",
+              hashedPw    = Password.hash(PASSWORD),
+              hubAdmin    = false,
+              lastUpdated = TIMESTAMPSTRING,
+              orgid       = "testGetOrgStatusRoute1",
+              updatedBy   = "",
+              username    = "testGetOrgStatusRoute1/user0"))
 
   private val TESTNODES: Seq[NodeRow] =
-    Seq(
-      NodeRow(
-        arch               = "",
-        id                 = TESTORGS(0).orgId + "/n1",
-        heartbeatIntervals = "",
-        lastHeartbeat      = None,
-        lastUpdated        = ApiTime.nowUTC,
-        msgEndPoint        = "",
-        name               = "",
-        nodeType           = "",
-        orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username,
-        pattern            = "",
-        publicKey          = "",
-        regServices        = "",
-        softwareVersions   = "",
-        token              = "",
-        userInput          = ""),
-      NodeRow(
-        arch               = "",
-        id                 = TESTORGS(0).orgId + "/n2",
-        heartbeatIntervals = "",
-        lastHeartbeat      = None,
-        lastUpdated        = ApiTime.nowUTC,
-        msgEndPoint        = "",
-        name               = "",
-        nodeType           = "",
-        orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username,
-        pattern            = "",
-        publicKey          = "registered",
-        regServices        = "",
-        softwareVersions   = "",
-        token              = "",
-        userInput          = ""))
+    Seq(NodeRow(arch               = "",
+                id                 = TESTORGS(0).orgId + "/node0",
+                heartbeatIntervals = "",
+                lastHeartbeat      = None,
+                lastUpdated        = TIMESTAMPSTRING,
+                msgEndPoint        = "",
+                name               = "",
+                nodeType           = "",
+                orgid              = TESTORGS(0).orgId,
+                owner              = TESTUSERS(1).username,
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = Password.hash(PASSWORD),
+                userInput          = ""),
+        NodeRow(arch               = "",
+                id                 = TESTORGS(0).orgId + "/node1",
+                heartbeatIntervals = "",
+                lastHeartbeat      = None,
+                lastUpdated        = TIMESTAMPSTRING,
+                msgEndPoint        = "",
+                name               = "",
+                nodeType           = "",
+                orgid              = TESTORGS(0).orgId,
+                owner              = TESTUSERS(2).username,
+                pattern            = "",
+                publicKey          = "registered",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = "",
+                userInput          = ""),
+        NodeRow(arch               = "",
+                id                 = TESTORGS(1).orgId + "/node0",
+                heartbeatIntervals = "",
+                lastHeartbeat      = None,
+                lastUpdated        = TIMESTAMPSTRING,
+                msgEndPoint        = "",
+                name               = "",
+                nodeType           = "",
+                orgid              = TESTORGS(1).orgId,
+                owner              = TESTUSERS(3).username,
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = "",
+                userInput          = ""))
 
   private val TESTAGBOTS: Seq[AgbotRow] = //must have an agbot in order to create a node message
-    Seq(AgbotRow(
-      id            = TESTORGS(0).orgId + "/a1",
-      orgid         = TESTORGS(0).orgId,
-      token         = "",
-      name          = "testAgbot",
-      owner         = TESTUSERS(1).username,
-      msgEndPoint   = "",
-      lastHeartbeat = ApiTime.nowUTC,
-      publicKey     = ""
-    ))
+    Seq(AgbotRow(id            = "IBM/testGetOrgStatusRoute0",
+                 lastHeartbeat = TIMESTAMPSTRING,
+                 msgEndPoint   = "",
+                 name          = "testAgbot",
+                 orgid         = "IBM",
+                 owner         = TESTUSERS(0).username,
+                 publicKey     = "",
+                 token         = Password.hash(PASSWORD)),
+        AgbotRow(id            = TESTORGS(0).orgId + "/agbot0",
+                 lastHeartbeat = TIMESTAMPSTRING,
+                 msgEndPoint   = "",
+                 name          = "testAgbot",
+                 orgid         = TESTORGS(0).orgId,
+                 owner         = TESTUSERS(1).username,
+                 publicKey     = "",
+                 token         = Password.hash(PASSWORD)),
+        AgbotRow(id            = TESTORGS(0).orgId + "/agbot1",
+                 lastHeartbeat = TIMESTAMPSTRING,
+                 msgEndPoint   = "",
+                 name          = "testAgbot",
+                 orgid         = TESTORGS(0).orgId,
+                 owner         = TESTUSERS(2).username,
+                 publicKey     = "",
+                 token         = ""),
+        AgbotRow(id            = TESTORGS(1).orgId + "/agbot0",
+                 lastHeartbeat = TIMESTAMPSTRING,
+                 msgEndPoint   = "",
+                 name          = "testAgbot",
+                 orgid         = TESTORGS(1).orgId,
+                 owner         = TESTUSERS(3).username,
+                 publicKey     = "",
+                 token         = ""),
+    )
 
-  private val TESTAGREEMENTS: Seq[NodeAgreementRow] =
-    Seq(NodeAgreementRow(
-      agId          = TESTAGBOTS(0).id,
-      nodeId        = TESTNODES(0).id,
-      services      = "",
-      agrSvcOrgid   = TESTORGS(0).orgId,
-      agrSvcPattern = "",
-      agrSvcUrl     = "",
-      state         = "active",
-      lastUpdated   = ApiTime.nowUTC))
-
-  private val TESTMESSAGES: Seq[NodeMsgRow] =
-    Seq(NodeMsgRow(
-      msgId = 0, // this will be automatically set to a unique ID by the DB
-      nodeId = TESTNODES(0).id,
-      agbotId = TESTAGBOTS(0).id,
-      agbotPubKey = "",
-      message = "Test Message",
-      timeSent = ApiTime.nowUTC,
-      timeExpires = ApiTime.futureUTC(120)))
+  private val TESTAGBOTAGREEMENTS: Seq[AgbotAgreementRow] =
+    Seq(AgbotAgreementRow(agrId = "TestGetOrgStatusRoute0",
+                          agbotId = TESTAGBOTS(0).id,
+                          dataLastReceived = "",
+                          lastUpdated = TIMESTAMPSTRING,
+                          serviceOrgid = "IBM",
+                          servicePattern = "",
+                          serviceUrl = "",
+                          state = "active"),
+        AgbotAgreementRow(agrId = "TestGetOrgStatusRoute1",
+                          agbotId = TESTAGBOTS(1).id,
+                          dataLastReceived = "",
+                          lastUpdated = TIMESTAMPSTRING,
+                          serviceOrgid = TESTORGS(0).orgId,
+                          servicePattern = "",
+                          serviceUrl = "",
+                          state = "active"),
+        AgbotAgreementRow(agrId = "TestGetOrgStatusRoute2",
+                          agbotId = TESTAGBOTS(2).id,
+                          dataLastReceived = "",
+                          lastUpdated = TIMESTAMPSTRING,
+                          serviceOrgid = TESTORGS(0).orgId,
+                          servicePattern = "",
+                          serviceUrl = "",
+                          state = "active"),
+        AgbotAgreementRow(agrId = "TestGetOrgStatusRoute3",
+                          agbotId = TESTAGBOTS(3).id,
+                          dataLastReceived = "",
+                          lastUpdated = TIMESTAMPSTRING,
+                          serviceOrgid = TESTORGS(1).orgId,
+                          servicePattern = "",
+                          serviceUrl = "",
+                          state = "active"))
+  
+  private val TESTNODEAGREEMENTS: Seq[NodeAgreementRow] =
+    Seq(NodeAgreementRow(agId          = "TestGetOrgStatusRoute0",
+                         agrSvcOrgid   = TESTORGS(0).orgId,
+                         agrSvcPattern = "",
+                         agrSvcUrl     = "",
+                         lastUpdated   = TIMESTAMPSTRING,
+                         nodeId        = TESTNODES(0).id,
+                         services      = "",
+                         state         = "active"),
+        NodeAgreementRow(agId          = "TestGetOrgStatusRoute1",
+                         agrSvcOrgid   = TESTORGS(0).orgId,
+                         agrSvcPattern = "",
+                         agrSvcUrl     = "",
+                         lastUpdated   = TIMESTAMPSTRING,
+                         nodeId        = TESTNODES(1).id,
+                         services      = "",
+                         state         = "active"),
+        NodeAgreementRow(agId          = "TestGetOrgStatusRoute2",
+                         agrSvcOrgid   = TESTORGS(1).orgId,
+                         agrSvcPattern = "",
+                         agrSvcUrl     = "",
+                         lastUpdated   = TIMESTAMPSTRING,
+                         nodeId        = TESTNODES(2).id,
+                         services      = "",
+                         state         = "active"))
+  
+  private val TESTAGBOTMESSAGES: Seq[AgbotMsgRow] =
+    Seq(AgbotMsgRow(agbotId = TESTAGBOTS(0).id,
+                    message = "",
+                    msgId = 0,
+                    nodeId = TESTNODES(0).id,
+                    nodePubKey = "",
+                    timeExpires = ApiTime.futureUTC(120),
+                    timeSent = TIMESTAMPSTRING),
+        AgbotMsgRow(agbotId = TESTAGBOTS(1).id,
+                    message = "",
+                    msgId = 0,
+                    nodeId = TESTNODES(0).id,
+                    nodePubKey = "",
+                    timeExpires = ApiTime.futureUTC(120),
+                    timeSent = TIMESTAMPSTRING),
+        AgbotMsgRow(agbotId = TESTAGBOTS(2).id,
+                    message = "",
+                    msgId = 0,
+                    nodeId = TESTNODES(1).id,
+                    nodePubKey = "",
+                    timeExpires = ApiTime.futureUTC(120),
+                    timeSent = TIMESTAMPSTRING),
+        AgbotMsgRow(agbotId = TESTAGBOTS(3).id,
+                    message = "",
+                    msgId = 0,
+                    nodeId = TESTNODES(2).id,
+                    nodePubKey = "",
+                    timeExpires = ApiTime.futureUTC(120),
+                    timeSent = TIMESTAMPSTRING))
+  
+  private val TESTNODEMESSAGES: Seq[NodeMsgRow] =
+    Seq(NodeMsgRow(agbotId = TESTAGBOTS(1).id,
+                   agbotPubKey = "",
+                   message = "",
+                   msgId = 0, // this will be automatically set to a unique ID by the DB
+                   nodeId = TESTNODES(0).id,
+                   timeExpires = ApiTime.futureUTC(120),
+                   timeSent = TIMESTAMPSTRING),
+        NodeMsgRow(agbotId = TESTAGBOTS(2).id,
+                   agbotPubKey = "",
+                   message = "",
+                   msgId = 0, // this will be automatically set to a unique ID by the DB
+                   nodeId = TESTNODES(1).id,
+                   timeExpires = ApiTime.futureUTC(120),
+                   timeSent = TIMESTAMPSTRING),
+        NodeMsgRow(agbotId = TESTAGBOTS(3).id,
+                   agbotPubKey = "",
+                   message = "",
+                   msgId = 0, // this will be automatically set to a unique ID by the DB
+                   nodeId = TESTNODES(2).id,
+                   timeExpires = ApiTime.futureUTC(120),
+                   timeSent = TIMESTAMPSTRING))
 
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USER1PASSWORD))
-  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + USER2PASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + PASSWORD))
+  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + PASSWORD))
+  private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + PASSWORD))
+  private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + PASSWORD))
+  private val MULTITENANTAGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + PASSWORD))
+  private val AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(1).id + ":" + PASSWORD))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.run(
-      (OrgsTQ ++= TESTORGS) andThen
-        (UsersTQ ++= TESTUSERS) andThen
-        (AgbotsTQ ++= TESTAGBOTS) andThen
-        (NodesTQ ++= TESTNODES) andThen
-        (NodeMsgsTQ ++= TESTMESSAGES) andThen
-        (NodeAgreementsTQ ++= TESTAGREEMENTS)), AWAITDURATION
-    )
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
+                                 (UsersTQ ++= TESTUSERS) andThen
+                                 (AgbotsTQ ++= TESTAGBOTS) andThen
+                                 (NodesTQ ++= TESTNODES) andThen
+                                 (NodeMsgsTQ ++= TESTNODEMESSAGES) andThen
+                                 (NodeAgreementsTQ ++= TESTNODEAGREEMENTS) andThen
+                                 (AgbotMsgsTQ ++= TESTAGBOTMESSAGES) andThen
+                                 (AgbotAgreementsTQ ++= TESTAGBOTAGREEMENTS)), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
@@ -212,73 +323,306 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
       OrgsTQ.filter(_.orgid startsWith "testGetOrgStatusRoute").delete andThen
       UsersTQ.filter(_.username startsWith "root/TestGetOrgStatusRouteHubAdmin").delete), AWAITDURATION)
   }
+  
 
   //is this intended? I would think this should fail with 404 not found
-  test("GET /orgs/doesNotExist" + ROUTE + " -- success, but returns 0 for everything") {
+  test("GET /orgs/doesNotExist" + ROUTE + " -- root - 404 not found - Organization does not exist") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
-    val status: GetOrgStatusResponse = JsonMethods.parse(response.body).extract[GetOrgStatusResponse]
-    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
-    assert(status.numberOfNodes === 0)
-    assert(status.numberOfUsers === 0)
-    assert(status.numberOfNodeMsgs === 0)
-    assert(status.numberOfNodeAgreements === 0)
-    assert(status.numberOfRegisteredNodes === 0)
-    assert(status.SchemaVersion === SCHEMAVERSION)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+  }
+  
+  test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + " -- user - 403 access denied - as user in other org") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE).headers(ACCEPT).headers(USERAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " as root -- normal success") {
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- root - 200 ok - normal success") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val status: GetOrgStatusResponse = JsonMethods.parse(response.body).extract[GetOrgStatusResponse]
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === SCHEMAVERSION)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 2)
+    assert(status.numberOfAgbotMsgs === 2)
+    assert(status.numberOfAgbots === 2)
+    assert(status.numberOfNodeAgreements === 2)
+    assert(status.numberOfNodeMsgs === 2)
     assert(status.numberOfNodes === 2)
-    assert(status.numberOfUsers === 1)
-    assert(status.numberOfNodeMsgs === 1)
-    assert(status.numberOfNodeAgreements === 1)
+    assert(status.numberOfOrganizations === 1)
     assert(status.numberOfRegisteredNodes === 1)
+    assert(status.numberOfUnregisteredNodes === 1)
+    assert(status.numberOfUsers === 2)
     assert(status.SchemaVersion === SCHEMAVERSION)
   }
-
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " as hub admin -- normal success") {
+  
+  test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + " -- root - 200 ok - normal success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === SCHEMAVERSION)
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 1)
+    assert(status.numberOfAgbotMsgs === 1)
+    assert(status.numberOfAgbots === 1)
+    assert(status.numberOfNodeAgreements === 1)
+    assert(status.numberOfNodeMsgs === 1)
+    assert(status.numberOfNodes === 1)
+    assert(status.numberOfOrganizations === 1)
+    assert(status.numberOfRegisteredNodes === 0)
+    assert(status.numberOfUnregisteredNodes === 1)
+    assert(status.numberOfUsers === 1)
+    assert(status.SchemaVersion === SCHEMAVERSION)
+  }
+  
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- hub admin - 200 ok - normal success") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val status: GetOrgStatusResponse = JsonMethods.parse(response.body).extract[GetOrgStatusResponse]
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === SCHEMAVERSION)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
-    assert(status.numberOfNodes === 2)
-    assert(status.numberOfUsers === 1)
-    assert(status.numberOfNodeMsgs === 1)
-    assert(status.numberOfNodeAgreements === 1)
-    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.numberOfAgbotAgreements === 2)
+    assert(status.numberOfAgbotMsgs === 2)
+    assert(status.numberOfAgbots === 2)
+    assert(status.numberOfNodeAgreements === 0)
+    assert(status.numberOfNodeMsgs === 0)
+    assert(status.numberOfNodes === 0)
+    assert(status.numberOfOrganizations === 1)
+    assert(status.numberOfRegisteredNodes === 0)
+    assert(status.numberOfUnregisteredNodes === 0)
+    assert(status.numberOfUsers === 2)
     assert(status.SchemaVersion === SCHEMAVERSION)
   }
-
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " as user in org -- normal success") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(USER1AUTH).asString
+  
+  test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + " -- hub admin - 200 ok - normal success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val status: GetOrgStatusResponse = JsonMethods.parse(response.body).extract[GetOrgStatusResponse]
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === SCHEMAVERSION)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
-    assert(status.numberOfNodes === 2)
+    assert(status.numberOfAgbotAgreements === 1)
+    assert(status.numberOfAgbotMsgs === 1)
+    assert(status.numberOfNodes === 0)
     assert(status.numberOfUsers === 1)
-    assert(status.numberOfNodeMsgs === 1)
-    assert(status.numberOfNodeAgreements === 1)
-    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.numberOfNodeMsgs === 0)
+    assert(status.numberOfNodeAgreements === 0)
+    assert(status.numberOfOrganizations === 1)
+    assert(status.numberOfRegisteredNodes === 0)
+    assert(status.numberOfUnregisteredNodes === 0)
     assert(status.SchemaVersion === SCHEMAVERSION)
   }
-
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " as user in other org -- 403 access denied") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(USER2AUTH).asString
+  
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- organization admin - 200 ok - normal success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(ORGADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === 0)
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 2)
+    assert(status.numberOfAgbotMsgs === 2)
+    assert(status.numberOfNodes === 2)
+    assert(status.numberOfUsers === 2)
+    assert(status.numberOfNodeMsgs === 2)
+    assert(status.numberOfNodeAgreements === 2)
+    assert(status.numberOfOrganizations === 1)
+    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.numberOfUnregisteredNodes === 1)
+    assert(status.SchemaVersion === 0)
+  }
+  
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- user - 200 ok - normal success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(USERAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === 0)
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 2)
+    assert(status.numberOfAgbotMsgs === 2)
+    assert(status.numberOfAgbots === 2)
+    assert(status.numberOfNodeAgreements === 1)
+    assert(status.numberOfNodeMsgs === 1)
+    assert(status.numberOfNodes === 1)
+    assert(status.numberOfOrganizations === 1)
+    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.numberOfUnregisteredNodes === 0)
+    assert(status.numberOfUsers === 1)
+    assert(status.SchemaVersion === 0)
+  }
+  
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- agbot - 200 ok - normal success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === 0)
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 2)
+    assert(status.numberOfAgbotMsgs === 2)
+    assert(status.numberOfNodes === 2)
+    assert(status.numberOfUsers === 0)
+    assert(status.numberOfNodeMsgs === 2)
+    assert(status.numberOfNodeAgreements === 2)
+    assert(status.numberOfOrganizations === 1)
+    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.numberOfUnregisteredNodes === 1)
+    assert(status.SchemaVersion === 0)
+  }
+  
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- node - 200 ok - normal success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(NODEAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === 0)
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 2)
+    assert(status.numberOfAgbotMsgs === 2)
+    assert(status.numberOfNodes === 1)
+    assert(status.numberOfUsers === 0)
+    assert(status.numberOfNodeMsgs === 1)
+    assert(status.numberOfNodeAgreements === 1)
+    assert(status.numberOfOrganizations === 1)
+    assert(status.numberOfRegisteredNodes === 0)
+    assert(status.numberOfUnregisteredNodes === 1)
+    assert(status.SchemaVersion === 0)
+  }
+  
+  test("GET /orgs/" + "IBM" + ROUTE + " -- node - 200 ok - normal success", AdminStatusTest) {
+    val response: HttpResponse[String] = Http(URL + "IBM" + ROUTE).headers(ACCEPT).headers(NODEAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === 0)
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 1)
+    assert(status.numberOfAgbotMsgs === 1)
+    assert(status.numberOfNodes === 0)
+    assert(status.numberOfUsers === 0)
+    assert(status.numberOfNodeMsgs === 0)
+    assert(status.numberOfNodeAgreements === 0)
+    assert(status.numberOfOrganizations === 1)
+    assert(status.numberOfRegisteredNodes === 0)
+    assert(status.numberOfUnregisteredNodes === 0)
+    assert(status.SchemaVersion === 0)
+  }
+  
+  // --------------- .../v1/admin/status ---------------
+  // [WARNING] No test suite isolation!
+  // Run these test cases by themselves. $ sbt onlyAdminStatusTests
+  
+  test("GET /orgs/" +  "admin/status" + " -- agbot - 403 access denied", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
   
+  test("GET /orgs/" +  "admin/status" + " -- node - 403 access denied", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(NODEAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  }
+  
+  test("GET /orgs/" +  "admin/status" + " -- root - 200 ok - normal success", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === SCHEMAVERSION)
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 4)
+    assert(status.numberOfAgbotMsgs === 4)
+    assert(status.numberOfAgbots === 4)
+    assert(status.numberOfNodeAgreements === 3)
+    assert(status.numberOfNodeMsgs === 3)
+    assert(status.numberOfNodes === 3)
+    assert(status.numberOfOrganizations === 4)
+    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.numberOfUnregisteredNodes === 2)
+    assert(status.numberOfUsers === 5)
+    assert(status.SchemaVersion === SCHEMAVERSION)
+  }
+  
+  test("GET /orgs/" +  "admin/status" + " -- hub admin - 200 ok - normal success", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === SCHEMAVERSION)
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 4)
+    assert(status.numberOfAgbotMsgs === 4)
+    assert(status.numberOfAgbots === 4)
+    assert(status.numberOfNodeAgreements === 0)
+    assert(status.numberOfNodeMsgs === 0)
+    assert(status.numberOfNodes === 0)
+    assert(status.numberOfOrganizations === 4)
+    assert(status.numberOfRegisteredNodes === 0)
+    assert(status.numberOfUnregisteredNodes === 0)
+    assert(status.numberOfUsers === 5)
+    assert(status.SchemaVersion === SCHEMAVERSION)
+  }
+  
+  test("GET /orgs/" +  "admin/status" + " -- organization admin - 200 ok - normal success", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(ORGADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === 0)
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 3)
+    assert(status.numberOfAgbotMsgs === 3)
+    assert(status.numberOfAgbots === 3)
+    assert(status.numberOfNodeAgreements === 2)
+    assert(status.numberOfNodeMsgs === 2)
+    assert(status.numberOfNodes === 2)
+    assert(status.numberOfOrganizations === 2)
+    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.numberOfUnregisteredNodes === 1)
+    assert(status.numberOfUsers === 2)
+    assert(status.SchemaVersion === 0)
+  }
+  
+  test("GET /orgs/" +  "admin/status" + " -- user - 200 ok - normal success", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(USERAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
+    assert(status.dbSchemaVersion === 0)
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.numberOfAgbotAgreements === 3)
+    assert(status.numberOfAgbotMsgs === 3)
+    assert(status.numberOfAgbots === 3)
+    assert(status.numberOfNodeAgreements === 1)
+    assert(status.numberOfNodeMsgs === 1)
+    assert(status.numberOfNodes === 1)
+    assert(status.numberOfOrganizations === 2)
+    assert(status.numberOfRegisteredNodes === 1)
+    assert(status.numberOfUnregisteredNodes === 0)
+    assert(status.numberOfUsers === 1)
+    assert(status.SchemaVersion === 0)
+  }
 }

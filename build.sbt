@@ -2,10 +2,13 @@
 
 // This plugin is for building the docker image of our exchange svr
 import scala.io.Source
-import scala.sys.process._
-import com.typesafe.sbt.packager.docker._
+import scala.sys.process.*
+import com.typesafe.sbt.packager.docker.*
 
 enablePlugins(JavaAppPackaging, DockerPlugin)
+
+// Maintains test suite isolation for GET .../v1/admin/status testcases.
+addCommandAlias("onlyAdminStatusTests", """set root / Test / testOptions -= Tests.Argument("-l", "org.openhorizon.exchangeapi.tag.AdminStatusTest"); testOnly org.openhorizon.exchangeapi.route.organization.TestGetOrgStatusRoute -- -n org.openhorizon.exchangeapi.tag.AdminStatusTest""".stripMargin)
 
 // For latest versions, see https://mvnrepository.com/
 lazy val pekkoHttpVersion = settingKey[String]("Version of Pekko-Http")
@@ -97,6 +100,7 @@ lazy val root = (project in file("."))
     //javaOptions ++= Seq("-Dconfig.file=/home/naphelps/git/exchange-api/target/config.json"),
     fork := true,
     Test / javaOptions ++= Seq("--add-opens", "java.base/java.net=ALL-UNNAMED"),
+    Test / testOptions += Tests.Argument("-l", "org.openhorizon.exchangeapi.tag.AdminStatusTest"), // No test suite isolation.
     // Used when running test suites with HTTPS.
     // Requires path to your PKCS #12 cryptographic store and its password.
     // fork := true,

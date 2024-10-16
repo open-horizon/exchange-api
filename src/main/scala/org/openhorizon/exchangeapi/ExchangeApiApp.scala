@@ -399,7 +399,7 @@ object ExchangeApiApp extends App
                         status ~
                         statusManagementPolicy ~
                         statusNode ~
-                        statusOrganization ~
+                        //statusOrganization ~
                         statuses ~
                         SwaggerDocService.routes ~
                         swaggerUiRoutes ~

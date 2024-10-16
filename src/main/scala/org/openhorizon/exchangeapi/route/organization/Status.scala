@@ -82,7 +82,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val statusOrganization: Route =
+  /*val statusOrganization: Route =
     path("orgs" / Segment /"status") {
       organization =>
         get {
@@ -91,5 +91,5 @@ trait Status extends JacksonSupport with AuthenticationSupport {
               getStatus(identity, organization)
           }
         }
-    }
+    }*/
 }

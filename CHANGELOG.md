@@ -2,7 +2,16 @@
 
 All notable changes to this project will be documented in this file.
 
-## [2.124.0] - 2024-09-14
+## [2.124.1](https://github.com/open-horizon/exchange-api/pull/748) - 2025-02-25
+- Issue 724: Version conflicts in library(pekko-http) dependencies
+- pekko-http         1.0.1 -> 1.1.0
+- pekko-http-jackson 2.3.3 -> 3.0.0
+- pekko-http-cors    1.0.1 -> 1.1.0
+- pekko-slf4j        1.0.1 -> 1.1.1
+- swagger-pekko-http 2.12.0 -> 2.14.0
+- Fixed build errors and warnings.
+
+## [2.124.0](https://github.com/open-horizon/exchange-api/pull/718) - 2024-09-14
 - Application configuration overhaul.
   - Some database configuration changes are not backwards compatible. 
 - GET methods for Node resources no longer return passwords for admin user types, unless directly owned.

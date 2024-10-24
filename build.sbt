@@ -52,9 +52,14 @@ lazy val root = (project in file("."))
       // "org.apache.pekko" %% "pekko-stream"          % "[2.6.14,)",
       // "org.apache.pekko" %% "pekko-http-spray-json" % "[10.2.1,)",
       "com.github.pjfanning" %% "pekko-http-jackson" % "[3.0.0,)",
-      "org.apache.pekko" %% "pekko-http-cors" % "[1.0.0]",
-      "org.apache.pekko" %% "pekko-slf4j" % "[1.0.1]",
-      
+      "org.apache.pekko" %% "pekko-http-cors" % "[1.1.0]",
+      "org.apache.pekko" %% "pekko-slf4j" % "[1.1.0]",
+
+      "org.apache.pekko" %% "pekko-actor" % "1.1.0",
+      "org.apache.pekko" %% "pekko-stream" % "1.1.0",
+      "org.apache.pekko" %% "pekko-protobuf-v3" % "1.1.0",
+
+
       "org.json4s" %% "json4s-native" % "4.0.6",
       "org.json4s" %% "json4s-jackson" % "4.0.6",
       

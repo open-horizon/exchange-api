@@ -324,10 +324,10 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   // Resource Change that is dynamically needed, specific to the test case.
   //only does one at a time for ease of deleting when finished
   def fixtureResourceChange(testCode: ResourceChangeRow => Any, testData: ResourceChangeRow): Any = {
-    //try{
+    try{
       Await.result(DBCONNECTION.run(ResourceChangesTQ += testData), AWAITDURATION)
       testCode(testData)
-    //}
+    }
     //finally Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(x => x.orgId === testData.orgId && x.resource === testData.resource && x.id === testData.id).delete), AWAITDURATION)
   }
 

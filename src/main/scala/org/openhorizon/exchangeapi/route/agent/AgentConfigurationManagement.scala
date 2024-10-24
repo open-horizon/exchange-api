@@ -61,12 +61,16 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                   certificate <- AgentCertificateVersionsTQ.delete
                   
                   timestamp: Timestamp = ApiTime.nowUTCTimestamp
-                  
+
+
+                  checkAgentVersionsResult <- AgentVersionsChangedTQ.getChanged("IBM").result
+
                   changed <-
-                    if(AgentVersionsChangedTQ.getChanged("IBM").result == 0)
+                    if(checkAgentVersionsResult == 0)
                       AgentVersionsChangedTQ += (timestamp, "IBM")
                     else
                       AgentVersionsChangedTQ.getChanged("IBM").update(timestamp)
+
                   configuration <- AgentConfigurationVersionsTQ.delete
                   resource <- ResourceChangesTQ += ResourceChangeRow(category = ResChangeCategory.ORG.toString,
                                                                      changeId = 0L,

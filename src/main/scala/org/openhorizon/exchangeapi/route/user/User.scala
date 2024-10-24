@@ -12,7 +12,7 @@ import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, patch, path, post, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, BadInputException, IUser, Identity, OrgAndId, Password, Role, TUser}
-import org.openhorizon.exchangeapi.table.user.{User, UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.user.{User => UserTable, UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, StrConstants}
 import slick.jdbc.PostgresProfile.api._
 
@@ -92,7 +92,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
             logger.debug(s"GET /orgs/$organization/users/$realUsername result size: ${list.size}")
             
             val users: Map[String, org.openhorizon.exchangeapi.table.user.User] =
-              list.map(e => e.username -> User(if (identity.isSuperUser || identity.isHubAdmin) e.hashedPw else StrConstants.hiddenPw, e.admin, e.hubAdmin, e.email, e.lastUpdated, e.updatedBy)).toMap
+              list.map(e => e.username -> UserTable(if (identity.isSuperUser || identity.isHubAdmin) e.hashedPw else StrConstants.hiddenPw, e.admin, e.hubAdmin, e.email, e.lastUpdated, e.updatedBy)).toMap
             val code: StatusCode =
               if (users.nonEmpty)
                 StatusCodes.OK

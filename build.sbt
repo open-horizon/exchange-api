@@ -53,19 +53,14 @@ lazy val root = (project in file("."))
       // "org.apache.pekko" %% "pekko-http-spray-json" % "[10.2.1,)",
       "com.github.pjfanning" %% "pekko-http-jackson" % "[3.0.0,)",
       "org.apache.pekko" %% "pekko-http-cors" % "[1.1.0]",
-      "org.apache.pekko" %% "pekko-slf4j" % "[1.1.0]",
-
-      "org.apache.pekko" %% "pekko-actor" % "1.1.0",
-      "org.apache.pekko" %% "pekko-stream" % "1.1.0",
-      "org.apache.pekko" %% "pekko-protobuf-v3" % "1.1.0",
-
+      "org.apache.pekko" %% "pekko-slf4j" % "[1.1.1]",
 
       "org.json4s" %% "json4s-native" % "4.0.6",
       "org.json4s" %% "json4s-jackson" % "4.0.6",
       
       "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0]",
       // "org.glassfish.jersey.core" % "jersey-common" % "1.2.1",             // Required at runtime by javax.ws.rs-api
-      "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.12.0]",      // Deprecated in v2.8.0 due to Akka license change to BSL v1.1
+      "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.14.0]",
       "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.12.0,)",
       //"io.swagger.core.v3" % "swagger-core-jakarta" % "[2.1.12]",             // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
       //"io.swagger.core.v3" % "swagger-jaxrs2-jakarta" % "[2.1.12]",           // Version 2.1.13+ requires newer versions of slick and slick-hikaricp

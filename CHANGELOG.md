@@ -9,11 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - pekko-http 1.0.1 -> 1.1.0
 - pekko-http-jackson 2.3.3 -> 3.0.0
 - pekko-http-cors 1.0.1 -> 1.1.0
-- pekko-slf4j 1.0.1 -> 1.1.0
-- pekko-actor 1.1.0
-- pekko-stream 1.1.0
-- pekko-protobuf-v3 1.1.0
-- Fix warnings
+- pekko-slf4j 1.0.1 -> 1.1.1
+- swagger-pekko-http 2.12.0 -> 2.14.0
+- Fixed warnings
 
 ## [2.125.0](https://github.com/open-horizon/exchange-api/pull/720) - 2024-09-30
 - Removed support for TLS v1.2.

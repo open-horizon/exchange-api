@@ -179,7 +179,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     Await.ready(DBCONNECTION.run(
       TESTUSERS(0).updateUser() andThen
         TESTUSERS(2).updateUser() andThen
-        TESTUSERS(4).updateUser
+        TESTUSERS(4).updateUser()
     ), AWAITDURATION)
   }
 

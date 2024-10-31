@@ -52,8 +52,6 @@ lazy val root = (project in file("."))
     libraryDependencies ++= Seq(
       "org.apache.pekko" %% "pekko-http"            % pekkoHttpVersion.value,
       "org.apache.pekko" %% "pekko-http-xml"        % pekkoHttpVersion.value,
-      // "org.apache.pekko" %% "pekko-stream"          % "[2.6.14,)",
-      // "org.apache.pekko" %% "pekko-http-spray-json" % "[10.2.1,)",
       "com.github.pjfanning" %% "pekko-http-jackson" % "[3.0.0,)",
       "org.apache.pekko" %% "pekko-http-cors" % "[1.1.0]",
       "org.apache.pekko" %% "pekko-slf4j" % "[1.1.1]",
@@ -62,23 +60,13 @@ lazy val root = (project in file("."))
       "org.json4s" %% "json4s-jackson" % "4.0.6",
       
       "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0]",
-      // "org.glassfish.jersey.core" % "jersey-common" % "1.2.1",             // Required at runtime by javax.ws.rs-api
       "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.14.0]",
-      "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.12.0,)",
-      //"io.swagger.core.v3" % "swagger-core-jakarta" % "[2.1.12]",             // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
-      //"io.swagger.core.v3" % "swagger-jaxrs2-jakarta" % "[2.1.12]",           // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
       
       "ch.qos.logback" % "logback-classic" % "1.5.6",
-      //"net.logstash.logback" % "logstash-logback-encoder" % "[7.4,)",
-      // "com.typesafe.slick" %% "slick" % "[3.3.3]",             // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       "com.typesafe.slick" %% "slick-hikaricp" % "[3.4.1]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       // "com.github.tminglei" %% "slick-pg" % "[0.20.4]",        // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
       "com.github.tminglei" %% "slick-pg_json4s" % "[0.21.0]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
       "org.postgresql" % "postgresql" % "[42.7.1,)",
-      // "com.zaxxer" % "HikariCP" % "[3.4.5,)",
-      // "org.slf4j" % "slf4j-simple" % "[1.7.25]",               // Version 1.7.35+ requires newer versions of slick and slick-hikaricp
-      // "ch.qos.logback" % "logback-classic" % "1.3.0-alpha5",
-      //"com.mchange" % "c3p0" % "[0.9.5.5,)",
       "org.scalaj" %% "scalaj-http" % "[2.4.2]",                  // Deprecated as of April 2022, in v2.4.2
       "com.typesafe" % "config" % "[1.4.3,)",
       "org.mindrot" % "jbcrypt" % "[0.4,)",                       // Last version (v0.4) release February 13, 2017

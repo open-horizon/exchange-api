@@ -36,7 +36,7 @@ lazy val root = (project in file("."))
     description                   := "'Containerized exchange-api'",
     name                          := "amd64_exchange-api",
     organization                  := "org.openhorizon",
-    pekkoHttpVersion              := "[1.0.1]",
+    pekkoHttpVersion              := "[1.1.0]",
     pekkoVersion                  := "[1.0.2]",
     release                       := sys.env.getOrElse("GIT_SHORT_SHA", versionFunc()),
     resolvers                     += Classpaths.typesafeReleases,
@@ -54,16 +54,16 @@ lazy val root = (project in file("."))
       "org.apache.pekko" %% "pekko-http-xml"        % pekkoHttpVersion.value,
       // "org.apache.pekko" %% "pekko-stream"          % "[2.6.14,)",
       // "org.apache.pekko" %% "pekko-http-spray-json" % "[10.2.1,)",
-      "com.github.pjfanning" %% "pekko-http-jackson" % "[2.3.3,)",
-      "org.apache.pekko" %% "pekko-http-cors" % "[1.0.0]",
-      "org.apache.pekko" %% "pekko-slf4j" % "[1.0.1]",
-      
+      "com.github.pjfanning" %% "pekko-http-jackson" % "[3.0.0,)",
+      "org.apache.pekko" %% "pekko-http-cors" % "[1.1.0]",
+      "org.apache.pekko" %% "pekko-slf4j" % "[1.1.1]",
+
       "org.json4s" %% "json4s-native" % "4.0.6",
       "org.json4s" %% "json4s-jackson" % "4.0.6",
       
       "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0]",
       // "org.glassfish.jersey.core" % "jersey-common" % "1.2.1",             // Required at runtime by javax.ws.rs-api
-      "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.12.0]",      // Deprecated in v2.8.0 due to Akka license change to BSL v1.1
+      "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.14.0]",
       "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.12.0,)",
       //"io.swagger.core.v3" % "swagger-core-jakarta" % "[2.1.12]",             // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
       //"io.swagger.core.v3" % "swagger-jaxrs2-jakarta" % "[2.1.12]",           // Version 2.1.13+ requires newer versions of slick and slick-hikaricp

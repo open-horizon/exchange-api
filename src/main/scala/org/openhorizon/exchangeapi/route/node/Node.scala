@@ -18,7 +18,7 @@ import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.ExchangeApiApp.{exchAuth, validateWithMsg}
 import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthCache, AuthRoles, AuthenticationSupport, BadInputException, DBProcessingError, IUser, Identity, OrgAndId, Password, ResourceNotFoundException, TNode}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PatternRow, Patterns, PatternsTQ}
-import org.openhorizon.exchangeapi.table.node.{Node, NodeRow, NodeType, NodesTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
 import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ}

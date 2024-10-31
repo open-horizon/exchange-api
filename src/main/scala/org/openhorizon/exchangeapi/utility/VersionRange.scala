@@ -34,7 +34,12 @@ final case class VersionRange(range: String) {
     case _ => (Version("x"), true)
   }
   
-  def isValid: Boolean = (floor.isValid && ceiling.isValid)
+  def isValid: Boolean = {
+    if (firstPart.trim.isEmpty || secondPart.trim.isEmpty || secondPart.trim.isEmpty) {
+      return false
+    }
+    floor.isValid && ceiling.isValid
+  }
   
   def includes(version: Version): Boolean = {
     if (floorInclusive) {

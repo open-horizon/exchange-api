@@ -50,9 +50,9 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteDeploymentPolicy(deploymentPolicy: String,
-                             organization: String,
-                             resource: String): Route =
+  def deleteDeploymentPolicy(@Parameter(hidden = true) deploymentPolicy: String,
+                             @Parameter(hidden = true) organization: String,
+                             @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"Doing DELETE /orgs/$organization/business/policies/$deploymentPolicy")
       complete({
@@ -146,9 +146,9 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getDeploymentPolicy(deploymentPolicy: String,
-                          organization: String,
-                          resource: String): Route =
+  def getDeploymentPolicy(@Parameter(hidden = true) deploymentPolicy: String,
+                          @Parameter(hidden = true) organization: String,
+                          @Parameter(hidden = true) resource: String): Route =
     parameter("attribute".?) {
       attribute =>
         complete({
@@ -266,9 +266,9 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patchDeploymentPolicy(deploymentPolicy: String,
-                            organization: String,
-                            resource: String): Route =
+  def patchDeploymentPolicy(@Parameter(hidden = true) deploymentPolicy: String,
+                            @Parameter(hidden = true) organization: String,
+                            @Parameter(hidden = true) resource: String): Route =
     patch {
       entity(as[PatchBusinessPolicyRequest]) {
         reqBody =>
@@ -451,10 +451,10 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postDeploymentPolicy(deploymentPolicy: String,
-                           identity: Identity,
-                           organization: String,
-                           resource: String): Route =
+  def postDeploymentPolicy(@Parameter(hidden = true) deploymentPolicy: String,
+                           @Parameter(hidden = true) identity: Identity,
+                           @Parameter(hidden = true) organization: String,
+                           @Parameter(hidden = true) resource: String): Route =
     post {
       entity(as[PostPutBusinessPolicyRequest]) {
         reqBody =>
@@ -608,10 +608,10 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putDeploymentPolicy(deploymentPolicy: String,
-                          identity: Identity,
-                          organization: String,
-                          resource: String): Route =
+  def putDeploymentPolicy(@Parameter(hidden = true) deploymentPolicy: String,
+                          @Parameter(hidden = true) identity: Identity,
+                          @Parameter(hidden = true) organization: String,
+                          @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PostPutBusinessPolicyRequest]) {
         reqBody =>

@@ -46,9 +46,9 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
-  private def deleteDeploymentPolicies(agreementBot: String,
-                                       organization: String,
-                                       resource: String): Route =
+  private def deleteDeploymentPolicies(@Parameter(hidden = true) agreementBot: String,
+                                       @Parameter(hidden = true) organization: String,
+                                       @Parameter(hidden = true) resource: String): Route =
     delete {
       complete({
         // remove does *not* throw an exception if the key does not exist
@@ -109,9 +109,9 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
-  private def getDeploymentPolicies(agreementBot: String,
-                                    organization: String,
-                                    resource: String): Route = {
+  private def getDeploymentPolicies(@Parameter(hidden = true) agreementBot: String,
+                                    @Parameter(hidden = true) organization: String,
+                                    @Parameter(hidden = true) resource: String): Route = {
     complete({
       db.run(AgbotBusinessPolsTQ.getBusinessPols(resource).result)
         .map({
@@ -165,9 +165,9 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404",
                                                description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
-  private def postDeploymentPolicies(agreementBot: String,
-                                     organization:String,
-                                     resource: String): Route =
+  private def postDeploymentPolicies(@Parameter(hidden = true) agreementBot: String,
+                                     @Parameter(hidden = true) organization:String,
+                                     @Parameter(hidden = true) resource: String): Route =
     post {
       entity(as[PostAgbotBusinessPolRequest]) {
         reqBody =>

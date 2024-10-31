@@ -42,9 +42,9 @@ trait Heartbeat extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
-  def postHeartbeat(agreementBot: String,
-                    organization: String,
-                    resource: String): Route = {
+  def postHeartbeat(@Parameter(hidden = true) agreementBot: String,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String): Route = {
     logger.debug(s"Doing POST /orgs/$organization/users/$agreementBot/heartbeat")
     complete({
       db.run(AgbotsTQ.getLastHeartbeat(resource).update(ApiTime.nowUTC).asTry)

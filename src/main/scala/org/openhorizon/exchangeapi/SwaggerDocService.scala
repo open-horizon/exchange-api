@@ -11,7 +11,7 @@ import io.swagger.v3.oas.models.ExternalDocumentation
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
 import org.openhorizon.exchangeapi.route.agreement.Confirm
-import org.openhorizon.exchangeapi.route.agreementbot.{AgbotsRoutes, Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
+import org.openhorizon.exchangeapi.route.agreementbot.{Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
 import org.openhorizon.exchangeapi.route.catalog.{OrganizationDeploymentPatterns, OrganizationServices}
 import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
@@ -25,7 +25,6 @@ import org.openhorizon.exchangeapi.route.service.dockerauth.{DockerAuth, DockerA
 import org.openhorizon.exchangeapi.route.service.key.{Key, Keys}
 import org.openhorizon.exchangeapi.route.service.{Policy, Service, Services}
 import org.openhorizon.exchangeapi.route.user.{ChangePassword, Confirm, User, Users}
-import org.openhorizon.exchangeapi.table.node.OneService
 import org.openhorizon.exchangeapi.utility.Configuration
 
 /*Swagger references:
@@ -51,7 +50,6 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[org.openhorizon.exchangeapi.route.administration.Version],
         classOf[org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement],
         classOf[org.openhorizon.exchangeapi.route.agreement.Confirm],
-        classOf[org.openhorizon.exchangeapi.route.agreementbot.AgbotsRoutes],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.Agreement],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.AgreementBot],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.AgreementBots],
@@ -89,7 +87,6 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[org.openhorizon.exchangeapi.route.node.message.Message],
         classOf[org.openhorizon.exchangeapi.route.node.message.Messages],
         classOf[org.openhorizon.exchangeapi.route.node.Node],
-        classOf[org.openhorizon.exchangeapi.route.node.NodeDetails],
         classOf[org.openhorizon.exchangeapi.route.node.Nodes],
         classOf[org.openhorizon.exchangeapi.route.node.Policy],
         classOf[org.openhorizon.exchangeapi.route.node.Status],
@@ -103,7 +100,6 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[org.openhorizon.exchangeapi.route.organization.MyOrganizations],
         classOf[org.openhorizon.exchangeapi.route.organization.Organization],
         classOf[org.openhorizon.exchangeapi.route.organization.Organizations],
-        classOf[org.openhorizon.exchangeapi.route.organization.Status],
         classOf[org.openhorizon.exchangeapi.route.search.NodeError],
         classOf[org.openhorizon.exchangeapi.route.search.NodeErrors],
         classOf[org.openhorizon.exchangeapi.route.search.NodeHealth],

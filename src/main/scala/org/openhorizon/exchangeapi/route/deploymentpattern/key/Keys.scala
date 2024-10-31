@@ -43,9 +43,9 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
-  def deleteKeysDeploymentPattern(deploymentPattern: String,
-                                  organization: String,
-                                  resource: String): Route =
+  def deleteKeysDeploymentPattern(@Parameter(hidden = true) deploymentPattern: String,
+                                  @Parameter(hidden = true) organization: String,
+                                  @Parameter(hidden = true) resource: String): Route =
     {
       complete({
         var storedPublicField = false
@@ -97,9 +97,9 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
-  def getKeysDeploymentPattern(deploymentPattern: String,
-                               organization: String,
-                               resource: String): Route =
+  def getKeysDeploymentPattern(@Parameter(hidden = true) deploymentPattern: String,
+                               @Parameter(hidden = true) organization: String,
+                               @Parameter(hidden = true) resource: String): Route =
     {
       complete({
         db.run(PatternKeysTQ.getKeys(resource).result).map({ list =>

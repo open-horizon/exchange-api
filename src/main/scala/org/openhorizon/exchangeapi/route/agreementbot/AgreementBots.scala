@@ -58,8 +58,8 @@ trait AgreementBots extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
-  def getAgreementBots(identity: Identity,
-                       organization: String): Route = {
+  def getAgreementBots(@Parameter(hidden = true) identity: Identity,
+                       @Parameter(hidden = true) organization: String): Route = {
     parameter("idfilter".?, "name".?, "owner".?) {
       (idfilter, name, owner) =>
         logger.debug(s"Doing GET /orgs/$organization/agbots")

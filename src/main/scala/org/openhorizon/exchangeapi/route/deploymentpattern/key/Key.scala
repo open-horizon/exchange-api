@@ -43,10 +43,10 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteKeyDeploymentPattern(pattern: String,
-                                 keyId: String,
-                                 orgid: String,
-                                 compositeId: String): Route =
+  def deleteKeyDeploymentPattern(@Parameter(hidden = true) pattern: String,
+                                 @Parameter(hidden = true) keyId: String,
+                                 @Parameter(hidden = true) orgid: String,
+                                 @Parameter(hidden = true) compositeId: String): Route =
     delete {
       complete({
         var storedPublicField = false
@@ -97,10 +97,10 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getKeyDeploymentPattern(pattern: String,
-                              keyId: String,
-                              orgid: String,
-                              compositeId: String): Route =
+  def getKeyDeploymentPattern(@Parameter(hidden = true) pattern: String,
+                              @Parameter(hidden = true) keyId: String,
+                              @Parameter(hidden = true) orgid: String,
+                              @Parameter(hidden = true) compositeId: String): Route =
     {
       complete({
         db.run(PatternKeysTQ.getKey(compositeId, keyId).result).map({ list =>
@@ -144,10 +144,10 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putKeyDeploymentPattern(pattern: String,
-                              keyId: String,
-                              orgid: String,
-                              compositeId: String): Route =
+  def putKeyDeploymentPattern(@Parameter(hidden = true) pattern: String,
+                              @Parameter(hidden = true) keyId: String,
+                              @Parameter(hidden = true) orgid: String,
+                              @Parameter(hidden = true) compositeId: String): Route =
     put {
       extractRawBodyAsStr {
         reqBodyAsStr =>

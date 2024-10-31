@@ -53,9 +53,9 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/message")
-  def getMessages(agreementBot: String,
-                  organization: String,
-                  resource: String): Route =
+  def getMessages(@Parameter(hidden = true) agreementBot: String,
+                  @Parameter(hidden = true) organization: String,
+                  @Parameter(hidden = true) resource: String): Route =
     parameter("maxmsgs".as[Int].?) {
       maxMsgs =>
         complete({
@@ -115,10 +115,10 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404",
                                                description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/message")
-  def postMessages(agreementBot: String,
-                   identity: Identity,
-                   organization: String,
-                   resource: String): Route =
+  def postMessages(@Parameter(hidden = true) agreementBot: String,
+                   @Parameter(hidden = true) identity: Identity,
+                   @Parameter(hidden = true) organization: String,
+                   @Parameter(hidden = true) resource: String): Route =
     entity (as[PostAgbotsMsgsRequest]) {
       reqBody =>
         complete({

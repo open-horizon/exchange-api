@@ -56,10 +56,10 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                new responses.ApiResponse(description = "not found",
                                                          responseCode = "404")),
              summary = "Deletes a Node from a Node Group")
-  def deleteNodeFromNodeGroup(highAvailabilityGroup: String,
-                              node: String,
-                              organization: String,
-                              resource: String): Route =
+  def deleteNodeFromNodeGroup(@Parameter(hidden = true) highAvailabilityGroup: String,
+                              @Parameter(hidden = true) node: String,
+                              @Parameter(hidden = true) organization: String,
+                              @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"Doing DELETE /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node")
       complete({
@@ -161,11 +161,11 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                new responses.ApiResponse(description = "node already belongs to other group",
                                                          responseCode = "409")),
              summary = "Insert a Node into a High Availablity Node Group")
-  def postNodeToNodeGroup(highAvailabilityGroup: String,
-                          identity: Identity,
-                          node: String,
-                          organization: String,
-                          resource: String): Route =
+  def postNodeToNodeGroup(@Parameter(hidden = true) highAvailabilityGroup: String,
+                          @Parameter(hidden = true) identity: Identity,
+                          @Parameter(hidden = true) node: String,
+                          @Parameter(hidden = true) organization: String,
+                          @Parameter(hidden = true) resource: String): Route =
     post {
       logger.debug(s"Doing POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node")
       complete({

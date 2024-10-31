@@ -79,9 +79,9 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getManagementPolicy(managementPolicy: String,
-                          organization: String,
-                          resource: String): Route =
+  def getManagementPolicy(@Parameter(hidden = true) managementPolicy: String,
+                          @Parameter(hidden = true) organization: String,
+                          @Parameter(hidden = true) resource: String): Route =
     get {
       parameter("attribute".?) {
         attribute =>
@@ -189,10 +189,10 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postManagementPolicy(ident: Identity,
-                           managementPolicy: String,
-                           organization: String,
-                           resource: String): Route =
+  def postManagementPolicy(@Parameter(hidden = true) ident: Identity,
+                           @Parameter(hidden = true) managementPolicy: String,
+                           @Parameter(hidden = true) organization: String,
+                           @Parameter(hidden = true) resource: String): Route =
     post {
       entity(as[PostPutManagementPolicyRequest]) {
         reqBody =>
@@ -312,10 +312,10 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putManagementPolicy(ident: Identity,
-                          managementPolicy: String,
-                          organization: String,
-                          resource: String): Route =
+  def putManagementPolicy(@Parameter(hidden = true) ident: Identity,
+                          @Parameter(hidden = true) managementPolicy: String,
+                          @Parameter(hidden = true) organization: String,
+                          @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PostPutManagementPolicyRequest]) {
         reqBody =>
@@ -358,9 +358,9 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteManagementPolicy(managementPolicy: String,
-                             organization: String,
-                             resource: String): Route =
+  def deleteManagementPolicy(@Parameter(hidden = true) managementPolicy: String,
+                             @Parameter(hidden = true) organization: String,
+                             @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"Doing DELETE /orgs/$organization/managementpolicies/$managementPolicy")
       complete({

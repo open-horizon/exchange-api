@@ -82,9 +82,9 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postChangePassword(organization: String,
-                         compositeId: String,
-                         username: String): Route =
+  def postChangePassword(@Parameter(hidden = true) organization: String,
+                         @Parameter(hidden = true) compositeId: String,
+                         @Parameter(hidden = true) username: String): Route =
     entity(as[ChangePwRequest]) {
       reqBody =>
         logger.debug(s"Doing POST /orgs/$organization/users/$username")

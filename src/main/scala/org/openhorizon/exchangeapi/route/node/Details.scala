@@ -188,8 +188,8 @@ trait Details extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(description = "access denied", responseCode = "403"),
       new responses.ApiResponse(description = "not found", responseCode = "404")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def getDetails(identity: Identity,
-                 organization: String): Route =
+  def getDetails(@Parameter(hidden = true) identity: Identity,
+                 @Parameter(hidden = true) organization: String): Route =
     parameter("arch".?,
               "id".?,
               "name".?,

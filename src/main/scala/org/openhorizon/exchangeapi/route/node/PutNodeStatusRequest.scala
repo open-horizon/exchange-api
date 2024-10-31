@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.node
 
+import io.swagger.v3.oas.annotations.media.{ArraySchema, Schema}
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.node.OneService

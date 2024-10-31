@@ -102,7 +102,7 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postNodeHealthSearch(orgid: String): Route =
+  def postNodeHealthSearch(@Parameter(hidden = true) orgid: String): Route =
     entity(as[PostNodeHealthRequest]) {
       reqBody =>
         logger.debug(s"Doing POST /orgs/$orgid/search/nodehealth")

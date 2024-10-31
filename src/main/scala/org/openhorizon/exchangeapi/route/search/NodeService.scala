@@ -101,8 +101,8 @@ trait NodeService extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postNodeServiceSearch(identity: Identity,
-                            organization: String): Route =
+  def postNodeServiceSearch(@Parameter(hidden = true) identity: Identity,
+                            @Parameter(hidden = true) organization: String): Route =
     entity(as[PostServiceSearchRequest]) {
       reqBody =>
         logger.debug(s"Doing POST /orgs/$organization/search/nodes/service")

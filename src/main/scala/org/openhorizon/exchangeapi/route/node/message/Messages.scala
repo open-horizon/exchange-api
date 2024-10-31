@@ -50,9 +50,9 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getMessagesNode(node: String,
-                      organization: String,
-                      resource: String): Route =
+  def getMessagesNode(@Parameter(hidden = true) node: String,
+                      @Parameter(hidden = true) organization: String,
+                      @Parameter(hidden = true) resource: String): Route =
     parameter("maxmsgs".?) {
       maxmsgsStrOpt =>
         validate(Try(maxmsgsStrOpt.map(_.toInt)).isSuccess, ExchMsg.translate("invalid.int.for.name", maxmsgsStrOpt.getOrElse(""), "maxmsgs")) {
@@ -130,10 +130,10 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postMessagesNode(identity: Identity,
-                       node: String,
-                       organization: String,
-                       resource: String): Route =
+  def postMessagesNode(@Parameter(hidden = true) identity: Identity,
+                       @Parameter(hidden = true) node: String,
+                       @Parameter(hidden = true) organization: String,
+                       @Parameter(hidden = true) resource: String): Route =
     entity(as[PostNodesMsgsRequest]) {
       reqBody =>
         complete({

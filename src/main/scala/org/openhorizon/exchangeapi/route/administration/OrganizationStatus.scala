@@ -6,11 +6,12 @@ import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
-import io.swagger.v3.oas.annotations.{Operation, responses}
+import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, TAction}
+import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, TAction}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
-import org.openhorizon.exchangeapi.utility.{ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -29,41 +30,52 @@ trait OrganizationStatus extends JacksonSupport with AuthenticationSupport {
   
   // =========== GET /admin/orgstatus ===============================
   @GET
-  @Operation(summary = "Returns the org-specific status of the Exchange server",
-             description = """Returns a dictionary of statuses/statistics. Can be run by superuser, hub admins, and org admins.""",
+  @Operation(description = """Returns a dictionary of statuses/statistics. Can be run by superuser, hub admins, and org admins.""",
              responses =
                Array(new responses.ApiResponse(responseCode = "200", description = "response body",
                                                content =
                                                  Array(new Content(mediaType = "application/json",
-                                                                   schema = new Schema(implementation = classOf[GetAdminOrgStatusResponse])))),
+                                                                   schema = new Schema(implementation = classOf[AdminOrgStatus])))),
                      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-                     new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def getOrganizationStatus: Route = {
-    logger.debug("Doing GET /admin/orgstatus")
+                     new responses.ApiResponse(responseCode = "403", description = "access denied")),
+             summary = "Returns the org-specific status of the Exchange server")
+  def getOrganizationStatus(@Parameter(hidden = true) identity: Identity): Route = { // Hides fields from being included in the swagger doc as request parameters.
+    logger.debug("Doing GET /admin/status")
     complete({
-      val orgStatusResp = new AdminOrgStatus()
-      // perf: use a DBIO.sequence instead. It does essentially the same thing, but more efficiently
-      val q =
+      val metrics =
         for {
-          n <- NodesTQ.groupBy(_.orgid)
-        } yield (n._1, n._2.length) // this should returin [orgid, num of nodes in that orgid]
+          numNodesByOrg <-
+            if(!identity.isSuperUser && identity.isHubAdmin)
+              Compiled(OrgsTQ.map(organization => (organization.orgid, -1))
+                             .sortBy(_._1))
+                .result
+            else {
+              Compiled(OrgsTQ.filterIf(!(identity.isSuperUser || identity.isMultiTenantAgbot))(organization => (organization.orgid === identity.getOrg || organization.orgid === "IBM"))
+                             .filterIf(identity.role.equals(AuthRoles.Node))(_.orgid === identity.identityString)
+                             .map(_.orgid)
+                             .joinLeft(NodesTQ.filterIf(!(identity.isSuperUser || identity.isMultiTenantAgbot))(node => (node.orgid === identity.getOrg || node.orgid === "IBM"))
+                                              .filterIf(!(identity.isAdmin || identity.isHubAdmin) && identity.role.equals(AuthRoles.User))(_.owner === identity.identityString)
+                                              .filterIf(identity.role.equals(AuthRoles.Node))(_.id === identity.identityString)
+                                              .groupBy(node => node.orgid)
+                                              .map{case (orgid, group) => (orgid, group.map(_.id).length)})
+                             .on((organization, node) => (organization === node._1))
+                             .map(result => (result._1, result._2.getOrElse(("", 0))._2))
+                             .sortBy(_._1.asc))
+                .result
+            }
+        } yield(numNodesByOrg)
       
-      db.run(q.result.asTry)
-        .map({
-          case Success(nodes) => // nodes : Seq[(String, Int)]
-            orgStatusResp.nodesByOrg = nodes.toMap
-            orgStatusResp.msg = ExchMsg.translate("exchange.server.operating.normally")
-            (HttpCode.OK, orgStatusResp.toGetAdminOrgStatusResponse)
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            orgStatusResp.msg = t.getMessage
-            if (t.getMessage.contains("An I/O error occurred while sending to the backend"))
-              (HttpCode.BAD_GW, orgStatusResp.toGetAdminOrgStatusResponse)
-            else
-              (HttpCode.INTERNAL_ERROR, orgStatusResp.toGetAdminOrgStatusResponse)
-          case Failure(t) =>
-            orgStatusResp.msg = t.getMessage
-            (HttpCode.INTERNAL_ERROR, orgStatusResp.toGetAdminOrgStatusResponse)
-        })
+      db.run(metrics.transactionally.asTry).map {
+        case Success(result) =>
+          (HttpCode.OK, new AdminOrgStatus(msg = ExchMsg.translate("exchange.server.operating.normally"), nodes = result.toMap))
+        case Failure(t: org.postgresql.util.PSQLException) =>
+          if (t.getMessage.contains("An I/O error occurred while sending to the backend"))
+            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, t.getMessage))
+          else
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
+        case Failure(t) =>
+          (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
+      }
     })
   }
   
@@ -72,8 +84,8 @@ trait OrganizationStatus extends JacksonSupport with AuthenticationSupport {
     path("admin" / "orgstatus") {
       get {
         exchAuth(TAction(), Access.ORGSTATUS) {
-          _ =>
-            getOrganizationStatus
+          identity =>
+            getOrganizationStatus(identity = identity)
         }
       }
     }

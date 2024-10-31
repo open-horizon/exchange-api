@@ -49,7 +49,7 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                                new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                                new responses.ApiResponse(responseCode = "403", description = "access denied"),
                                new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteAgentConfigMgmt(organization: String): Route =
+  def deleteAgentConfigMgmt(@Parameter(hidden = true) organization: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/$organization/AgentFileVersion")
       complete({
@@ -137,7 +137,7 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                                new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                                new responses.ApiResponse(responseCode = "403", description = "access denied"),
                                new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getAgentConfigMgmt(orgId: String): Route =
+  def getAgentConfigMgmt(@Parameter(hidden = true) orgId: String): Route =
     {
       logger.debug(s"GET /orgs/$orgId/AgentFileVersion")
       complete({
@@ -211,7 +211,7 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                  new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                  new responses.ApiResponse(responseCode = "403", description = "access denied"),
                  new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putAgentConfigMgmt(organization: String): Route =
+  def putAgentConfigMgmt(@Parameter(hidden = true) organization: String): Route =
     put {
       entity(as[AgentVersionsRequest]) {
         reqBody =>

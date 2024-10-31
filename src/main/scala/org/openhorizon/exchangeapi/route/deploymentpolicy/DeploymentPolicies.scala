@@ -92,8 +92,8 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getDeploymentPolicies(ident: Identity,
-                            orgid: String): Route =
+  def getDeploymentPolicies(@Parameter(hidden = true) ident: Identity,
+                            @Parameter(hidden = true) orgid: String): Route =
     parameter("idfilter".?, "owner".?, "label".?, "description".?) {
       (idfilter,
        owner,

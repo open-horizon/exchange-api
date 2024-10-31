@@ -74,8 +74,8 @@ trait NodeGroups extends JacksonSupport with AuthenticationSupport {
                                new responses.ApiResponse(description = "not found",
                                                          responseCode = "404")),
              summary = "Lists all members of all Node Groups (HA Groups)")
-  def getNodeGroups(identity: Identity,
-                    organization: String): Route =
+  def getNodeGroups(@Parameter(hidden = true) identity: Identity,
+                    @Parameter(hidden = true) organization: String): Route =
     {
       logger.debug(s"doing GET /orgs/$organization/hagroups")
       complete({

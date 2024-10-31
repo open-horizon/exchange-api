@@ -44,9 +44,9 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
                     new responses.ApiResponse(responseCode = "403", description = "access denied"),
                     new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
-  def deleteAgreements(id: String,
-                       orgid: String,
-                       compositeId: String): Route = {
+  def deleteAgreements(@Parameter(hidden = true) id: String,
+                       @Parameter(hidden = true) orgid: String,
+                       @Parameter(hidden = true) compositeId: String): Route = {
       complete({
         // remove does *not* throw an exception if the key does not exist
         db.run(AgbotAgreementsTQ.getAgreements(compositeId)
@@ -112,9 +112,9 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
-  def getAgreements(agreementBot: String,
-                    organization: String,
-                    resource: String): Route = {
+  def getAgreements(@Parameter(hidden = true) agreementBot: String,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String): Route = {
     complete({
       db.run(AgbotAgreementsTQ.getAgreements(resource).result)
         .map({

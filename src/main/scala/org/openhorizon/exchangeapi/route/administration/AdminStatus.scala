@@ -1,30 +1,34 @@
 package org.openhorizon.exchangeapi.route.administration
 
-case class AdminStatus(dbSchemaVersion: Int = 0,
+import com.fasterxml.jackson.annotation.JsonInclude
+import com.fasterxml.jackson.annotation.JsonInclude.Include
+
+@JsonInclude(Include.NON_ABSENT) // Hides key/value pairs that are None.
+case class AdminStatus(dbSchemaVersion: Option[Int] = Option(-1),
                        msg: String = "",
                        numberOfAgbotAgreements: Int = 0,
                        numberOfAgbotMsgs: Int = 0,
                        numberOfAgbots: Int = 0,
-                       numberOfNodeAgreements: Int = 0,
-                       numberOfNodeMsgs: Int = 0,
-                       numberOfNodes: Int = 0,
+                       numberOfNodeAgreements: Option[Int] = Option(-1),
+                       numberOfNodeMsgs: Option[Int] = Option(-1),
+                       numberOfNodes: Option[Int] = Option(-1),
                        numberOfOrganizations: Int = 0,
-                       numberOfRegisteredNodes: Int = 0,
-                       numberOfUnregisteredNodes: Int = 0,
-                       numberOfUsers: Int = 0,
-                       SchemaVersion: Int = 0) {
-  def this(DBMetrics: (Int, Int, Int, Int, Int, Int, Int, Int, Int, Int, Int), message: String) =
-    this(dbSchemaVersion = DBMetrics._11,
+                       numberOfRegisteredNodes: Option[Int] = None,
+                       numberOfUnregisteredNodes: Option[Int] = None,
+                       numberOfUsers: Option[Int] = Option(-1),
+                       SchemaVersion: Option[Int] = Option(-1)) {
+  def this(DBMetrics: (Int, Int, Int, Int, Int, Int, Option[Int], Option[Int], Int, Int, Int), message: String, organization: Boolean) =
+    this(dbSchemaVersion = if(!organization) Option(DBMetrics._11) else None,
          msg = message,
          numberOfAgbotAgreements = DBMetrics._1,
          numberOfAgbotMsgs = DBMetrics._2,
          numberOfAgbots = DBMetrics._3,
-         numberOfNodeAgreements = DBMetrics._4,
-         numberOfNodeMsgs = DBMetrics._5,
-         numberOfNodes = DBMetrics._6,
+         numberOfNodeAgreements = Option(DBMetrics._4),
+         numberOfNodeMsgs = Option(DBMetrics._5),
+         numberOfNodes = Option(DBMetrics._6),
          numberOfOrganizations = DBMetrics._9,
          numberOfRegisteredNodes = DBMetrics._7,
          numberOfUnregisteredNodes = DBMetrics._8,
-         numberOfUsers = DBMetrics._10,
-         SchemaVersion = DBMetrics._11)
+         numberOfUsers = Option(DBMetrics._10),
+         SchemaVersion = if(organization) Option(DBMetrics._11) else None)
 }

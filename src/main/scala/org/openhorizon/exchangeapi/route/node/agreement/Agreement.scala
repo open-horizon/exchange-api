@@ -73,10 +73,10 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getAgreementNode(agreement: String,
-                       node: String,
-                       organization: String,
-                       resource: String): Route =
+  def getAgreementNode(@Parameter(hidden = true) agreement: String,
+                       @Parameter(hidden = true) node: String,
+                       @Parameter(hidden = true) organization: String,
+                       @Parameter(hidden = true) resource: String): Route =
     complete({
       db.run(NodeAgreementsTQ.getAgreement(resource, agreement).result).map({ list =>
         logger.debug(s"GET /orgs/$organization/nodes/$node/agreements/$agreement result size: ${list.size}")
@@ -160,10 +160,10 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putAgreementNode(agreement: String,
-                       node: String,
-                       organization: String,
-                       resource: String): Route =
+  def putAgreementNode(@Parameter(hidden = true) agreement: String,
+                       @Parameter(hidden = true) node: String,
+                       @Parameter(hidden = true) organization: String,
+                       @Parameter(hidden = true) resource: String): Route =
     put {
       parameter("noheartbeat".?) {
         noheartbeat =>
@@ -235,10 +235,10 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteAgreementNode(agreement: String,
-                          node: String,
-                          organization: String,
-                          resource: String): Route =
+  def deleteAgreementNode(@Parameter(hidden = true) agreement: String,
+                          @Parameter(hidden = true) node: String,
+                          @Parameter(hidden = true) organization: String,
+                          @Parameter(hidden = true) resource: String): Route =
     delete {
       complete({
         db.run(NodeAgreementsTQ.getAgreement(resource,agreement).delete.asTry.flatMap({

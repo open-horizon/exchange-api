@@ -44,10 +44,10 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getKeyService(keyId: String,
-                    orgid: String,
-                    compositeId: String,
-                    service: String): Route =
+  def getKeyService(@Parameter(hidden = true) keyId: String,
+                    @Parameter(hidden = true) orgid: String,
+                    @Parameter(hidden = true) compositeId: String,
+                    @Parameter(hidden = true) service: String): Route =
     get {
       complete({
         db.run(ServiceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
@@ -86,10 +86,10 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putKeyService(keyId: String,
-                    orgid: String,
-                    compositeId: String,
-                    service: String): Route =
+  def putKeyService(@Parameter(hidden = true) keyId: String,
+                    @Parameter(hidden = true) orgid: String,
+                    @Parameter(hidden = true) compositeId: String,
+                    @Parameter(hidden = true) service: String): Route =
     put {
       extractRawBodyAsStr {
         reqBodyAsStr =>
@@ -139,10 +139,10 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteKeyService(key: String,
-                       organization: String,
-                       resource: String,
-                       service: String): Route =
+  def deleteKeyService(@Parameter(hidden = true) key: String,
+                       @Parameter(hidden = true) organization: String,
+                       @Parameter(hidden = true) resource: String,
+                       @Parameter(hidden = true) service: String): Route =
     delete {
       complete({
         var storedPublicField = false

@@ -118,8 +118,8 @@ trait OrganizationDeploymentPatterns extends JacksonSupport with AuthenticationS
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getOrganizationDeploymentPatterns(identity: Identity,
-                                        organization: String): Route =
+  def getOrganizationDeploymentPatterns(@Parameter(hidden = true) identity: Identity,
+                                        @Parameter(hidden = true) organization: String): Route =
     parameter("idfilter".?,
               "owner".?,
               "public".?,

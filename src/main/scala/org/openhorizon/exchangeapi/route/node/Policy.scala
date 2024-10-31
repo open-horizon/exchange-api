@@ -43,9 +43,9 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deletePolicyNode(node: String,
-                       organization: String,
-                       resource: String): Route =
+  def deletePolicyNode(@Parameter(hidden = true) node: String,
+                       @Parameter(hidden = true) organization: String,
+                       @Parameter(hidden = true) resource: String): Route =
     delete {
       complete({
         db.run(NodePolicyTQ.getNodePolicy(resource).delete.asTry.flatMap({
@@ -90,9 +90,9 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getPolicyNode(node: String,
-                    organization: String,
-                    resource: String): Route =
+  def getPolicyNode(@Parameter(hidden = true) node: String,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String): Route =
     complete({
       db.run(NodePolicyTQ.getNodePolicy(resource).result).map({ list =>
         logger.debug("GET /orgs/"+organization+"/nodes/"+node+"/policy result size: "+list.size)
@@ -197,9 +197,9 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putPolicyNode(node: String,
-                    organization: String,
-                    resource: String): Route =
+  def putPolicyNode(@Parameter(hidden = true) node: String,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String): Route =
     put {
       parameter("noheartbeat".?) {
         noheartbeat =>

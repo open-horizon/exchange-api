@@ -1,5 +1,7 @@
 package org.openhorizon.exchangeapi.route.node
 
+import io.swagger.v3.oas.annotations.media.{ArraySchema, Schema}
+import io.swagger.v3.oas.annotations.media.Schema.RequiredMode
 import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, OneService, RegService}
 import org.openhorizon.exchangeapi.table.service.OneProperty
@@ -8,7 +10,7 @@ import org.openhorizon.exchangeapi.utility.StrConstants
 case class NodeDetails(arch: Option[String] = None,
                        connectivity: Option[Map[String, Boolean]] = None,
                        constraints: Option[List[String]] = None,
-                       errors: Option[List[Any]] = None,
+                       @ArraySchema(schema = new Schema(implementation = classOf[Object])) errors: Option[List[Any]] = None,
                        heartbeatIntervals: Option[NodeHeartbeatIntervals] = None,
                        id: String = "",
                        lastHeartbeat: Option[String] = None,

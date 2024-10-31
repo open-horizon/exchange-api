@@ -77,7 +77,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getOrganization(organization: String): Route =
+  def getOrganization(@Parameter(hidden = true) organization: String): Route =
     {
       parameter("attribute".?) {
         attribute =>
@@ -176,7 +176,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postOrganization(orgId: String): Route =
+  def postOrganization(@Parameter(hidden = true) orgId: String): Route =
     entity(as[PostPutOrgRequest]) {
       reqBody =>
         logger.debug(s"Doing POST /orgs/$orgId")
@@ -242,8 +242,8 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putOrganization(organization: String,
-                      reqBody: PostPutOrgRequest): Route =
+  def putOrganization(@Parameter(hidden = true) organization: String,
+                      @Parameter(hidden = true) reqBody: PostPutOrgRequest): Route =
     {
       logger.debug(s"Doing PUT /orgs/$organization with orgId:$organization")
      
@@ -313,8 +313,8 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patchOrganization(organization: String,
-                        reqBody: PatchOrgRequest): Route =
+  def patchOrganization(@Parameter(hidden = true) organization: String,
+                        @Parameter(hidden = true) reqBody: PatchOrgRequest): Route =
     {
       logger.debug(s"Doing PATCH /orgs/$organization with orgId:$organization")
       
@@ -357,7 +357,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteOrganization(organization: String): Route =
+  def deleteOrganization(@Parameter(hidden = true) organization: String): Route =
     {
       logger.debug(s"Doing DELETE /orgs/$organization")
       

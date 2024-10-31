@@ -141,9 +141,9 @@ trait Organizations extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getOrganizations(ident: Identity,
-                       label: Option[String],
-                       orgType: Option[String]): Route =
+  def getOrganizations(@Parameter(hidden = true) ident: Identity,
+                       @Parameter(hidden = true) label: Option[String],
+                       @Parameter(hidden = true) orgType: Option[String]): Route =
     {
       logger.debug(s"Doing GET /orgs with orgType:$orgType, label:$label")
       

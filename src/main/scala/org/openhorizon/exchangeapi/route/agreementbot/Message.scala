@@ -58,10 +58,10 @@ trait Message extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/message")
-  def deleteMessage(agreementBot: String,
-                    msgId: Int,
-                    organization: String,
-                    resource: String): Route =
+  def deleteMessage(@Parameter(hidden = true) agreementBot: String,
+                    @Parameter(hidden = true) msgId: Int,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String): Route =
     complete({
       //try {
       //val msgId =  msgIdStr.toInt   // this can throw an exception, that's why this whole section is in a try/catch
@@ -115,10 +115,10 @@ trait Message extends JacksonSupport with AuthenticationSupport {
                                                responseCode = "404")),
              summary = "Returns A specific Message that has been sent to this Agreement Bot (AgBot).")
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/message")
-  def getMessage(agreementBot: String,
-                 message: Int,
-                 organization: String,
-                 resource: String): Route =
+  def getMessage(@Parameter(hidden = true) agreementBot: String,
+                 @Parameter(hidden = true) message: Int,
+                 @Parameter(hidden = true) organization: String,
+                 @Parameter(hidden = true) resource: String): Route =
     complete({
       db.run(AgbotMsgsTQ.getMsg(agbotId = resource,
                                 msgId = message)

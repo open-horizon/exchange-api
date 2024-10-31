@@ -34,10 +34,10 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  def buildResourceChangesResponse(inputList: scala.Seq[ResourceChangeRow],
-                                   hitMaxRecords: Boolean,
-                                   inputChangeId: Long,
-                                   maxChangeIdOfTable: Long): ResourceChangesRespObject ={
+  def buildResourceChangesResponse(@Parameter(hidden = true) inputList: scala.Seq[ResourceChangeRow],
+                                   @Parameter(hidden = true) hitMaxRecords: Boolean,
+                                   @Parameter(hidden = true) inputChangeId: Long,
+                                   @Parameter(hidden = true) maxChangeIdOfTable: Long): ResourceChangesRespObject ={
     // Sort the rows based on the changeId. Default order is ascending, which is what we want
     logger.debug(s"POST /orgs/{organization}/changes sorting ${inputList.size} rows")
     // val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
@@ -125,9 +125,9 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
       )
     )
   )
-  def postChanges(identity: Identity,
-                  organization: String,
-                  reqBody: ResourceChangesRequest): Route =
+  def postChanges(@Parameter(hidden = true) identity: Identity,
+                  @Parameter(hidden = true) organization: String,
+                  @Parameter(hidden = true) reqBody: ResourceChangesRequest): Route =
     complete({
       logger.debug(s"Doing POST /orgs/$organization/changes - identity:                 ${identity.identityString}")
       // make sure callers obey maxRecords cap set in config, defaults is 10,000

@@ -44,9 +44,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteDeploymentPattern(deploymentPattern: String,
-                              organization: String,
-                              resource: String): Route =
+  def deleteDeploymentPattern(@Parameter(hidden = true) deploymentPattern: String,
+                              @Parameter(hidden = true) organization: String,
+                              @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"Doing DELETE /orgs/$organization/patterns/$deploymentPattern")
       complete({
@@ -171,9 +171,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getDeploymentPattern(deploymentPattern: String,
-                           organization: String,
-                           resource: String): Route =
+  def getDeploymentPattern(@Parameter(hidden = true) deploymentPattern: String,
+                           @Parameter(hidden = true) organization: String,
+                           @Parameter(hidden = true) resource: String): Route =
     parameter("attribute".?) {
       attribute =>
         complete({
@@ -305,9 +305,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patchDeploymentPattern(deploymentPattern: String,
-                             organization: String,
-                             resource: String): Route =
+  def patchDeploymentPattern(@Parameter(hidden = true) deploymentPattern: String,
+                             @Parameter(hidden = true) organization: String,
+                             @Parameter(hidden = true) resource: String): Route =
     patch {
       entity(as[PatchPatternRequest]) {
         reqBody =>
@@ -539,10 +539,10 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postDeploymentPattern(deploymentPattern: String,
-                            identity: Identity,
-                            organization: String,
-                            resource: String): Route =
+  def postDeploymentPattern(@Parameter(hidden = true) deploymentPattern: String,
+                            @Parameter(hidden = true) identity: Identity,
+                            @Parameter(hidden = true) organization: String,
+                            @Parameter(hidden = true) resource: String): Route =
     entity(as[PostPutPatternRequest]) {
       reqBody =>
         validateWithMsg(reqBody.getAnyProblem) {
@@ -717,10 +717,10 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putDeploymentPattern(deploymentPattern: String,
-                           identity: Identity,
-                           organization: String,
-                           resource: String): Route =
+  def putDeploymentPattern(@Parameter(hidden = true) deploymentPattern: String,
+                           @Parameter(hidden = true) identity: Identity,
+                           @Parameter(hidden = true) organization: String,
+                           @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PostPutPatternRequest]) {
         reqBody =>

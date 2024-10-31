@@ -105,8 +105,8 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postNodeHealth(deploymentPattern: String,
-                     organization: String): Route =
+  def postNodeHealth(@Parameter(hidden = true) deploymentPattern: String,
+                     @Parameter(hidden = true) organization: String): Route =
     entity(as[PostNodeHealthRequest]) {
       reqBody =>
         validateWithMsg(reqBody.getAnyProblem) {

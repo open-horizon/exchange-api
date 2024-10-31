@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.organization
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
-import org.openhorizon.exchangeapi.route.administration.AdminStatus
+import org.openhorizon.exchangeapi.route.administration.{AdminOrgStatus, AdminStatus}
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.{AgbotAgreementRow, AgbotAgreementsTQ}
 import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsgRow, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
@@ -346,19 +346,19 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === SCHEMAVERSION)
+    assert(status.dbSchemaVersion.isEmpty)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 2)
     assert(status.numberOfAgbotMsgs === 2)
     assert(status.numberOfAgbots === 2)
-    assert(status.numberOfNodeAgreements === 2)
-    assert(status.numberOfNodeMsgs === 2)
-    assert(status.numberOfNodes === 2)
+    assert(status.numberOfNodeAgreements.get === 2)
+    assert(status.numberOfNodeMsgs.get === 2)
+    assert(status.numberOfNodes.get === 2)
     assert(status.numberOfOrganizations === 1)
-    assert(status.numberOfRegisteredNodes === 1)
-    assert(status.numberOfUnregisteredNodes === 1)
-    assert(status.numberOfUsers === 2)
-    assert(status.SchemaVersion === SCHEMAVERSION)
+    assert(status.numberOfRegisteredNodes.get === 1)
+    assert(status.numberOfUnregisteredNodes.get === 1)
+    assert(status.numberOfUsers.get === 2)
+    assert(status.SchemaVersion.get === SCHEMAVERSION)
   }
   
   test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + " -- root - 200 ok - normal success") {
@@ -367,19 +367,19 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === SCHEMAVERSION)
+    assert(status.dbSchemaVersion.isEmpty)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 1)
     assert(status.numberOfAgbotMsgs === 1)
     assert(status.numberOfAgbots === 1)
-    assert(status.numberOfNodeAgreements === 1)
-    assert(status.numberOfNodeMsgs === 1)
-    assert(status.numberOfNodes === 1)
+    assert(status.numberOfNodeAgreements.get === 1)
+    assert(status.numberOfNodeMsgs.get === 1)
+    assert(status.numberOfNodes.get === 1)
     assert(status.numberOfOrganizations === 1)
-    assert(status.numberOfRegisteredNodes === 0)
-    assert(status.numberOfUnregisteredNodes === 1)
-    assert(status.numberOfUsers === 1)
-    assert(status.SchemaVersion === SCHEMAVERSION)
+    assert(status.numberOfRegisteredNodes.get === 0)
+    assert(status.numberOfUnregisteredNodes.get === 1)
+    assert(status.numberOfUsers.get === 1)
+    assert(status.SchemaVersion.get === SCHEMAVERSION)
   }
   
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- hub admin - 200 ok - normal success") {
@@ -388,19 +388,19 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === SCHEMAVERSION)
+    assert(status.dbSchemaVersion.isEmpty)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 2)
     assert(status.numberOfAgbotMsgs === 2)
     assert(status.numberOfAgbots === 2)
-    assert(status.numberOfNodeAgreements === 0)
-    assert(status.numberOfNodeMsgs === 0)
-    assert(status.numberOfNodes === 0)
+    assert(status.numberOfNodeAgreements.get === -1)
+    assert(status.numberOfNodeMsgs.get === -1)
+    assert(status.numberOfNodes.get === -1)
     assert(status.numberOfOrganizations === 1)
-    assert(status.numberOfRegisteredNodes === 0)
-    assert(status.numberOfUnregisteredNodes === 0)
-    assert(status.numberOfUsers === 2)
-    assert(status.SchemaVersion === SCHEMAVERSION)
+    assert(status.numberOfRegisteredNodes.isEmpty)
+    assert(status.numberOfUnregisteredNodes.isEmpty)
+    assert(status.numberOfUsers.get === 2)
+    assert(status.SchemaVersion.get === SCHEMAVERSION)
   }
   
   test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + " -- hub admin - 200 ok - normal success") {
@@ -409,18 +409,19 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === SCHEMAVERSION)
+    assert(status.dbSchemaVersion.isEmpty)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 1)
     assert(status.numberOfAgbotMsgs === 1)
-    assert(status.numberOfNodes === 0)
-    assert(status.numberOfUsers === 1)
-    assert(status.numberOfNodeMsgs === 0)
-    assert(status.numberOfNodeAgreements === 0)
+    assert(status.numberOfAgbots === 1)
+    assert(status.numberOfNodes.get === -1)
+    assert(status.numberOfNodeMsgs.get === -1)
+    assert(status.numberOfNodeAgreements.get === -1)
     assert(status.numberOfOrganizations === 1)
-    assert(status.numberOfRegisteredNodes === 0)
-    assert(status.numberOfUnregisteredNodes === 0)
-    assert(status.SchemaVersion === SCHEMAVERSION)
+    assert(status.numberOfRegisteredNodes.isEmpty)
+    assert(status.numberOfUnregisteredNodes.isEmpty)
+    assert(status.numberOfUsers.get === 1)
+    assert(status.SchemaVersion.get === SCHEMAVERSION)
   }
   
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- organization admin - 200 ok - normal success") {
@@ -429,18 +430,19 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === 0)
+    assert(status.dbSchemaVersion.isEmpty)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 2)
     assert(status.numberOfAgbotMsgs === 2)
-    assert(status.numberOfNodes === 2)
-    assert(status.numberOfUsers === 2)
-    assert(status.numberOfNodeMsgs === 2)
-    assert(status.numberOfNodeAgreements === 2)
+    assert(status.numberOfAgbots === 2)
+    assert(status.numberOfNodes.get === 2)
+    assert(status.numberOfNodeMsgs.get === 2)
+    assert(status.numberOfNodeAgreements.get === 2)
     assert(status.numberOfOrganizations === 1)
-    assert(status.numberOfRegisteredNodes === 1)
-    assert(status.numberOfUnregisteredNodes === 1)
-    assert(status.SchemaVersion === 0)
+    assert(status.numberOfRegisteredNodes.get === 1)
+    assert(status.numberOfUnregisteredNodes.get === 1)
+    assert(status.numberOfUsers.get === 2)
+    assert(status.SchemaVersion.get === -1)
   }
   
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- user - 200 ok - normal success") {
@@ -449,19 +451,19 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === 0)
+    assert(status.dbSchemaVersion.isEmpty)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 2)
     assert(status.numberOfAgbotMsgs === 2)
     assert(status.numberOfAgbots === 2)
-    assert(status.numberOfNodeAgreements === 1)
-    assert(status.numberOfNodeMsgs === 1)
-    assert(status.numberOfNodes === 1)
+    assert(status.numberOfNodeAgreements.get === 1)
+    assert(status.numberOfNodeMsgs.get === 1)
+    assert(status.numberOfNodes.get === 1)
     assert(status.numberOfOrganizations === 1)
-    assert(status.numberOfRegisteredNodes === 1)
-    assert(status.numberOfUnregisteredNodes === 0)
-    assert(status.numberOfUsers === 1)
-    assert(status.SchemaVersion === 0)
+    assert(status.numberOfRegisteredNodes.get === 1)
+    assert(status.numberOfUnregisteredNodes.get === 0)
+    assert(status.numberOfUsers.get === 1)
+    assert(status.SchemaVersion.get === -1)
   }
   
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- agbot - 200 ok - normal success") {
@@ -470,18 +472,19 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === 0)
+    assert(status.dbSchemaVersion.isEmpty)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 2)
     assert(status.numberOfAgbotMsgs === 2)
-    assert(status.numberOfNodes === 2)
-    assert(status.numberOfUsers === 0)
-    assert(status.numberOfNodeMsgs === 2)
-    assert(status.numberOfNodeAgreements === 2)
+    assert(status.numberOfAgbots === 2)
+    assert(status.numberOfNodes.get === 2)
+    assert(status.numberOfNodeMsgs.get === 2)
+    assert(status.numberOfNodeAgreements.get === 2)
     assert(status.numberOfOrganizations === 1)
-    assert(status.numberOfRegisteredNodes === 1)
-    assert(status.numberOfUnregisteredNodes === 1)
-    assert(status.SchemaVersion === 0)
+    assert(status.numberOfRegisteredNodes.get === 1)
+    assert(status.numberOfUnregisteredNodes.get === 1)
+    assert(status.numberOfUsers.get === -1)
+    assert(status.SchemaVersion.get === -1)
   }
   
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- node - 200 ok - normal success") {
@@ -490,18 +493,19 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === 0)
+    assert(status.dbSchemaVersion.isEmpty)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 2)
     assert(status.numberOfAgbotMsgs === 2)
-    assert(status.numberOfNodes === 1)
-    assert(status.numberOfUsers === 0)
-    assert(status.numberOfNodeMsgs === 1)
-    assert(status.numberOfNodeAgreements === 1)
+    assert(status.numberOfAgbots === 2)
+    assert(status.numberOfNodes.get === 1)
+    assert(status.numberOfNodeMsgs.get === 1)
+    assert(status.numberOfNodeAgreements.get === 1)
     assert(status.numberOfOrganizations === 1)
-    assert(status.numberOfRegisteredNodes === 0)
-    assert(status.numberOfUnregisteredNodes === 1)
-    assert(status.SchemaVersion === 0)
+    assert(status.numberOfRegisteredNodes.get === 0)
+    assert(status.numberOfUnregisteredNodes.get === 1)
+    assert(status.numberOfUsers.get === -1)
+    assert(status.SchemaVersion.get === -1)
   }
   
   test("GET /orgs/" + "IBM" + ROUTE + " -- node - 200 ok - normal success", AdminStatusTest) {
@@ -510,119 +514,208 @@ class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === 0)
+    assert(status.dbSchemaVersion.isEmpty)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 1)
     assert(status.numberOfAgbotMsgs === 1)
-    assert(status.numberOfNodes === 0)
-    assert(status.numberOfUsers === 0)
-    assert(status.numberOfNodeMsgs === 0)
-    assert(status.numberOfNodeAgreements === 0)
+    assert(status.numberOfAgbots === 1)
+    assert(status.numberOfNodes.get === 0)
+    assert(status.numberOfNodeMsgs.get === 0)
+    assert(status.numberOfNodeAgreements.get === 0)
     assert(status.numberOfOrganizations === 1)
-    assert(status.numberOfRegisteredNodes === 0)
-    assert(status.numberOfUnregisteredNodes === 0)
-    assert(status.SchemaVersion === 0)
+    assert(status.numberOfRegisteredNodes.get === 0)
+    assert(status.numberOfUnregisteredNodes.get === 0)
+    assert(status.numberOfUsers.get === -1)
+    assert(status.SchemaVersion.get === -1)
   }
   
   // --------------- .../v1/admin/status ---------------
   // [WARNING] No test suite isolation!
   // Run these test cases by themselves. $ sbt onlyAdminStatusTests
   
-  test("GET /orgs/" +  "admin/status" + " -- agbot - 403 access denied", AdminStatusTest) {
+  test("GET /admin/status" + " -- agbot - 403 access denied", AdminStatusTest) {
     val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
   
-  test("GET /orgs/" +  "admin/status" + " -- node - 403 access denied", AdminStatusTest) {
+  test("GET /admin/status" + " -- node - 403 access denied", AdminStatusTest) {
     val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(NODEAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
   
-  test("GET /orgs/" +  "admin/status" + " -- root - 200 ok - normal success", AdminStatusTest) {
+  test("GET /admin/status" + " -- root - 200 ok - normal success", AdminStatusTest) {
     val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === SCHEMAVERSION)
+    assert(status.dbSchemaVersion.get === SCHEMAVERSION)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 4)
     assert(status.numberOfAgbotMsgs === 4)
     assert(status.numberOfAgbots === 4)
-    assert(status.numberOfNodeAgreements === 3)
-    assert(status.numberOfNodeMsgs === 3)
-    assert(status.numberOfNodes === 3)
+    assert(status.numberOfNodeAgreements.get === 3)
+    assert(status.numberOfNodeMsgs.get === 3)
+    assert(status.numberOfNodes.get === 3)
     assert(status.numberOfOrganizations === 4)
-    assert(status.numberOfRegisteredNodes === 1)
-    assert(status.numberOfUnregisteredNodes === 2)
-    assert(status.numberOfUsers === 5)
-    assert(status.SchemaVersion === SCHEMAVERSION)
+    assert(status.numberOfRegisteredNodes.get === 1)
+    assert(status.numberOfUnregisteredNodes.get === 2)
+    assert(status.numberOfUsers.get === 5)
+    assert(status.SchemaVersion.isEmpty)
   }
   
-  test("GET /orgs/" +  "admin/status" + " -- hub admin - 200 ok - normal success", AdminStatusTest) {
+  test("GET /admin/status" + " -- hub admin - 200 ok - normal success", AdminStatusTest) {
     val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === SCHEMAVERSION)
+    assert(status.dbSchemaVersion.get === SCHEMAVERSION)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 4)
     assert(status.numberOfAgbotMsgs === 4)
     assert(status.numberOfAgbots === 4)
-    assert(status.numberOfNodeAgreements === 0)
-    assert(status.numberOfNodeMsgs === 0)
-    assert(status.numberOfNodes === 0)
+    assert(status.numberOfNodeAgreements.get === -1)
+    assert(status.numberOfNodeMsgs.get === -1)
+    assert(status.numberOfNodes.get === -1)
     assert(status.numberOfOrganizations === 4)
-    assert(status.numberOfRegisteredNodes === 0)
-    assert(status.numberOfUnregisteredNodes === 0)
-    assert(status.numberOfUsers === 5)
-    assert(status.SchemaVersion === SCHEMAVERSION)
+    assert(status.numberOfRegisteredNodes.isEmpty)
+    assert(status.numberOfUnregisteredNodes.isEmpty)
+    assert(status.numberOfUsers.get === 5)
+    assert(status.SchemaVersion.isEmpty)
   }
   
-  test("GET /orgs/" +  "admin/status" + " -- organization admin - 200 ok - normal success", AdminStatusTest) {
+  test("GET /admin/status" + " -- organization admin - 200 ok - normal success", AdminStatusTest) {
     val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(ORGADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === 0)
+    assert(status.dbSchemaVersion.get === -1)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 3)
     assert(status.numberOfAgbotMsgs === 3)
     assert(status.numberOfAgbots === 3)
-    assert(status.numberOfNodeAgreements === 2)
-    assert(status.numberOfNodeMsgs === 2)
-    assert(status.numberOfNodes === 2)
+    assert(status.numberOfNodeAgreements.get === 2)
+    assert(status.numberOfNodeMsgs.get === 2)
+    assert(status.numberOfNodes.get === 2)
     assert(status.numberOfOrganizations === 2)
-    assert(status.numberOfRegisteredNodes === 1)
-    assert(status.numberOfUnregisteredNodes === 1)
-    assert(status.numberOfUsers === 2)
-    assert(status.SchemaVersion === 0)
+    assert(status.numberOfRegisteredNodes.get === 1)
+    assert(status.numberOfUnregisteredNodes.get === 1)
+    assert(status.numberOfUsers.get === 2)
+    assert(status.SchemaVersion.isEmpty)
   }
   
-  test("GET /orgs/" +  "admin/status" + " -- user - 200 ok - normal success", AdminStatusTest) {
+  test("GET /admin/status" + " -- user - 200 ok - normal success", AdminStatusTest) {
     val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val status: AdminStatus = JsonMethods.parse(response.body).extract[AdminStatus]
-    assert(status.dbSchemaVersion === 0)
+    assert(status.dbSchemaVersion.get === -1)
     assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
     assert(status.numberOfAgbotAgreements === 3)
     assert(status.numberOfAgbotMsgs === 3)
     assert(status.numberOfAgbots === 3)
-    assert(status.numberOfNodeAgreements === 1)
-    assert(status.numberOfNodeMsgs === 1)
-    assert(status.numberOfNodes === 1)
+    assert(status.numberOfNodeAgreements.get === 1)
+    assert(status.numberOfNodeMsgs.get === 1)
+    assert(status.numberOfNodes.get === 1)
     assert(status.numberOfOrganizations === 2)
-    assert(status.numberOfRegisteredNodes === 1)
-    assert(status.numberOfUnregisteredNodes === 0)
-    assert(status.numberOfUsers === 1)
-    assert(status.SchemaVersion === 0)
+    assert(status.numberOfRegisteredNodes.get === 1)
+    assert(status.numberOfUnregisteredNodes.get === 0)
+    assert(status.numberOfUsers.get === 1)
+    assert(status.SchemaVersion.isEmpty)
+  }
+  
+  
+  // --------------- .../v1/admin/orgstatus ---------------
+  // [WARNING] No test suite isolation!
+  // Run these test cases by themselves. $ sbt onlyAdminStatusTests
+  
+  test("GET /admin/orgstatus" + " -- agbot - 403 access denied", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/orgstatus").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  }
+  
+  test("GET /admin/orgstatus" + " -- node - 403 access denied", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/orgstatus").headers(ACCEPT).headers(NODEAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  }
+  
+  test("GET /admin/orgstatus" + " -- user - 403 access denied", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/orgstatus").headers(ACCEPT).headers(USERAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    /*assert(response.code === HttpCode.OK.intValue)
+    val status: AdminOrgStatus = JsonMethods.parse(response.body).extract[AdminOrgStatus]
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.nodes.size === 2)
+    assert(status.nodes.contains("IBM"))
+    assert(status.nodes("IBM") === 0)
+    assert(!status.nodes.contains("root"))
+    assert(status.nodes.contains(TESTORGS.head.orgId))
+    assert(status.nodes(TESTORGS.head.orgId) === 1)
+    assert(!status.nodes.contains(TESTORGS(1).orgId))*/
+  }
+  
+  test("GET /admin/orgstatus" + " -- root - 200 ok - normal success", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/orgstatus").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminOrgStatus = JsonMethods.parse(response.body).extract[AdminOrgStatus]
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.nodes.size === 4)
+    assert(status.nodes.contains("IBM"))
+    assert(status.nodes("IBM") === 0)
+    assert(status.nodes.contains("root"))
+    assert(status.nodes("root") === 0)
+    assert(status.nodes.contains(TESTORGS.head.orgId))
+    assert(status.nodes(TESTORGS.head.orgId) === 2)
+    assert(status.nodes.contains(TESTORGS(1).orgId))
+    assert(status.nodes(TESTORGS(1).orgId) === 1)
+  }
+  
+  test("GET /admin/orgstatus" + " -- hub admin - 200 ok - normal success", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/orgstatus").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminOrgStatus = JsonMethods.parse(response.body).extract[AdminOrgStatus]
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.nodes.size === 4)
+    assert(status.nodes.contains("IBM"))
+    assert(status.nodes("IBM") === -1)
+    assert(status.nodes.contains("root"))
+    assert(status.nodes("root") === -1)
+    assert(status.nodes.contains(TESTORGS.head.orgId))
+    assert(status.nodes(TESTORGS.head.orgId) === -1)
+    assert(status.nodes.contains(TESTORGS(1).orgId))
+    assert(status.nodes(TESTORGS(1).orgId) === -1)
+  }
+  
+  test("GET /admin/orgstatus" + " -- organization admin - 200 ok - normal success", AdminStatusTest) {
+    val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/orgstatus").headers(ACCEPT).headers(ORGADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val status: AdminOrgStatus = JsonMethods.parse(response.body).extract[AdminOrgStatus]
+    assert(status.msg === ExchMsg.translate("exchange.server.operating.normally"))
+    assert(status.nodes.size === 2)
+    assert(status.nodes.contains("IBM"))
+    assert(status.nodes("IBM") === 0)
+    assert(!status.nodes.contains("root"))
+    assert(status.nodes.contains(TESTORGS.head.orgId))
+    assert(status.nodes(TESTORGS.head.orgId) === 2)
+    assert(!status.nodes.contains(TESTORGS(1).orgId))
   }
 }

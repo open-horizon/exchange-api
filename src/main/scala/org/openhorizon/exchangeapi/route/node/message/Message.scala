@@ -56,8 +56,8 @@ trait Message extends JacksonSupport with AuthenticationSupport {
                                new responses.ApiResponse(description = "not found",
                                                          responseCode = "404")),
              summary = "Returns A specific message that has been sent to this node.")
-  def getMessageNode(message: String,
-                     resource: String): Route =
+  def getMessageNode(@Parameter(hidden = true) message: String,
+                     @Parameter(hidden = true) resource: String): Route =
     complete({
       db.run(
              NodeMsgsTQ.getMsg(nodeId = resource,
@@ -99,9 +99,9 @@ trait Message extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteMessageNode(message: String,
-                        node: String,
-                        resource: String): Route =
+  def deleteMessageNode(@Parameter(hidden = true) message: String,
+                        @Parameter(hidden = true) node: String,
+                        @Parameter(hidden = true) resource: String): Route =
     complete({
       try {
         val msgId: Int = message.toInt   // this can throw an exception, that's why this whole section is in a try/catch

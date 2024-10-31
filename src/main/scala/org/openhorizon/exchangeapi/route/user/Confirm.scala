@@ -33,8 +33,8 @@ trait Confirm extends JacksonSupport with AuthenticationSupport  {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def postConfirm(organization: String,
-                  username: String): Route =
+  def postConfirm(@Parameter(hidden = true) organization: String,
+                  @Parameter(hidden = true) username: String): Route =
     {
       logger.debug(s"Doing POST /orgs/$organization/users/$username/confirm")
       

@@ -325,7 +325,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     assert(!getResp.nodes.isEmpty) // nodes should be visible
     assert(getResp.nodes.size >= ORGS.size) // account for orgs that might already exist in db, but there should be at least 2
     assert(getResp.nodes.contains(ORGS.head))
-    assert(getResp.nodes.contains(ORGS(1)))
+    assert(!getResp.nodes.contains(ORGS(1)))
   }
 
   // make a hubadmin

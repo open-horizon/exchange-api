@@ -86,8 +86,8 @@ trait Statuses extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getStatusManagementPolicies(node: String,
-                                  organization: String): Route =
+  def getStatusManagementPolicies(@Parameter(hidden = true) node: String,
+                                  @Parameter(hidden = true) organization: String): Route =
     complete({
       var q = NodeMgmtPolStatuses.getNodeMgmtPolStatuses(organization + "/" + node).sortBy(_.policy.asc.nullsFirst)
       db.run(q.result).map({ list =>

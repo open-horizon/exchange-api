@@ -64,10 +64,10 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
-  def getAgreementBot(agreementBot: String,
-                      identity: Identity,
-                      organization: String,
-                      resource: String): Route =
+  def getAgreementBot(@Parameter(hidden = true) agreementBot: String,
+                      @Parameter(hidden = true) identity: Identity,
+                      @Parameter(hidden = true) organization: String,
+                      @Parameter(hidden = true) resource: String): Route =
     parameter("attribute".?) {
       attribute =>
         logger.debug(s"Doing GET /orgs/$organization/agbots/$agreementBot")
@@ -136,10 +136,10 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
-  def putAgreementBot(agreementBot: String,
-                      identity: Identity,
-                      organization: String,
-                      resource: String): Route =
+  def putAgreementBot(@Parameter(hidden = true) agreementBot: String,
+                      @Parameter(hidden = true) identity: Identity,
+                      @Parameter(hidden = true) organization: String,
+                      @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PutAgbotsRequest]) {
         reqBody =>
@@ -225,9 +225,9 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
             new responses.ApiResponse(responseCode = "403", description = "access denied"),
             new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
-  def patchAgreementBot(agreementBot: String,
-                        organization: String,
-                        resource: String): Route =
+  def patchAgreementBot(@Parameter(hidden = true) agreementBot: String,
+                        @Parameter(hidden = true) organization: String,
+                        @Parameter(hidden = true) resource: String): Route =
     patch {
       entity(as[PatchAgbotsRequest]) {
         reqBody =>
@@ -286,9 +286,9 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
-  def deleteAgreementBot(agreementBot: String,
-                                 organization: String,
-                                 resource: String): Route =
+  def deleteAgreementBot(@Parameter(hidden = true) agreementBot: String,
+                         @Parameter(hidden = true) organization: String,
+                         @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"Doing DELETE /orgs/$organization/agbots/$agreementBot")
       complete({ // remove does *not* throw an exception if the key does not exist

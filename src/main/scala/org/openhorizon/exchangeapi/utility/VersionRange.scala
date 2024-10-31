@@ -35,7 +35,7 @@ final case class VersionRange(range: String) {
   }
   
   def isValid: Boolean = {
-    if (firstPart.trim.isEmpty || secondPart.trim.isEmpty || secondPart.trim.isEmpty) {
+    if (firstPart.trim.isEmpty || secondPart.trim.isEmpty) {
       return false
     }
     floor.isValid && ceiling.isValid

@@ -8,7 +8,7 @@ import com.typesafe.sbt.packager.docker.*
 enablePlugins(JavaAppPackaging, DockerPlugin)
 
 // Maintains test suite isolation for GET .../v1/admin/status testcases.
-addCommandAlias("onlyAdminStatusTests", """set root / Test / testOptions -= Tests.Argument("-l", "org.openhorizon.exchangeapi.tag.AdminStatusTest"); testOnly org.openhorizon.exchangeapi.route.organization.TestGetOrgStatusRoute -- -n org.openhorizon.exchangeapi.tag.AdminStatusTest""".stripMargin)
+addCommandAlias("onlyAdminStatusTests", """set root / Test / testOptions -= Tests.Argument("-l", "org.openhorizon.exchangeapi.tag.AdminStatusTest"); testOnly org.openhorizon.exchangeapi.route.administration.TestGetAdminStatus -- -n org.openhorizon.exchangeapi.tag.AdminStatusTest""".stripMargin)
 
 // For latest versions, see https://mvnrepository.com/
 lazy val pekkoHttpVersion = settingKey[String]("Version of Pekko-Http")

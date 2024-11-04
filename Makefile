@@ -314,6 +314,7 @@ docker-push-version-only:
 test:
 	: $${EXCHANGE_ROOT_PW:?}   # this verifies these env vars are set
 	sbt test
+	sbt onlyAdminStatusTests
 
 
 # Cleanup -------------------------------------------------------------target/docker/.docker-run-icp--------

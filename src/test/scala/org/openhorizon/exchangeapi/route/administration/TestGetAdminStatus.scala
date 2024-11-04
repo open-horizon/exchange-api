@@ -1,15 +1,14 @@
-package org.openhorizon.exchangeapi.route.organization
+package org.openhorizon.exchangeapi.route.administration
 
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
-import org.openhorizon.exchangeapi.route.administration.{AdminOrgStatus, AdminStatus}
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.{AgbotAgreementRow, AgbotAgreementsTQ}
 import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsgRow, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreementRow, NodeAgreementsTQ}
-import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.message.{NodeMsgRow, NodeMsgsTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.schema.SchemaTQ
@@ -21,19 +20,16 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-
-import scala.concurrent.Await
-import scala.concurrent.duration.{Duration, DurationInt}
 import slick.jdbc.PostgresProfile.api._
 
 import java.sql.Timestamp
 import java.time.ZoneId
-import scala.annotation.unused
-import org.scalatest.Tag
+import scala.concurrent.Await
+import scala.concurrent.duration.{Duration, DurationInt}
 
 
 
-class TestGetOrgStatusRoute extends AnyFunSuite with BeforeAndAfterAll {
+class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds

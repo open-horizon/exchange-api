@@ -1,10 +1,9 @@
-package org.openhorizon.exchangeapi
+package org.openhorizon.exchangeapi.utility
+
+import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.matchers.should.Matchers
-import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
-import org.openhorizon.exchangeapi._
-import org.openhorizon.exchangeapi.utility.{Version, VersionRange}
 
 /**
  * Tests for the Version Range

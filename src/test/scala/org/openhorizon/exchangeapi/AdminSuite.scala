@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi
 
-import org.openhorizon.exchangeapi.route.administration.{AdminHashpwResponse, AdminStatus, DeleteOrgChangesRequest, GetAdminOrgStatusResponse}
+import org.openhorizon.exchangeapi.route.administration.{AdminHashpwResponse, AdminOrgStatus, AdminStatus, DeleteOrgChangesRequest}
 
 import scala.util.matching.Regex
 import org.json4s.DefaultFormats
@@ -298,7 +298,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     // info("headers: " + response.headers)
     info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val getResp = parse(response.body).extract[GetAdminOrgStatusResponse]
+    val getResp = parse(response.body).extract[AdminOrgStatus]
     assert(getResp.msg.contains("operating normally"))
     assert(!getResp.nodes.isEmpty) // nodes should be visible
     assert(getResp.nodes.size >= ORGS.size) // account for orgs that might already exist in db, but there should be at least 2
@@ -320,7 +320,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("http status code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val getResp = parse(response.body).extract[GetAdminOrgStatusResponse]
+    val getResp = parse(response.body).extract[AdminOrgStatus]
     assert(getResp.msg.contains("operating normally"))
     assert(!getResp.nodes.isEmpty) // nodes should be visible
     assert(getResp.nodes.size >= ORGS.size) // account for orgs that might already exist in db, but there should be at least 2
@@ -341,7 +341,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("http status code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val getResp = parse(response.body).extract[GetAdminOrgStatusResponse]
+    val getResp = parse(response.body).extract[AdminOrgStatus]
     assert(getResp.msg.contains("operating normally"))
     assert(!getResp.nodes.isEmpty) // nodes should be visible
     assert(getResp.nodes.size >= ORGS.size) // account for orgs that might already exist in db, but there should be at least 2

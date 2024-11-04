@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+## [2.125.3](https://github.com/open-horizon/exchange-api/pull/730) - 2024-11-04
+- issue 594: Rework unit-test for ApiUtilsSuite.
+- Split ApiUtilsSuite in two tests: TestApiUtilsTime and TestNodeAgbotTokenValidation.
+- Extend number of tests for TestApiUtilsTime and TestNodeAgbotTokenValidation.
+- Add validation for invalid time format.
+
 ## [2.125.2](https://github.com/open-horizon/exchange-api/pull/726) - 2024-10-31
 - issue 607: Rework unit-test for version.
 - Increased the number of test cases to cover corner cases for Version.

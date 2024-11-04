@@ -1,4 +1,5 @@
 package org.openhorizon.exchangeapi.utility
+import java.time.format.DateTimeParseException
 
 import java.time.{Instant, ZoneId, ZonedDateTime}
 
@@ -48,7 +49,21 @@ object ApiTime {
     (nowSeconds - thenTime >= secondsStale)
   }
   
+  /** Validates time format */
+  def isValidTimeFormat(time: String): Boolean = {
+    try {
+      ZonedDateTime.parse(time)
+      true
+    } catch {
+      case _: DateTimeParseException => false
+      case _: Exception => false
+    }
+  }
+  
   def fixFormatting(time: String): String = {
+    if (time.isEmpty || !isValidTimeFormat(time)) {
+      return "Invalid format"
+    }
     val timeLength: Int = time.length
     /*
      This implementation uses length of the string instead of a regex to make it as fast as possible

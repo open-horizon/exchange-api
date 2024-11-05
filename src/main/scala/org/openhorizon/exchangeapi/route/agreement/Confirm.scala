@@ -76,8 +76,8 @@ trait Confirm extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postConfirm(ident: Identity,
-                  orgid: String,
+  def postConfirm(@Parameter(hidden = true) ident: Identity,
+                  @Parameter(hidden = true) orgid: String,
                   reqBody: PostAgreementsConfirmRequest): Route =
     complete({
       val creds = ident.creds

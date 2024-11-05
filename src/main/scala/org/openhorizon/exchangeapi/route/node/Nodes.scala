@@ -130,7 +130,7 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def getNodes(organization: String): Route =
+  def getNodes(@Parameter(hidden = true) organization: String): Route =
     get {
       parameter("idfilter".?,
                 "name".?,
@@ -147,47 +147,6 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
                 complete({
                   logger.debug(s"GET /orgs/$organization/nodes identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
                   implicit val jsonFormats: Formats = DefaultFormats
-                  
-                  /*var q = NodesTQ.getAllNodes(organization)
-                  
-                  arch.foreach(arch => {
-                    if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch)
-                  })
-                  
-                  clusterNamespace.foreach(namespace => {
-                    if (namespace.contains("%")) q = q.filter(_.clusterNamespace like namespace) else q = q.filter(_.clusterNamespace === namespace)
-                  })
-                  
-                  idfilter.foreach(id => {
-                    if (id.contains("%")) q = q.filter(_.id like id) else q = q.filter(_.id === id)
-                  })
-                  
-                  if (isNamespaceScoped.isDefined)
-                    q = q.filter(_.isNamespaceScoped === isNamespaceScoped.get)
-                  
-                  name.foreach(name => {
-                    if (name.contains("%")) q = q.filter(_.name like name) else q = q.filter(_.name === name)
-                  })
-                  
-                  if (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)) {
-                    owner.foreach(owner => {
-                      if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner)
-                    })
-                  } else q = q.filter(_.owner === ident.identityString)
-                  
-                  owner.foreach(owner => {
-                    if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner)
-                  })
-                  
-                  
-                  if (nodetype.isDefined) {
-                    val nt: String = nodetype.get.toLowerCase
-                    if (NodeType.isDevice(nt)) q = q.filter(r => {
-                      r.nodeType === nt || r.nodeType === ""
-                    }) else if (NodeType.isCluster(nt)) q = q.filter(_.nodeType === nt)
-                  }
-                  
-                  val combinedQuery = for {((nodes, _), groups) <- (q joinLeft NodeGroupAssignmentTQ on (_.id === _.node)).joinLeft(NodeGroupTQ).on(_._2.map(_.group) === _.group)} yield (nodes, groups.map(_.name)) */
                   
                   val nodes =
                     NodesTQ.filter(_.orgid === organization)

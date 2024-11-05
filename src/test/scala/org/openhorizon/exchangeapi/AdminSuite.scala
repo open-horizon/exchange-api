@@ -1,10 +1,9 @@
 package org.openhorizon.exchangeapi
 
-import org.openhorizon.exchangeapi.route.administration.{DeleteOrgChangesRequest, GetAdminOrgStatusResponse}
+import org.openhorizon.exchangeapi.route.administration.{AdminHashpwResponse, AdminOrgStatus, AdminStatus, DeleteOrgChangesRequest}
 
 import scala.util.matching.Regex
 import org.json4s.DefaultFormats
-import org.openhorizon.exchangeapi.route.administration.{AdminHashpwResponse, GetAdminOrgStatusResponse, GetAdminStatusResponse}
 import org.openhorizon.exchangeapi.table.organization.OrgRow
 import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration}
 
@@ -20,7 +19,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import org.openhorizon.exchangeapi.auth.{Password, Role}
-import org.openhorizon.exchangeapi.route.administration.{AdminHashpwRequest, AdminHashpwResponse, GetAdminStatusResponse}
+import org.openhorizon.exchangeapi.route.administration.{AdminHashpwRequest, AdminHashpwResponse}
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.route.deploymentpattern.PostPutPatternRequest
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
@@ -268,7 +267,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
         info("http status code: " + response.code)
         info("body: " + response.body)
         assert(response.code === HttpCode.OK.intValue)
-        val getResp = parse(response.body).extract[GetAdminStatusResponse]
+        val getResp = parse(response.body).extract[AdminStatus]
         assert(getResp.msg.contains("operating normally"))
       }
     }
@@ -280,7 +279,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     // info("headers: " + response.headers)
     info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val getResp = parse(response.body).extract[GetAdminStatusResponse]
+    val getResp = parse(response.body).extract[AdminStatus]
     assert(getResp.msg.contains("operating normally"))
   }
 
@@ -299,7 +298,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     // info("headers: " + response.headers)
     info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val getResp = parse(response.body).extract[GetAdminOrgStatusResponse]
+    val getResp = parse(response.body).extract[AdminOrgStatus]
     assert(getResp.msg.contains("operating normally"))
     assert(!getResp.nodes.isEmpty) // nodes should be visible
     assert(getResp.nodes.size >= ORGS.size) // account for orgs that might already exist in db, but there should be at least 2
@@ -321,12 +320,12 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("http status code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val getResp = parse(response.body).extract[GetAdminOrgStatusResponse]
+    val getResp = parse(response.body).extract[AdminOrgStatus]
     assert(getResp.msg.contains("operating normally"))
     assert(!getResp.nodes.isEmpty) // nodes should be visible
     assert(getResp.nodes.size >= ORGS.size) // account for orgs that might already exist in db, but there should be at least 2
     assert(getResp.nodes.contains(ORGS.head))
-    assert(getResp.nodes.contains(ORGS(1)))
+    assert(!getResp.nodes.contains(ORGS(1)))
   }
 
   // make a hubadmin
@@ -342,7 +341,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("http status code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val getResp = parse(response.body).extract[GetAdminOrgStatusResponse]
+    val getResp = parse(response.body).extract[AdminOrgStatus]
     assert(getResp.msg.contains("operating normally"))
     assert(!getResp.nodes.isEmpty) // nodes should be visible
     assert(getResp.nodes.size >= ORGS.size) // account for orgs that might already exist in db, but there should be at least 2

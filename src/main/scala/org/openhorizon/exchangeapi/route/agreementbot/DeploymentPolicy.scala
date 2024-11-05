@@ -45,10 +45,10 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
-  private def deleteDeploymentPolicy(agreementBot: String,
-                                     deploymentPolicy: String,
-                                     organization: String,
-                                     resource: String): Route = {
+  private def deleteDeploymentPolicy(@Parameter(hidden = true) agreementBot: String,
+                                     @Parameter(hidden = true) deploymentPolicy: String,
+                                     @Parameter(hidden = true) organization: String,
+                                     @Parameter(hidden = true) resource: String): Route = {
     complete({
       db.run(AgbotBusinessPolsTQ.getBusinessPol(resource, deploymentPolicy)
                                 .delete
@@ -106,10 +106,10 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                     new responses.ApiResponse(responseCode = "403", description = "access denied"),
                     new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
-  private def getDeploymentPolicy(agreementBot: String,
-                                  deploymentPolicy: String,
-                                  organization: String,
-                                  resource: String): Route = {
+  private def getDeploymentPolicy(@Parameter(hidden = true) agreementBot: String,
+                                  @Parameter(hidden = true) deploymentPolicy: String,
+                                  @Parameter(hidden = true) organization: String,
+                                  @Parameter(hidden = true) resource: String): Route = {
     complete({
       db.run(AgbotBusinessPolsTQ.getBusinessPol(resource, deploymentPolicy).result)
         .map({

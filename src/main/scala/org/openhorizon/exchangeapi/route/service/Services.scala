@@ -149,8 +149,8 @@ trait Services extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getServices(identity: Identity,
-                  organization: String): Route =
+  def getServices(@Parameter(hidden = true) identity: Identity,
+                  @Parameter(hidden = true) organization: String): Route =
     parameter("owner".?, "public".?, "url".?, "version".?, "arch".?, "nodetype".?, "requiredurl".?) {
       (owner, public, url, version, arch, nodetype, requiredurl) =>
         validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
@@ -265,8 +265,8 @@ trait Services extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postServices(identity: Identity,
-                   organization: String): Route =
+  def postServices(@Parameter(hidden = true) identity: Identity,
+                   @Parameter(hidden = true) organization: String): Route =
     entity(as[PostPutServiceRequest]) {
       reqBody =>
         validateWithMsg(reqBody.getAnyProblem(organization, null)) {

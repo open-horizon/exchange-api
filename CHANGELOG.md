@@ -3,6 +3,19 @@
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+
+## [2.126.0](https://github.com/open-horizon/exchange-api/pull/728) - 2024-11-04
+- Issue 201: The number of registered and unregistered Nodes has been added as reported metrics.
+- Issue 624: Http 404 is returned when referencing an non-existent Organization.
+- Rebuilt ../admin/status
+- Rebuilt ../admin/orgstatus
+- Rebuilt ../org/{org}/status
+- Fixed some issues with generated swagger document
+- Minor dependency cleanup.
+- Minor whitespace adjustment
+- SBT 1.10.1 -> 1.10.5
+
+
 ## [2.125.3](https://github.com/open-horizon/exchange-api/pull/730) - 2024-11-04
 - issue 594: Rework unit-test for ApiUtilsSuite.
 - Split ApiUtilsSuite in two tests: TestApiUtilsTime and TestNodeAgbotTokenValidation.

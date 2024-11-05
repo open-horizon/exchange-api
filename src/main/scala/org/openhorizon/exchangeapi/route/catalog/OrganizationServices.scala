@@ -135,8 +135,8 @@ trait OrganizationServices extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getOrganizationServices(identity: Identity,
-                              organization: String): Route =
+  def getOrganizationServices(@Parameter(hidden = true) identity: Identity,
+                              @Parameter(hidden = true) organization: String): Route =
     parameter("owner".?,
               "public".?,
               "url".?,

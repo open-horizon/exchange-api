@@ -100,10 +100,10 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment policy")
-  def postDeploymentPolicySearch(identity: Identity,
-                                 organization: String,
-                                 resource: String,
-                                 reqBody: PostBusinessPolicySearchRequest): Route =
+  def postDeploymentPolicySearch(@Parameter(hidden = true) identity: Identity,
+                                 @Parameter(hidden = true) organization: String,
+                                 @Parameter(hidden = true) resource: String,
+                                 @Parameter(hidden = true) reqBody: PostBusinessPolicySearchRequest): Route =
     complete({
       implicit val formats: DefaultFormats.type = DefaultFormats
       val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(organization)).toSet

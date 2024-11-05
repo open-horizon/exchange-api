@@ -56,10 +56,10 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteStatusMangementPolicy(managementPolicy: String,
-                                  node: String,
-                                  organization: String,
-                                  resource: String): Route =
+  def deleteStatusMangementPolicy(@Parameter(hidden = true) managementPolicy: String,
+                                  @Parameter(hidden = true) node: String,
+                                  @Parameter(hidden = true) organization: String,
+                                  @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"Doing DELETE /orgs/$organization/nodes/$node/managementStatus/$managementPolicy")
       complete({
@@ -137,10 +137,10 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getStatusMangementPolicy(managementPolicy: String,
-                               node: String,
-                               organization: String,
-                               resource: String): Route =
+  def getStatusMangementPolicy(@Parameter(hidden = true) managementPolicy: String,
+                               @Parameter(hidden = true) node: String,
+                               @Parameter(hidden = true) organization: String,
+                               @Parameter(hidden = true) resource: String): Route =
     {
       logger.debug(s"Doing GET /orgs/$organization/nodes/$node/managementStatus/$managementPolicy")
       complete({
@@ -228,10 +228,10 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putStatusManagementPolicy(managementPolicy: String,
-                                node: String,
-                                organization: String,
-                                resource: String): Route =
+  def putStatusManagementPolicy(@Parameter(hidden = true) managementPolicy: String,
+                                @Parameter(hidden = true) node: String,
+                                @Parameter(hidden = true) organization: String,
+                                @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PutNodeMgmtPolStatusRequest]) {
         reqBody =>

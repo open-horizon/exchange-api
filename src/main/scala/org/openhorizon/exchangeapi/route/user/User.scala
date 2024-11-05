@@ -64,10 +64,10 @@ trait User extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getUser(identity: Identity,
-              organization: String,
-              resource: String,
-              username: String): Route =
+  def getUser(@Parameter(hidden = true) identity: Identity,
+              @Parameter(hidden = true) organization: String,
+              @Parameter(hidden = true) resource: String,
+              @Parameter(hidden = true) username: String): Route =
     get {
       logger.debug(s"Doing GET /orgs/$organization/users/$username")
       
@@ -164,10 +164,10 @@ trait User extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postUser(identity: Identity,
-               organization: String,
-               resource: String,
-               username: String): Route =
+  def postUser(@Parameter(hidden = true) identity: Identity,
+               @Parameter(hidden = true) organization: String,
+               @Parameter(hidden = true) resource: String,
+               @Parameter(hidden = true) username: String): Route =
     post {
       entity(as[PostPutUsersRequest]) {
         reqBody =>
@@ -230,10 +230,10 @@ trait User extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putUser(identity: Identity,
-              organization: String,
-              resource: String,
-              username: String): Route =
+  def putUser(@Parameter(hidden = true) identity: Identity,
+              @Parameter(hidden = true) organization: String,
+              @Parameter(hidden = true) resource: String,
+              @Parameter(hidden = true) username: String): Route =
     put {
       entity(as[PostPutUsersRequest]) {
         reqBody =>
@@ -295,10 +295,10 @@ trait User extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patchUser(identity: Identity,
-                organization: String,
-                resource: String,
-                username: String): Route =
+  def patchUser(@Parameter(hidden = true) identity: Identity,
+                @Parameter(hidden = true) organization: String,
+                @Parameter(hidden = true) resource: String,
+                @Parameter(hidden = true) username: String): Route =
     patch {
       entity(as[PatchUsersRequest]) {
         reqBody =>
@@ -345,9 +345,9 @@ trait User extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteUser(organization: String,
-                 resource: String,
-                 username: String): Route =
+  def deleteUser(@Parameter(hidden = true) organization: String,
+                 @Parameter(hidden = true) resource: String,
+                 @Parameter(hidden = true) username: String): Route =
     delete {
       logger.debug(s"Doing DELETE /orgs/$organization/users/$username")
       

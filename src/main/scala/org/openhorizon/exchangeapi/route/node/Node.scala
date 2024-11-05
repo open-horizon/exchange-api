@@ -59,9 +59,9 @@ trait Node extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def deleteNode(node: String,
-                 organization: String,
-                 resource: String): Route =
+  def deleteNode(@Parameter(hidden = true) node: String,
+                 @Parameter(hidden = true) organization: String,
+                 @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"Doing DELETE /orgs/$organization/nodes/$node")
       val compositeId: String = OrgAndId(organization, node).toString
@@ -194,7 +194,9 @@ trait Node extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def getNode(node: String, organization: String, resource: String): Route =
+  def getNode(@Parameter(hidden = true) node: String,
+              @Parameter(hidden = true) organization: String,
+              @Parameter(hidden = true) resource: String): Route =
     get {
       parameter ("attribute".?) {
         attribute =>
@@ -407,9 +409,9 @@ trait Node extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
   def patchNode(//identity: Identity,
-                node: String,
-                organization: String,
-                resource: String): Route =
+                @Parameter(hidden = true) node: String,
+                @Parameter(hidden = true) organization: String,
+                @Parameter(hidden = true) resource: String): Route =
     patch {
       entity(as[PatchNodesRequest]) {
         reqBody =>
@@ -811,9 +813,9 @@ trait Node extends JacksonSupport with AuthenticationSupport {
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def putNode(node: String,
-              organization: String,
-              resource: String): Route =
+  def putNode(@Parameter(hidden = true) node: String,
+              @Parameter(hidden = true) organization: String,
+              @Parameter(hidden = true) resource: String): Route =
     put {
       parameter ("noheartbeat".?) {
         noheartbeat =>

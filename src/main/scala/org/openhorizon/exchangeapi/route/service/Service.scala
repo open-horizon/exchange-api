@@ -133,9 +133,9 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getService(organization: String,
-                 resource: String,
-                 service: String): Route =
+  def getService(@Parameter(hidden = true) organization: String,
+                 @Parameter(hidden = true) resource: String,
+                 @Parameter(hidden = true) service: String): Route =
     get {
       parameter("attribute".?) {
         attribute =>
@@ -229,10 +229,10 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putService(identity: Identity,
-                 organization: String,
-                 resource: String,
-                 service: String): Route =
+  def putService(@Parameter(hidden = true) identity: Identity,
+                 @Parameter(hidden = true) organization: String,
+                 @Parameter(hidden = true) resource: String,
+                 @Parameter(hidden = true) service: String): Route =
     put {
       entity(as[PostPutServiceRequest]) {
         reqBody =>
@@ -365,9 +365,9 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patchService(organization: String,
-                   resource: String,
-                   service: String): Route =
+  def patchService(@Parameter(hidden = true) organization: String,
+                   @Parameter(hidden = true) resource: String,
+                   @Parameter(hidden = true) service: String): Route =
     patch {
       entity(as[PatchServiceRequest]) {
         reqBody =>
@@ -477,9 +477,9 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteService(organization: String,
-                    resource: String,
-                    service: String): Route =
+  def deleteService(@Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String,
+                    @Parameter(hidden = true) service: String): Route =
     delete {
       logger.debug(s"Doing DELETE /orgs/$organization/services/$service")
       

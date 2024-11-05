@@ -43,10 +43,10 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getDockerAuth(dockerAuth: String,
-                    organization: String,
-                    resource: String,
-                    service: String): Route =
+  def getDockerAuth(@Parameter(hidden = true) dockerAuth: String,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String,
+                    @Parameter(hidden = true) service: String): Route =
     complete({
       Try(dockerAuth.toInt) match {
         case Success(dockauthId) =>
@@ -76,10 +76,10 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putDockerAuth(dockerAuth: String,
-                    organization: String,
-                    resource: String,
-                    service: String): Route =
+  def putDockerAuth(@Parameter(hidden = true) dockerAuth: String,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String,
+                    @Parameter(hidden = true) service: String): Route =
     put {
       entity(as[PostPutServiceDockAuthRequest]) {
         reqBody =>
@@ -133,10 +133,10 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteDockerAuth(dockerAuth: String,
-                       organization: String,
-                       resource: String,
-                       service: String): Route =
+  def deleteDockerAuth(@Parameter(hidden = true) dockerAuth: String,
+                       @Parameter(hidden = true) organization: String,
+                       @Parameter(hidden = true) resource: String,
+                       @Parameter(hidden = true) service: String): Route =
     delete {
       complete({
         Try(dockerAuth.toInt) match {

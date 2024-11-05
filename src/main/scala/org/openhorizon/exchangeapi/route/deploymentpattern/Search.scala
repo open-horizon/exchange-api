@@ -91,8 +91,8 @@ trait Search extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postSearchNode(organization: String,
-                           resource: String): Route =
+  def postSearchNode(@Parameter(hidden = true) organization: String,
+                     @Parameter(hidden = true) resource: String): Route =
     entity(as[PostPatternSearchRequest]) {
       reqBody =>
         validateWithMsg(if(!(reqBody.secondsStale.isEmpty || !(reqBody.secondsStale.get < 0)) && !reqBody.serviceUrl.isEmpty) Some(ExchMsg.translate("bad.input")) else None) {

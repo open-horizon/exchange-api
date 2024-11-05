@@ -40,9 +40,9 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
-  def deleteKeysService(organization: String,
-                        resource: String,
-                        service: String): Route =
+  def deleteKeysService(@Parameter(hidden = true) organization: String,
+                        @Parameter(hidden = true) resource: String,
+                        @Parameter(hidden = true) service: String): Route =
     delete {
       complete({
         var storedPublicField = false
@@ -107,9 +107,9 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getKeysService(organization: String,
-                     resource: String,
-                     service: String): Route =
+  def getKeysService(@Parameter(hidden = true) organization: String,
+                     @Parameter(hidden = true) resource: String,
+                     @Parameter(hidden = true) service: String): Route =
     get {
       complete({
         db.run(ServiceKeysTQ.getKeys(resource).result).map({ list =>

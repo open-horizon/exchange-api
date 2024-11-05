@@ -73,9 +73,9 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getStatusNode(node: String,
-                    organization: String,
-                    resource: String): Route =
+  def getStatusNode(@Parameter(hidden = true) node: String,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String): Route =
     complete({
       db.run(NodeStatusTQ.getNodeStatus(resource).result).map({
         list =>
@@ -165,9 +165,9 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putStatusNode(node: String,
-                    organization: String,
-                    resource: String): Route =
+  def putStatusNode(@Parameter(hidden = true) node: String,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PutNodeStatusRequest]) {
         reqBody =>
@@ -206,9 +206,9 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteStatusNode(node: String,
-                       organization: String,
-                       resource: String): Route =
+  def deleteStatusNode(@Parameter(hidden = true) node: String,
+                       @Parameter(hidden = true) organization: String,
+                       @Parameter(hidden = true) resource: String): Route =
     delete {
       complete({
         db.run(NodeStatusTQ.getNodeStatus(resource).delete.asTry.flatMap({

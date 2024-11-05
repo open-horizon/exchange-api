@@ -39,8 +39,8 @@ trait NodeErrors extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getNodeErrorsSearch(identity: Identity,
-                          organization: String): Route =
+  def getNodeErrorsSearch(@Parameter(hidden = true) identity: Identity,
+                          @Parameter(hidden = true) organization: String): Route =
     {
       logger.debug(s"Doing GET /orgs/$organization/search/nodes/error/all")
       

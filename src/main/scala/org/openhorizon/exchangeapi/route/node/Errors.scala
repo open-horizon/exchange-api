@@ -10,7 +10,9 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.JValue
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.route.node.PutNodeErrorRequest
 import org.openhorizon.exchangeapi.route.search.NodeError
 import org.openhorizon.exchangeapi.table.node.error.NodeErrorTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
@@ -42,9 +44,9 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteErrors(node: String,
-                   organization: String,
-                   resource: String): Route =
+  def deleteErrors(@Parameter(hidden = true) node: String,
+                   @Parameter(hidden = true) organization: String,
+                   @Parameter(hidden = true) resource: String): Route =
     delete {
       complete({
         db.run(NodeErrorTQ.getNodeError(resource).delete.asTry.flatMap({
@@ -84,9 +86,9 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getErrors(node: String,
-                organization: String,
-                resource: String): Route =
+  def getErrors(@Parameter(hidden = true) node: String,
+                @Parameter(hidden = true) organization: String,
+                @Parameter(hidden = true) resource: String): Route =
     complete({
       db.run(NodeErrorTQ.getNodeError(resource).result).map({
         list =>
@@ -134,7 +136,7 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
             )
           ),
           mediaType = "application/json",
-          schema = new Schema(implementation = classOf[PutNodeErrorRequest])
+          schema = new Schema(implementation = classOf[List[String]])
         )
       ),
       required = true
@@ -161,9 +163,9 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putErrors(node: String,
-                organization: String,
-                resource: String): Route =
+  def putErrors(@Parameter(hidden = true) node: String,
+                @Parameter(hidden = true) organization: String,
+                @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PutNodeErrorRequest]) {
         reqBody =>

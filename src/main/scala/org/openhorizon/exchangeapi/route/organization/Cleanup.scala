@@ -2,6 +2,7 @@
 package org.openhorizon.exchangeapi.route.organization
 
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
+import io.swagger.v3.oas.annotations.Parameter
 import jakarta.ws.rs.Path
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
@@ -34,7 +35,7 @@ trait Cleanup extends JacksonSupport with AuthenticationSupport {
   /* ====== DELETE /orgs/<orgid>/changes/cleanup ================================ */
   // This route is just for unit testing as a way to clean up the changes table once testing has completed
   // Otherwise the changes table gets clogged with entries in the orgs from testing
-  def deleteChanges(organization: String): Route =
+  def deleteChanges(@Parameter(hidden = true) organization: String): Route =
     entity(as[DeleteOrgChangesRequest]) {
       reqBody =>
         logger.debug(s"Doing POST /orgs/$organization/changes/cleanup")

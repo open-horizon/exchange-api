@@ -42,9 +42,9 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getPolicyService(organization: String,
-                       resource: String,
-                       service: String): Route =
+  def getPolicyService(@Parameter(hidden = true) organization: String,
+                       @Parameter(hidden = true) resource: String,
+                       @Parameter(hidden = true) service: String): Route =
     complete({
       db.run(ServicePolicyTQ.getServicePolicy(resource).result).map({
         list =>
@@ -122,9 +122,9 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putPolicyService(organization: String,
-                       resource: String,
-                       service: String): Route =
+  def putPolicyService(@Parameter(hidden = true) organization: String,
+                       @Parameter(hidden = true) resource: String,
+                       @Parameter(hidden = true) service: String): Route =
     put {
       entity(as[PutServicePolicyRequest]) {
         reqBody =>
@@ -172,9 +172,9 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deletePolicyService(organization: String,
-                          resource: String,
-                          service: String): Route =
+  def deletePolicyService(@Parameter(hidden = true) organization: String,
+                          @Parameter(hidden = true) resource: String,
+                          @Parameter(hidden = true) service: String): Route =
     delete {
       complete({
         var storedPublicField = false

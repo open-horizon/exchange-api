@@ -43,9 +43,9 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteAgreementsNode(node: String,
-                           organization: String,
-                           resource: String): Route =
+  def deleteAgreementsNode(@Parameter(hidden = true) node: String,
+                           @Parameter(hidden = true) organization: String,
+                           @Parameter(hidden = true) resource: String): Route =
     complete({
       // remove does *not* throw an exception if the key does not exist
       db.run(NodeAgreementsTQ.getAgreements(resource).delete.asTry.flatMap({
@@ -117,9 +117,9 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getAgreementsNode(node: String,
-                        organization: String,
-                        resource: String): Route =
+  def getAgreementsNode(@Parameter(hidden = true) node: String,
+                        @Parameter(hidden = true) organization: String,
+                        @Parameter(hidden = true) resource: String): Route =
     complete({
       db.run(NodeAgreementsTQ.getAgreements(resource).result).map({ list =>
         logger.debug(s"GET /orgs/$organization/nodes/$node/agreements result size: ${list.size}")

@@ -58,10 +58,10 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                                new responses.ApiResponse(description = "not found",
                                                          responseCode = "404")),
              summary = "Deletes a Node Group")
-  def deleteNodeGroup(highAvailabilityGroup: String,
-                      identity: Identity,
-                      organization: String,
-                      resource: String): Route =
+  def deleteNodeGroup(@Parameter(hidden = true) highAvailabilityGroup: String,
+                      @Parameter(hidden = true) identity: Identity,
+                      @Parameter(hidden = true) organization: String,
+                      @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"Doing DELETE /orgs/$organization/hagroups/$highAvailabilityGroup")
       complete({
@@ -198,9 +198,9 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                                new responses.ApiResponse(description = "not found",
                                                          responseCode = "404")),
              summary = "Lists all members of the specified Node Group (HA Group)")
-  def getNodeGroup(highAvailabilityGroup: String,
-                   identity: Identity,
-                   organization: String): Route =
+  def getNodeGroup(@Parameter(hidden = true) highAvailabilityGroup: String,
+                   @Parameter(hidden = true) identity: Identity,
+                   @Parameter(hidden = true) organization: String): Route =
     {
       logger.debug(s"doing GET /orgs/$organization/hagroups")
       complete({
@@ -288,9 +288,9 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                                new responses.ApiResponse(description = "node already belongs to other group",
                                                          responseCode = "409")),
              summary = "Update the nodes that belong to an existing Node Group (HA Group)")
-  def putNodeGroup(highAvailabilityGroup: String,
-                   identity: Identity,
-                   organization: String): Route =
+  def putNodeGroup(@Parameter(hidden = true) highAvailabilityGroup: String,
+                   @Parameter(hidden = true) identity: Identity,
+                   @Parameter(hidden = true) organization: String): Route =
     {
       entity(as[PutNodeGroupsRequest]) {
         reqBody =>
@@ -502,10 +502,10 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                                new responses.ApiResponse(description = "node already belongs to other group",
                                                          responseCode = "409")),
              summary = "Insert the nodes that belong to an existing Node Group (HA Group)")
-  def postNodeGroup(highAvailabilityGroup: String,
-                    identity: Identity,
-                    organization: String,
-                    resource: String): Route =
+  def postNodeGroup(@Parameter(hidden = true) highAvailabilityGroup: String,
+                    @Parameter(hidden = true) identity: Identity,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String): Route =
     post {
       entity(as[PostPutNodeGroupsRequest]) {
         reqBody =>

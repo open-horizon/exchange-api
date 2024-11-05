@@ -95,9 +95,9 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postConfigurationState(node: String,
-                             organization: String,
-                             resource: String): Route =
+  def postConfigurationState(@Parameter(hidden = true) node: String,
+                             @Parameter(hidden = true) organization: String,
+                             @Parameter(hidden = true) resource: String): Route =
     entity(as[PostNodeConfigStateRequest]) { reqBody =>
       validateWithMsg(reqBody.getAnyProblem) {
         complete({

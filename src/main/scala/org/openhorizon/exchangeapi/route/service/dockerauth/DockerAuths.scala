@@ -41,9 +41,9 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteDockerAuths(organization: String,
-                        resource: String,
-                        service: String): Route =
+  def deleteDockerAuths(@Parameter(hidden = true) organization: String,
+                        @Parameter(hidden = true) resource: String,
+                        @Parameter(hidden = true) service: String): Route =
     delete {
       complete({
         var storedPublicField = false
@@ -114,9 +114,9 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getDockerAuths(organization: String,
-                     resource: String,
-                     service: String): Route =
+  def getDockerAuths(@Parameter(hidden = true) organization: String,
+                     @Parameter(hidden = true) resource: String,
+                     @Parameter(hidden = true) service: String): Route =
     complete({
       db.run(ServiceDockAuthsTQ.getDockAuths(resource).result).map({
         list =>
@@ -189,9 +189,9 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postDockerAuths(organization: String,
-                      resource: String,
-                      service: String): Route =
+  def postDockerAuths(@Parameter(hidden = true) organization: String,
+                      @Parameter(hidden = true) resource: String,
+                      @Parameter(hidden = true) service: String): Route =
     post {
       entity(as[PostPutServiceDockAuthRequest]) {
         reqBody =>

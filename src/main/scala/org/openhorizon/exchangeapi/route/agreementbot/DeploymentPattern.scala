@@ -47,10 +47,10 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                     new responses.ApiResponse(responseCode = "403", description = "access denied"),
                     new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
-  private def deleteDeploymentPattern(agreementBot: String,
-                                      deploymentPattern: String,
-                                      organization: String,
-                                      resource: String): Route = {
+  private def deleteDeploymentPattern(@Parameter(hidden = true) agreementBot: String,
+                                      @Parameter(hidden = true) deploymentPattern: String,
+                                      @Parameter(hidden = true) organization: String,
+                                      @Parameter(hidden = true) resource: String): Route = {
     complete({
       db.run(AgbotPatternsTQ.getPattern(resource, deploymentPattern)
                             .delete
@@ -107,10 +107,10 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
-  private def getDeploymentPattern(agreementBot: String,
-                                   deploymentPattern: String,
-                                   organization: String,
-                                   resource: String): Route = {
+  private def getDeploymentPattern(@Parameter(hidden = true) agreementBot: String,
+                                   @Parameter(hidden = true) deploymentPattern: String,
+                                   @Parameter(hidden = true) organization: String,
+                                   @Parameter(hidden = true) resource: String): Route = {
     complete({
       db.run(AgbotPatternsTQ.getPattern(resource, deploymentPattern).result).map({
         list =>

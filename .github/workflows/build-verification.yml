@@ -1,0 +1,39 @@
+# This workflow is simply to verify that the Anax binaries build successfully, to be used for testing in forks
+name: Build Verification
+
+on: workflow_dispatch
+
+jobs:
+  build-verification:
+    runs-on: ubuntu-20.04
+    
+    env:
+      BUILD_NUMBER: ${{ github.run_number }}
+      IMAGE_VERSION: ''
+
+    steps:
+      # Checkout our Github repo
+      - name: Checkout Github Repo
+        uses: actions/checkout@v3
+
+      # Setup Scala
+      # Comes from open source action: https://github.com/coursier/setup-action
+      - name: Setup Scala
+        uses: coursier/setup-action@v1
+
+      # Configure version variables
+      - name: Config Version Variables
+        run: |
+          VERSION=$(head -n 1 src/main/resources/version.txt)
+          echo "IMAGE_VERSION="${VERSION}"" >> $GITHUB_ENV
+      
+      # Compile
+      - name: Compile
+        run: |
+          sbt compile
+
+      # Package
+      - name: Package
+        run: |
+          sbt package
+          docker image ls

@@ -58,6 +58,7 @@ class Module extends LoginModule with AuthorizationSupport {
       if (reqInfo.creds.token.startsWith("ieam-")) throw new NotLocalCredsException
       //logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
       if (reqInfo.isDbMigration && !Role.isSuperUser(reqInfo.creds.id)) throw new IsDbMigrationException()
+      logger.debug("[MKMK] Default autentication route. ORG: " + org + ", USER: " + id + ", TOKEN: " + reqInfo.creds.token)
       identity = IIdentity(reqInfo.creds).authenticate(reqInfo.hint) // authenticate() is in AuthorizationSupport and both authenticates this identity and returns the correct IIdentity subclass (IUser, Inode, or IAgbot)
       //}
       true

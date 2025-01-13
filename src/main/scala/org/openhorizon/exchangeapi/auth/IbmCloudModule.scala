@@ -153,10 +153,16 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
     val creds: Creds = reqInfo.creds
     val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
     if (org == "") {
-      if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") Success(IamAuthCredentials(null, id, creds.token))
+      if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") {
+        logger.debug("[MKMK] IBM autentication route 1. ORG: " + org + ", USER: " + id + ", TOKEN: " + reqInfo.creds.token)
+        Success(IamAuthCredentials(null, id, creds.token))
+      }
       else Failure(new OrgNotSpecifiedException)
     }
-    else if ((id == "iamapikey" || id == "iamtoken") && creds.token.nonEmpty) Success(IamAuthCredentials(org, id, creds.token))
+    else if ((id == "iamapikey" || id == "iamtoken") && creds.token.nonEmpty) {
+      logger.debug("[MKMK] IBM autentication route 2. ORG: " + org + ", USER: " + id + ", TOKEN: " + reqInfo.creds.token)
+      Success(IamAuthCredentials(org, id, creds.token))
+    }
     else Failure(new NotIbmCredsException)
   }
 }
@@ -706,6 +712,8 @@ class IeamUiAuthenticationModule extends LoginModule with AuthorizationSupport {
 
       if (id == "iamapikey" || id == "iamtoken") throw new NotIeamUiCredsException
       if (!reqInfo.creds.token.startsWith("ieam-")) throw new NotIeamUiCredsException
+
+      logger.debug("[MKMK] IEAM autentication route. ORG: " + org + ", USER: " + id + ", TOKEN: " + reqInfo.creds.token)
 
       // TODO mkmk: get and check master password
       if (reqInfo.creds.token != "ieam-mkmkPass") throw new InvalidCredentialsException()

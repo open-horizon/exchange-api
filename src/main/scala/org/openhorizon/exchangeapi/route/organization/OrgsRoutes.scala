@@ -966,6 +966,7 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
     logger.debug("Doing POST /myorgs")
     // set hint here to some key that states that no org is ok
     // UI should omit org at the beginning of credentials still have them put the slash in there
+    try {
     exchAuth(TOrg("#"), Access.READ_MY_ORG, hint = "exchangeNoOrgForMultLogin") { _ =>
       complete({
         // getting list of accounts in req body from UI
@@ -981,6 +982,11 @@ trait OrgsRoutes extends JacksonSupport with AuthenticationSupport {
         })
       }) // end of complete
     } // end of exchAuth
+  } catch {
+    case ex: Exception => 
+      logger.error("[MKMK] POST/myorgs error: ", ex)
+      throw ex
+  }
   }
 
   // =========== POST /orgs/{orgid}/agreements/confirm ===============================

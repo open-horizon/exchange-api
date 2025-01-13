@@ -55,6 +55,7 @@ class Module extends LoginModule with AuthorizationSupport {
       val (org, id) = IbmCloudAuth.compositeIdSplit(reqInfo.creds.id)
       if (org == "") throw new OrgNotSpecifiedException
       if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException
+      if (reqInfo.creds.token.startsWith("ieam-")) throw new NotLocalCredsException
       //logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
       if (reqInfo.isDbMigration && !Role.isSuperUser(reqInfo.creds.id)) throw new IsDbMigrationException()
       identity = IIdentity(reqInfo.creds).authenticate(reqInfo.hint) // authenticate() is in AuthorizationSupport and both authenticates this identity and returns the correct IIdentity subclass (IUser, Inode, or IAgbot)

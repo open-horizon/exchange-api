@@ -13,6 +13,7 @@ import org.openhorizon.exchangeapi._
 import javax.net.ssl.{SSLContext, SSLSocketFactory, TrustManagerFactory}
 import javax.security.auth._
 import javax.security.auth.callback._
+import javax.security.auth.login.FailedLoginException
 import javax.security.auth.spi.LoginModule
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -662,4 +663,83 @@ object IbmCloudAuth {
       context.getSocketFactory
     } catch { case e: Exception => throw new SelfSignedCertException(e.getMessage) }
   }
+}
+
+class IeamUiAuthenticationModule extends LoginModule with AuthorizationSupport {
+  private var subject: Subject = _
+  private var handler: CallbackHandler = _
+  private var identity: Identity = _
+  private var succeeded = false
+  def logger = ExchangeApi.defaultLogger
+
+  override def initialize(
+    subject: Subject,
+    handler: CallbackHandler,
+    sharedState: java.util.Map[String, _],
+    options: java.util.Map[String, _]): Unit = {
+    this.subject = subject
+    this.handler = handler
+  }
+
+  /* TODO mkmk
+   * This is where the actual login logic is performed, and is called by the
+   * LoginContext when its login method is called. This uses the callback to
+   * get acces to the web request, and then uses the logic from the credsAndLog
+   * to get an Identity from the request. This is later attached to the subject
+   * in the commit method, which is called by the context after login succeeds,
+   * and that is where we can get access to it in the route handling code.
+   */
+  override def login(): Boolean = {
+    //logger.debug("in Module.login() to try to authenticate a local exchange user")
+    val reqCallback = new RequestCallback
+    val loginResult = Try {
+      handler.handle(Array(reqCallback))
+      if (reqCallback.request.isEmpty) {
+        logger.debug("Unable to get HTTP request while authenticating")
+        throw new AuthInternalErrorException(ExchMsg.translate("unable.to.get.http.request.when.authenticating"))
+      }
+      val reqInfo = reqCallback.request.get 
+      val (org, id) = IbmCloudAuth.compositeIdSplit(reqInfo.creds.id)
+
+      if (org == "") throw new OrgNotSpecifiedException
+      if (reqInfo.isDbMigration && !Role.isSuperUser(reqInfo.creds.id)) throw new IsDbMigrationException()
+
+      if (id == "iamapikey" || id == "iamtoken") throw new NotIeamUiCredsException
+      if (!reqInfo.creds.token.startsWith("ieam-")) throw new NotIeamUiCredsException
+
+      // TODO mkmk: get and check master password
+      if (reqInfo.creds.token != "ieam-mkmkPass") throw new InvalidCredentialsException()
+
+      // IbmCloudAuth.getOrCreateUser(org, id, "id-mycluster-account", "iamtoken", Option(reqInfo.hint)) // TODO mkmk
+
+      identity = IUser(Creds(reqInfo.creds.id, "ieam-ui-password-placeholder"))
+      true
+    }
+    //logger.debug("Module.login(): loginResult=" + loginResult)
+    succeeded = loginResult.isSuccess
+    if (!succeeded) {
+      // Throw an exception so we can report the correct error
+      loginResult.failed.get match {
+        case _: NotIeamUiCredsException => return false
+        case e: AuthException => throw e
+        case _ => throw new FailedLoginException
+      }
+    }
+    succeeded
+  }
+
+  override def logout(): Boolean = {
+    subject.getPrivateCredentials().add(identity)
+    true
+  }
+
+  override def abort() = false
+
+  override def commit(): Boolean = {
+    if (succeeded) {
+      subject.getPrivateCredentials().add(identity)
+    }
+    succeeded
+  }
+
 }

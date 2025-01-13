@@ -152,14 +152,15 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
     //val creds = credentials(reqInfo)
     val creds: Creds = reqInfo.creds
     val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
-    if (org == "") {
+    if (id != "iamapikey" && id != "iamtoken") Failure(new NotIbmCredsException)
+    else if (org == "") {
       if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") {
         logger.debug("[MKMK] IBM autentication route 1. ORG: " + org + ", USER: " + id + ", TOKEN: " + reqInfo.creds.token)
         Success(IamAuthCredentials(null, id, creds.token))
       }
       else Failure(new OrgNotSpecifiedException)
     }
-    else if ((id == "iamapikey" || id == "iamtoken") && creds.token.nonEmpty) {
+    else if (creds.token.nonEmpty) {
       logger.debug("[MKMK] IBM autentication route 2. ORG: " + org + ", USER: " + id + ", TOKEN: " + reqInfo.creds.token)
       Success(IamAuthCredentials(org, id, creds.token))
     }
@@ -696,7 +697,7 @@ class IeamUiAuthenticationModule extends LoginModule with AuthorizationSupport {
    * and that is where we can get access to it in the route handling code.
    */
   override def login(): Boolean = {
-    //logger.debug("in Module.login() to try to authenticate a local exchange user")
+    logger.debug("[MKMK] IeamUiAuthenticationModule module")
     val reqCallback = new RequestCallback
     val loginResult = Try {
       handler.handle(Array(reqCallback))
@@ -707,7 +708,7 @@ class IeamUiAuthenticationModule extends LoginModule with AuthorizationSupport {
       val reqInfo = reqCallback.request.get 
       val (org, id) = IbmCloudAuth.compositeIdSplit(reqInfo.creds.id)
 
-      if (org == "") throw new OrgNotSpecifiedException
+      // if (org == "") throw new OrgNotSpecifiedException
       if (reqInfo.isDbMigration && !Role.isSuperUser(reqInfo.creds.id)) throw new IsDbMigrationException()
 
       if (id == "iamapikey" || id == "iamtoken") throw new NotIeamUiCredsException

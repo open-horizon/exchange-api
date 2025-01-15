@@ -548,7 +548,10 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     servicesPublic.init(db)
     patternsPublic.init(db)
     businessPublic.init(db)
-    if (includingIbmAuth) IbmCloudAuth.init(db)
+    if (includingIbmAuth) {
+      IbmCloudAuth.init(db)
+      IeamAuth.init(db)
+    }
   }
 
   // Note: when you add a cache here, also add it to the 2 methods above

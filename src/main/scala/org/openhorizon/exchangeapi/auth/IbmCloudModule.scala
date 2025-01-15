@@ -719,7 +719,7 @@ class IeamUiAuthenticationModule extends LoginModule with AuthorizationSupport {
       // TODO mkmk: get and check master password
       if (reqInfo.creds.token != "ieam-mkmkPass") throw new InvalidCredentialsException()
 
-      // IbmCloudAuth.getOrCreateUser(org, id, "id-mycluster-account", "iamtoken", Option(reqInfo.hint)) // TODO mkmk
+      IeamAuth.getOrCreateUser2(org, id, Option(reqInfo.hint)) // TODO mkmk
 
       identity = IUser(Creds(reqInfo.creds.id, "ieam-ui-password-placeholder"))
       true
@@ -751,4 +751,148 @@ class IeamUiAuthenticationModule extends LoginModule with AuthorizationSupport {
     succeeded
   }
 
+}
+
+
+object IeamAuth {
+  import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
+
+  //import scala.concurrent.ExecutionContext.Implicits.global
+  implicit def executionContext: ExecutionContext = ExchangeApi.defaultExecutionContext
+
+  private var db: Database = _
+  private var sslSocketFactory: SSLSocketFactory = _
+
+  private implicit val formats: DefaultFormats.type = DefaultFormats
+
+  def logger: LoggingAdapter = ExchangeApi.defaultLogger
+
+  private val guavaCache: cache.Cache[String, Entry[String]] = CacheBuilder.newBuilder()
+                                                                           .maximumSize(ExchConfig.getInt("api.cache.IAMusersMaxSize"))
+                                                                           .expireAfterWrite(ExchConfig.getInt("api.cache.IAMusersTtlSeconds"), TimeUnit.SECONDS)
+                                                                           .build[String, Entry[String]] // the cache key is <org>/<keytype>:<apikey> (where keytype is iamapikey or iamtoken), and the value is <org>/<username>
+  implicit val userCache: GuavaCache[String] = GuavaCache(guavaCache) // the effect of this is that these methods don't need to be qualified
+
+  // Called by ExchangeApiApp after db is established and upgraded
+  def init(db: Database): Unit = {
+    this.db = db
+    logger.info(s"IBM authentication-related env vars: PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT=${sys.env.get("PLATFORM_IDENTITY_PROVIDER_SERVICE_PORT")}, ICP_EXTERNAL_MGMT_INGRESS=${sys.env.get("ICP_EXTERNAL_MGMT_INGRESS")}, ICP_MANAGEMENT_INGRESS_SERVICE_PORT=${sys.env.get("ICP_MANAGEMENT_INGRESS_SERVICE_PORT")}")
+  }
+
+  def getOrCreateUser2(org: String, username: String, hint: Option[String]): Try[String] = {
+    logger.debug("authenticateUser(): attempting to authenticate with IBM Cloud with " + org + "/" + username)
+
+    /*
+     * This caching function takes a key and tries to retrieve it from the cache. If it is not found it runs the block of code provided,
+     * adds the result to the cache, and then returns it. We use cachingF so that we can return a Try value.
+     * See http://cb372.github.io/scalacache/docs/#basic-cache-operations for more info.
+     */
+    val cacheKey = org + "/" + username
+    cachingF(cacheKey)(ttl = None) {
+      for {
+        user <- getOrCreateUser(org, username, Option(hint.getOrElse("")))
+      } yield user.username // this is the composite org/username
+    }
+  }
+
+  // Note: the cache key is <org>/<keytype>:<apikey>, so in the rest of the code it is usually hard to know this value, except in the auth code path
+  def removeUserKey(cacheKey: String): Unit = {
+    remove(cacheKey) // does not throw an error if it doesn't exist
+  }
+
+  def clearCache(): Try[Unit] = {
+    logger.debug(s"Clearing the IBM Cloud auth cache")
+    removeAll().map(_ => ()) // i think this map() just transforms the removeAll() return of a future into Unit
+  }
+
+  private def getOrCreateUser(org: String, username: String, hint: Option[String]): Try[UserRow] = {
+    logger.debug("Getting or creating exchange user from DB using IAM username: " + username)
+    // Form a DB query with the right logic to verify the org and either get or create the user.
+    // This can throw exceptions OrgNotFound or IncorrectOrgFound
+    val userQuery =
+      for {
+        orgId <- fetchVerifyOrg(org, Option(hint.getOrElse(""))) // verify the org exists in the db, and in the public cloud case the cloud acct id of the apikey and the org entry match
+        userRow <- fetchUser(orgId, username)
+        userAction <- {
+          logger.debug(s"userRow: $userRow")
+          if (userRow.isEmpty) createUser(orgId, username)
+          else if(userRow.get.orgid == "root" && !userRow.get.hubAdmin) DBIO.failed(new InvalidCredentialsException(ExchMsg.translate("user.cannot.be.in.root.org"))) // only need to check hubadmin field because the root user is by default a hubadmin and org admins are not in the root org
+          else DBIO.successful(Success(userRow.get)) // to produce error case below, instead use: createUser(orgId, username)
+        }
+        // This is to just handle errors from createUser
+        userAction2 <- userAction match {
+          case Success(v) => DBIO.successful(Success(v))
+          case Failure(t) =>
+            if (t.getMessage.contains("duplicate key")) {
+              // This is the case in which between the call to fetchUser and createUser another client created the user, so this is a duplicate that is not needed.
+              // Instead of returning an error just create an artificial response in which the username is correct (that's the only field used from this).
+              // (We don't want to do an upsert in createUser in case the user has changed it since it was created, e.g. set admin true)
+              DBIO.successful(Success(UserRow(org + "/" + username, "", "", admin = false, hubAdmin = false, "", "", "")))
+            } else {
+              DBIO.failed(new UserCreateException(ExchMsg.translate("error.creating.user", org, username, t.getMessage)))
+
+            }
+        }
+      } yield userAction2
+
+    val awaitResult: Success[UserRow] =
+      try {
+        //logger.debug("awaiting for DB query of ibm cloud creds for "+org+"/"+username+"...")
+        if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") {
+          Success(UserRow(username, "", "", admin = false, hubAdmin = false, "", "", ""))
+        } else Await.result(db.run(userQuery.transactionally), Duration(ExchConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
+        //logger.debug("...back from awaiting for DB query of ibm cloud creds for "+org+"/"+username+".")
+      } catch {
+        // Handle any exceptions, including db problems. Note: exceptions from this get caught in login() above
+        case timeout: java.util.concurrent.TimeoutException =>
+          logger.error("db timed out getting pw/token for '" + username + "' . " + timeout.getMessage)
+          throw new DbTimeoutException(ExchMsg.translate("db.timeout.getting.token", username, timeout.getMessage))
+        // catch any of ours and rethrow
+        case ourException: AuthException => throw ourException
+        // assume something we don't recognize is a db access problem
+        case other: Throwable =>
+          logger.error("db connection error getting pw/token for '" + username + "': " + other.getMessage)
+          throw new DbConnectionException(ExchMsg.translate("db.threw.exception", other.getMessage))
+      }
+    // Note: not sure how to know here whether we successfully add a user and therefore should add it to the admin cache, so we'll just let that get added next time it is needed
+    awaitResult
+  }
+
+  // Verify that the cloud acct id of the cloud api key and the exchange org entry match
+  // authInfo is the creds they passed in, username is what was returned from the IAM calls, and orgAcctId is what we got from querying the org in the db
+  private def fetchVerifyOrg(org: String, hint: Option[String]) = {
+    if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") {
+        DBIO.successful(null)
+      } else {
+        DBIO.successful(org)
+      }
+  }
+
+  private def fetchUser(org: String, username: String) = {
+    logger.debug("Fetching user: org=" + org + ", " + username)
+    UsersTQ
+      .filter(u => u.orgid === org && u.username === s"$org/$username")
+      //.take(1)  // not sure what the purpose of this was
+      .result
+      .headOption
+  }
+
+  private def createUser(org: String, username: String) = {
+    if(org != null) {
+      logger.debug("Creating user: org=" + org + ", " + username)
+      val user: UserRow = UserRow(
+        s"$org/$username",
+        org,
+        "",
+        admin = false,
+        hubAdmin = false,
+        username,
+        ApiTime.nowUTC,
+        s"$org/$username")
+      (UsersTQ += user).asTry.map(count => count.map(_ => user))
+    } else {
+      logger.debug("ibmcloudmodule not creating user")
+      null
+    }
+  }
 }

@@ -173,7 +173,7 @@ Project uses Scapegoat. To use:
 - Manually test container locally: `curl -sS -w %{http_code} http://localhost:8080/v1/admin/version`
 - Run the automated tests: `sbt test`
 - **Note:** Swagger does not yet work in the local docker container.
-- At this point you probably want to run `docker rm -f amd64_exchange-api` to stop your local docker container so it stops listening on your 8080 port. Otherwise you may be very confused when you go back to running the exchange via `sbt`, but it doesn't seem to be executing your tests.
+- At this point you probably want to run `docker rm -f amd64_exchange-api` to stop your local docker container so it stops listening on your 8080 port. Otherwise you may be very confused when you go back to running the exchange via `sbt`, but it doesn't seem to be executing your tests test.
 
 
 ### Notes About the Docker Image Build Process

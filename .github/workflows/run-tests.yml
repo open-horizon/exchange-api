@@ -38,6 +38,7 @@ jobs:
       - name: Setup Scala
         uses: coursier/setup-action@v1
         with:
+          apps: sbt
           jvm: adoptium:1.17
 
       - name: Create Docker Env

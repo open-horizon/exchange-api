@@ -88,7 +88,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
   }
 
   override def login(): Boolean = {
-    //logger.debug("in IbmCloudModule.login() to try to authenticate an IBM cloud user")
+    logger.debug("in IbmCloudModule.login() to try to authenticate an IBM cloud user")
     val reqCallback = new RequestCallback
 
     handler.handle(Array(reqCallback))
@@ -141,11 +141,18 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
     //val creds = credentials(reqInfo)
     val creds: Creds = reqInfo.creds
     val (org, id) = IbmCloudAuth.compositeIdSplit(creds.id)
-    if (org == "") {
-      if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") Success(IamAuthCredentials(null, id, creds.token))
+    if (id != "iamapikey" && id != "iamtoken") Failure(new NotIbmCredsException)
+    else if (org == "") {
+      if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") {
+        logger.debug("[MKMK] IBM autentication route 1. ORG: " + org + ", USER: " + id + ", TOKEN: " + reqInfo.creds.token)
+        Success(IamAuthCredentials(null, id, creds.token))
+      }
       else Failure(new OrgNotSpecifiedException)
     }
-    else if ((id == "iamapikey" || id == "iamtoken") && creds.token.nonEmpty) Success(IamAuthCredentials(org, id, creds.token))
+    else if (creds.token.nonEmpty) {
+      logger.debug("[MKMK] IBM autentication route 2. ORG: " + org + ", USER: " + id + ", TOKEN: " + reqInfo.creds.token)
+      Success(IamAuthCredentials(org, id, creds.token))
+    }
     else Failure(new NotIbmCredsException)
   }
 }
@@ -416,6 +423,7 @@ class IeamUiAuthenticationModule extends LoginModule with AuthorizationSupport {
    * and that is where we can get access to it in the route handling code.
    */
   override def login(): Boolean = {
+    logger.debug("[MKMK] IeamUiAuthenticationModule module")
     //logger.debug("in Module.login() to try to authenticate a local exchange user")
     val reqCallback = new RequestCallback
     val loginResult = Try {
@@ -433,11 +441,14 @@ class IeamUiAuthenticationModule extends LoginModule with AuthorizationSupport {
       if (id == "iamapikey" || id == "iamtoken") throw new NotIeamUiCredsException
       if (!reqInfo.creds.token.startsWith("ieam-")) throw new NotIeamUiCredsException
 
-      // TODO mkmk: get and check master password
-      if (reqInfo.creds.token != "ieam-mkmkPass") throw new InvalidCredentialsException()
+      
+      logger.debug("[MKMK] IEAM autentication route. ORG: " + org + ", USER: " + id + ", TOKEN: " + reqInfo.creds.token)
 
-      IbmCloudAuth.getOrCreateUser(org, id, "id-mycluster-account", "iamtoken", Option(reqInfo.hint)) // TODO mkmk
+      // IIdentity(Creds("IBM/ieam", reqInfo.creds.token.replace("ieam-", ""))).authenticate() // TODO mkmk
 
+      logger.debug("[MKMK] IEAM autentication route. Authenticate successful.")
+
+      IbmCloudAuth.getOrCreateUser(org, id, "id-mycluster-account", "iamtoken", Option(reqInfo.hint)) // TODO mkmk: 2nd and 3rd param
       identity = IUser(Creds(reqInfo.creds.id, "ieam-ui-password-placeholder"))
       true
     }

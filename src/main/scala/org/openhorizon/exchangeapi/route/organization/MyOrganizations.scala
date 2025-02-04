@@ -122,9 +122,15 @@ trait MyOrganizations extends JacksonSupport with AuthenticationSupport {
       post {
         // set hint here to some key that states that no org is ok
         // UI should omit org at the beginning of credentials still have them put the slash in there
-        exchAuth(TOrg("#"), Access.READ_MY_ORG, hint = "exchangeNoOrgForMultLogin") {
-          _ =>
-            postMyOrganizations
+        try {
+          exchAuth(TOrg("#"), Access.READ_MY_ORG, hint = "exchangeNoOrgForMultLogin") {
+            _ =>
+              postMyOrganizations
+          }
+        } catch {
+          case ex: Exception => 
+            logger.error("[MKMK] POST/myorgs error: ", ex)
+            throw ex
         }
       }
     }

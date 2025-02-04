@@ -88,13 +88,9 @@ jobs:
       - name: Setup Scala
         uses: coursier/setup-action@v1
 
-      # Install sbt
-      - name: Install sbt
-        run: |
-          echo "deb https://repo.scala-sbt.org/scalasbt/debian all main" | sudo tee /etc/apt/sources.list.d/sbt.list
-          sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv 642AC823
-          sudo apt-get update
-          sudo apt-get install sbt
+      # Setup sbt
+      - name: Setup sbt
+        uses: sbt/setup-sbt@v1
 
       # Authenticate Dockerhub to allow pushing to our image repo
       - name: Login to Dockerhub

@@ -112,7 +112,7 @@ lazy val root = (project in file("."))
     Docker / mappings ++= Seq((baseDirectory.value / "LICENSE.txt") -> "/1/licenses/LICENSE.txt",
                               (baseDirectory.value / "config" / "exchange-api.tmpl") -> "/2/etc/horizon/exchange/exchange-api.tmpl"
                              ),
-    dockerCommands           := Seq(Cmd("FROM", dockerBaseImage.value ++ " as stage0"),
+    dockerCommands           := Seq(Cmd("FROM", dockerBaseImage.value ++ " AS stage0"),
                                     Cmd("LABEL", "snp-multi-stage='intermediate'"),
                                     Cmd("LABEL", "snp-multi-stage-id='6466ecf3-c305-40bb-909a-47e60bded33d'"),
                                     Cmd("WORKDIR", "/etc/horizon/exchange"),
@@ -135,7 +135,7 @@ lazy val root = (project in file("."))
                                     Cmd("LABEL", "summary=" ++ summary.value),
                                     Cmd("LABEL", "vendor=" ++ vendor.value),
                                     Cmd("LABEL", "version=" ++ version.value),
-                                    Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs 1>/dev/null 2>&1 && microdnf install -y --nodocs shadow-utils gettext java-17-openjdk openssl 1>/dev/null 2>&1 && microdnf clean all"),
+                                    Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs --refresh 1>/dev/null 2>&1 && microdnf install -y --nodocs shadow-utils gettext java-17-openjdk openssl 1>/dev/null 2>&1 && microdnf clean all"),
                                     Cmd("USER", "root"),
                                     Cmd("RUN", "id -u " ++ (Docker / daemonUser).value ++ " 1>/dev/null 2>&1 || ((getent group 1001 1>/dev/null 2>&1 || (type groupadd 1>/dev/null 2>&1 && groupadd -g 1001 " ++ (Docker / daemonGroup).value ++ " || addgroup -g 1001 -S " ++ (Docker / daemonGroup).value ++ ")) && (type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 1001 " ++ (Docker / daemonUser).value ++ " || adduser -S -u 1001 -G " ++ (Docker / daemonGroup).value ++ " " ++ (Docker / daemonUser).value ++ "))"),
                                     Cmd("WORKDIR", "/etc/horizon/exchange"),
@@ -155,7 +155,7 @@ lazy val root = (project in file("."))
                                      * exchange-api.tmpl provided in this docker image and prevent cases where a bind-mount config.json is set with read-only permissions.
                                      * Any mounted config.json can choose to use variables to take advantage of the substitution below.
                                      */
-                                    Cmd("ENTRYPOINT", "/usr/bin/envsubst $ENVSUBST_CONFIG < /etc/horizon/exchange/exchange-api.tmpl > /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value),
+                                    Cmd("ENTRYPOINT", "[\"/usr/bin/envsubst $ENVSUBST_CONFIG < /etc/horizon/exchange/exchange-api.tmpl > /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value ++ "\"]"),
                                     Cmd("CMD", "[]")
                                   )
   )

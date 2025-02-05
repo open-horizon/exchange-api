@@ -169,6 +169,7 @@ trait AuthenticationSupport extends AuthorizationSupport {
           AuthenticationSupport.parseCreds(basicAuthEncoded)
         case _ => None
       }
+      logger.warning(s"[MKMK] exchAuth: optCreds: $optCreds, access: $access, hint: $hint")
       authenticate(optCreds, hint = hint) match {
         case Failure(t) => reject(AuthRejection(t))
         case Success(authenticatedIdentity) =>

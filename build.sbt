@@ -155,7 +155,7 @@ lazy val root = (project in file("."))
                                      * exchange-api.tmpl provided in this docker image and prevent cases where a bind-mount config.json is set with read-only permissions.
                                      * Any mounted config.json can choose to use variables to take advantage of the substitution below.
                                      */
-                                    Cmd("ENTRYPOINT", "[\"/usr/bin/envsubst $ENVSUBST_CONFIG < /etc/horizon/exchange/exchange-api.tmpl > /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value ++ "\"]"),
+                                    Cmd("ENTRYPOINT", "/usr/bin/envsubst $ENVSUBST_CONFIG < /etc/horizon/exchange/exchange-api.tmpl > /etc/horizon/exchange/config.json && /opt/docker/bin/" ++ name.value),
                                     Cmd("CMD", "[]")
                                   )
   )

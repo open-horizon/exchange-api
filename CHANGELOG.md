@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.126.1] - 2025-02-13
+## [2.126.1](https://github.com/open-horizon/exchange-api/pull/747) - 2025-02-13
 - Added backwards compatible tls config variables to the default config.
 
 ## [2.126.0](https://github.com/open-horizon/exchange-api/pull/728) - 2024-11-04

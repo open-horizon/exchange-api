@@ -9,6 +9,7 @@ All notable changes to this project will be documented in this file.
 - pekko-http-cors    1.0.1 -> 1.1.0
 - pekko-slf4j        1.0.1 -> 1.1.1
 - swagger-pekko-http 2.12.0 -> 2.14.0
+- Updated scala version: 2.13.14 -> 2.13.15.
 - Fixed build errors and warnings.
 
 ## [2.124.0](https://github.com/open-horizon/exchange-api/pull/718) - 2024-09-14

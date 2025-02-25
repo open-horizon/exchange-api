@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.124.1](https://github.com/open-horizon/exchange-api/pull/750) - 2025-02-25
+- Backporting cherry-picked changes for configuration, dependencies, the Dockerfile, and GitHub workflows from the following.
+  - [PR#749](https://github.com/open-horizon/exchange-api/pull/749)
+    - GitHub workflows
+  - v2.126.1 [PR#747](https://github.com/open-horizon/exchange-api/pull/747)
+    - Default configuration
+  - [PR#745](https://github.com/open-horizon/exchange-api/pull/745)
+    - Dockerfile
+  - [PR#743](https://github.com/open-horizon/exchange-api/pull/743)
+    - GitHub workflows
+  - [PR#725](https://github.com/open-horizon/exchange-api/pull/725)
+    - Dependencies
+  - v2.125.0 [PR#720](https://github.com/open-horizon/exchange-api/pull/720)
+    - Scala version
+
 ## [2.124.0] - 2024-09-14
 - Application configuration overhaul.
   - Some database configuration changes are not backwards compatible. 

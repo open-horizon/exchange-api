@@ -3,7 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## [2.124.1](https://github.com/open-horizon/exchange-api/pull/750) - 2025-02-25
-- Backporting cherry-picked changes for configuration, dependency, Dockerfile, and GitHub workflows from the following.
+- Backporting cherry-picked changes for configuration, dependencies, the Dockerfile, and GitHub workflows from the following.
   - [PR#749](https://github.com/open-horizon/exchange-api/pull/749)
     - GitHub workflows
   - v2.126.1 [PR#747](https://github.com/open-horizon/exchange-api/pull/747)

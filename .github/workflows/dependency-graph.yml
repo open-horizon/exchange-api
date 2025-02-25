@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - v2.124
       - v2.122
       - v2.110
       - v2.87
@@ -13,4 +14,5 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - uses: sbt/setup-sbt@v1
       - uses: scalacenter/sbt-dependency-submission@v2

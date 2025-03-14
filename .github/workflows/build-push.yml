@@ -133,5 +133,7 @@ jobs:
             docker push ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing
           else
             docker tag ${IMAGE_REPO}/amd64_exchange-api:testing ${IMAGE_REPO}/amd64_exchange-api:testing_${GH_BRANCH}
+            docker tag ${IMAGE_REPO}/amd64_exchange-api:testing ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing_${GH_BRANCH}
             docker push ${IMAGE_REPO}/amd64_exchange-api:testing_${GH_BRANCH}
+            docker push ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing_${GH_BRANCH}
           fi

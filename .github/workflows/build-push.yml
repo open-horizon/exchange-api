@@ -7,9 +7,10 @@ on:
   push:
     branches:
       - master
-      - v2.87
-      - v2.110
+      - v2.124
       - v2.121
+      - v2.110
+      - v2.87
 
 # Variables available to all jobs
 env:
@@ -24,7 +25,7 @@ jobs:
   # This job will build and then push to docker hub
   build-push:
     # The type of runner the job will run on
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-latest
     
     steps:
       # Ensure that the repo variables and secrets are set before running any other steps
@@ -87,6 +88,9 @@ jobs:
       # Comes from open source action: https://github.com/coursier/setup-action
       - name: Setup Scala
         uses: coursier/setup-action@v1
+        with:
+          apps: sbt
+          jvm: adoptium:1.17
 
       # Authenticate Dockerhub to allow pushing to our image repo
       - name: Login to Dockerhub
@@ -129,5 +133,7 @@ jobs:
             docker push ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing
           else
             docker tag ${IMAGE_REPO}/amd64_exchange-api:testing ${IMAGE_REPO}/amd64_exchange-api:testing_${GH_BRANCH}
+            docker tag ${IMAGE_REPO}/amd64_exchange-api:testing ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing_${GH_BRANCH}
             docker push ${IMAGE_REPO}/amd64_exchange-api:testing_${GH_BRANCH}
+            docker push ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing_${GH_BRANCH}
           fi

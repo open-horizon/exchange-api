@@ -4,9 +4,10 @@ on:
   pull_request:
     branches:
       - master
-      - v2.87
+      - v2.124
+      - v2.122
       - v2.110
-      - v2.121
+      - v2.87
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:
@@ -33,6 +34,9 @@ jobs:
       # Comes from open source action: https://github.com/coursier/setup-action
       - name: Setup Scala
         uses: coursier/setup-action@v1
+        with:
+          apps: sbt
+          jvm: adoptium:1.17
 
       - name: Create Docker Env
         run: |

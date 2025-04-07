@@ -37,6 +37,7 @@ import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyTQ
 import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServicesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.apikey.{ApiKeyRow,ApiKeysTQ}
 import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg}
 import org.postgresql.util.PSQLException
@@ -88,6 +89,7 @@ object ExchangeApiTables {
       ++ NodeGroupTQ.schema
       ++ NodeGroupAssignmentTQ.schema
       ++ SearchServiceTQ.schema
+      ++ ApiKeysTQ.schema
     ).create,
     SchemaTQ.getSetVersionAction)
 
@@ -133,6 +135,7 @@ object ExchangeApiTables {
     sqlu"DROP TABLE IF EXISTS public.resourcechanges CASCADE",
     sqlu"DROP TABLE IF EXISTS public.users CASCADE",
     sqlu"DROP TABLE IF EXISTS public.orgs CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.apikeys CASCADE",
     sqlu"DROP TABLE IF EXISTS public.schema CASCADE",
     // these are no longer used, but here just in case they are still hanging around
     sqlu"DROP TABLE IF EXISTS public.microservicekeys CASCADE",
@@ -371,6 +374,7 @@ object ExchangeApiTables {
           (SchemaTQ.schema ++
            OrgsTQ.schema ++
            UsersTQ.schema ++
+           ApiKeysTQ.schema ++
            ResourceChangesTQ.schema ++
            NodesTQ.schema ++
            NodeAgreementsTQ.schema ++

@@ -20,9 +20,11 @@ import scala.util._
 import _root_.org.openhorizon.exchangeapi.utility.ApiKeyUtils
 import org.openhorizon.exchangeapi.utility.HttpCode
 import io.swagger.v3.oas.annotations.parameters.RequestBody
+import scala.concurrent.Future
+import scala.util.{Success, Failure}
 
 @Path("/v1/orgs/{orgid}/users/{username}/apikeys")
-@io.swagger.v3.oas.annotations.tags.Tag(name = "API Key")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "apikey")
 trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
 
   def db: Database
@@ -31,7 +33,44 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
   implicit def executionContext: ExecutionContext
 
   // === GET /v1/orgs/{orgid}/users/{username}/apikeys ===
-  def getUserApiKeys(identity: Identity, orgid: String, username: String): Route = complete {
+  @GET
+  @Operation(
+  summary = "Get all API keys for a user",
+  description = "Returns all API keys owned by the user. Must be called by the user themselves or an organization admin.",
+  parameters = Array(
+    new Parameter(name = "orgid", in = ParameterIn.PATH, required = true, description = "Organization ID"),
+    new Parameter(name = "username", in = ParameterIn.PATH, required = true, description = "Username")
+  ),
+  responses = Array(
+    new responses.ApiResponse(
+      responseCode = "200",
+      description = "response body",
+      content = Array(new Content(
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[GetUserApiKeysResponse]),
+        examples = Array(
+          new ExampleObject(
+            value = """{
+              "apikeys": [
+                {
+                  "id": "uuid",
+                  "description": "string",
+                  "user": "string"
+                }
+              ]
+            }"""
+          )
+        )
+      ))
+    ),
+    new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+    new responses.ApiResponse(responseCode = "403", description = "access denied"),
+    new responses.ApiResponse(responseCode = "404", description = "not found")
+  )
+)
+  def getUserApiKeys(@Parameter(hidden = true) identity: Identity,
+                     @Parameter(hidden = true) orgid: String,
+                     @Parameter(hidden = true) username: String): Route = complete {
   val fullId = s"$orgid/$username"
   db.run(ApiKeysTQ.getByUser(fullId).result).map { rows =>
     val keys = rows.map(_.toMetadata)
@@ -41,10 +80,10 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
 }
 
   // === POST /v1/orgs/{orgid}/users/{username}/apikeys ===
-    @POST
-    @Operation(
+@POST
+@Operation(
   summary = "Create a new API key for a user",
-  description = "Creates a new API key for the specified user. Can be call by the user or org admin.",
+  description = "Creates a new API key for the specified user. Can be called by the user or org admin.",
   parameters = Array(
     new Parameter(name = "orgid", in = ParameterIn.PATH, required = true, description = "Organization ID"),
     new Parameter(name = "username", in = ParameterIn.PATH, required = true, description = "Username")
@@ -53,17 +92,36 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
     required = true,
     content = Array(new Content(
       mediaType = "application/json",
-      schema = new Schema(implementation = classOf[PostApiKeyRequest])
+      schema = new Schema(implementation = classOf[PostApiKeyRequest]),
+      examples = Array(
+        new ExampleObject(value = """{
+          "description": "Test API key for user"
+        }""")
+      )
     ))
   ),
   responses = Array(
-    new responses.ApiResponse(responseCode = "201", description = "API key created",
-      content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[PostApiKeyResponse])))),
-    new responses.ApiResponse(responseCode = "400", description = "Bad Request"),
-    new responses.ApiResponse(responseCode = "403", description = "Forbidden"),
+    new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
+      content = Array(new Content(
+        mediaType = "application/json", 
+        schema = new Schema(implementation = classOf[PostApiKeyResponse]),
+        examples = Array(
+          new ExampleObject(value = """{
+            "id": "uuid",
+            "description": "string",
+            "user": "string",
+            "value": "string"
+          }""")
+        )
+      ))),
+    new responses.ApiResponse(responseCode = "400", description = "bad input"),
+    new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+    new responses.ApiResponse(responseCode = "403", description = "access denied")
   )
 )
-  def postUserApiKey(identity: Identity, orgid: String, username: String): Route = {
+  def postUserApiKey(@Parameter(hidden = true)identity: Identity, 
+                     @Parameter(hidden = true)orgid: String, 
+                     @Parameter(hidden = true)username: String): Route = {
     entity(as[PostApiKeyRequest]) { body =>
       val fullId = s"$orgid/$username"
       val rawValue = ApiKeyUtils.generateApiKeyValue()
@@ -83,15 +141,81 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
   }
 
   // === DELETE /v1/orgs/{orgid}/users/{username}/apikeys/{keyid} ===
-  def deleteUserApiKey(identity: Identity, orgid: String, username: String, keyid: String): Route = complete {
-    db.run(ApiKeysTQ.deleteById(keyid).delete.map {
-      case 0 => StatusCodes.NoContent
-      case _ => StatusCodes.NoContent
-    })
+  @DELETE
+  @Path("/{keyid}")
+  @Operation(
+  summary = "Delete an API key for a user",
+  description = "Deletes API key with the given ID. Must be called by the user themselves (if they are the owner) or an organization admin.",
+  parameters = Array(
+    new Parameter(name = "orgid", in = ParameterIn.PATH, required = true, description = "Organization ID"),
+    new Parameter(name = "username", in = ParameterIn.PATH, required = true, description = "Username"),
+    new Parameter(name = "keyid", in = ParameterIn.PATH, required = true, description = "API key ID to delete")
+  ),
+  responses = Array(
+    new responses.ApiResponse(responseCode = "204", description = "deleted"),
+    new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+    new responses.ApiResponse(responseCode = "403", description = "access denied"),
+    new responses.ApiResponse(responseCode = "404", description = "not found"),
+    new responses.ApiResponse(responseCode = "500", description = "internal server error")
+  )
+)
+  def deleteUserApiKey(@Parameter(hidden = true)identity: Identity,
+                       @Parameter(hidden = true) orgid: String,
+                       @Parameter(hidden = true) username: String,
+                       @Parameter(hidden = true) keyid: String): Route = complete {
+
+  db.run(ApiKeysTQ.getById(keyid).result).flatMap {
+    case Nil => 
+        Future.successful(StatusCodes.NotFound)
+    case _ =>
+      db.run(ApiKeysTQ.getById(keyid).delete.asTry).map {
+        case Success(_) => StatusCodes.NoContent 
+        case Failure(ex) => { 
+        logger.error(s"Error deleting API key $keyid", ex)
+        StatusCodes.InternalServerError
+        } 
+      }
+  }
   }
 
   // === GET /v1/orgs/{orgid}/users/{username}/apikeys/{keyid} ===
-  def getUserApiKeyById(identity: Identity, orgid: String, username: String, keyid: String): Route = complete {
+  @GET
+  @Path("/{keyid}")
+  @Operation(
+  summary = "Get an API key by ID",
+  description = "Returns API key with the given ID. Must be called by the user on their own behalf (if they are the owner) or by an organization admin.",
+  parameters = Array(
+    new Parameter(name = "orgid", in = ParameterIn.PATH, required = true, description = "Organization ID"),
+    new Parameter(name = "username", in = ParameterIn.PATH, required = true, description = "Username"),
+    new Parameter(name = "keyid", in = ParameterIn.PATH, required = true, description = "API key ID")
+  ),
+  responses = Array(
+    new responses.ApiResponse(
+      responseCode = "200",
+      description = "response body",
+      content = Array(new Content(
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[ApiKeyMetadata]),
+        examples = Array(
+          new ExampleObject(
+            value = """{
+              "id": "uuid",
+              "description": "string",
+              "user": "string"
+            }"""
+          )
+        )
+      ))
+    ),
+    new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+    new responses.ApiResponse(responseCode = "403", description = "access denied"),
+    new responses.ApiResponse(responseCode = "404", description = "not found")
+  )
+)
+  def getUserApiKeyById(@Parameter(hidden = true)identity: Identity, 
+                        @Parameter(hidden = true)orgid: String, 
+                        @Parameter(hidden = true)username: String, 
+                        @Parameter(hidden = true)keyid: String): Route = complete {
     db.run(ApiKeysTQ.getById(keyid).result).map {
       case Seq(row) => (StatusCodes.OK, row.toMetadata)
       case _ => (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("apikey.not.found")))
@@ -102,17 +226,11 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
     pathEndOrSingleSlash {
       post {                                 //Should create enumeration later
         exchAuth(TUser(s"$orgid/$username"), Access.WRITE) { identity =>
-        if (!(identity.creds.id == s"$orgid/$username" || (identity.getOrg == orgid && identity.isAdmin)))
-            complete(HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "Only the user or org admin can create API keys."))
-          else
             postUserApiKey(identity, orgid, username)
         }
       } ~
       get {
         exchAuth(TUser(s"$orgid/$username"), Access.READ) { identity =>
-          if (!(identity.creds.id == s"$orgid/$username" || (identity.getOrg == orgid && identity.isAdmin)))
-            complete(HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "Only the user or org admin can view API keys."))
-          else
             getUserApiKeys(identity, orgid, username)
         }
       }
@@ -120,18 +238,11 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
     path(Segment) { keyid =>
       get {
         exchAuth(TUser(s"$orgid/$username"), Access.READ) { identity =>
-           if (!(identity.creds.id == s"$orgid/$username" || (identity.getOrg == orgid && identity.isAdmin)))
-            complete(HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "Only the user or org admin can view the API key."))
-          else
-
           getUserApiKeyById(identity, orgid, username, keyid)
         }
       } ~
       delete {
         exchAuth(TUser(s"$orgid/$username"), Access.WRITE) { identity =>
-           if (!(identity.creds.id == s"$orgid/$username" || (identity.getOrg == orgid && identity.isAdmin)))
-            complete(HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, "Only the user or org admin can delete API keys."))
-          else
           deleteUserApiKey(identity, orgid, username, keyid)
         }
       }

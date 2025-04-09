@@ -16,12 +16,12 @@ import org.openhorizon.exchangeapi.utility._
 import org.openhorizon.exchangeapi.table.apikey.ApiKeyMetadata
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import slick.jdbc.PostgresProfile.api._
-
+import io.swagger.v3.oas.annotations.parameters.RequestBody
 import scala.concurrent.ExecutionContext
 import scala.util._
 
 @Path("/v1/orgs/{orgid}/apikeys")
-@io.swagger.v3.oas.annotations.tags.Tag(name = "API Key")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "apikey")
 trait OrgApiKeys extends JacksonSupport with AuthenticationSupport {
 
   def db: Database
@@ -30,10 +30,42 @@ trait OrgApiKeys extends JacksonSupport with AuthenticationSupport {
   implicit def executionContext: ExecutionContext
 
   // ========== GET /orgs/{orgid}/apikeys ============================
-
-
+  @GET
+  @Operation(
+  summary = "Get all API keys for an org",
+  description = "Returns all API keys for the given organization. Must be org admin.",
+  parameters = Array(
+    new Parameter(name = "orgid", in = ParameterIn.PATH, required = true, description = "Organization ID")
+  ),
+  responses = Array(
+    new responses.ApiResponse(
+      responseCode = "200",
+      description = "response body",
+      content = Array(new Content(
+        mediaType = "application/json",
+        schema = new Schema(implementation = classOf[GetOrgApiKeysResponse]),
+        examples = Array(
+          new ExampleObject(
+            value = """{
+              "apikeys": [
+                {
+                  "id": "uuid",
+                  "description": "string",
+                  "user": "string"
+                }
+              ]
+            }"""
+          )
+        )
+      ))
+    ),
+    new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+    new responses.ApiResponse(responseCode = "403", description = "access denied"),
+    new responses.ApiResponse(responseCode = "404", description = "not found")
+  )
+)
   def getOrgApiKeys(@Parameter(hidden = true) identity: Identity,
-                  @Parameter(hidden = true) orgid: String): Route = {
+                    @Parameter(hidden = true) orgid: String): Route = {
   onSuccess(db.run(OrgsTQ.getOrgid(orgid).result)) {
     case Nil =>
       complete(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgid)))
@@ -48,31 +80,17 @@ trait OrgApiKeys extends JacksonSupport with AuthenticationSupport {
 }
 
 
-  @GET
-  @Operation(
-    summary = "Get all API keys for an org",
-    description = "Returns all API keys for the given organization. Must be org admin.",
-    parameters = Array(
-      new Parameter(name = "orgid", in = ParameterIn.PATH, description = "Organization ID")
-    ),
-    responses = Array(
-      new responses.ApiResponse(responseCode = "200", description = "API key metadata",
-        content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[GetOrgApiKeysResponse])))),
-      new responses.ApiResponse(responseCode = "401", description = "Unauthorized"),
-      new responses.ApiResponse(responseCode = "403", description = "Forbidden")
-    )
-  )
+
   val orgApiKeys: Route =
   path("orgs" / Segment / "apikeys") { orgid =>
     onSuccess(db.run(OrgsTQ.getOrgid(orgid).result)) {
       case Nil =>
         complete(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgid)))
       case _ =>
-        exchAuth(TOrg(orgid), Access.READ) { identity =>
-          if (identity.getOrg == orgid && identity.isAdmin)
+        exchAuth(TOrg(orgid), Access.WRITE) { identity =>
+   
             getOrgApiKeys(identity, orgid)
-          else
-            complete(HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied.not.org.admin")))
+       
         }
     }
   }

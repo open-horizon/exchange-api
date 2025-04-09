@@ -14,4 +14,11 @@ class ApiKeys(tag: Tag) extends Table[ApiKeyRow](tag, "apikeys") {
   def userFk = foreignKey("user_fk", username, UsersTQ)(_.username, onDelete = ForeignKeyAction.Cascade)
 
   def hashIndex = index("apikey_hash_idx", hashedKey, unique = true)
+  
+  // Add an index for orgid and user 
+  def orgidIndex = index("orgid_index", orgid, unique = false)
+  def userIndex = index("apikey_user_idx", username,unique=false)
+
+
+
 }

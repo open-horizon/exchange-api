@@ -98,12 +98,19 @@ class TestUserApiKeys extends AnyFunSuite with BeforeAndAfterAll {
       description = "Test API Key 2",
       hashedKey = "hash2"
     ),
+      ApiKeyRow(
+      orgid = "testOrg0",
+      id = "key3",
+      username = "testOrg0/user0",
+      description = "Test API Key 2",
+      hashedKey = "hash3"
+    ),
     ApiKeyRow(
       orgid = "testOrg1",
-      id = "key3",
+      id = "key4",
       username = "testOrg1/user1",
       description = "Test API Key 3",
-      hashedKey = "hash3"
+      hashedKey = "hash4"
     ),
   )
 
@@ -314,7 +321,7 @@ test("GET non-existent apikey by id -- should return 404") {
 
   test("DELETE /v1/orgs/{orgid}/users/{username}/apikeys/{keyid} -- org admin deletes apikey of the user in this org") {
     validateAuthHeaders(Seq(ACCEPT, ORGADMINAUTH))
-    val response = Http("http://localhost:8080/v1/orgs/testOrg0/users/user0/apikeys/key2")
+    val response = Http("http://localhost:8080/v1/orgs/testOrg0/users/user0/apikeys/key3")
       .headers(ACCEPT)
       .headers(ORGADMINAUTH)
       .method("DELETE")
@@ -329,14 +336,14 @@ test("GET non-existent apikey by id -- should return 404") {
     val responseBody = JsonMethods.parse(checkResponse.body).extract[GetUserApiKeysResponse]
     assert(!responseBody.apikeys.exists(_.id === "key2"))
   }
-  test("DELETE non-existent apikey -- should return 204") {
+  test("DELETE non-existent apikey -- should return 404") {
   val response = Http("http://localhost:8080/v1/orgs/testOrg0/users/user0/apikeys/nonexistentkey")
     .headers(ACCEPT)
     .headers(USERAUTH)
     .method("DELETE")
     .asString
 
-  assert(response.code === HttpCode.DELETED.intValue )
+  assert(response.code === HttpCode.NOT_FOUND.intValue )
 }
 test("DELETE apikey of another user -- should return 403") {
   val response = Http("http://localhost:8080/v1/orgs/testOrg0/users/admin0/apikeys/key1")

@@ -44,6 +44,7 @@ lazy val root = (project in file("."))
     summary                       := "'Open Horizon exchange-api image'",
     vendor                        := "'Open Horizon'",
     version                       := sys.env.getOrElse("IMAGE_VERSION", versionFunc()),
+    dependencyOverrides += "com.google.guava" % "guava" % "33.4.7-jre",
     // ThisBuild / scapegoatVersion := "1.4.4",
     // coverageEnabled               := false,
     

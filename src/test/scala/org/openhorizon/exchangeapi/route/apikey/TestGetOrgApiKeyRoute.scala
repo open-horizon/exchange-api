@@ -19,10 +19,12 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.ExecutionContext.Implicits.global
 import org.openhorizon.exchangeapi.utility.HttpCode
 
-class TestOrgApiKeys extends AnyFunSuite with BeforeAndAfterAll {
+class TestGetOrgApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
+  private val ROUTE = "/apikeys/"
   private val PASSWORD = "password"
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
@@ -33,7 +35,7 @@ class TestOrgApiKeys extends AnyFunSuite with BeforeAndAfterAll {
       label = "",
       lastUpdated = "",
       limits = "",
-      orgId = "testOrg0",
+      orgId = "testGetOrgApiKeyRouteOrg0",
       orgType = "",
       tags = None
     ),
@@ -43,7 +45,7 @@ class TestOrgApiKeys extends AnyFunSuite with BeforeAndAfterAll {
       label = "",
       lastUpdated = "",
       limits = "",
-      orgId = "testOrg1",
+      orgId = "testGetOrgApiKeyRouteOrg1",
       orgType = "",
       tags = None
     )
@@ -56,9 +58,9 @@ class TestOrgApiKeys extends AnyFunSuite with BeforeAndAfterAll {
       hashedPw = Password.hash(PASSWORD),
       hubAdmin = false,
       lastUpdated = "",
-      orgid = "testOrg0",
+      orgid = "testGetOrgApiKeyRouteOrg0",
       updatedBy = "",
-      username = "testOrg0/admin0"
+      username = "testGetOrgApiKeyRouteOrg0/admin0"
     ),
     UserRow(
       admin = false,
@@ -66,9 +68,9 @@ class TestOrgApiKeys extends AnyFunSuite with BeforeAndAfterAll {
       hashedPw = Password.hash(PASSWORD),
       hubAdmin = false,
       lastUpdated = "",
-      orgid = "testOrg0",
+      orgid = "testGetOrgApiKeyRouteOrg0",
       updatedBy = "",
-      username = "testOrg0/user0"
+      username = "testGetOrgApiKeyRouteOrg0/user0"
     ),
     UserRow(
       admin = true,
@@ -84,21 +86,21 @@ class TestOrgApiKeys extends AnyFunSuite with BeforeAndAfterAll {
   
   private val TESTAPIKEYS: Seq[ApiKeyRow] = Seq(
     ApiKeyRow(
-      orgid = "testOrg0",
+      orgid = "testGetOrgApiKeyRouteOrg0",
       id = "key1",
-      username = "testOrg0/admin0",
+      username = "testGetOrgApiKeyRouteOrg0/admin0",
       description = "Test API Key 1",
       hashedKey = "hash1"
     ),
     ApiKeyRow(
-      orgid = "testOrg0",
+      orgid = "testGetOrgApiKeyRouteOrg0",
       id = "key2",
-      username = "testOrg0/user0",
+      username = "testGetOrgApiKeyRouteOrg0/user0",
       description = "Test API Key 2",
       hashedKey = "hash2"
     ),
     ApiKeyRow(
-      orgid = "testOrg1",
+      orgid = "testGetOrgApiKeyRouteOrg1",
       id = "key3",
       username = "root/hubadmin0",
       description = "Test API Key 3",
@@ -106,8 +108,8 @@ class TestOrgApiKeys extends AnyFunSuite with BeforeAndAfterAll {
     )
   )
   
-  private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("testOrg0/admin0:password"))
-  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode("testOrg0/user0:password"))
+  private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetOrgApiKeyRouteOrg0/admin0:password"))
+  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetOrgApiKeyRouteOrg0/user0:password"))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/hubadmin0:password"))
  override def beforeAll(): Unit = {
     val setupAction = DBIO.seq(
@@ -123,89 +125,81 @@ class TestOrgApiKeys extends AnyFunSuite with BeforeAndAfterAll {
   
 override def afterAll(): Unit = {
   Await.ready(DBCONNECTION.run(
-    ApiKeysTQ.filter(_.orgid startsWith "testOrg").delete
+    ApiKeysTQ.filter(_.orgid startsWith "testGetOrgApiKeyRouteOrg").delete
   ), AWAITDURATION)
   Await.ready(DBCONNECTION.run(
-    UsersTQ.filter(_.username startsWith "testOrg").delete andThen
+    UsersTQ.filter(_.username startsWith "testGetOrgApiKeyRouteOrg").delete andThen
     UsersTQ.filter(_.username === "root/hubadmin0").delete
   ), AWAITDURATION)
   Await.ready(DBCONNECTION.run(
-    OrgsTQ.filter(_.orgid startsWith "testOrg").delete
+    OrgsTQ.filter(_.orgid startsWith "testGetOrgApiKeyRouteOrg").delete
   ), AWAITDURATION)
 }
-private def validateAuthHeaders(headers: Seq[(String, String)]): Unit = {
-  assert(headers.exists { case (k, v) => 
-    k == "Authorization" && v.startsWith("Basic ")
-  }, "Authorization header must be present and start with 'Basic '")
+
+
+test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- org admin - 200 ok - normal success") {
+  val response = Http(URL + TESTORGS(0).orgId + ROUTE.dropRight(1))
+    .headers(ACCEPT)
+    .headers(ORGADMINAUTH)
+    .asString
+  info("Code: " + response.code)
+  info("Body: " + response.body)
+  assert(response.code === HttpCode.OK.intValue)
+  val apikeys: GetOrgApiKeysResponse = JsonMethods.parse(response.body).extract[GetOrgApiKeysResponse]
+  assert(apikeys.apikeys.length === 2)
+  assert(apikeys.apikeys.exists(_.id === TESTAPIKEYS(0).id))
+  assert(apikeys.apikeys.exists(_.id === TESTAPIKEYS(1).id))
 }
 
-  test("GET /v1/orgs/{orgid}/apikeys -- org admin - 200 ok - normal success") {
-     validateAuthHeaders(Seq(ACCEPT, ORGADMINAUTH))
-    val response = Http("http://localhost:8080/v1/orgs/testOrg0/apikeys")
-      .headers(ACCEPT)
-      .headers(ORGADMINAUTH)
-      .asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === 200)
-    val apikeys: GetOrgApiKeysResponse = JsonMethods.parse(response.body).extract[GetOrgApiKeysResponse]
-    assert(apikeys.apikeys.length === 2)
-    assert(apikeys.apikeys.exists(_.id === "key1"))
-    assert(apikeys.apikeys.exists(_.id === "key2"))
-  }
-  
-  test("GET /v1/orgs/{orgid}/apikeys -- normal user - 403 forbidden") {
-    
-     validateAuthHeaders(Seq(ACCEPT, USERAUTH))
-    val response = Http("http://localhost:8080/v1/orgs/testOrg0/apikeys")
-      .headers(ACCEPT)
-      .headers(USERAUTH)
-      .asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-  }
-  
-  test("GET /v1/orgs/{orgid}/apikeys -- hub admin - 403 forbidden for other org") {
-    validateAuthHeaders(Seq(ACCEPT, HUBADMINAUTH))
-    val response = Http("http://localhost:8080/v1/orgs/testOrg0/apikeys")
-      .headers(ACCEPT)
-      .headers(HUBADMINAUTH)
-      .asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-  }
-  
-  test("GET /v1/orgs/{orgid}/apikeys -- hub admin - 200 ok for root org") {
-   validateAuthHeaders(Seq(ACCEPT, HUBADMINAUTH))
-    val response = Http("http://localhost:8080/v1/orgs/root/apikeys")
-      .headers(ACCEPT)
-      .headers(HUBADMINAUTH)
-      .asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
-  }
-  
-  test("GET /v1/orgs/{orgid}/apikeys -- non-existent org - 404 not found") {
-    validateAuthHeaders(Seq(ACCEPT, ORGADMINAUTH))
+test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- normal user - 403 forbidden") {
+  val response = Http(URL + TESTORGS(0).orgId + ROUTE.dropRight(1))
+    .headers(ACCEPT)
+    .headers(USERAUTH)
+    .asString
+  info("Code: " + response.code)
+  info("Body: " + response.body)
+  assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+}
 
-    val response = Http("http://localhost:8080/v1/orgs/nonExistentOrg/apikeys")
-      .headers(ACCEPT)
-      .headers(ORGADMINAUTH)
-      .asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
-  }
+test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- hub admin - 403 forbidden for other org") {
+  val response = Http(URL + TESTORGS(0).orgId + ROUTE.dropRight(1))
+    .headers(ACCEPT)
+    .headers(HUBADMINAUTH)
+    .asString
+  info("Code: " + response.code)
+  info("Body: " + response.body)
+  assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+}
 
-  test("GET /v1/orgs/{orgid}/apikeys -- no auth header - should return 401") {
-  val response = Http("http://localhost:8080/v1/orgs/testOrg0/apikeys")
+test("GET /orgs/root" + ROUTE + " -- hub admin - 200 ok for root org") {
+  val response = Http(URL + "root" + ROUTE.dropRight(1))
+    .headers(ACCEPT)
+    .headers(HUBADMINAUTH)
+    .asString
+  info("Code: " + response.code)
+  info("Body: " + response.body)
+  assert(response.code === HttpCode.OK.intValue)
+}
+
+  
+test("GET /orgs/nonExistentOrg" + ROUTE + " -- non-existent org - 404 not found") {
+  val response = Http(URL + "nonExistentOrg" + ROUTE.dropRight(1))
+    .headers(ACCEPT)
+    .headers(ORGADMINAUTH)
+    .asString
+  info("Code: " + response.code)
+  info("Body: " + response.body)
+  assert(response.code === HttpCode.NOT_FOUND.intValue)
+}
+
+test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- no auth header - should return 401") {
+  val response = Http(URL + TESTORGS(0).orgId + ROUTE.dropRight(1))
     .headers(ACCEPT)
     .asString
-
+  info("Code: " + response.code)
+  info("Body: " + response.body)
   assert(response.code === HttpCode.BADCREDS.intValue)
 }
+
 
 }

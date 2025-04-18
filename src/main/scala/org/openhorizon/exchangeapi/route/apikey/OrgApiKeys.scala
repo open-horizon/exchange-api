@@ -72,7 +72,7 @@ trait OrgApiKeys extends JacksonSupport with AuthenticationSupport {
     case _ =>
       complete {
         db.run(ApiKeysTQ.getByOrg(orgid).result).map { rows =>
-          val keys = rows.map(_.toMetadata)
+          val keys = rows.map(new ApiKeyMetadata(_))
    (StatusCodes.OK, GetOrgApiKeysResponse(keys))   
         }
       }
@@ -96,6 +96,5 @@ trait OrgApiKeys extends JacksonSupport with AuthenticationSupport {
   }
 
 }
-// ==== Response model ====
 
-final case class GetOrgApiKeysResponse(apikeys: Seq[ApiKeyMetadata])
+

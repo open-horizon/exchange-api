@@ -4,6 +4,3 @@ final case class ApiKeyRow(orgid: String,
                            username: String,
                            description: String,
                            hashedKey: String)
-{
-  def toMetadata: ApiKeyMetadata = ApiKeyMetadata(id, description, username)
-}

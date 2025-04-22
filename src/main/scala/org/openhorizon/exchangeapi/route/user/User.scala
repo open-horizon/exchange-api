@@ -174,6 +174,11 @@ trait User extends JacksonSupport with AuthenticationSupport {
           logger.debug(s"Doing POST /orgs/$organization/users/$username")
           logger.debug("isAdmin: " + identity.isAdmin + ", isHubAdmin: " + identity.isHubAdmin + ", isSuperUser: " + identity.isSuperUser)
           validateWithMsg(reqBody.getAnyProblem(identity, organization, resource, isPost = true)) {
+            val forbiddenUsernames = Set("apikey", "iamapikey")
+            if (forbiddenUsernames.contains(username.toLowerCase)) {
+            complete((HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.reserved.name"))))
+            } else
+              { 
             complete({
               val updatedBy: String = identity match {
                 case IUser(identCreds) => identCreds.id;
@@ -195,7 +200,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                 case Failure(t) =>
                   (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.added", t.toString)))
               })
-            })
+            }) }
           }
       }
     }

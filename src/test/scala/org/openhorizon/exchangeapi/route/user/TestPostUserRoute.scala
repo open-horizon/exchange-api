@@ -271,6 +271,54 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(responseBody.msg === ExchMsg.translate("only.super.users.make.hub.admins"))
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
+test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "apikey -- forbidden username 'apikey' -- 400 BAD INPUT") {
+  val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+      password = "newPassword",
+      admin = false,
+      hubAdmin = None,
+      email = "newUser@ibm.com"
+  )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "apikey").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+    assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/apikey").result), AWAITDURATION).isEmpty)
+}
+
+test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "iamapikey -- forbidden username 'iamapikey' -- 400 BAD INPUT") {
+  val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+      password = "newPassword",
+      admin = false,
+      hubAdmin = None,
+      email = "newUser@ibm.com"
+  )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "iamapikey").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+    assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/iamapikey").result), AWAITDURATION).isEmpty)
+}
+
+test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "APIKEY -- forbidden username case-insensitive -- 400 BAD INPUT") {
+  val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+      password = "newPassword",
+      admin = false,
+      hubAdmin = None,
+      email = "newUser@ibm.com"
+  )
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "APIKEY").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+    assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/APIKEY").result), AWAITDURATION).isEmpty)
+}
+
 
   test("POST /orgs/root" + ROUTE + "TestPostUserRouteNewUser -- hub admin creates new hub admin -- 201 OK") {
     val requestBody: PostPutUsersRequest = PostPutUsersRequest(

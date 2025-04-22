@@ -24,6 +24,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
 
+import java.net.URLEncoder
 @Path("/v1/orgs/{organization}/users/{username}/apikeys")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "apikey")
 trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
@@ -128,9 +129,11 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
     entity(as[PostApiKeyRequest]) { body =>
       val fullId = s"$organization/$username"
       val rawValue = ApiKeyUtils.generateApiKeyValue()
-      val hashedValue = ApiKeyUtils.sha256Hash(rawValue)
+      val sha256Token = ApiKeyUtils.sha256Hash(rawValue)
+      val encodedValue = URLEncoder.encode(sha256Token, "UTF-8")
+      val bcryptForDb = ApiKeyUtils.bcryptHash(sha256Token)
       val keyId = ApiKeyUtils.generateApiKeyId()
-      val row = ApiKeyRow(organization, keyId, fullId, body.description, hashedValue)
+      val row = ApiKeyRow(organization, keyId, fullId, body.description, bcryptForDb)
 
       complete {
         db.run((for {
@@ -138,7 +141,7 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
        _ <- ResourceChangesTQ += ResourceChange(0L, organization, keyId, ResChangeCategory.APIKEY, public = false, ResChangeResource.APIKEY, ResChangeOperation.CREATED).toResourceChangeRow
        } yield ()).transactionally.asTry).map {
           case Success(_) =>
-            (HttpCode.POST_OK, PostApiKeyResponse(keyId, body.description, username, rawValue))
+            (HttpCode.POST_OK, PostApiKeyResponse(keyId, body.description, username, encodedValue))
           case Failure(_) =>
             (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("apikey.creation.failed")))
         }

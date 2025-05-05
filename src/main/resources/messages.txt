@@ -391,6 +391,7 @@ user.not.found=user ''{0}'' not found
 user.not.inserted.or.updated=user ''{0}'' not inserted or updated: {1}
 user.not.updated=user not updated: {0}
 user.password.not.updated=user ''{0}'' password not updated: {1}
+user.reserved.name=The usernames 'apikey' and 'iamapikey' are reserved and cannot be used.
 user.updated.successfully=user updated successfully
 username.not.found=username not found
 version.not.valid.format=version ''{0}'' is not valid version format.

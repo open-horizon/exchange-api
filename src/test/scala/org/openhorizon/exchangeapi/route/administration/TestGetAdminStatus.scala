@@ -563,7 +563,15 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
     assert(status.numberOfUsers.get === 5)
     assert(status.SchemaVersion.isEmpty)
   }
-  
+
+  test("GET /admin/status" + " -- root - 401 invalid credentials") {
+  val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + "invalidpassword"))).asString
+  info("Code: " + response.code)
+  info("Body: " + response.body)
+  assert(response.code === HttpCode.BADCREDS.intValue)
+}
+
+
   test("GET /admin/status" + " -- hub admin - 200 ok - normal success", AdminStatusTest) {
     val response: HttpResponse[String] = Http("http://0.0.0.0:8080/v1/" + "admin/status").headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)

@@ -13,10 +13,11 @@ import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, e
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, BadInputException, IUser, Identity, OrgAndId, Password, Role, TUser}
 import org.openhorizon.exchangeapi.table.user.{User => UserTable, UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.table.apikey.{ApiKeysTQ,ApiKeyMetadata}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, StrConstants}
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext,Future}
 import scala.util.{Failure, Success}
 
 
@@ -49,7 +50,17 @@ trait User extends JacksonSupport with AuthenticationSupport {
       "admin": false,
       "email": "string",
       "lastUpdated": "string",
-      "updatedBy": "string"
+      "updatedBy": "string",
+      "apikeys": [
+        {
+          "id": "uuid",
+          "description": "string",
+          "created_at": "string",
+          "created_by": "string",
+          "modified_at": "string",
+          "modified_by": "string"
+        }
+      ]
     }
   },
   "lastIndex": 0
@@ -87,19 +98,38 @@ trait User extends JacksonSupport with AuthenticationSupport {
             UsersTQ.getUserIfAdmin(realResource)
           else
             UsersTQ.getUser(realResource)
-        db.run(query.result).map({
-          list =>
-            logger.debug(s"GET /orgs/$organization/users/$realUsername result size: ${list.size}")
-            
-            val users: Map[String, org.openhorizon.exchangeapi.table.user.User] =
-              list.map(e => e.username -> UserTable(if (identity.isSuperUser || identity.isHubAdmin) e.hashedPw else StrConstants.hiddenPw, e.admin, e.hubAdmin, e.email, e.lastUpdated, e.updatedBy)).toMap
-            val code: StatusCode =
-              if (users.nonEmpty)
-                StatusCodes.OK
-              else
-                StatusCodes.NotFound
-            (code, GetUsersResponse(users, 0))
-        })
+      db.run(query.result).flatMap { list =>
+        if (list.nonEmpty) {
+        val userRow = list.head
+
+        db.run(ApiKeysTQ.getByUser(userRow.username).result).map { keys =>
+        val keyMetadata = keys.map(row =>
+          ApiKeyMetadata(
+          id = row.id,
+          description = row.description,
+          user = null, 
+          createdAt = row.createdAt,
+          createdBy = row.createdBy,
+          modifiedAt = row.modifiedAt,
+          modifiedBy = row.modifiedBy ))
+
+        val user = org.openhorizon.exchangeapi.table.user.User(
+        password = if (identity.isSuperUser || identity.isHubAdmin) userRow.hashedPw else StrConstants.hiddenPw,
+        admin = userRow.admin,
+        hubAdmin = userRow.hubAdmin,
+        email = userRow.email,
+        lastUpdated = userRow.lastUpdated,
+        updatedBy = userRow.updatedBy,
+        apikeys = Some(keyMetadata)
+      )
+
+      val usersMap = Map(userRow.username -> user)
+      (StatusCodes.OK, GetUsersResponse(usersMap, 0))
+    }
+  } else {
+      Future.successful((StatusCodes.NotFound, GetUsersResponse(Map.empty, 0)))
+  }
+}
       })
     }
   

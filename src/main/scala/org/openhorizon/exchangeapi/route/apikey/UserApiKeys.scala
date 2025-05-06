@@ -23,6 +23,7 @@ import org.openhorizon.exchangeapi.utility.HttpCode
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import scala.concurrent.Future
 import scala.util.{Success, Failure}
+import java.sql.Timestamp
 
 import java.net.URLEncoder
 @Path("/v1/orgs/{organization}/users/{username}/apikeys")
@@ -33,56 +34,7 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
   def system: ActorSystem
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
-
-  // === GET /v1/orgs/{organization}/users/{username}/apikeys ===
-  @GET
-  @Operation(
-  summary = "Get all API keys for a user",
-  description = "Returns all API keys owned by the user. Must be called by the user themselves or an organization admin.",
-  parameters = Array(
-    new Parameter(name = "organization", in = ParameterIn.PATH, required = true, description = "Organization ID"),
-    new Parameter(name = "username", in = ParameterIn.PATH, required = true, description = "Username")
-  ),
-  responses = Array(
-    new responses.ApiResponse(
-      responseCode = "200",
-      description = "response body",
-      content = Array(new Content(
-        mediaType = "application/json",
-        schema = new Schema(implementation = classOf[GetUserApiKeysResponse]),
-        examples = Array(
-          new ExampleObject(
-            value = """{
-              "apikeys": [
-                {
-                  "id": "uuid",
-                  "description": "string",
-                  "user": "string"
-                }
-              ]
-            }"""
-          )
-        )
-      ))
-    ),
-    new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
-    new responses.ApiResponse(responseCode = "403", description = "access denied"),
-    new responses.ApiResponse(responseCode = "404", description = "not found")
-  )
-)
-  def getUserApiKeys(@Parameter(hidden = true) identity: Identity,
-                     @Parameter(hidden = true) organization: String,
-                     @Parameter(hidden = true) username: String): Route = complete {
-  val fullId = s"$organization/$username"
-  db.run(ApiKeysTQ.getByUser(fullId).result).map { rows =>
-  val keys = rows.map(new ApiKeyMetadata(_))
-  if (keys.nonEmpty)
-    (HttpCode.OK, GetUserApiKeysResponse(keys))
-  else
-    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("apikey.not.found")))
-  }
-}
-
+ 
   // === POST /v1/orgs/{organization}/users/{username}/apikeys ===
 @POST
 @Operation(
@@ -114,7 +66,11 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
             "id": "uuid",
             "description": "string",
             "user": "string",
-            "value": "string"
+            "value": "string",
+            "created_at": "timestamp",
+            "created_by": "string",
+            "modified_at": "timestamp",
+            "modified_by": "string"
           }""")
         )
       ))),
@@ -133,7 +89,17 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
       val encodedValue = URLEncoder.encode(sha256Token, "UTF-8")
       val bcryptForDb = ApiKeyUtils.bcryptHash(sha256Token)
       val keyId = ApiKeyUtils.generateApiKeyId()
-      val row = ApiKeyRow(organization, keyId, fullId, body.description, bcryptForDb)
+      val now = ApiTime.nowUTC
+      val row = ApiKeyRow(
+          orgid = organization,
+          id = keyId,
+          username = fullId,
+          description = body.description,
+          hashedKey = bcryptForDb,
+          createdAt = now,
+          createdBy = fullId,
+          modifiedAt = now,
+          modifiedBy = fullId)
 
       complete {
         db.run((for {
@@ -141,7 +107,16 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
        _ <- ResourceChangesTQ += ResourceChange(0L, organization, keyId, ResChangeCategory.APIKEY, public = false, ResChangeResource.APIKEY, ResChangeOperation.CREATED).toResourceChangeRow
        } yield ()).transactionally.asTry).map {
           case Success(_) =>
-            (HttpCode.POST_OK, PostApiKeyResponse(keyId, body.description, username, encodedValue))
+      val response = PostApiKeyResponse(
+          id = keyId,
+          description = body.description,
+          user = username,
+          value = encodedValue,
+          created_at = now,
+          created_by = fullId,
+          modified_at = now,
+          modified_by = fullId)
+           (HttpCode.POST_OK, response)
           case Failure(_) =>
             (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("apikey.creation.failed")))
         }
@@ -211,7 +186,12 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
             value = """{
               "id": "uuid",
               "description": "string",
-              "user": "string"
+              "user": "string",
+              "created_at": "timestamp",
+              "created_by": "string",
+              "modified_at": "timestamp",
+              "modified_by": "string"
+
             }"""
           )
         )
@@ -238,12 +218,7 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
         exchAuth(TUser(s"$organization/$username"), Access.WRITE) { identity =>
             postUserApiKey(identity, organization, username)
         }
-      } ~
-      get {
-        exchAuth(TUser(s"$organization/$username"), Access.READ) { identity =>
-            getUserApiKeys(identity, organization, username)
-        }
-      }
+      } 
     } ~
     path(Segment) { keyid =>
       get {

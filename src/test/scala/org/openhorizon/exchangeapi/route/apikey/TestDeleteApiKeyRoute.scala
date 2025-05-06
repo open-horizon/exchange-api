@@ -7,6 +7,7 @@ import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiUtils, Configuration, DatabaseConnection, ExchMsg}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
+import org.openhorizon.exchangeapi.route.user.GetUsersResponse
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -19,7 +20,7 @@ import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 import scala.concurrent.ExecutionContext.Implicits.global
-import _root_.org.openhorizon.exchangeapi.utility.HttpCode
+import _root_.org.openhorizon.exchangeapi.utility.{HttpCode,ApiTime}
 class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
@@ -92,28 +93,44 @@ class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
       id = "key1",
       username = "testDeleteApiKeyRouteOrg0/admin0",
       description = "Test API Key 1",
-      hashedKey = "hash1"
+      hashedKey = "hash1",
+      createdAt = ApiTime.nowUTC,
+      createdBy = "system",
+      modifiedAt = ApiTime.nowUTC,
+      modifiedBy = "system"
     ),
     ApiKeyRow(
       orgid = "testDeleteApiKeyRouteOrg0",
       id = "key2",
       username = "testDeleteApiKeyRouteOrg0/user0",
       description = "Test API Key 2",
-      hashedKey = "hash2"
+      hashedKey = "hash2",
+      createdAt = ApiTime.nowUTC,
+      createdBy = "system",
+      modifiedAt = ApiTime.nowUTC,
+     modifiedBy = "system"
     ),
       ApiKeyRow(
       orgid = "testDeleteApiKeyRouteOrg0",
       id = "key3",
       username = "testDeleteApiKeyRouteOrg0/user0",
       description = "Test API Key 2",
-      hashedKey = "hash3"
+      hashedKey = "hash3",
+      createdAt = ApiTime.nowUTC,
+      createdBy = "system",
+      modifiedAt =ApiTime.nowUTC,
+      modifiedBy = "system"
     ),
     ApiKeyRow(
       orgid = "testDeleteApiKeyRouteOrg1",
       id = "key4",
       username = "testDeleteApiKeyRouteOrg1/user1",
       description = "Test API Key 3",
-      hashedKey = "hash4"
+      hashedKey = "hash4",
+      createdAt = ApiTime.nowUTC,
+      createdBy = "system",
+      modifiedAt = ApiTime.nowUTC,
+      modifiedBy = "system"
     ),
   )
 
@@ -157,12 +174,13 @@ test("DELETE /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username.spl
   assert(response.code === HttpCode.DELETED.intValue)
 
   val checkResponse = Http(
-    URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username.split("/")(1) + ROUTE.dropRight(1)
+    URL + TESTORGS(0).orgId + "/users/" +
+      TESTUSERS(1).username.split("/")(1) + ROUTE + TESTAPIKEYS(1).id
   ).headers(ACCEPT).headers(USERAUTH).asString
 
-  assert(checkResponse.code === HttpCode.OK.intValue)
-  val responseBody = JsonMethods.parse(checkResponse.body).extract[GetUserApiKeysResponse]
-  assert(!responseBody.apikeys.exists(_.id === TESTAPIKEYS(1).id))
+  info("Check Code: " + checkResponse.code)
+  info("Check Body: " + checkResponse.body)
+  assert(checkResponse.code === HttpCode.NOT_FOUND.intValue)
 }
 
 test("DELETE /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username.split("/")(1) + ROUTE + TESTAPIKEYS(2).id + " -- org admin deletes apikey of the user in this org") {
@@ -175,12 +193,12 @@ test("DELETE /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username.spl
   assert(response.code === HttpCode.DELETED.intValue)
 
   val checkResponse = Http(
-    URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username.split("/")(1) + ROUTE.dropRight(1)
+    URL + TESTORGS(0).orgId + "/users/" +
+      TESTUSERS(1).username.split("/")(1) + ROUTE + TESTAPIKEYS(2).id
   ).headers(ACCEPT).headers(ORGADMINAUTH).asString
-
+  info("Check Code: " + checkResponse.code)
+  info("Check Body: " + checkResponse.body)
   assert(checkResponse.code === HttpCode.NOT_FOUND.intValue)
-  val responseBody = JsonMethods.parse(checkResponse.body).extract[GetUserApiKeysResponse]
-  assert(!responseBody.apikeys.exists(_.id === TESTAPIKEYS(2).id))
 }
 
 test("DELETE /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username.split("/")(1) + ROUTE + "nonexistentkey -- should return 404") {

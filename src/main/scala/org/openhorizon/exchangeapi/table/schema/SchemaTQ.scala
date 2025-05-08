@@ -19,6 +19,7 @@ import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuthsTQ
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyTQ
+import org.openhorizon.exchangeapi.table.apikey.ApiKeysTQ
 import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServicesTQ}
 import org.openhorizon.exchangeapi.table.agent.AgentVersionsChangedTQ
 import org.openhorizon.exchangeapi.utility.ApiTime
@@ -227,12 +228,14 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
         DBIO.seq(SearchServiceTQ.schema.create)
       case 55 => // v2.116.0
         DBIO.seq(sqlu"ALTER TABLE public.nodes ADD is_namespace_scoped bool NOT NULL DEFAULT false;")
+      case 56 => // v2.117.0
+      DBIO.seq(ApiKeysTQ.schema.create)
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }
   }
 
-  val latestSchemaVersion: Int = 55    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 56    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

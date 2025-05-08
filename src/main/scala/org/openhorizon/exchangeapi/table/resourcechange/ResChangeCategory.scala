@@ -10,4 +10,5 @@ object ResChangeCategory extends Enumeration {
   val POLICY: ResChangeCategory.Value = Value("policy")
   val SERVICE: ResChangeCategory.Value = Value("service")
   val NODEGROUP: ResChangeCategory.Value = Value("ha_group")
+  val APIKEY: ResChangeCategory.Value = Value("apikey")
 }

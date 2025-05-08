@@ -34,6 +34,7 @@ import org.json4s._
 import org.openhorizon.exchangeapi.SwaggerDocService.complete
 import org.openhorizon.exchangeapi.auth.{AuthCache, AuthenticationSupport, InvalidCredentialsException, Password, Token}
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
+import org.openhorizon.exchangeapi.route.apikey.{UserApiKeys}
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
 import org.openhorizon.exchangeapi.route.catalog.{OrganizationDeploymentPatterns, OrganizationServices}
 import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
@@ -99,6 +100,7 @@ object ExchangeApiApp extends App
   with ChangePassword
   with Changes
   with Cleanup
+  with UserApiKeys
   with ClearAuthCache
   with org.openhorizon.exchangeapi.route.agreement.Confirm
   with org.openhorizon.exchangeapi.route.user.Confirm
@@ -335,6 +337,7 @@ object ExchangeApiApp extends App
                         agreementNode ~
                         agreements ~
                         agreementsNode ~
+                        userApiKeys ~
                         changePassword ~
                         changes ~
                         cleanup ~

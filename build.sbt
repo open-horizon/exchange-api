@@ -143,6 +143,6 @@ lazy val root = (project in file("."))
                                     Cmd("USER", "1001:1001"),
                                     Cmd("ENTRYPOINT", "[\"/opt/docker/bin/" ++ name.value ++ "\"]"),
                                     Cmd("CMD", "[]"),
-                                    Cmd("HEALTHCHECK", "--interval=30s", "--timeout=5s", "--start-period=30s", "--retries=3", "CMD", "grep", "-q", "java", "/proc/1/comm", "||", "exit", "1")
+                                    Cmd("HEALTHCHECK", "--interval=30s", "--timeout=5s", "--start-period=30s", "--retries=3","CMD", "curl", "-f", "http://localhost:8080/v1/admin/version", "||", "exit", "1")
                                   )
   )

@@ -1,9 +1,19 @@
 package org.openhorizon.exchangeapi.auth
 
-import org.apache.pekko.event.LoggingAdapter
 import com.google.common.cache
 import com.google.common.cache.CacheBuilder
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.caching.{LfuCache, scaladsl}
+import org.apache.pekko.http.caching.scaladsl.CachingSettings
+import slick.dbio.Effect
+import slick.sql.FixedSqlStreamingAction
+
+import scala.util.matching.Regex
+//import org.apache.pekko.http.caching.{LfuCache, scaladsl}
+//import org.apache.pekko.http.caching.scaladsl.CachingSettings
+//import org.apache.pekko.http.scaladsl.server.directives.CachingDirectives.cache
 import org.openhorizon.exchangeapi.ExchangeApi
+import org.openhorizon.exchangeapi.ExchangeApiApp.{complete, system}
 import org.openhorizon.exchangeapi.auth.CacheIdType.CacheIdType
 import org.openhorizon.exchangeapi.auth.cloud.IbmCloudAuth
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
@@ -13,15 +23,18 @@ import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{Configuration, ExchMsg}
+import org.openhorizon.exchangeapi.utility.{Configuration, DatabaseConnection, ExchMsg}
 import scalacache._
 import scalacache.guava.GuavaCache
 import scalacache.modes.try_._
+import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration._
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.concurrent.ExecutionContext.Implicits.global
 import scala.util.{Failure, Success, Try}
 
 /** In-memory cache of the user/pw, node id/token, and agbot id/token, where the pw and tokens are not hashed to speed up validation */
@@ -91,7 +104,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
         for {
           nodeValOpt <- getId(creds, NodesTQ.getToken(creds.id).result, CacheIdType.Node, None)
           agbotValOpt <- getId(creds, AgbotsTQ.getToken(creds.id).result, CacheIdType.Agbot, nodeValOpt)
-          cacheValOpt <- getId(creds, UsersTQ.getPassword(creds.id).result, CacheIdType.User, agbotValOpt, last = true)
+          cacheValOpt <- getId(creds, AgbotsTQ.getToken(creds.id).result, CacheIdType.Agbot, nodeValOpt)  //getId(creds, UsersTQ.getPassword(creds.id).result, CacheIdType.User, agbotValOpt, last = true)
         } yield cacheValOpt.get
       }
     }
@@ -231,11 +244,11 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
   } // end of class CacheBoolean
 
   class CacheAdmin() extends CacheBoolean("admin", Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
-    def getDbAction(id: String): DBIO[Seq[Boolean]] = UsersTQ.getAdmin(id).result
+    def getDbAction(id: String): DBIO[Seq[Boolean]] = UsersTQ.map(_.isOrgAdmin).result
   }
 
   class CacheHubAdmin() extends CacheBoolean("hubadmin", Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
-    def getDbAction(id: String): DBIO[Seq[Boolean]] = UsersTQ.getHubAdmin(id).result
+    def getDbAction(id: String): DBIO[Seq[Boolean]] = UsersTQ.map(_.isHubAdmin).result
   }
 
   class CachePublicService() extends CacheBoolean("public", Configuration.getConfig.getInt("api.cache.resourcesMaxSize")) {
@@ -297,8 +310,11 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
           val owner: String = respVector.head
           logger.debug("CacheOwner:getId(): " + id + " found in the db, adding it with value " + owner + " to the cache")
           Success(owner)
-        } else Failure(new IdNotFoundForAuthorizationException)
-      } catch {
+        }
+        else
+          Failure(new IdNotFoundForAuthorizationException)
+      }
+      catch {
         // Handle db problems
         case timeout: java.util.concurrent.TimeoutException =>
           logger.error("db timed out getting owner for '" + id + "' . " + timeout.getMessage)
@@ -311,8 +327,11 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
 
     def getOne(id: String): Option[String] = {
       val cacheValue: Try[String] = getCacheValue(id)
-      if (cacheValue.isSuccess) Some(cacheValue.get)
-      else None
+      
+      if (cacheValue.isSuccess)
+        Some(cacheValue.get)
+      else
+        None
     }
 
     def putOne(id: String, owner: String): Unit = { if (owner != "") put(id)(owner) } // we need this for the test suites, but in production it will only help in this 1 exchange instance

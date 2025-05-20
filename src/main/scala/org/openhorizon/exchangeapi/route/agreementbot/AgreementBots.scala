@@ -10,11 +10,14 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, OrgAndId, TAgbot}
-import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotsTQ}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotRow, AgbotsTQ}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
+import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/agbots")
 trait AgreementBots extends JacksonSupport with AuthenticationSupport {
@@ -58,58 +61,66 @@ trait AgreementBots extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied"),
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
-  def getAgreementBots(@Parameter(hidden = true) identity: Identity,
+  def getAgreementBots(@Parameter(hidden = true) identity: Identity2,
                        @Parameter(hidden = true) organization: String): Route = {
     parameter("idfilter".?, "name".?, "owner".?) {
       (idfilter, name, owner) =>
-        logger.debug(s"Doing GET /orgs/$organization/agbots")
+        logger.debug(s"GET /orgs/$organization/agbots - By ${identity.resource}:${identity.role}")
+        
+        val getAgbots =
+          for {
+            agbots <-
+              AgbotsTQ.filter(_.orgid === organization)
+                      .filterOpt(idfilter)((agbot, id) =>
+                        if (id.contains("%"))
+                          agbot.id like id
+                        else
+                          agbot.id === id)
+                      .filterOpt(name)((agbot, name) =>
+                        if (name.contains("%"))
+                          agbot.name like name
+                        else
+                          agbot.name === name)
+                      .join(UsersTQ.map(user => (user.organization, user.user, user.username)))
+                      .on(_.owner === _._2)
+                      .filterOpt(owner)((agbot, owner) =>
+                        if (name.contains("%"))
+                          (agbot._2._1 ++ "/" ++ agbot._2._3) like owner
+                        else
+                          (agbot._2._1 ++ "/" ++ agbot._2._3) === owner)
+                      .sortBy(agbot => (agbot._1.orgid.asc, agbot._1.id.asc))
+                      .map(agbot =>
+                            (agbot._1.id,
+                             agbot._1.lastHeartbeat,
+                             agbot._1.msgEndPoint,
+                             agbot._1.name,
+                             agbot._1.orgid,
+                             (agbot._2._1 ++ "/" ++ agbot._2._3),
+                             agbot._1.publicKey,
+                             "***************"))
+          } yield agbots.mapTo[Agbot]
+        
         complete({
-          logger.debug(s"GET /orgs/$organization/agbots identity: ${identity.creds.id}") // can't display the whole ident object, because that contains the pw/token
-          var q = AgbotsTQ.getAllAgbots(organization)
-          idfilter.foreach(
-            id => {
-              if (id.contains("%"))
-                q = q.filter(_.id like id)
-              else
-                q = q.filter(_.id === id)
-            })
-          name.foreach(
-            name => {
-              if (name.contains("%"))
-                q = q.filter(_.name like name)
-              else
-                q = q.filter(_.name === name)
-            })
-          owner.foreach(
-            owner => {
-              if (owner.contains("%"))
-                q = q.filter(_.owner like owner)
-              else
-                q = q.filter(_.owner === owner)
-            })
-          db.run(q.result)
-            .map({
-              list =>
-                logger.debug(s"GET /orgs/$organization/agbots result size: ${list.size}")
-                val agbots: Map[String, Agbot] = list.map(e => e.id -> e.toAgbot(identity.isSuperUser)).toMap
-                val code: StatusCode =
-                  if (agbots.nonEmpty)
-                    StatusCodes.OK
-                  else
-                    StatusCodes.NotFound
-                (code, GetAgbotsResponse(agbots, 0))
+          db.run(Compiled(getAgbots).result.transactionally.asTry).map({
+            case Success(agbots) =>
+                logger.debug(s"GET /orgs/$organization/agbots result size: ${agbots.size}")
+                val agbotMap: Map[String, Agbot] = agbots.map(agbot => agbot.id -> agbot).toMap
+              
+              ((if (agbotMap.isEmpty) StatusCodes.NotFound else StatusCodes.OK), GetAgbotsResponse(agbotMap, 0))
+            case Failure(t) =>
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unknown.error.invalid.creds")))
             })
         })
     }
   }
   
   
-  val agreementBots: Route =
+  def agreementBots(identity: Identity2): Route =
     path("orgs" / Segment / "agbots") {
       organization =>
         get {
-          exchAuth(TAgbot(OrgAndId(organization, "*").toString), Access.READ) {
-            identity =>
+          exchAuth(TAgbot(OrgAndId(organization, "*").toString), Access.READ, validIdentity = identity) {
+            _ =>
               getAgreementBots(identity, organization)
           }
         }

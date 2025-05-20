@@ -11,7 +11,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TService}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TService}
 import org.openhorizon.exchangeapi.route.service.PostPutServiceDockAuthRequest
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
@@ -41,10 +41,12 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteDockerAuths(@Parameter(hidden = true) organization: String,
+  def deleteDockerAuths(@Parameter(hidden = true) identity: Identity2,
+                        @Parameter(hidden = true) organization: String,
                         @Parameter(hidden = true) resource: String,
                         @Parameter(hidden = true) service: String): Route =
     delete {
+      logger.debug(s"DELETE /orgs/${organization}/services/${service}/dockauths - By ${identity.resource}:${identity.role}")
       complete({
         var storedPublicField = false
         db.run(ServicesTQ.getPublic(resource).result.asTry.flatMap({
@@ -114,9 +116,11 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getDockerAuths(@Parameter(hidden = true) organization: String,
+  def getDockerAuths(@Parameter(hidden = true) identity: Identity2,
+                     @Parameter(hidden = true) organization: String,
                      @Parameter(hidden = true) resource: String,
-                     @Parameter(hidden = true) service: String): Route =
+                     @Parameter(hidden = true) service: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/services/${service}/dockauths - By ${identity.resource}:${identity.role}")
     complete({
       db.run(ServiceDockAuthsTQ.getDockAuths(resource).result).map({
         list =>
@@ -131,6 +135,7 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
           (code, list.sortWith(_.dockAuthId < _.dockAuthId).map(_.toServiceDockAuth))
       })
     })
+  }
   
   // =========== POST /orgs/{organization}/services/{service}/dockauths ===============================
   @POST
@@ -189,12 +194,14 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postDockerAuths(@Parameter(hidden = true) organization: String,
+  def postDockerAuths(@Parameter(hidden = true) identity: Identity2,
+                      @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) resource: String,
                       @Parameter(hidden = true) service: String): Route =
     post {
       entity(as[PostPutServiceDockAuthRequest]) {
         reqBody =>
+          logger.debug(s"POST /orgs/${organization}/services/${service}/dockauths - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem(None)) {
             complete({
               val dockAuthId = 0 // the db will choose a new id on insert
@@ -242,22 +249,22 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val dockerAuths: Route =
+  def dockerAuths(identity: Identity2): Route =
     path("orgs" / Segment / "services" / Segment / "dockauths") {
       (organization, service) =>
         val resource: String = OrgAndId(organization, service).toString
         
         (delete | post) {
-          exchAuth(TService(resource), Access.WRITE) {
+          exchAuth(TService(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteDockerAuths(organization, resource, service) ~
-              postDockerAuths(organization, resource, service)
+              deleteDockerAuths(identity, organization, resource, service) ~
+              postDockerAuths(identity, organization, resource, service)
           }
         } ~
         get {
-          exchAuth(TService(resource),Access.READ) {
+          exchAuth(TService(resource),Access.READ, validIdentity = identity) {
             _ =>
-              getDockerAuths(organization, resource, service)
+              getDockerAuths(identity, organization, resource, service)
           }
         }
     }

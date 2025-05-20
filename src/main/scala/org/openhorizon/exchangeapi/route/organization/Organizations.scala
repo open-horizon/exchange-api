@@ -17,7 +17,7 @@ import org.json4s._
 import org.json4s.jackson.Serialization.write
 import org.openhorizon.exchangeapi
 import org.openhorizon.exchangeapi.auth.cloud.{IamAccountInfo, IbmCloudAuth}
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IAgbot, INode, IUser, Identity, OrgAndId, TAction, TAgbot, TNode, TOrg}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IAgbot, INode, IUser, Identity, Identity2, OrgAndId, TAction, TAgbot, TNode, TOrg}
 import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmRequest
 import org.openhorizon.exchangeapi.route.node.{PostNodeErrorResponse, PostServiceSearchRequest, PostServiceSearchResponse}
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
@@ -141,15 +141,15 @@ trait Organizations extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getOrganizations(@Parameter(hidden = true) ident: Identity,
+  def getOrganizations(@Parameter(hidden = true) identity: Identity2,
                        @Parameter(hidden = true) label: Option[String],
                        @Parameter(hidden = true) orgType: Option[String]): Route =
     {
-      logger.debug(s"Doing GET /orgs with orgType:$orgType, label:$label")
+      logger.debug(s"GET /orgs?label=${label.getOrElse("None")},orgtype=${orgType.getOrElse("None")} - By ${identity.resource}:${identity.role}")
       
       validate(orgType.isEmpty || orgType.get == "IBM", ExchMsg.translate("org.get.orgtype")) {
         complete({ // this is an anonymous function that returns Future[(StatusCode, GetOrgsResponse)]
-          logger.debug(s"GET /orgs identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
+          logger.debug(s"GET /orgs identity: ${identity.resource}") // can't display the whole ident object, because that contains the pw/token
           var q = OrgsTQ.subquery
           // If multiple filters are specified they are ANDed together by adding the next filter to the previous filter by using q.filter
           orgType match {
@@ -171,7 +171,7 @@ trait Organizations extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val organizations: Route =
+  def organizations(identity: Identity2): Route =
     path("orgs") {
       get {
         parameter("orgtype".?, "label".?) {
@@ -179,8 +179,8 @@ trait Organizations extends JacksonSupport with AuthenticationSupport {
             // If filter is orgType=IBM then it is a different access required than reading all orgs
             val access: Access.Value = if (orgType.getOrElse("").contains("IBM")) Access.READ_IBM_ORGS else Access.READ_OTHER_ORGS
             
-            exchAuth(TOrg("*"), access) {
-              identity =>
+            exchAuth(TOrg("*"), access, validIdentity = identity) {
+              _ =>
                 getOrganizations(identity, label, orgType)
             }
         }

@@ -30,6 +30,8 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
   private val ROUTE = "/users/"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORG1ADMINPASSWORD = "org1adminpassword"
@@ -61,60 +63,44 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
       )
     )
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestPutUserRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestPutUserRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgAdmin",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1ADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "orgAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow( //main user to be updated
-        username    = TESTORGS(0).orgId + "/orgUser",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org1User@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/orgUser",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = "",
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org2User@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgUser2",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org1User2@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      )
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestPutUserRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1ADMINPASSWORD)),
+                username     = "orgAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                username     = "orgUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = None,
+                username     = "orgUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                username     = "orgUser2"))
+  }
+  
   private val TESTAGBOTS: Seq[AgbotRow] =
     Seq(
       AgbotRow(
@@ -122,7 +108,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         orgid = TESTORGS(0).orgId,
         token = Password.hash(AGBOTTOKEN),
         name = "",
-        owner = TESTUSERS(2).username, //org 1 user
+        owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey = ""
@@ -141,7 +127,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(2).username, //org 1 user
+        owner              = TESTUSERS(2).user, //org 1 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -151,53 +137,55 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
       )
     )
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1ADMINPASSWORD))
-  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG1USERPASSWORD))
-  private val AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
-  private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
+  private val ROOTAUTH      = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
+  private val HUBADMINAUTH  = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORG1ADMINPASSWORD))
+  private val ORG1USERAUTH  = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ORG1USERPASSWORD))
+  private val AGBOTAUTH     = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
+  private val NODEAUTH      = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run(
-      (OrgsTQ ++= TESTORGS) andThen
-        (UsersTQ ++= TESTUSERS) andThen
-        (AgbotsTQ ++= TESTAGBOTS) andThen
-        (NodesTQ ++= TESTNODES)
+      ((OrgsTQ ++= TESTORGS) andThen
+       (UsersTQ ++= TESTUSERS) andThen
+       (AgbotsTQ ++= TESTAGBOTS) andThen
+       (NodesTQ ++= TESTNODES)).transactionally
     ), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(
-      ResourceChangesTQ.filter(_.orgId startsWith "testPutUserRoute").delete andThen
-        OrgsTQ.filter(_.orgid startsWith "testPutUserRoute").delete andThen
-        UsersTQ.filter(_.username startsWith "root/TestPutUserRouteHubAdmin").delete
+      (ResourceChangesTQ.filter(_.orgId startsWith "testPutUserRoute").delete andThen
+       OrgsTQ.filter(_.orgid startsWith "testPutUserRoute").delete andThen
+       UsersTQ.filter(_.organization === "root")
+              .filter(_.username startsWith "TestPutUserRouteHubAdmin").delete.transactionally)
     ), AWAITDURATION)
   }
 
   override def afterEach(): Unit = {
     Await.ready(DBCONNECTION.run(
-      TESTUSERS(2).updateUser()
+      UsersTQ.filter(_.user === TESTUSERS(2).user)
+             .update(TESTUSERS(2))
+             .transactionally
     ), AWAITDURATION)
   }
 
   def assertUsersEqual(user1: PostPutUsersRequest, user2: UserRow): Unit = {
-    assert(BCrypt.checkpw(user1.password, user2.hashedPw))
-    assert(user1.email === user2.email)
-    assert(user1.admin === user2.admin)
-    assert(user1.hubAdmin.getOrElse(false) === user2.hubAdmin)
+    assert(BCrypt.checkpw(user1.password, user2.password.getOrElse("")))
+    assert(Option(user1.email) === user2.email)
+    assert(user1.admin === user2.isOrgAdmin)
+    assert(user1.hubAdmin.getOrElse(false) === user2.isHubAdmin)
   }
 
   def assertNoChanges(user: UserRow): Unit = {
-    val dbUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === user.username).result), AWAITDURATION).head
+    val dbUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === user.user).result), AWAITDURATION).head
     assert(dbUser.username === user.username)
-    assert(dbUser.orgid === user.orgid)
-    assert(dbUser.hashedPw === user.hashedPw)
-    assert(dbUser.admin === user.admin)
-    assert(dbUser.hubAdmin === user.hubAdmin)
+    assert(dbUser.organization === user.organization)
+    assert(dbUser.password === user.password)
+    assert(dbUser.isOrgAdmin === user.isOrgAdmin)
+    assert(dbUser.isHubAdmin === user.isHubAdmin)
     assert(dbUser.email === user.email)
-    assert(dbUser.lastUpdated === user.lastUpdated)
-    assert(dbUser.updatedBy === user.updatedBy)
+    assert(dbUser.modified_by === user.modified_by)
   }
 
   private val normalRequestBody: PostPutUsersRequest = PostPutUsersRequest(
@@ -207,7 +195,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     email = "newEmail@ibm.com"
   )
 
-  private val normalUsernameToUpdate = TESTUSERS(2).username.split("/")(1)
+  private val normalUsernameToUpdate = TESTUSERS(2).username
 
   test("PUT /orgs/doesNotExist" + ROUTE + normalUsernameToUpdate + " -- 404 not found") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE + normalUsernameToUpdate).put(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
@@ -216,11 +204,11 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + "doesNotExist -- 404 not found") {
+  test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + "doesNotExist -- 201 ok") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "doesNotExist").put(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
   test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + normalUsernameToUpdate + " -- empty body -- 400 bad input") {
@@ -285,14 +273,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + normalUsernameToUpdate).put(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
-    assert(newUser.username === TESTUSERS(2).username)
-    assert(newUser.orgid === TESTORGS(0).orgId)
-    assert(newUser.updatedBy === "root/root") //updated by root
-    assert(newUser.lastUpdated > TESTUSERS(2).lastUpdated)
-    assertUsersEqual(requestBody, newUser)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
   test("PUT /orgs/" + TESTORGS(0).orgId + ROUTE + normalUsernameToUpdate + " -- user tries to make self admin -- 400 bad input") {
@@ -375,7 +356,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("Body: " + response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
     val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === "User cannot be admin and hubAdmin at the same time")
+    assert(responseBody.msg === "a user without admin privilege can not give admin privilege")
     assertNoChanges(TESTUSERS(0))
   }
 
@@ -391,11 +372,11 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(2).user).result), AWAITDURATION).head
     assert(newUser.username === TESTUSERS(2).username)
-    assert(newUser.orgid === TESTORGS(0).orgId)
-    assert(newUser.updatedBy === TESTUSERS(1).username) //updated by org admin
-    assert(newUser.lastUpdated > TESTUSERS(2).lastUpdated)
+    assert(newUser.organization === TESTORGS(0).orgId)
+    assert(newUser.modified_by === Option(TESTUSERS(1).user)) //updated by org admin
+    assert(newUser.modifiedAt.after(TESTUSERS(2).modifiedAt))
     assertUsersEqual(requestBody, newUser)
   }
 
@@ -413,11 +394,11 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head
+    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(2).user).result), AWAITDURATION).head
     assert(newUser.username === TESTUSERS(2).username)
-    assert(newUser.orgid === TESTORGS(0).orgId)
-    assert(newUser.updatedBy === TESTUSERS(2).username) //updated by self
-    assert(newUser.lastUpdated > TESTUSERS(2).lastUpdated)
+    assert(newUser.organization === TESTORGS(0).orgId)
+    assert(newUser.modified_by === Option(TESTUSERS(2).user)) //updated by self
+    assert(newUser.modifiedAt.after(TESTUSERS(2).modifiedAt))
     assertUsersEqual(normalRequestBody, newUser)
   }
 

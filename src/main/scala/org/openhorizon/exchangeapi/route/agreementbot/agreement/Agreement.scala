@@ -1,22 +1,22 @@
-package org.openhorizon.exchangeapi.route.agreementbot
+package org.openhorizon.exchangeapi.route.agreementbot.agreement
 
-import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.event.LoggingAdapter
-import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives._
-import org.apache.pekko.http.scaladsl.server.{PathMatchers, Route}
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, CompositeId, DBProcessingError, OrgAndId, TAgbot}
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.Route
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotAgreementsResponse, PutAgbotAgreementRequest}
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.{AgbotAgreement, AgbotAgreementsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange
-import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
-import org.openhorizon.exchangeapi.table
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -47,9 +47,11 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
   def deleteAgreement(@Parameter(hidden = true) agreement: String,
                       @Parameter(hidden = true) agreementBot: String,
+                      @Parameter(hidden = true) identity: Identity2,
                       @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) resource: String): Route =
     delete {
+      logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot/agreements/$agreement - By ${identity.resource}:${identity.role}")
       complete({
         db.run(AgbotAgreementsTQ.getAgreement(resource, agreement)
                                 .delete.asTry
@@ -115,8 +117,10 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
   def getAgreement(@Parameter(hidden = true) agreement: String,
                    @Parameter(hidden = true) agreementBot: String,
+                   @Parameter(hidden = true) identity: Identity2,
                    @Parameter(hidden = true) organization: String,
-                   @Parameter(hidden = true) resource: String): Route =
+                   @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/agreements/$agreement - By ${identity.resource}:${identity.role}")
     complete({
       db.run(AgbotAgreementsTQ.getAgreement(resource, agreement).result)
         .map({
@@ -131,6 +135,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
             (code, GetAgbotAgreementsResponse(agreements, 0))
         })
     })
+  }
   
   
   // ========== PUT /orgs/{organization}/agbots/{agreementbot}/agreements/{agreement} =======================
@@ -178,11 +183,13 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
   def putAgreement(@Parameter(hidden = true) agreement: String,
                    @Parameter(hidden = true) agreementBot: String,
+                   @Parameter(hidden = true) identity: Identity2,
                    @Parameter(hidden = true) organization: String,
                    @Parameter(hidden = true) resource: String):Route =
     put {
       entity(as[PutAgbotAgreementRequest]) {
         reqBody =>
+          logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot/agreements/$agreement - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
               val maxAgreements: Int = Configuration.getConfig.getInt("api.limits.maxAgreements")
@@ -225,7 +232,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
     }
   
   
-  def agreement: Route =
+  def agreement(identity: Identity2): Route =
     path("orgs" / Segment / "agbots" / Segment / "agreements" / Segment) {
       (organization,
        agreementBot,
@@ -233,16 +240,16 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
         val resource: String = OrgAndId(organization, agreementBot).toString
         
         get {
-          exchAuth(TAgbot(resource), Access.READ) {
+          exchAuth(TAgbot(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getAgreement(agreement, agreementBot, organization, resource)
+              getAgreement(agreement, agreementBot, identity, organization, resource)
           }
         } ~
         (delete | put) {
-          exchAuth(TAgbot(resource), Access.WRITE) {
+          exchAuth(TAgbot(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteAgreement(agreement, agreementBot, organization, resource) ~
-              putAgreement(agreement, agreementBot, organization, resource)
+              deleteAgreement(agreement, agreementBot, identity, organization, resource) ~
+              putAgreement(agreement, agreementBot, identity, organization, resource)
           }
         }
     }

@@ -8,7 +8,7 @@ import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, TAction}
+import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, Identity2, TAction}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
@@ -39,23 +39,24 @@ trait OrganizationStatus extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                      new responses.ApiResponse(responseCode = "403", description = "access denied")),
              summary = "Returns the org-specific status of the Exchange server")
-  def getOrganizationStatus(@Parameter(hidden = true) identity: Identity): Route = { // Hides fields from being included in the swagger doc as request parameters.
-    logger.debug("Doing GET /admin/status")
+  def getOrganizationStatus(@Parameter(hidden = true) identity: Identity2): Route = { // Hides fields from being included in the swagger doc as request parameters.
+    logger.debug(s"GET /admin/status - By ${identity.resource}:${identity.role}")
     complete({
       val metrics =
         for {
           numNodesByOrg <-
-            if(!identity.isSuperUser && identity.isHubAdmin)
+            if(identity.role != AuthRoles.SuperUser &&
+              identity.role == AuthRoles.HubAdmin)
               Compiled(OrgsTQ.map(organization => (organization.orgid, -1))
                              .sortBy(_._1))
                 .result
             else {
-              Compiled(OrgsTQ.filterIf(!(identity.isSuperUser || identity.isMultiTenantAgbot))(organization => (organization.orgid === identity.getOrg || organization.orgid === "IBM"))
-                             .filterIf(identity.role.equals(AuthRoles.Node))(_.orgid === identity.identityString)
+              Compiled(OrgsTQ.filterIf(!(identity.role == AuthRoles.SuperUser || identity.isMultiTenantAgbot))(organization => (organization.orgid === identity.organization || organization.orgid === "IBM"))
+                             .filterIf(identity.isNode)(_.orgid === identity.organization)
                              .map(_.orgid)
-                             .joinLeft(NodesTQ.filterIf(!(identity.isSuperUser || identity.isMultiTenantAgbot))(node => (node.orgid === identity.getOrg || node.orgid === "IBM"))
-                                              .filterIf(!(identity.isAdmin || identity.isHubAdmin) && identity.role.equals(AuthRoles.User))(_.owner === identity.identityString)
-                                              .filterIf(identity.role.equals(AuthRoles.Node))(_.id === identity.identityString)
+                             .joinLeft(NodesTQ.filterIf(!(identity.role == AuthRoles.SuperUser || identity.isMultiTenantAgbot))(node => (node.orgid === identity.organization || node.orgid === "IBM"))
+                                              .filterIf(!(identity.role == AuthRoles.AdminUser || identity.role == AuthRoles.HubAdmin) && identity.role.equals(AuthRoles.User))(_.owner === identity.identifier.get)
+                                              .filterIf(identity.isNode)(_.id === identity.resource)
                                               .groupBy(node => node.orgid)
                                               .map{case (orgid, group) => (orgid, group.map(_.id).length)})
                              .on((organization, node) => (organization === node._1))
@@ -80,11 +81,11 @@ trait OrganizationStatus extends JacksonSupport with AuthenticationSupport {
   }
   
   
-  val organizationStatus: Route =
+  def organizationStatus(identity: Identity2): Route =
     path("admin" / "orgstatus") {
       get {
-        exchAuth(TAction(), Access.ORGSTATUS) {
-          identity =>
+        exchAuth(TAction(), Access.ORGSTATUS, validIdentity = identity) {
+          _ =>
             getOrganizationStatus(identity = identity)
         }
       }

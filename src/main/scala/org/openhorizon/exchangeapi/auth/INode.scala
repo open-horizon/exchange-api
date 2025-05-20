@@ -4,10 +4,16 @@ import org.apache.pekko.event.LoggingAdapter
 import org.openhorizon.exchangeapi.auth.Access.Access
 import org.openhorizon.exchangeapi.utility.ExchMsg
 
+import scala.util.matching.Regex
 import scala.util.{Failure, Success, Try}
 
-case class INode(creds: Creds) extends Identity {
-  override lazy val role: String = AuthRoles.Node
+case class INode(creds: Creds,
+                 identity: Identity2) extends Identity {
+  def this(identity: Identity2) =
+    this(creds = Creds(id = identity.resource),
+         identity = identity)
+  
+  override lazy val role: String = identity.role
 
   def authorizeTo(target: Target, access: Access)(implicit logger: LoggingAdapter): Try[Identity] = {
     // Transform any generic access into specific access

@@ -11,6 +11,7 @@ import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 import slick.sql.FixedSqlAction
 
+import java.util.UUID
 import scala.collection.mutable.ListBuffer
 
 // Instance to access the nodes table
@@ -47,12 +48,12 @@ object NodesTQ  extends TableQuery(new Nodes(_)){
   def getRegisteredNodesInOrg(orgid: String): Query[Nodes, NodeRow, Seq] = this.filter(node => {node.orgid === orgid && node.publicKey =!= ""})
   def getNode(id: String): Query[Nodes, NodeRow, Seq] = this.filter(_.id === id)
   def getToken(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.token)
-  def getOwner(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.owner)
+  def getOwner(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.owner.toString())
   def getRegisteredServices(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.regServices)
   def getUserInput(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.userInput)
   def getNodeType(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.nodeType)
   def getPattern(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.pattern)
-  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
+  def getNumOwned(owner: UUID): Rep[Int] = this.filter(_.owner === owner).length
   def getLastHeartbeat(id: String): Query[Rep[Option[String]], Option[String], Seq] = this.filter(_.id === id).map(_.lastHeartbeat)
   def getPublicKey(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.publicKey)
   def getArch(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.arch)

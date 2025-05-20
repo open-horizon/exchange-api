@@ -5,7 +5,7 @@ import org.{json4s, scalatest}
 import org.json4s.{DefaultFormats, convertToJsonInput}
 import org.json4s.AsJsonInput.stringAsJsonInput
 import org.json4s.jackson.JsonMethods.parse
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.{NodePolicy, NodePolicyRow, NodePolicyTQ}
@@ -42,14 +42,38 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
   // Test data.
+  private val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestNodesGetDetails",
+                password     = Option(Password.hash("u1pw")),
+                username     = "u1"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestNodesGetDetails",
+                password     = Option(Password.hash("u2pw")),
+                username     = "u2"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestNodesGetDetails2",
+                password     = None,
+                username     = "u3"))
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestNodesGetDetails/a1",
              lastHeartbeat = ApiTime.nowUTC,
              msgEndPoint   = "",
              name          = "",
              orgid         = "TestNodesGetDetails",
-             owner         = "TestNodesGetDetails/u1",
+             owner         = TESTUSERS(0).user,
              publicKey     = "",
              token         = "$2a$10$XAPxetRTktteNbKoPXdGO.vL8LKWMp0BiiVMpTCG1ZhBMUj09/iyG") // TestNodesGetDetails/a2:a1pw
   private val TESTNODES: Seq[NodeRow] =
@@ -62,7 +86,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 name = "rpin1-normal",
                 nodeType = "device",
                 orgid = "TestNodesGetDetails",
-                owner = "TestNodesGetDetails/u1",
+                owner = TESTUSERS(0).user,
                 pattern = "TestNodesGetDetails/p1",
                 publicKey = "key",
                 regServices = """[{"url":"NodesSuiteTests/horizon.sdr","numAgreements":1,"configState":"active","policy":"{json policy for n1 sdr}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"memory","value":"300","propType":"int","op":">="},{"name":"version","value":"1.0.0","propType":"version","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"dataVerification","value":"true","propType":"boolean","op":"="}]},{"url":"NodesSuiteTests/horizon.netspeed","numAgreements":1,"configState":"active","policy":"{json policy for n1 netspeed}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"version","value":"1.0.0","propType":"version","op":"in"}]}]""",
@@ -81,7 +105,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 name = "rpin2-normal-x86",
                 nodeType = "cluster",
                 orgid = "TestNodesGetDetails",
-                owner = "TestNodesGetDetails/u2",
+                owner = TESTUSERS(1).user,
                 pattern = "",
                 publicKey = "",
                 regServices = "",
@@ -99,7 +123,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 name = "",
                 nodeType = "",
                 orgid = "TestNodesGetDetails",
-                owner = "TestNodesGetDetails/u1",
+                owner = TESTUSERS(0).user,
                 pattern = "",
                 publicKey = "",
                 regServices = "",
@@ -116,7 +140,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 name = "",
                 nodeType = "",
                 orgid = "TestNodesGetDetails2",
-                owner = "TestNodesGetDetails2/u3",
+                owner = TESTUSERS(2).user,
                 pattern = "",
                 publicKey = "",
                 regServices = "",
@@ -180,31 +204,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                orgType            = "",
                tags               = None,
                limits             = ""))
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = false,
-                hubAdmin    = false,
-                email       = "",
-                hashedPw    = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i", // TestNodesGetDetails/u1:u1pw
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestNodesGetDetails",
-                updatedBy   = "",
-                username    = "TestNodesGetDetails/u1"),
-        UserRow(admin       = false,
-                hubAdmin    = false,
-                email       = "",
-                hashedPw    = "$2a$10$0EOlHl1mb2THvz3f/AnyWOV6ivUMItcQKLTzltNLmrdiLn.VCgavy",
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestNodesGetDetails",
-                updatedBy   = "",
-                username    = "TestNodesGetDetails/u2"),
-        UserRow(admin       = false,
-                hubAdmin    = false,
-                email       = "",
-                hashedPw    = "",
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestNodesGetDetails2",
-                updatedBy   = "",
-                username    = "TestNodesGetDetails2/u3"))
+  
   
   // Build test harness.
   override def beforeAll(): Unit = {

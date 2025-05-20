@@ -12,7 +12,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, POST, Path}
 import org.checkerframework.checker.units.qual.t
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.{AgbotPattern, AgbotPatternsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.resourcechange
@@ -49,8 +49,10 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
   private def deleteDeploymentPattern(@Parameter(hidden = true) agreementBot: String,
                                       @Parameter(hidden = true) deploymentPattern: String,
+                                      @Parameter(hidden = true) identity: Identity2,
                                       @Parameter(hidden = true) organization: String,
                                       @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - By ${identity.resource}:${identity.role}")
     complete({
       db.run(AgbotPatternsTQ.getPattern(resource, deploymentPattern)
                             .delete
@@ -109,8 +111,10 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
   private def getDeploymentPattern(@Parameter(hidden = true) agreementBot: String,
                                    @Parameter(hidden = true) deploymentPattern: String,
+                                   @Parameter(hidden = true) identity: Identity2,
                                    @Parameter(hidden = true) organization: String,
                                    @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - By ${identity.resource}:${identity.role}")
     complete({
       db.run(AgbotPatternsTQ.getPattern(resource, deploymentPattern).result).map({
         list =>
@@ -127,7 +131,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   }
   
   
-  val deploymentPatternAgreementBot: Route =
+  def deploymentPatternAgreementBot(identity: Identity2): Route =
     path("orgs" / Segment / "agbots" / Segment / "patterns" / Segment) {
       (organization,
        agreementBot,
@@ -135,15 +139,15 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
         val resource: String = OrgAndId(organization, agreementBot).toString
         
         get {
-          exchAuth(TAgbot(resource), Access.READ) {
+          exchAuth(TAgbot(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getDeploymentPattern(agreementBot, deploymentPattern, organization, resource)
+              getDeploymentPattern(agreementBot, deploymentPattern, identity, organization, resource)
           }
         } ~
         delete {
-          exchAuth(TAgbot(resource), Access.WRITE) {
+          exchAuth(TAgbot(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteDeploymentPattern(agreementBot, deploymentPattern, organization, resource)
+              deleteDeploymentPattern(agreementBot, deploymentPattern, identity, organization, resource)
           }
         }
     }

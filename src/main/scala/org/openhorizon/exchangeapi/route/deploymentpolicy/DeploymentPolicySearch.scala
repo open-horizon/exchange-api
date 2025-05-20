@@ -12,7 +12,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.search.SearchOffsetPolicyTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
@@ -100,10 +100,13 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
     )
   )
   @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment policy")
-  def postDeploymentPolicySearch(@Parameter(hidden = true) identity: Identity,
+  def postDeploymentPolicySearch(@Parameter(hidden = true) deploymentPolicy: String,
+                                 @Parameter(hidden = true) identity: Identity2,
                                  @Parameter(hidden = true) organization: String,
                                  @Parameter(hidden = true) resource: String,
-                                 @Parameter(hidden = true) reqBody: PostBusinessPolicySearchRequest): Route =
+                                 @Parameter(hidden = true) reqBody: PostBusinessPolicySearchRequest): Route = {
+    logger.debug(s"POST /org/${organization}/business/policies/${deploymentPolicy}/search - By ${identity.resource}:${identity.role}")
+    
     complete({
       implicit val formats: DefaultFormats.type = DefaultFormats
       val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(organization)).toSet
@@ -136,7 +139,7 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
           // Grab the offset and session that is in the DB from the last query of this agbot and policy
           // Note: the offset is a lastUpdated UTC timestamp, whereas reqBody.changedSince is Unix epoch seconds, but they have the same meaning.
           currentOffsetSession <-
-            Compiled(SearchOffsetPolicyTQ.getOffsetSession(identity.identityString, resource)).result.headOption // returns Option[(offset, session)]
+            Compiled(SearchOffsetPolicyTQ.getOffsetSession(identity.resource, resource)).result.headOption // returns Option[(offset, session)]
           
           currentOffset: Option[String] =
             if (currentOffsetSession.isDefined)
@@ -169,7 +172,7 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
             if (currentSession.isDefined &&
                 reqBody.session.isDefined &&
                 !currentSession.get.equals(reqBody.session.get))
-              DBIO.failed(PolicySearchResponseDesync(agbot = identity.identityString, offset = currentOffset, session = currentSession))
+              DBIO.failed(PolicySearchResponseDesync(agbot = identity.resource, offset = currentOffset, session = currentSession))
             else
               DBIO.successful(None)
           
@@ -274,12 +277,12 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
           
           // Clear/continue/set/update offset and session for the next call.
           _ <-
-            SearchOffsetPolicyTQ.setOffsetSession(identity.identityString, updateOffset, resource, updateSession)
+            SearchOffsetPolicyTQ.setOffsetSession(identity.resource, updateOffset, resource, updateSession)
         } yield (nodesWoAgreements, isOffsetUpdated)
       
       db.run(pagination.transactionally.asTry).map({
         case Success(results) =>
-          if(results._1.nonEmpty) { // results.nodesWoAgreements.nonEmpty.
+          /*if(results._1.nonEmpty) { // results.nodesWoAgreements.nonEmpty.
             (HttpCode.POST_OK,
               PostBusinessPolicySearchResponse(
                 results._1.map( // results.nodesWoAgreements
@@ -294,7 +297,7 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
                 results._2)) // results.isOffsetUpdated
           }
           else
-            (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2)) // results.isOffsetUpdated
+            (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2)) // results.isOffsetUpdated*/
         case Failure(t: PolicySearchResponseDesync) =>
           (HttpCode.ALREADY_EXISTS2, PolicySearchResponseDesync) // Throw Http code 409 - Conflict, return no results.
         case Failure(t: org.postgresql.util.PSQLException) =>
@@ -303,25 +306,27 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
           (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
       })
     })
+  }
   
-  def deploymentPolicySearch: Route =
+  def deploymentPolicySearch(identity: Identity2): Route =
     path("orgs" / Segment / ("business" | "deployment") / "policies" / Segment / "search") {
       (organization,
-       policy) =>
+       deploymentPolicy) =>
         post {
           entity(as[PostBusinessPolicySearchRequest]) {
             reqBody =>
-              val resource: String = OrgAndId(organization, policy).toString
+              val resource: String = OrgAndId(organization, deploymentPolicy).toString
               
-              exchAuth(TNode(OrgAndId(organization, "*").toString), Access.READ) {
-                identity =>
+              exchAuth(TNode(OrgAndId(organization, "*").toString), Access.READ, validIdentity = identity) {
+                _ =>
                   validateWithMsg(if (!((!(reqBody.changedSince < 0L)) &&
                                         (reqBody.numEntries.isEmpty ||
                                          !(reqBody.numEntries.getOrElse(-1) < 0))))
                                     Option(ExchMsg.translate("bad.input"))
                                   else
                                     None) {
-                    postDeploymentPolicySearch(identity,
+                    postDeploymentPolicySearch(deploymentPolicy,
+                                               identity,
                                                organization,
                                                resource,
                                                reqBody)

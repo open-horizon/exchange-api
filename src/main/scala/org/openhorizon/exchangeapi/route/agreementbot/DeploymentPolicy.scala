@@ -10,12 +10,12 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.{AgbotBusinessPol, AgbotBusinessPolsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
-import org.openhorizon.exchangeapi.{table}
+import org.openhorizon.exchangeapi.table
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -47,8 +47,10 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
   private def deleteDeploymentPolicy(@Parameter(hidden = true) agreementBot: String,
                                      @Parameter(hidden = true) deploymentPolicy: String,
+                                     @Parameter(hidden = true) identity: Identity2,
                                      @Parameter(hidden = true) organization: String,
                                      @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - By ${identity.resource}:${identity.role}")
     complete({
       db.run(AgbotBusinessPolsTQ.getBusinessPol(resource, deploymentPolicy)
                                 .delete
@@ -108,8 +110,10 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
   private def getDeploymentPolicy(@Parameter(hidden = true) agreementBot: String,
                                   @Parameter(hidden = true) deploymentPolicy: String,
+                                  @Parameter(hidden = true) identity: Identity2,
                                   @Parameter(hidden = true) organization: String,
                                   @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - By ${identity.resource}:${identity.role}")
     complete({
       db.run(AgbotBusinessPolsTQ.getBusinessPol(resource, deploymentPolicy).result)
         .map({
@@ -126,7 +130,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     })
   }
   
-  val deploymentPolicyAgreementBot: Route =
+  def deploymentPolicyAgreementBot(identity: Identity2): Route =
     path("orgs" / Segment / "agbots" / Segment / "businesspols" / Segment) {
       (organization,
        agreementBot,
@@ -134,15 +138,15 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
         val resource: String = OrgAndId(organization, agreementBot).toString
         
         get {
-          exchAuth(TAgbot(resource), Access.READ) {
+          exchAuth(TAgbot(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getDeploymentPolicy(agreementBot, deploymentPolicy, organization, resource)
+              getDeploymentPolicy(agreementBot, deploymentPolicy, identity, organization, resource)
           }
         } ~
         delete {
-          exchAuth(TAgbot(resource), Access.WRITE) {
+          exchAuth(TAgbot(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteDeploymentPolicy(agreementBot, deploymentPolicy, organization, resource)
+              deleteDeploymentPolicy(agreementBot, deploymentPolicy, identity, organization, resource)
           }
         }
     }

@@ -131,11 +131,11 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getDeploymentPatterns(@Parameter(hidden = true) identity: Identity,
+  def getDeploymentPatterns(@Parameter(hidden = true) identity: Identity2,
                             @Parameter(hidden = true) organization: String): Route =
     parameter("idfilter".?,
               "owner".?,
-              "public".?,
+              "public".as[Boolean].optional,
               "label".?,
               "description".?,
               "clusternamespace".?) {
@@ -145,7 +145,9 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
        label,
        description,
        clusterNamespace) =>
-        validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
+        logger.debug(s"GET /orgs/${organization}/patterns?clusterNamespace=${clusterNamespace.getOrElse("None")},description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")},public=${public.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        
+        //validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
           complete({
             //var q = PatternsTQ.subquery
             var q = PatternsTQ.getAllPatterns(organization)
@@ -154,25 +156,25 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
             description.foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
             idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.pattern like id) else q = q.filter(_.pattern === id) })
             label.foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
-            owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-            public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
+            // TODO: owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner === owner) else q = q.filter(_.owner === owner) })
+            // TODO: public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
             
             db.run(q.result).map({ list =>
               logger.debug("GET /orgs/"+organization+"/patterns result size: "+list.size)
-              val patterns: Map[String, Pattern] = list.filter(e => identity.getOrg == e.orgid || e.public || identity.isSuperUser || identity.isMultiTenantAgbot).map(e => e.pattern -> e.toPattern).toMap
+              val patterns: Map[String, Pattern] = list.filter(e => identity.organization == e.orgid || e.public || identity.isSuperUser || identity.isMultiTenantAgbot).map(e => e.pattern -> e.toPattern).toMap
               val code: StatusCode = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
               (code, GetPatternsResponse(patterns, 0))
             })
           }) // end of complete
-        }
+        //}
     }
   
-  val deploymentPatterns: Route =
+  def deploymentPatterns(identity: Identity2): Route =
     path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns")) {
       organization =>
         get {
-          exchAuth(TPattern(OrgAndId(organization, "*").toString), Access.READ) {
-            identity =>
+          exchAuth(TPattern(OrgAndId(organization, "*").toString), Access.READ, validIdentity = identity) {
+            _ =>
               getDeploymentPatterns(identity, organization)
           }
         }

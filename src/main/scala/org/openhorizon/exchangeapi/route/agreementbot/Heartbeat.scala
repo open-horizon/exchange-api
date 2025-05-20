@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{POST, Path}
 import org.checkerframework.checker.units.qual.t
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
@@ -43,9 +43,10 @@ trait Heartbeat extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot")
   def postHeartbeat(@Parameter(hidden = true) agreementBot: String,
+                    @Parameter(hidden = true) identity: Identity2,
                     @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"Doing POST /orgs/$organization/users/$agreementBot/heartbeat")
+    logger.debug(s"POST /orgs/$organization/users/$agreementBot/heartbeat - By ${identity.resource}:${identity.role}")
     complete({
       db.run(AgbotsTQ.getLastHeartbeat(resource).update(ApiTime.nowUTC).asTry)
         .map({
@@ -64,15 +65,15 @@ trait Heartbeat extends JacksonSupport with AuthenticationSupport {
     })
   }
   
-  val heartbeatAgreementBot: Route =
+  def heartbeatAgreementBot(identity: Identity2): Route =
     path("orgs" / Segment / "agbots" / Segment / "heartbeat") {
       (organization, agreementBot) =>
         val resource: String = OrgAndId(organization, agreementBot).toString
         
         post {
-          exchAuth(TAgbot(resource), Access.WRITE) {
+          exchAuth(TAgbot(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              postHeartbeat(agreementBot, organization, resource)
+              postHeartbeat(agreementBot, identity, organization, resource)
           }
         }
     }

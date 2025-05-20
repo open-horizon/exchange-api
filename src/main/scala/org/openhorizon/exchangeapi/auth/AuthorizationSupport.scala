@@ -42,15 +42,19 @@ trait AuthorizationSupport {
     // Determines if this authenticated identity has the specified access to the specified target
     def authorizeTo(target: Target, access: Access): Try[Identity] = {
       try {
-        identity match {
-          case IUser(_) =>
-            if (target.getId == "iamapikey" || target.getId == "iamtoken") {
+        identity.role match {
+          case  AuthRoles.User |
+                AuthRoles.AdminUser |
+                AuthRoles.HubAdmin |
+                AuthRoles.SuperUser =>
+            if (target.getId == "iamapikey" ||
+                target.getId == "iamtoken") {
               // This is a cloud IAM user. Get the actual username before continuing.
               val authenticatedIdentity: Creds = subject.getPrivateCredentials(classOf[IUser]).asScala.head.creds
               identity.authorizeTo(TUser(authenticatedIdentity.id), access)
-            } else {
-              identity.authorizeTo(target, access)
             }
+            else
+              identity.authorizeTo(target, access)
           case _ =>
             // This is an exchange node or agbot
             identity.authorizeTo(target, access)

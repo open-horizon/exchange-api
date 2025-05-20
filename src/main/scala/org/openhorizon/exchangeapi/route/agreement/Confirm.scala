@@ -10,7 +10,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, IAgbot, IUser, Identity, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, IAgbot, IUser, Identity, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmRequest
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ
@@ -76,17 +76,21 @@ trait Confirm extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postConfirm(@Parameter(hidden = true) ident: Identity,
+  def postConfirm(@Parameter(hidden = true) identity: Identity2,
                   @Parameter(hidden = true) orgid: String,
-                  reqBody: PostAgreementsConfirmRequest): Route =
+                  reqBody: PostAgreementsConfirmRequest): Route = {
+    logger.debug(s"POST /orgs/$orgid/agreements/confirm - By ${identity.resource}:${identity.role}")
     complete({
-      val creds = ident.creds
-      ident match {
-        case _: IUser =>
+      val creds = identity
+      identity.role match {
+        case (AuthRoles.AdminUser |
+              AuthRoles.HubAdmin |
+              AuthRoles.SuperUser |
+              AuthRoles.User) =>
           // the user invoked this rest method, so look for an agbot owned by this user with this agr id
           val agbotAgreementJoin = for {
             (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
-            if agbot.owner === creds.id && agr.map(_.agrId) === reqBody.agreementId
+            if agbot.owner === creds.owner.get && agr.map(_.agrId) == reqBody.agreementId
           } yield (agbot, agr)
           db.run(agbotAgreementJoin.result).map({ list =>
             logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
@@ -97,17 +101,17 @@ trait Confirm extends JacksonSupport with AuthenticationSupport {
               (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
             }
           })
-        case _: IAgbot =>
+        case AuthRoles.Agbot =>
           // an agbot invoked this rest method, so look for the agbot with this id and for the agbot with this agr id, and see if they are owned by the same user
           val agbotAgreementJoin = for {
             (agbot, agr) <- AgbotsTQ joinLeft AgbotAgreementsTQ on (_.id === _.agbotId)
-            if agbot.id === creds.id || agr.map(_.agrId) === reqBody.agreementId
+            if agbot.id === creds.resource || agr.map(_.agrId) === reqBody.agreementId
           } yield (agbot, agr)
           db.run(agbotAgreementJoin.result).map({ list =>
             logger.debug("POST /agreements/confirm of "+reqBody.agreementId+" result: "+list.toString)
             if (list.nonEmpty) {
               // this list is tuples of (AgbotRow, Option(AgbotAgreementRow)) in which agbot.id === creds.id || agr.agrId === req.agreementId
-              val agbot1 = list.find(r => r._1.id == creds.id).orNull
+              val agbot1 = list.find(r => r._1.id == creds.resource).orNull
               val agbot2 = list.find(r => r._2.isDefined && r._2.get.agrId == reqBody.agreementId).orNull
               if (agbot1 != null && agbot2 != null && agbot1._1.owner == agbot2._1.owner && agbot2._2.get.state != "") {
                 (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
@@ -122,13 +126,14 @@ trait Confirm extends JacksonSupport with AuthenticationSupport {
           (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied")))
       }
     })
+  }
   
-  val confirmAgreement: Route =
+  def confirmAgreement(identity: Identity2): Route =
     path("orgs" / Segment / "agreements" / "confirm") {
       organization =>
         post {
-          exchAuth(TAgbot(OrgAndId(organization,"#").toString), Access.READ) {
-            identity =>
+          exchAuth(TAgbot(OrgAndId(organization,"#").toString), Access.READ, validIdentity = identity) {
+            _ =>
               entity(as[PostAgreementsConfirmRequest]) {
                 reqBody =>
                   postConfirm(identity, organization, reqBody)

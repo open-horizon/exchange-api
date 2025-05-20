@@ -10,7 +10,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.organization.{NodeHealthHashElement, PostNodeHealthRequest, PostNodeHealthResponse}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
@@ -102,10 +102,11 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postNodeHealthSearch(@Parameter(hidden = true) orgid: String): Route =
+  def postNodeHealthSearch(@Parameter(hidden = true) identity: Identity2,
+                           @Parameter(hidden = true) organization: String): Route =
     entity(as[PostNodeHealthRequest]) {
       reqBody =>
-        logger.debug(s"Doing POST /orgs/$orgid/search/nodehealth")
+        logger.debug(s"POST /orgs/$organization/search/nodehealth - By ${identity.resource}:${identity.role}")
         validateWithMsg(reqBody.getAnyProblem) {
           complete({
             /*
@@ -115,12 +116,12 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
             */
             val lastTime: String = if (reqBody.lastTime != "") reqBody.lastTime else ApiTime.beginningUTC
             val q = for {
-              (n, a) <- NodesTQ.filter(_.orgid === orgid).filter(_.pattern === "").filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ on (_.id === _.nodeId)
+              (n, a) <- NodesTQ.filter(_.orgid === organization).filter(_.pattern === "").filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ on (_.id === _.nodeId)
             } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
   
             db.run(q.result).map({
               list =>
-                logger.debug("POST /orgs/"+orgid+"/search/nodehealth result size: "+list.size)
+                logger.debug("POST /orgs/"+organization+"/search/nodehealth result size: "+list.size)
                 //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
                 if (list.nonEmpty) (HttpCode.POST_OK, PostNodeHealthResponse(RouteUtils.buildNodeHealthHash(list)))
                 else (HttpCode.NOT_FOUND, PostNodeHealthResponse(Map[String,NodeHealthHashElement]()))
@@ -129,13 +130,13 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
         }
     }
   
-  val nodeHealthSearch: Route =
+  def nodeHealthSearch(identity: Identity2): Route =
     path("orgs" / Segment / "search" / "nodehealth") {
       organization =>
         post {
-          exchAuth(TNode(OrgAndId(organization,"*").toString),Access.READ) {
+          exchAuth(TNode(OrgAndId(organization,"*").toString),Access.READ, validIdentity = identity) {
             _ =>
-              postNodeHealthSearch(organization)
+              postNodeHealthSearch(identity, organization)
           }
         }
     }

@@ -11,14 +11,18 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, patch, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, OrgAndId, TService}
+import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, Identity2, OrgAndId, TService}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service
-import org.openhorizon.exchangeapi.table.service.{ServiceRef, ServiceRow, Services, ServicesTQ}
+import org.openhorizon.exchangeapi.table.service.{ServiceRef, ServiceRow, Service => ServiceTable, Services, ServicesTQ}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
 import slick.jdbc.PostgresProfile.api._
+import slick.lifted.MappedProjection
 
 import java.lang.IllegalStateException
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 import scala.util.control.Breaks.{break, breakable}
@@ -133,13 +137,124 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getService(@Parameter(hidden = true) organization: String,
+  def getService(@Parameter(hidden = true) identity: Identity2,
+                 @Parameter(hidden = true) organization: String,
                  @Parameter(hidden = true) resource: String,
                  @Parameter(hidden = true) service: String): Route =
     get {
       parameter("attribute".?) {
         attribute =>
-          complete({
+          logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+          def isValidAttribute(attribute: Option[String]) = true
+          
+          validate(check = isValidAttribute(attribute),
+                   errorMsg = "") {
+            val getServiceAttribute: Query[MappedProjection[GetServiceAttributeResponse, (String, String)], GetServiceAttributeResponse, Seq] =
+              for {
+                serviceAttribute <-
+                   ServicesTQ.filter(services => services.orgid === organization &&
+                                                 services.service === service)
+                             .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                             .on(_.owner === _._2)
+                             .map(services => (attribute.getOrElse(""),
+                                               attribute.getOrElse("").toLowerCase match{
+                                                 case "arch" => services._1.arch
+                                                 case "clusterdeployment" => services._1.clusterDeployment
+                                                 case "clusterdeploymentsignature" => services._1.clusterDeploymentSignature
+                                                 case "deployment" => services._1.deployment
+                                                 case "deploymentsignature" => services._1.deploymentSignature
+                                                 case "description" => services._1.description
+                                                 case "documentation" => services._1.documentation
+                                                 case "imagestore" => services._1.imageStore
+                                                 case "label" => services._1.label
+                                                 case "lastupdated" => services._1.lastUpdated
+                                                 case "matchhardware" => services._1.matchHardware
+                                                 case "organization" => services._1.orgid
+                                                 case "owner" =>  (services._2._1 ++ "/" ++ services._2._3)
+                                                 case "public" => services._1.public.asColumnOf[String]
+                                                 case "requiredservices" => services._1.requiredServices
+                                                 case "sharable" => services._1.sharable
+                                                 case "url" => services._1.url
+                                                 case "userinput" => services._1.userInput
+                                                 case "version" => services._1.version
+                                                }))
+              } yield serviceAttribute.mapTo[GetServiceAttributeResponse]
+              
+            complete({
+              db.run(getServiceAttribute.result.transactionally.asTry).map {
+                case Success(serviceAttribute) =>
+                  if (serviceAttribute.size == 1)
+                    (HttpCode.OK, serviceAttribute)
+                  else if (serviceAttribute.isEmpty)
+                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                  else
+                    logger.error(s"GET /orgs/$organization/services/$service?attribute=${attribute.getOrElse("")} - result: ${serviceAttribute.toString()}")
+                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+                case Failure(exception) =>
+                  logger.error(cause = exception, message = s"GET /orgs/$organization/services/$service?attribute=${attribute.getOrElse("")}")
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+              }
+            })
+          } ~
+          {
+            val getService: Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String],
+                                    Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String],
+                                    Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String],
+                                    Rep[String]), Rep[String]),
+                                  ((String, String, String, String, String, String, String, String, String, String,
+                                    String, String, String, Boolean, String, String, String, String, String), String),
+                                  Seq] =
+              for {
+                service <-
+                  ServicesTQ.filter(services => services.orgid === organization &&
+                                                services.service === service)
+                            .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                            .on(_.owner === _._2)
+                            .map(services =>
+                                  ((services._1.arch,
+                                    services._1.clusterDeployment,
+                                    services._1.clusterDeploymentSignature,
+                                    services._1.deployment,
+                                    services._1.deploymentSignature,
+                                    services._1.description,
+                                    services._1.documentation,
+                                    services._1.imageStore,
+                                    services._1.label,
+                                    services._1.lastUpdated,
+                                    services._1.matchHardware,
+                                    services._1.orgid,
+                                    (services._2._1 ++ "/" ++ services._2._3),
+                                    services._1.public,
+                                    services._1.requiredServices,
+                                    services._1.sharable,
+                                    services._1.url,
+                                    services._1.userInput,
+                                    services._1.version),
+                                   services._1.service))
+              } yield service
+            
+            complete({
+              db.run(getService.result.transactionally.asTry).map {
+                case Success(result) =>
+                  if (result.size == 1) {
+                    implicit val formats: Formats = DefaultFormats
+                    val serviceMap: Map[String, ServiceTable] = result.map(service => service._2 -> new ServiceTable(service._1)).toMap
+                    (HttpCode.OK, GetServicesResponse(serviceMap, 0))
+                  } else if (result.isEmpty)
+                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                  else
+                    logger.error(s"GET /orgs/$organization/services/$result?attribute=${attribute.getOrElse("")} - result: ${result.toString()}")
+                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+                case Failure(exception) =>
+                  logger.error(cause = exception, message = s"GET /orgs/$organization/services/$service?attribute=${attribute.getOrElse("")}")
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+                  
+              }
+            })
+          }
+          
+          
+          /*complete({
             attribute match {
               case Some(attribute) =>  // Only returning 1 attr of the service
                 val q = ServicesTQ.getAttribute(resource, attribute) // get the proper db query for this attribute
@@ -158,7 +273,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                 db.run(ServicesTQ.getService(resource).result).map({
                   list =>
                     logger.debug("GET /orgs/" + organization + "/services result size: " + list.size)
-                    val services: Map[String, org.openhorizon.exchangeapi.table.service.Service] = list.map(e => e.service -> e.toService).toMap
+                    val services= list.map(e => e.service -> new Service(e)).toMap
                     val code: StatusCode =
                       if(services.nonEmpty)
                         StatusCodes.OK
@@ -168,7 +283,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                     (code, GetServicesResponse(services, 0))
                 })
             }
-          })
+          })*/
       }
     }
 
@@ -229,16 +344,17 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putService(@Parameter(hidden = true) identity: Identity,
+  def putService(@Parameter(hidden = true) identity: Identity2,
                  @Parameter(hidden = true) organization: String,
                  @Parameter(hidden = true) resource: String,
                  @Parameter(hidden = true) service: String): Route =
     put {
       entity(as[PostPutServiceRequest]) {
         reqBody =>
+          logger.debug(s"PUT /orgs/${organization}/services/${service} - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem(organization, resource)) {
             complete({
-              val owner: String = identity match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
+              val owner: Option[UUID] = identity.identifier   // currently only users are allowed to create/update services, so owner will never be blank
               
               // Make a list of service searches for the required services. This can match more services than we need, because it wildcards the version.
               // We'll look for versions within the required ranges in the db access routine below.
@@ -270,7 +386,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                       if (invalidIndex >= 0) break() // an requiredService was not satisfied, so break out and return an error
                     }
                   }
-                  if (invalidIndex < 0) reqBody.toServiceRow(resource, organization, owner).update.asTry // we are good, move on to the next step
+                  if (invalidIndex < 0) reqBody.toServiceRow(resource, organization, owner.get).update.asTry // we are good, move on to the next step
                   else {
                     val errStr: String = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
                     DBIO.failed(new Throwable(errStr)).asTry
@@ -282,8 +398,8 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                   logger.debug("PUT /orgs/" + organization + "/services/" + service + " result: " + n)
                   val numUpdated: Int = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
                   if (numUpdated > 0) {
-                    if (owner != "") AuthCache.putServiceOwner(resource, owner) // currently only users are allowed to update service resources, so owner should never be blank
-                    AuthCache.putServiceIsPublic(resource, reqBody.public)
+                    // TODO: if (owner.isDefined) AuthCache.putServiceOwner(resource, owner.get) // currently only users are allowed to update service resources, so owner should never be blank
+                    // TODO: AuthCache.putServiceIsPublic(resource, reqBody.public)
                     val serviceId: String = resource.substring(resource.indexOf("/") + 1, resource.length)
                     ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, reqBody.public, ResChangeResource.SERVICE, ResChangeOperation.CREATEDMODIFIED).insert.asTry
                   } else {
@@ -365,12 +481,14 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patchService(@Parameter(hidden = true) organization: String,
+  def patchService(@Parameter(hidden = true) identity: Identity2,
+                   @Parameter(hidden = true) organization: String,
                    @Parameter(hidden = true) resource: String,
                    @Parameter(hidden = true) service: String): Route =
     patch {
       entity(as[PatchServiceRequest]) {
         reqBody =>
+          logger.debug(s"PATCH /orgs/${organization}/services/${service} - By ${identity.resource}:${identity.role}")
         logger.debug(s"Doing PATCH /orgs/$organization/services/$service")
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
@@ -477,11 +595,12 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteService(@Parameter(hidden = true) organization: String,
+  def deleteService(@Parameter(hidden = true) identity: Identity2,
+                    @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) resource: String,
                     @Parameter(hidden = true) service: String): Route =
     delete {
-      logger.debug(s"Doing DELETE /orgs/$organization/services/$service")
+      logger.debug(s"DELETE /orgs/$organization/services/$service - By ${identity.resource}:${identity.role}")
       
       complete({
         val findService: Query[Services, ServiceRow, Seq] =
@@ -582,23 +701,23 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       })
   }
   
-  val service: Route =
+  def service(identity: Identity2): Route =
     path("orgs" / Segment / "services" / Segment) {
       (organization, service) =>
         val resource: String = OrgAndId(organization, service).toString
         
         (delete | patch | put) {
-          exchAuth(TService(resource), Access.WRITE) {
-            identity =>
-              deleteService(organization, resource, service) ~
-              patchService(organization, resource, service) ~
+          exchAuth(TService(resource), Access.WRITE, validIdentity = identity) {
+            _ =>
+              deleteService(identity, organization, resource, service) ~
+              patchService(identity, organization, resource, service) ~
               putService(identity, organization, resource, service)
           }
         } ~
         get {
-          exchAuth(TService(resource), Access.READ) {
+          exchAuth(TService(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getService(organization, resource, service)
+              getService(identity, organization, resource, service)
           }
         }
     }

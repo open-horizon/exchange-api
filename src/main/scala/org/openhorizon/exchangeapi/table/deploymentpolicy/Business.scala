@@ -13,13 +13,14 @@ import slick.dbio.Effect
 import slick.jdbc.PostgresProfile.api._
 import slick.sql.FixedSqlAction
 
+import java.util.UUID
 import scala.collection.mutable.ListBuffer
 
 
 class BusinessPolicies(tag: Tag) extends Table[BusinessPolicyRow](tag, "businesspolicies") {
   def businessPolicy = column[String]("businessPolicy", O.PrimaryKey)    // the content of this is orgid/businessPolicy
   def orgid = column[String]("orgid")
-  def owner = column[String]("owner")
+  def owner = column[UUID]("owner")
   def label = column[String]("label")
   def description = column[String]("description")
   def service = column[String]("service")
@@ -32,6 +33,6 @@ class BusinessPolicies(tag: Tag) extends Table[BusinessPolicyRow](tag, "business
   
   def * = (businessPolicy, orgid, owner, label, description, service, userInput,secretBinding, properties, constraints, lastUpdated, created).<>(BusinessPolicyRow.tupled, BusinessPolicyRow.unapply)
   
-  def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def user = foreignKey("user_fk", owner, UsersTQ)(_.user, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }

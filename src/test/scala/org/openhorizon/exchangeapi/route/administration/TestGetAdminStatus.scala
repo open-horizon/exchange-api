@@ -24,6 +24,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import java.sql.Timestamp
 import java.time.ZoneId
+import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -64,38 +65,34 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                tags = None))
 
   private val TESTUSERS: Seq[UserRow] =
-  Seq(UserRow(admin       = false,
-              email       = "",
-              hashedPw    = Password.hash(PASSWORD),
-              hubAdmin    = true,
-              lastUpdated = TIMESTAMPSTRING,
-              orgid       = "root",
-              updatedBy   = "",
-              username    = "root/TestGetOrgStatusRouteHubAdmin0"),
-      UserRow(admin       = true,
-              email       = "",
-              hashedPw    = Password.hash(PASSWORD),
-              hubAdmin    = false,
-              lastUpdated = TIMESTAMPSTRING,
-              orgid       = "testGetOrgStatusRoute0",
-              updatedBy   = "",
-              username    = "testGetOrgStatusRoute0/admin0"),
-      UserRow(admin       = false,
-              email       = "",
-              hashedPw    = Password.hash(PASSWORD),
-              hubAdmin    = false,
-              lastUpdated = TIMESTAMPSTRING,
-              orgid       = "testGetOrgStatusRoute0",
-              updatedBy   = "",
-              username    = "testGetOrgStatusRoute0/user0"),
-      UserRow(admin       = false,
-              email       = "",
-              hashedPw    = Password.hash(PASSWORD),
-              hubAdmin    = false,
-              lastUpdated = TIMESTAMPSTRING,
-              orgid       = "testGetOrgStatusRoute1",
-              updatedBy   = "",
-              username    = "testGetOrgStatusRoute1/user0"))
+    Seq(UserRow(createdAt        = TIMESTAMP,
+                isHubAdmin       = true,
+                isOrgAdmin       = false,
+                modifiedAt       = TIMESTAMP,
+                organization     = "root",
+                password         = Option(Password.hash(PASSWORD)),
+                username         = "TestGetOrgStatusRouteHubAdmin0"),
+        UserRow(createdAt        = TIMESTAMP,
+                isHubAdmin       = false,
+                isOrgAdmin       = true,
+                modifiedAt       = TIMESTAMP,
+                organization     = "testGetOrgStatusRoute0",
+                password         = Option(Password.hash(PASSWORD)),
+                username         = "admin0"),
+        UserRow(createdAt        = TIMESTAMP,
+                isHubAdmin       = false,
+                isOrgAdmin       = false,
+                modifiedAt       = TIMESTAMP,
+                organization     = "testGetOrgStatusRoute0",
+                password         = Option(Password.hash(PASSWORD)),
+                username         = "user0"),
+        UserRow(createdAt        = TIMESTAMP,
+                isHubAdmin       = false,
+                isOrgAdmin       = false,
+                modifiedAt       = TIMESTAMP,
+                organization     = "testGetOrgStatusRoute1",
+                password         = Option(Password.hash(PASSWORD)),
+                username         = "user0"))
 
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch               = "",
@@ -107,7 +104,7 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS(0).orgId,
-                owner              = TESTUSERS(1).username,
+                owner              = TESTUSERS(1).user,
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -123,7 +120,7 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS(0).orgId,
-                owner              = TESTUSERS(2).username,
+                owner              = TESTUSERS(2).user,
                 pattern            = "",
                 publicKey          = "registered",
                 regServices        = "",
@@ -139,7 +136,7 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS(1).orgId,
-                owner              = TESTUSERS(3).username,
+                owner              = TESTUSERS(3).user,
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -153,7 +150,7 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                  msgEndPoint   = "",
                  name          = "testAgbot",
                  orgid         = "IBM",
-                 owner         = TESTUSERS(0).username,
+                 owner         = TESTUSERS(0).user,
                  publicKey     = "",
                  token         = Password.hash(PASSWORD)),
         AgbotRow(id            = TESTORGS(0).orgId + "/agbot0",
@@ -161,7 +158,7 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                  msgEndPoint   = "",
                  name          = "testAgbot",
                  orgid         = TESTORGS(0).orgId,
-                 owner         = TESTUSERS(1).username,
+                 owner         = TESTUSERS(1).user,
                  publicKey     = "",
                  token         = Password.hash(PASSWORD)),
         AgbotRow(id            = TESTORGS(0).orgId + "/agbot1",
@@ -169,7 +166,7 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                  msgEndPoint   = "",
                  name          = "testAgbot",
                  orgid         = TESTORGS(0).orgId,
-                 owner         = TESTUSERS(2).username,
+                 owner         = TESTUSERS(2).user,
                  publicKey     = "",
                  token         = ""),
         AgbotRow(id            = TESTORGS(1).orgId + "/agbot0",
@@ -177,7 +174,7 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                  msgEndPoint   = "",
                  name          = "testAgbot",
                  orgid         = TESTORGS(1).orgId,
-                 owner         = TESTUSERS(3).username,
+                 owner         = TESTUSERS(3).user,
                  publicKey     = "",
                  token         = ""),
     )
@@ -296,9 +293,9 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                    timeSent = TIMESTAMPSTRING))
 
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + PASSWORD))
-  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + PASSWORD))
-  private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + PASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + PASSWORD))
+  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + PASSWORD))
+  private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + PASSWORD))
   private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + PASSWORD))
   private val MULTITENANTAGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + PASSWORD))
   private val AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(1).id + ":" + PASSWORD))
@@ -317,7 +314,8 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetOrgStatusRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testGetOrgStatusRoute").delete andThen
-      UsersTQ.filter(_.username startsWith "root/TestGetOrgStatusRouteHubAdmin").delete), AWAITDURATION)
+      UsersTQ.filter(_.organization === "root")
+             .filter(_.username startsWith "TestGetOrgStatusRouteHubAdmin").delete), AWAITDURATION)
   }
   
 

@@ -6,9 +6,11 @@ import org.openhorizon.exchangeapi.table.service.OneProperty
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
+
 final case class ManagementPolicyRow(managementPolicy: String,
                                      orgid: String,
-                                     owner: String,
+                                     owner: UUID,
                                      label: String,
                                      description: String,
                                      properties: String,
@@ -28,7 +30,7 @@ final case class ManagementPolicyRow(managementPolicy: String,
     val con: List[String] = if (constraints != "") read[List[String]](constraints) else List[String]()
     val pat: List[String] = if (patterns != "") read[List[String]](patterns) else List[String]()
     
-    new ManagementPolicy(new AgentUpgradePolicy(allowDowngrade = allowDowngrade, manifest = manifest), constraints = con, created = created, description = description, enabled = enabled, label = label, lastUpdated = lastUpdated, owner = owner, patterns = pat, properties = prop, start = start, startWindow = startWindow)
+    new ManagementPolicy(new AgentUpgradePolicy(allowDowngrade = allowDowngrade, manifest = manifest), constraints = con, created = created, description = description, enabled = enabled, label = label, lastUpdated = lastUpdated, owner = owner.toString, patterns = pat, properties = prop, start = start, startWindow = startWindow)
   }
   
   // update returns a DB action to update this row

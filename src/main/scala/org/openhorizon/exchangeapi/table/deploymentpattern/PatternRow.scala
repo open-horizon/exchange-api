@@ -5,9 +5,11 @@ import org.json4s.{DefaultFormats, Formats}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
+
 final case class PatternRow(pattern: String,
                             orgid: String,
-                            owner: String,
+                            owner: UUID,
                             label: String,
                             description: String,
                             public: Boolean,
@@ -30,7 +32,7 @@ final case class PatternRow(pattern: String,
                 description = description,
                 label = label,
                 lastUpdated = lastUpdated,
-                owner = owner,
+                owner = owner.toString,
                 public = public,
                 secretBinding = bind,
                 services = svc,

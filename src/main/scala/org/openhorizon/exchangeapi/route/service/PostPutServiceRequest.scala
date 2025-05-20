@@ -8,6 +8,7 @@ import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
 import java.net.{MalformedURLException, URL}
+import java.util.UUID
 import scala.collection.mutable.ListBuffer
 
 final case class PostPutServiceRequest(label: String,
@@ -72,5 +73,5 @@ final case class PostPutServiceRequest(label: String,
 
   def formId(orgid: String): String = ServicesTQ.formId(orgid, url, version, arch)
 
-  def toServiceRow(service: String, orgid: String, owner: String): ServiceRow = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment.getOrElse(""), deploymentSignature.getOrElse(""), clusterDeployment.getOrElse(""), clusterDeploymentSignature.getOrElse(""), write(imageStore), ApiTime.nowUTC)
+  def toServiceRow(service: String, orgid: String, owner: UUID): ServiceRow = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment.getOrElse(""), deploymentSignature.getOrElse(""), clusterDeployment.getOrElse(""), clusterDeploymentSignature.getOrElse(""), write(imageStore), ApiTime.nowUTC)
 }

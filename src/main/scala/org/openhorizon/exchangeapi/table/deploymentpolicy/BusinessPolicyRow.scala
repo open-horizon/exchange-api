@@ -7,9 +7,11 @@ import org.openhorizon.exchangeapi.table.service.OneProperty
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
+
 final case class BusinessPolicyRow(businessPolicy: String,
                                    orgid: String,
-                                   owner: String,
+                                   owner: UUID,
                                    label: String,
                                    description: String,
                                    service: String,
@@ -29,16 +31,7 @@ final case class BusinessPolicyRow(businessPolicy: String,
     val serv: BService = read[BService](service)
     
     
-    new BusinessPolicy(constraints = con,
-                       created = created,
-                       description = description,
-                       label = label,
-                       lastUpdated = lastUpdated,
-                       owner = owner,
-                       properties = prop,
-                       secretBinding = bind,
-                       service = serv.copy(clusterNamespace = serv.clusterNamespace.orElse(Option(""))),  // Agent cannot read null values. Substitute in an empty string. Writing None, reading "".
-                       userInput = input)
+    new BusinessPolicy(constraints = con, created = created, description = description, label = label, lastUpdated = lastUpdated, owner = owner.toString, properties = prop, secretBinding = bind, service = serv.copy(clusterNamespace = serv.clusterNamespace.orElse(Option(""))), userInput = input)
   }
 
   // update returns a DB action to update this row

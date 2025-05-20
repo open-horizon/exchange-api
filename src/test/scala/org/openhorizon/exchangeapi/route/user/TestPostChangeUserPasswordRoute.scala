@@ -30,6 +30,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
   private val ROUTE2 = "/changepw"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORG1ADMINPASSWORD = "org1adminpassword"
@@ -61,60 +63,44 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       )
     )
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestPostChangeUserPasswordRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestPostChangeUserPasswordRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgAdmin",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1ADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "orgAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow( //main user to be updated
-        username    = TESTORGS(0).orgId + "/orgUser",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org1User@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/orgUser",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = "",
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org2User@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgUser2",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org1User2@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      )
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestPostChangeUserPasswordRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1ADMINPASSWORD)),
+                username     = "orgAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                username     = "orgUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = None,
+                username     = "orgUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                username     = "orgUser2"))
+  }
+  
   private val TESTAGBOTS: Seq[AgbotRow] =
     Seq(
       AgbotRow(
@@ -122,7 +108,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
         orgid = TESTORGS(0).orgId,
         token = Password.hash(AGBOTTOKEN),
         name = "",
-        owner = TESTUSERS(2).username, //org 1 user
+        owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey = ""
@@ -141,7 +127,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(2).username, //org 1 user
+        owner              = TESTUSERS(2).user, //org 1 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -151,40 +137,41 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       )
     )
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1ADMINPASSWORD))
-  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG1USERPASSWORD))
-  private val AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
-  private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
+  private val ROOTAUTH      = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
+  private val HUBADMINAUTH  = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORG1ADMINPASSWORD))
+  private val ORG1USERAUTH  = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ORG1USERPASSWORD))
+  private val AGBOTAUTH     = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
+  private val NODEAUTH      = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run(
-      (OrgsTQ ++= TESTORGS) andThen
-      (UsersTQ ++= TESTUSERS) andThen
-      (AgbotsTQ ++= TESTAGBOTS) andThen
-      (NodesTQ ++= TESTNODES)
+      ((OrgsTQ ++= TESTORGS) andThen
+       (UsersTQ ++= TESTUSERS) andThen
+       (AgbotsTQ ++= TESTAGBOTS) andThen
+       (NodesTQ ++= TESTNODES)).transactionally
     ), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(
-      ResourceChangesTQ.filter(_.orgId startsWith "testPostChangeUserPasswordRoute").delete andThen
-        OrgsTQ.filter(_.orgid startsWith "testPostChangeUserPasswordRoute").delete andThen
-        UsersTQ.filter(_.username startsWith "root/TestPostChangeUserPasswordRouteHubAdmin").delete
+      (ResourceChangesTQ.filter(_.orgId startsWith "testPostChangeUserPasswordRoute").delete andThen
+       OrgsTQ.filter(_.orgid startsWith "testPostChangeUserPasswordRoute").delete andThen
+       UsersTQ.filter(_.organization === "root")
+              .filter(_.username startsWith "TestPostChangeUserPasswordRouteHubAdmin").delete).transactionally
     ), AWAITDURATION)
   }
 
   override def afterEach(): Unit = {
     Await.ready(DBCONNECTION.run(
-      TESTUSERS(2).updateUser() andThen
-      TESTUSERS(1).updateUser()
+      (UsersTQ.filter(_.user === TESTUSERS(2).user).update(TESTUSERS(2)) andThen
+       UsersTQ.filter(_.user === TESTUSERS(1).user).update(TESTUSERS(1))).transactionally
     ), AWAITDURATION)
   }
 
   private val normalRequestBody: ChangePwRequest = ChangePwRequest(newPassword = "newPassword")
 
-  private val normalUsernameToUpdate = TESTUSERS(2).username.split("/")(1)
+  private val normalUsernameToUpdate = TESTUSERS(2).username
 
   test("POST /orgs/doesNotExist" + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- 404 not found") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
@@ -205,8 +192,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head.hashedPw
-    assert(dbPass === TESTUSERS(2).hashedPw) //assert password hasn't changed
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+    assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- blank password -- 400 bad input") {
@@ -215,8 +202,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head.hashedPw
-    assert(dbPass === TESTUSERS(2).hashedPw) //assert password hasn't changed
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+    assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as root -- 201 OK") {
@@ -224,18 +211,18 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head.hashedPw
-    assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass)) //assert password was updated
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+    assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
   }
 
   //currently a hub admin is able to change the password of any user (other than root). However, a hub admin is only supposed to be able to change the password of admins
-  ignore("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as hub admin -- 403 ACCESS DENIED") {
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as hub admin -- 404 NOT FOUND") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head.hashedPw
-    assert(dbPass === TESTUSERS(2).hashedPw) //assert password hasn't changed
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+    assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + "orgAdmin" + ROUTE2 + " -- as hub admin -- 201 OK") {
@@ -243,8 +230,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(1).username).result), AWAITDURATION).head.hashedPw
-    assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass)) //assert password was updated
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(1).user).result), AWAITDURATION).head.password
+    assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as org admin -- 201 OK") {
@@ -252,8 +239,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head.hashedPw
-    assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass)) //assert password was updated
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+    assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
   }
 
   test("POST /orgs/" + TESTORGS(1).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as org admin in other org -- 403 ACCESS DENIED") {
@@ -261,8 +248,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(3).username).result), AWAITDURATION).head.hashedPw
-    assert(dbPass === TESTUSERS(3).hashedPw) //assert password hasn't changed
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(3).user).result), AWAITDURATION).head.password
+    assert(dbPass === TESTUSERS(3).password) //assert password hasn't changed
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- user updates self -- 201 OK") {
@@ -270,8 +257,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head.hashedPw
-    assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass)) //assert password was updated
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+    assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + "orgUser2" + ROUTE2 + " -- user tries to update other user -- 403 ACCESS DENIED") {
@@ -279,8 +266,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(4).username).result), AWAITDURATION).head.hashedPw
-    assert(dbPass === TESTUSERS(4).hashedPw) //assert password hasn't changed
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(4).user).result), AWAITDURATION).head.password
+    assert(dbPass === TESTUSERS(4).password) //assert password hasn't changed
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as node -- 403 ACCESS DENIED") {
@@ -288,8 +275,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head.hashedPw
-    assert(dbPass === TESTUSERS(2).hashedPw) //assert password hasn't changed
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+    assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as agbot -- 403 ACCESS DENIED") {
@@ -297,8 +284,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTUSERS(2).username).result), AWAITDURATION).head.hashedPw
-    assert(dbPass === TESTUSERS(2).hashedPw) //assert password hasn't changed
+    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+    assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
   }
 
 }

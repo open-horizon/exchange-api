@@ -1,14 +1,22 @@
 package org.openhorizon.exchangeapi
 
-import org.openhorizon.exchangeapi.route.administration.{AdminHashpwResponse, AdminOrgStatus, AdminStatus, DeleteOrgChangesRequest}
+import org.openhorizon.exchangeapi.route.administration.{AdminOrgStatus, AdminStatus, DeleteOrgChangesRequest}
 
 import scala.util.matching.Regex
 import org.json4s.DefaultFormats
-import org.openhorizon.exchangeapi.table.organization.OrgRow
-import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration}
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotRow
+import org.openhorizon.exchangeapi.table.node.NodeRow
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, DatabaseConnection}
+import slick.jdbc
+import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
 import scala.collection.immutable.List
 import scala.collection.mutable.ListBuffer
+import scala.concurrent.Await
+import scala.concurrent.duration.{Duration, DurationInt}
 //import org.json4s.JsonDSL._
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.jvalue2extractable
@@ -19,7 +27,6 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import org.openhorizon.exchangeapi.auth.{Password, Role}
-import org.openhorizon.exchangeapi.route.administration.{AdminHashpwRequest, AdminHashpwResponse}
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.route.deploymentpattern.PostPutPatternRequest
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
@@ -49,6 +56,8 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPTTEXT          = ("Accept", "text/plain")
   private val AGBOT: String       = "agbot"
   private val CONTENT             = ("Content-Type", "application/json")
+  private val AWAITDURATION: Duration = 15.seconds
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val NODE: String        = "node"
   private val PATTERN: String     = "pattern"
   private val ROOTAUTH            = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
@@ -64,6 +73,9 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   private var resources           = new ListBuffer[String]()
 
   implicit val FORMATS: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
+  val timestamp = ApiTime.nowUTCTimestamp
+  
+  val rootUser: UUID = Await.result(DBCONNECTION.run(Compiled(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "root/root").map(_.user).take(1)).result.head.transactionally), AWAITDURATION)
 
   val TESTORGS: Seq[OrgRow] =
     Seq(OrgRow(description = "AdminSuite Test Organization",
@@ -71,21 +83,101 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
                label = "",
                lastUpdated = ApiTime.nowUTC,
                limits = "",
-               orgId = "admin",
+               orgId = "adminsuite",
                orgType = "",
                tags = None))
+  val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(createdAt    = timestamp,
+                email        = Option("AdminSuitTestsHubAdmin@host.domain"),
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = timestamp,
+                organization = "root",
+                password     = Option(Password.hash("password")),
+                username     = "AdminSuitTestsHubAdmin"),
+        UserRow(createdAt    = timestamp,
+                email        = Option("admin@host.domain"),
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = timestamp,
+                organization = "adminsuite",
+                password     = Option(Password.hash("password")),
+                username     = "admin"),
+        UserRow(createdAt    = timestamp,
+                email        = Option("user@host.domain"),
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = timestamp,
+                organization = "adminsuite",
+                password     = Option(Password.hash("password")),
+                username     = "user"))
+  val TESTAGBOTS: Seq[AgbotRow] =
+    Seq(AgbotRow(id = "root/agbot",
+                 lastHeartbeat = ApiTime.nowUTC,
+                 msgEndPoint = "",
+                 name = "",
+                 orgid = "root",
+                 owner = rootUser,
+                 publicKey = "password",
+                 token = Password.hash("TokAbcDefGh1234")),
+        AgbotRow(id = "adminsuite/agbot",
+                 lastHeartbeat = ApiTime.nowUTC,
+                 msgEndPoint = "",
+                 name = "",
+                 orgid = "adminsuite",
+                 owner = rootUser,
+                 publicKey = "password",
+                 token = Password.hash("TokAbcDefGh1234")))
+  private val TESTNODES: Seq[NodeRow] =
+    Seq(NodeRow(arch               = "",
+                id                 = "root/node",
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "",
+                nodeType           = "",
+                orgid              = "root",
+                owner              = rootUser,
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = Password.hash("TokAbcDefGh1234"),
+                userInput          = ""),
+        NodeRow(arch               = "",
+                id                 = "adminsuite/node",
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "",
+                nodeType           = "",
+                orgid              = "adminsuite",
+                owner              = rootUser,
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = Password.hash("TokAbcDefGh1234"),
+                userInput          = ""))
   
   override def beforeAll(): Unit = {
-    Http(URL + "/orgs/" + ORGS(0)).postData(write(PostPutOrgRequest(None, (ORGS(0)), "AdminSuite Test Organization", None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-
+    
+    //Http(URL + "/orgs/" + ORGS(0)).postData(write(PostPutOrgRequest(None, (ORGS(0)), "AdminSuite Test Organization", None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+    
+    Await.result(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
+                                  (UsersTQ ++= TESTUSERS)), AWAITDURATION)
+    
+    
     for (org <- ORGS) {
-      for (user <- USERS) {
-        val response = Http(URL + "/orgs/" + org + "/users/" + user).postData(write(PostPutUsersRequest(password="password", admin=user.endsWith("admin") && org!="root", hubAdmin=Some(org=="root"), email=user + "@host.domain"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-        assert(response.code == HttpCode.POST_OK.intValue)
-      }
-      var response = Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).postData(write(PutAgbotsRequest("TokAbcDefGh1234", AGBOT, None, "password"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      assert(response.code == HttpCode.PUT_OK.intValue)
-      response = Http(URL + "/orgs/" + org + "/services").postData(write(PostPutServiceRequest(SERVICE, None, public = true, None, URL + "/orgs/" + org + "/services/" + SERVICE, "0.0.1", "test-arch", "multiple", None, None, None, None, None, None, None, None ))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      //for (user <- USERS) {
+      //  val response = Http(URL + "/orgs/" + org + "/users/" + user).postData(write(PostPutUsersRequest(password="password", admin=user.endsWith("admin") && org!="root", hubAdmin=Some(org=="root"), email=user + "@host.domain"))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      //  assert(response.code == HttpCode.POST_OK.intValue)
+      //}
+      //Http(URL + "/orgs/" + org + "/agbots/" + AGBOT).postData(write(PutAgbotsRequest("", AGBOT, None, "password"))).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      //assert(response.code == HttpCode.PUT_OK.intValue)
+      var response = Http(URL + "/orgs/" + org + "/services").postData(write(PostPutServiceRequest(SERVICE, None, public = true, None, URL + "/orgs/" + org + "/services/" + SERVICE, "0.0.1", "test-arch", "multiple", None, None, None, None, None, None, None, None ))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       assert(response.code == HttpCode.POST_OK.intValue)
       response = Http(URL + "/orgs/" + org + "/patterns/" + PATTERN).postData(write(PostPutPatternRequest(PATTERN, Some("AdminSuite Test Pattern"), None, List(PServices(URL + "/orgs/" + org + "/services/" + SERVICE, org, "test-arch", None, List(PServiceVersions("0.0.1", None, None, None, None)), None, None)), None, None, None))).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       assert(response.code == HttpCode.POST_OK.intValue)
@@ -113,59 +205,6 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
     
     val response = Http(URL + "/orgs/" + ORGS(0)).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     assert(response.code == HttpCode.DELETED.intValue)
-  }
-
-  // =============== Hash a Password ===============
-  for (org <- ORGS) {
-    test("POST /admin/hashpw - " + org + "/" + AGBOT) {
-      val input = AdminHashpwRequest("foobar")
-      val response = Http(URL + "/admin/hashpw").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + AGBOT + ":" + "TokAbcDefGh1234"))).asString
-      info("http status code: " + response.code)
-      info("body: " + response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    }
-  }
-
-  for (org <- ORGS) {
-    test("POST /admin/hashpw - " + org + "/" + NODE) {
-      val input = AdminHashpwRequest("foobar")
-      val response = Http(URL + "/admin/hashpw").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + NODE + ":" + "TokAbcDefGh1234"))).asString
-      info("http status code: " + response.code)
-      info("body: " + response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    }
-  }
-
-  for (org <- ORGS) {
-    for (user <- USERS) {
-      test("POST /admin/hashpw - " + org + "/" + user) {
-        val input = AdminHashpwRequest("foobar")
-        val response = Http(URL + "/admin/hashpw").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(org + "/" + user + ":" + "password"))).asString
-        info("http status code: " + response.code)
-        info("body: " + response.body)
-        assert(response.code === HttpCode.POST_OK.intValue)
-        val postResp = parse(response.body).extract[AdminHashpwResponse]
-        assert(Password.check(input.password, postResp.hashedPassword))
-      }
-    }
-  }
-
-  test("POST /admin/hashpw - root/root") {
-    val input = AdminHashpwRequest("foobar")
-    val response = Http(URL + "/admin/hashpw").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("http status code: " + response.code)
-    info("body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val postResp = parse(response.body).extract[AdminHashpwResponse]
-    assert(Password.check(input.password, postResp.hashedPassword))
-  }
-
-  test("POST /admin/hashpw - root/root - Invaild Credentials") {
-    val input = AdminHashpwRequest("foobar")
-    val response = Http(URL + "/admin/hashpw").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + "invaildcredentials"))).asString
-    info("http status code: " + response.code)
-    info("body: " + response.body)
-    assert(response.code === HttpCode.BADCREDS.intValue)
   }
 
   // =============== Log ===============

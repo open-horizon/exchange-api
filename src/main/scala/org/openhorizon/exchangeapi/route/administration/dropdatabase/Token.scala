@@ -6,9 +6,10 @@ import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
-import io.swagger.v3.oas.annotations.{Operation, responses}
+import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Role, TAction}
+import org.openhorizon.exchangeapi.ExchangeApiApp.myUserPassAuthenticator
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, Role, TAction}
 import org.openhorizon.exchangeapi.route.administration.AdminDropdbTokenResponse
 import org.openhorizon.exchangeapi.utility.HttpCode
 import slick.jdbc.PostgresProfile.api._
@@ -36,21 +37,21 @@ trait Token extends JacksonSupport with AuthenticationSupport {
                                                                    schema = new Schema(implementation = classOf[AdminDropdbTokenResponse])))),
                      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                      new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def getToken: Route =
+  def getToken(@Parameter(hidden = true) identity:Identity2): Route =
     get {
-      logger.debug("Doing GET /admin/dropdb/token")
+      logger.debug(s"GET /admin/dropdb/token - By ${identity.resource}:${identity.role}")
       complete({
         (HttpCode.OK, AdminDropdbTokenResponse(createToken(Role.superUser)))
       }) // end of complete
     }
   
   
-  val token: Route =
+  def token(identity: Identity2): Route =
     path("admin" / "dropdb" / "token") {
       get {
-        exchAuth(TAction(), Access.ADMIN) {
+        exchAuth(TAction(), Access.ADMIN, validIdentity = identity) {
           _ =>
-            getToken
+            getToken(identity)
         }
       }
     }

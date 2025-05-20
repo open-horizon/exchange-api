@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.nodegroup
 import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.table
 import org.json4s.DefaultFormats
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ, NodeGroups}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
@@ -54,31 +54,29 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                      organization  = "TestDeleteNodeGroup1",
                      lastUpdated   = INITIALTIMESTAMPSTRING,
                      name          = "queen"))
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = true,
-                email       = "",
-                hashedPw    = "$2a$10$LNH5rZACF8YnbHWtUFnULOxNecpZoq6qXG0iI47OBCdNtugUehRLG", // TestPutAgentConfigMgmt/admin1:admin1pw
-                hubAdmin    = false,
-                lastUpdated = INITIALTIMESTAMPSTRING,
-                orgid       = "TestDeleteNodeGroup",
-                updatedBy   = "",
-                username    = "TestDeleteNodeGroup/admin1"),
-        UserRow(admin       = false,
-                email       = "",
-                hashedPw    = "$2a$10$DGVQ73YXt2IXtxA3bMmxSu0q5wEj26UgE.6hGryB5BedV1E945yki", // TestPutAgentConfigMgmt/u1:a1pw
-                hubAdmin    = false,
-                lastUpdated = INITIALTIMESTAMPSTRING,
-                orgid       = "TestDeleteNodeGroup",
-                updatedBy   = "",
-                username    = "TestDeleteNodeGroup/u1"),
-        UserRow(admin       = false,
-                email       = "",
-                hashedPw    = "$2a$10$DGVQ73YXt2IXtxA3bMmxSu0q5wEj26UgE.6hGryB5BedV1E945yki", // TestPutAgentConfigMgmt/u2:a1pw
-                hubAdmin    = false,
-                lastUpdated = INITIALTIMESTAMPSTRING,
-                orgid       = "TestDeleteNodeGroup",
-                updatedBy   = "",
-                username    = "TestDeleteNodeGroup/u2"))
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = INITIALTIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = INITIALTIMESTAMP,
+                organization = "TestDeleteNodeGroup",
+                password     = Option(Password.hash("admin1pw")),
+                username     = "admin1"),
+        UserRow(createdAt    = INITIALTIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = INITIALTIMESTAMP,
+                organization = "TestDeleteNodeGroup",
+                password     = Option(Password.hash("a1pw")),
+                username     = "u1"),
+        UserRow(createdAt    = INITIALTIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = INITIALTIMESTAMP,
+                organization = "TestDeleteNodeGroup",
+                password     = Option(Password.hash("a1pw")),
+                username     = "u2"))
+  }
   private val TESTORGS: Seq[OrgRow] =
     Seq(OrgRow(description        = "T",
                heartbeatIntervals = "",
@@ -106,7 +104,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS.head.username, //org admin
+                owner              = TESTUSERS.head.user, //org admin
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -122,7 +120,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS.head.username, //org admin
+                owner              = TESTUSERS.head.user, //org admin
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -138,7 +136,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS.head.username, //org admin
+                owner              = TESTUSERS.head.user, //org admin
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -154,7 +152,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(1).username, //org user 1
+                owner              = TESTUSERS(1).user, //org user 1
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -170,7 +168,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(1).username, //org user 1
+                owner              = TESTUSERS(1).user, //org user 1
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -186,7 +184,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(2).username, //org user 2
+                owner              = TESTUSERS(2).user, //org user 2
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -202,7 +200,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(2).username, //org user 2
+                owner              = TESTUSERS(2).user, //org user 2
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -218,7 +216,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(2).username, //org user 2
+                owner              = TESTUSERS(2).user, //org user 2
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",

@@ -227,12 +227,187 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
         DBIO.seq(SearchServiceTQ.schema.create)
       case 55 => // v2.116.0
         DBIO.seq(sqlu"ALTER TABLE public.nodes ADD is_namespace_scoped bool NOT NULL DEFAULT false;")
+      case 56 => // v2.127.0
+        DBIO.seq(
+          // Add new User primary key columns to downstream tables for reference.
+          sqlu"ALTER TABLE public.agbots ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
+          sqlu"ALTER TABLE public.businesspolicies ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
+          sqlu"ALTER TABLE public.managementpolicies ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
+          sqlu"ALTER TABLE public.nodes ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
+          sqlu"ALTER TABLE public.patterns ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
+          sqlu"ALTER TABLE public.services ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
+          
+          // Add new columns to our existing Users table. These need to be nullable here.
+          sqlu"ALTER TABLE public.users ADD COLUMN IF NOT EXISTS modified_at TIMESTAMP NULL;",
+          sqlu"ALTER TABLE public.users ADD COLUMN IF NOT EXISTS modified_by UUID NULL;",
+          sqlu"""ALTER TABLE public.users ADD COLUMN IF NOT EXISTS "user" UUID NULL;""",
+          sqlu"ALTER TABLE public.users ADD COLUMN IF NOT EXISTS username_new VARCHAR NULL;",
+          
+          // Fill-in our new columns.
+          // No great means of converting backwards from a string to a timestamp. At best these can only be parsed approximations.
+          sqlu"""
+                UPDATE public.users
+                SET modified_at = coalesce(to_timestamp(lastupdated, 'yyyy-MM-ddTHH24:MI:SS')::timestamptz, CURRENT_TIMESTAMP);
+              """,
+          // Split Organization from existing Organization/Username combination.
+          sqlu"""
+                UPDATE public.users
+                SET orgid = rtrim(substring(username, '^[[:alnum:]]*/{1,1}'), '/')
+                WHERE orgid IS NULL;
+              """,
+          // Postgresql function for generating v4 UUIDs. https://www.postgresql.org/docs/13/functions-uuid.html
+          // Support for v7 UUIDs will be added to a future Postgresql v17 minor release. Not available as of 2025-05-01 PostgreSQL v17.4.
+          sqlu"""
+                UPDATE public.users
+                SET "user" = gen_random_uuid ()
+                WHERE "user" IS NULL;
+              """,
+          // Split Username from existing Organization/Username combination.
+          sqlu"""
+                UPDATE public.users
+                SET username_new = regexp_replace(username, '^[[:alnum:]]*/{1,1}', '')
+                WHERE username_new IS NULL;
+              """,
+          // Convert User references from Org/Usr combo strings to UUIDs
+          sqlu"""
+                UPDATE public.users a
+                SET modified_by = b.by
+                FROM (SELECT c.user AS user,
+                             d.user AS by
+                      FROM public.users c
+                      JOIN public.users d
+                      ON c.updatedby = d.username) b
+                WHERE a.user = b.user;
+              """,
+          
+          // User reference conversion.
+          sqlu"""
+                UPDATE public.agbots a
+                SET owner_uuid = u.user
+                FROM public.users u
+                WHERE a.owner = u.username;
+              """,
+          sqlu"""
+                UPDATE public.businesspolicies p
+                SET owner_uuid = u.user
+                FROM public.users u
+                WHERE p.owner = u.username;
+              """,
+          sqlu"""
+                UPDATE public.managementpolicies p
+                SET owner_uuid = u.user
+                FROM public.users u
+                WHERE p.owner = u.username;
+              """,
+          sqlu"""
+                UPDATE public.nodes n
+                SET owner_uuid = u.user
+                FROM public.users u
+                WHERE n.owner = u.username;
+              """,
+          sqlu"""
+                UPDATE public.patterns p
+                SET owner_uuid = u.user
+                FROM public.users u
+                WHERE p.owner = u.username;
+              """,
+          sqlu"""
+                UPDATE public.services s
+                SET owner_uuid = u.user
+                FROM public.users u
+                WHERE s.owner = u.username;
+              """,
+          
+          // Drop existing foreign keys.
+          sqlu"ALTER TABLE public.agbots DROP CONSTRAINT IF EXISTS user_fk;",
+          sqlu"ALTER TABLE public.businesspolicies DROP CONSTRAINT IF EXISTS user_fk;",
+          sqlu"ALTER TABLE public.managementpolicies DROP CONSTRAINT IF EXISTS user_fk;",
+          sqlu"ALTER TABLE public.nodes DROP CONSTRAINT IF EXISTS user_fk;",
+          sqlu"ALTER TABLE public.patterns DROP CONSTRAINT IF EXISTS user_fk;",
+          sqlu"ALTER TABLE public.services DROP CONSTRAINT IF EXISTS user_fk;",
+          
+          // Drop existing User reference columns
+          sqlu"ALTER TABLE public.agbots DROP COLUMN IF EXISTS owner;",
+          sqlu"ALTER TABLE public.businesspolicies DROP COLUMN IF EXISTS owner;",
+          sqlu"ALTER TABLE public.managementpolicies DROP COLUMN IF EXISTS owner;",
+          sqlu"ALTER TABLE public.nodes DROP COLUMN IF EXISTS owner;",
+          sqlu"ALTER TABLE public.patterns DROP COLUMN IF EXISTS owner;",
+          sqlu"ALTER TABLE public.services DROP COLUMN IF EXISTS owner;",
+          
+          // Rename new User reference columns
+          sqlu"ALTER TABLE public.agbots RENAME COLUMN owner_uuid TO owner;",
+          sqlu"ALTER TABLE public.businesspolicies RENAME COLUMN owner_uuid TO owner;",
+          sqlu"ALTER TABLE public.managementpolicies RENAME COLUMN owner_uuid TO owner;",
+          sqlu"ALTER TABLE public.nodes RENAME COLUMN owner_uuid TO owner;",
+          sqlu"ALTER TABLE public.patterns RENAME COLUMN owner_uuid TO owner;",
+          sqlu"ALTER TABLE public.services RENAME COLUMN owner_uuid TO owner;",
+          
+          // Create our new Users table
+          sqlu"""
+                CREATE TABLE IF NOT EXISTS public.users_schema_56 (
+                   created_at timestamp NOT NULL,
+                   email VARCHAR NULL,
+                   identity_provider VARCHAR NOT NULL DEFAULT 'Open Horizon',
+                   is_hub_admin BOOL NOT NULL DEFAULT FALSE,
+                   is_org_admin BOOL NOT NULL DEFAULT FALSE,
+                   modified_at TIMESTAMP NOT NULL,
+                   modified_by UUID NULL,
+                   organization VARCHAR NOT NULL,
+                   password VARCHAR NULL,
+                   "user" UUID NOT NULL,
+                   username VARCHAR NOT NULL,
+                   CONSTRAINT users_pk PRIMARY KEY ("user"),
+                   CONSTRAINT users_uk UNIQUE (organization, username),
+                   CONSTRAINT users_org_fk FOREIGN KEY (organization) REFERENCES public.orgs(orgid) ON DELETE CASCADE ON UPDATE CASCADE
+                   CONSTRAINT users_usr_fk FOREIGN KEY (modified_by) REFERENCES public.users("user") ON DELETE SET NULL ON UPDATE CASCADE
+                   CONSTRAINT users_root_check CHECK (((organization = 'root') AND (username = 'root')) OR (NOT (is_hub_admin AND is_org_admin))));
+              """,
+          
+          // Database table migration
+          sqlu"""
+                INSERT INTO public.users_schema_56 (created_at,
+                                                    email,
+                                                    is_hub_admin,
+                                                    is_org_admin,
+                                                    modified_at,
+                                                    modified_by,
+                                                    organization,
+                                                    password,
+                                                    "user",
+                                                    username)
+                SELECT modified_at,
+                       email,
+                       admin,
+                       hubadmin,
+                       modified_at,
+                       modified_by,
+                       orgid,
+                       password,
+                       "user",
+                       username_new
+                FROM public.users;
+              """,
+          
+          // Drop existing User table
+          sqlu"DROP TABLE IF EXISTS public.users;",
+          
+          // Rename new User table
+          sqlu"ALTER TABLE IF EXISTS public.users_schema_56 RENAME TO users;",
+          
+          // Recreate foreign key references
+          sqlu"""ALTER TABLE public.agbots ADD CONSTRAINT agbots_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");""",
+          sqlu"""ALTER TABLE public.businesspolicies ADD CONSTRAINT deploypol_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");""",
+          sqlu"""ALTER TABLE public.managementpolicies ADD CONSTRAINT mgmtpol_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");""",
+          sqlu"""ALTER TABLE public.nodes ADD CONSTRAINT nodes_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");""",
+          sqlu"""ALTER TABLE public.patterns ADD CONSTRAINT pattrns_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");""",
+          sqlu"""ALTER TABLE public.services ADD CONSTRAINT svcs_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");"""
+              )
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }
   }
 
-  val latestSchemaVersion: Int = 55    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 56    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

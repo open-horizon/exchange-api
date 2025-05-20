@@ -5,13 +5,15 @@ import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
+
 /** Mapping of the nodes db table to a scala class */
 class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def id = column[String]("id", O.PrimaryKey)   // in the form org/nodeid
   def orgid = column[String]("orgid")
   def token = column[String]("token")
   def name = column[String]("name")
-  def owner = column[String]("owner", O.Default(Role.superUser))  // root is the default because during upserts by root, we do not want root to take over the node if it already exists
+  def owner = column[UUID]("owner")  // root is the default because during upserts by root, we do not want root to take over the node if it already exists
   def nodeType = column[String]("nodetype")
   def pattern = column[String]("pattern")       // this is orgid/patternname
   def regServices = column[String]("regservices")
@@ -27,8 +29,8 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def isNamespaceScoped = column[Boolean]("is_namespace_scoped", O.Default(false))
 
   // this describes what you get back when you return this.from a query
-  def * = (id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated, clusterNamespace, isNamespaceScoped).<>(NodeRow.tupled, NodeRow.unapply)
-  def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def * = (id, orgid, token, name, owner, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat, publicKey, arch, heartbeatIntervals, lastUpdated, clusterNamespace, isNamespaceScoped).mapTo[NodeRow]
+  def user = foreignKey("user_fk", owner, UsersTQ)(_.user, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   //def patKey = foreignKey("pattern_fk", pattern, PatternsTQ)(_.pattern, onUpdate=ForeignKeyAction.Cascade)     // <- we can't make this a foreign key because it is optional
 }

@@ -5,11 +5,11 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
-import io.swagger.v3.oas.annotations.{Operation, responses}
+import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import jakarta.ws.rs.{POST, Path}
 import org.checkerframework.checker.units.qual.t
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, TAction}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Identity2, TAction}
 import org.openhorizon.exchangeapi.table.ExchangeApiTables
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
@@ -38,8 +38,8 @@ trait InitializeDatabase extends JacksonSupport with AuthenticationSupport{
                                                                    schema = new Schema(implementation = classOf[ApiResponse])))),
                      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                      new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def postInitializeDB: Route = {
-    logger.debug("Doing POST /admin/initdb")
+  def postInitializeDB(@Parameter(hidden = true) identity: Identity2): Route = {
+    logger.debug(s"POST /admin/initdb - By ${identity.resource}:${identity.role}")
     complete ({
       db.run(ExchangeApiTables.initDB.transactionally.asTry)
         .map({
@@ -55,13 +55,13 @@ trait InitializeDatabase extends JacksonSupport with AuthenticationSupport{
     })
   }
   
-  val initializeDB: Route =
+  def initializeDB(identity: Identity2): Route =
     path("admin" / "initdb") {
       post {
         AuthCache.createRootInCache() // need to do this before authenticating, because dropdb cleared it out (can not do this in dropdb, because it might expire)
-        exchAuth(TAction(), Access.ADMIN, hint = "token") {
+        exchAuth(TAction(), Access.ADMIN, hint = "token", validIdentity = identity) {
           _ =>
-            postInitializeDB
+            postInitializeDB(identity)
         }
       }
     }

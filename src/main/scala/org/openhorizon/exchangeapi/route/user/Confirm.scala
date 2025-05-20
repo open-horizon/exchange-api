@@ -8,7 +8,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TUser}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TUser}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
@@ -33,10 +33,11 @@ trait Confirm extends JacksonSupport with AuthenticationSupport  {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def postConfirm(@Parameter(hidden = true) organization: String,
+  def postConfirm(@Parameter(hidden = true) identity: Identity2,
+                  @Parameter(hidden = true) organization: String,
                   @Parameter(hidden = true) username: String): Route =
     {
-      logger.debug(s"Doing POST /orgs/$organization/users/$username/confirm")
+      logger.debug(s"POST /orgs/$organization/users/$username/confirm - By ${identity.resource}:${identity.role}")
       
       complete({
         // if we get here, the user/pw has been confirmed
@@ -44,15 +45,15 @@ trait Confirm extends JacksonSupport with AuthenticationSupport  {
       })
     }
   
-  val confirm: Route =
+  def confirm(identity: Identity2): Route =
     path("orgs" / Segment / "users" / Segment / "confirm") {
       (organization, username) =>
         val resource: String = OrgAndId(organization, username).toString
         
         post {
-          exchAuth(TUser(resource), Access.READ) {
+          exchAuth(TUser(resource), Access.READ, validIdentity = identity) {
             _ =>
-              postConfirm(organization, username)
+              postConfirm(identity, organization, username)
           }
         }
     }

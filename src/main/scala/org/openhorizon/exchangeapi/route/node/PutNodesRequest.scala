@@ -8,20 +8,22 @@ import org.openhorizon.exchangeapi.table.service.ServiceRef2
 import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
 
+import java.util.UUID
+
 /** Input format for PUT /orgs/{organization}/nodes/<node-id> */
 final case class PutNodesRequest(token: String,
                                  name: String,
-                                 nodeType: Option[String],
+                                 nodeType: Option[String] = Option(NodeType.DEVICE.toString),
                                  pattern: String,
-                                 registeredServices: Option[List[RegService]],
-                                 userInput: Option[List[OneUserInputService]],
-                                 msgEndPoint: Option[String],
-                                 softwareVersions: Option[Map[String,String]],
+                                 registeredServices: Option[List[RegService]] = Option(List.empty[RegService]),
+                                 userInput: Option[List[OneUserInputService]] = Option(List.empty[OneUserInputService]),
+                                 msgEndPoint: Option[String] = Option(""),
+                                 softwareVersions: Option[Map[String,String]] = Option(Map.empty[String, String]),
                                  publicKey: String,
-                                 arch: Option[String],
-                                 heartbeatIntervals: Option[NodeHeartbeatIntervals],
+                                 arch: Option[String] = Option(""),
+                                 heartbeatIntervals: Option[NodeHeartbeatIntervals] = Option(NodeHeartbeatIntervals(0,0,0)),
                                  clusterNamespace: Option[String] = None,
-                                 isNamespaceScoped: Option[Boolean] = None) {
+                                 isNamespaceScoped: Option[Boolean] = Option(false)) {
   require(token!=null && name!=null && pattern!=null && publicKey!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
@@ -70,7 +72,7 @@ final case class PutNodesRequest(token: String,
             name = name,
             nodeType = nodeType.getOrElse(NodeType.DEVICE.toString),
             orgid = orgid,
-            owner = owner,
+            owner = UUID.randomUUID(),
             pattern = pattern,
             publicKey = publicKey,
             regServices = write(rsvc2),
@@ -100,7 +102,7 @@ final case class PutNodesRequest(token: String,
             name = name,
             nodeType = nodeType.getOrElse(NodeType.DEVICE.toString),
             orgid = orgid,
-            owner = owner,
+            owner = UUID.randomUUID(),
             pattern = pattern,
             publicKey = publicKey,
             regServices = write(rsvc2),

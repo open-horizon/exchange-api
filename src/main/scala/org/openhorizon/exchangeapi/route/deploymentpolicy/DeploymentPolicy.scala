@@ -15,7 +15,7 @@ import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.Serialization.{read, write}
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, OrgAndId, TBusiness, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, Identity2, OrgAndId, TBusiness, TNode}
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ, BusinessPolicy}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
@@ -24,6 +24,7 @@ import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResC
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, Version}
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
 import scala.collection.immutable._
 import scala.concurrent.ExecutionContext
 import scala.util._
@@ -51,10 +52,11 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def deleteDeploymentPolicy(@Parameter(hidden = true) deploymentPolicy: String,
+                             @Parameter(hidden = true) identity: Identity2,
                              @Parameter(hidden = true) organization: String,
                              @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"Doing DELETE /orgs/$organization/business/policies/$deploymentPolicy")
+      logger.debug(s"DELETE /orgs/$organization/business/policies/$deploymentPolicy - By ${identity.resource}:${identity.role}")
       complete({
         db.run(BusinessPoliciesTQ.getBusinessPolicy(resource).delete.transactionally.asTry.flatMap({
           case Success(v) =>
@@ -147,10 +149,13 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def getDeploymentPolicy(@Parameter(hidden = true) deploymentPolicy: String,
+                          @Parameter(hidden = true) identity: Identity2,
                           @Parameter(hidden = true) organization: String,
                           @Parameter(hidden = true) resource: String): Route =
     parameter("attribute".?) {
       attribute =>
+        logger.debug(s"GET /orgs/${organization}/business/policies/${deploymentPolicy}?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        
         complete({
           attribute match {
             case Some(attribute) =>  // Only returning 1 attr of the businessPolicy
@@ -267,12 +272,13 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def patchDeploymentPolicy(@Parameter(hidden = true) deploymentPolicy: String,
+                            @Parameter(hidden = true) identity: Identity2,
                             @Parameter(hidden = true) organization: String,
                             @Parameter(hidden = true) resource: String): Route =
     patch {
       entity(as[PatchBusinessPolicyRequest]) {
         reqBody =>
-          logger.debug(s"Doing PATCH /orgs/$organization/business/policies/$deploymentPolicy")
+          logger.debug(s"PATCH /orgs/$organization/business/policies/$deploymentPolicy - By ${identity.resource}:${identity.role}")
           
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
@@ -452,16 +458,17 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     )
   )
   def postDeploymentPolicy(@Parameter(hidden = true) deploymentPolicy: String,
-                           @Parameter(hidden = true) identity: Identity,
+                           @Parameter(hidden = true) identity: Identity2,
                            @Parameter(hidden = true) organization: String,
                            @Parameter(hidden = true) resource: String): Route =
     post {
       entity(as[PostPutBusinessPolicyRequest]) {
         reqBody =>
+          logger.debug(s"POST /orgs/${organization}/business/policies/${deploymentPolicy} - By ${identity.resource}:${identity.role}")
       
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
-          val owner: String = identity match { case IUser(creds) => creds.id; case _ => "" }
+          val owner: Option[UUID] = identity.identifier
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
           db.run(valServiceIdActions.asTry.flatMap({
             case Success(v) =>
@@ -475,7 +482,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                   }
                 }
               }
-              if (invalidIndex < 0) BusinessPoliciesTQ.getNumOwned(owner).result.asTry
+              if (invalidIndex < 0) BusinessPoliciesTQ.getNumOwned(owner.get).result.asTry
               else {
                 val errStr: String = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
                 else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
@@ -488,7 +495,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
               val numOwned: Int = num
               val maxBusinessPolicies: Int = Configuration.getConfig.getInt("api.limits.maxBusinessPolicies")
               if (maxBusinessPolicies == 0 || numOwned <= maxBusinessPolicies) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-                reqBody.getDbInsert(resource, organization, owner).asTry
+                reqBody.getDbInsert(resource, organization, owner.get).asTry
               }
               else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.buspols", maxBusinessPolicies))).asTry
             case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -501,8 +508,8 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
           })).map({
             case Success(v) =>
               logger.debug("POST /orgs/" + organization + "/business/policies/" + deploymentPolicy + " updated in changes table: " + v)
-              if (owner != "") AuthCache.putBusinessOwner(resource, owner) // currently only users are allowed to update business policy resources, so owner should never be blank
-              AuthCache.putBusinessIsPublic(resource, isPublic = false)
+              // TODO: if (owner.isDefined) AuthCache.putBusinessOwner(resource, owner.get) // currently only users are allowed to update business policy resources, so owner should never be blank
+              // TODO: AuthCache.putBusinessIsPublic(resource, isPublic = false)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.created", resource)))
             case Failure(t: DBProcessingError) =>
               t.toComplete
@@ -609,15 +616,17 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def putDeploymentPolicy(@Parameter(hidden = true) deploymentPolicy: String,
-                          @Parameter(hidden = true) identity: Identity,
+                          @Parameter(hidden = true) identity: Identity2,
                           @Parameter(hidden = true) organization: String,
                           @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PostPutBusinessPolicyRequest]) {
         reqBody =>
+          logger.debug(s"PUT /orgs/${organization}/business/policies/${deploymentPolicy} - By ${identity.resource}:${identity.role}")
+          
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
-              val owner: String = identity match { case IUser(creds) => creds.id; case _ => "" }
+              val owner: Option[UUID] = identity.identifier
               val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
               db.run(valServiceIdActions.asTry.flatMap({
                 case Success(v) =>
@@ -631,7 +640,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                       }
                     }
                   }
-                  if (invalidIndex < 0) reqBody.getDbUpdate(resource, organization, owner).asTry
+                  if (invalidIndex < 0) reqBody.getDbUpdate(resource, organization, owner.get).asTry
                   else {
                     val errStr: String = if (invalidIndex < svcRefs.length) ExchMsg.translate("service.not.in.exchange.no.index", svcRefs(invalidIndex).org, svcRefs(invalidIndex).url, svcRefs(invalidIndex).versionRange, svcRefs(invalidIndex).arch)
                     else ExchMsg.translate("service.not.in.exchange.index", Nth(invalidIndex + 1))
@@ -644,8 +653,8 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                   logger.debug("POST /orgs/" + organization + "/business/policies/" + deploymentPolicy + " result: " + n)
                   val numUpdated: Int = n.asInstanceOf[Int]     // i think n is an AnyRef so we have to do this to get it to an int
                   if (numUpdated > 0) {
-                    if (owner != "") AuthCache.putBusinessOwner(resource, owner) // currently only users are allowed to update business policy resources, so owner should never be blank
-                    AuthCache.putBusinessIsPublic(resource, isPublic = false)
+                    // TODO: if (owner.isDefined) AuthCache.putBusinessOwner(resource, owner.get) // currently only users are allowed to update business policy resources, so owner should never be blank
+                    // TODO: AuthCache.putBusinessIsPublic(resource, isPublic = false)
                     resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATEDMODIFIED).insert.asTry
                   } else {
                     DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
@@ -668,28 +677,28 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     }
   
   
-  val deploymentPolicy: Route =
+  def deploymentPolicy(identity: Identity2): Route =
     path("orgs" / Segment / ("business" | "deployment") / "policies" / Segment) {
       (organization, deploymentPolicy) =>
         val resource: String = OrgAndId(organization, deploymentPolicy).toString
         
         (delete | patch | put) {
-          exchAuth(TBusiness(resource), Access.WRITE) {
-            identity =>
-              deleteDeploymentPolicy(deploymentPolicy, organization, resource) ~
-                patchDeploymentPolicy(deploymentPolicy, organization, resource) ~
+          exchAuth(TBusiness(resource), Access.WRITE, validIdentity = identity) {
+            _ =>
+              deleteDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
+                patchDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
                 putDeploymentPolicy(deploymentPolicy, identity, organization, resource)
           }
         } ~
         get {
-          exchAuth(TBusiness(resource), Access.READ) {
+          exchAuth(TBusiness(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getDeploymentPolicy(deploymentPolicy, organization, resource)
+              getDeploymentPolicy(deploymentPolicy, identity, organization, resource)
           }
         } ~
         post {
-          exchAuth(TBusiness(resource), Access.CREATE) {
-            identity =>
+          exchAuth(TBusiness(resource), Access.CREATE, validIdentity = identity) {
+            _ =>
               postDeploymentPolicy(deploymentPolicy, identity, organization, resource)
           }
         }

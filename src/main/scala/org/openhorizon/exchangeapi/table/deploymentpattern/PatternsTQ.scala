@@ -8,6 +8,7 @@ import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{Query, Rep, TableQuery}
 
+import java.util.UUID
 import scala.collection.mutable.ListBuffer
 
 // Instance to access the patterns table
@@ -47,8 +48,8 @@ object PatternsTQ  extends TableQuery(new Patterns(_)){
 
   def getAllPatterns(orgid: String): Query[Patterns, PatternRow, Seq] = this.filter(_.orgid === orgid)
   def getPattern(pattern: String): Query[Patterns, PatternRow, Seq] = if (pattern.contains("%")) this.filter(_.pattern like pattern) else this.filter(_.pattern === pattern)
-  def getOwner(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.owner)
-  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
+  def getOwner(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.owner.toString())
+  def getNumOwned(owner: UUID): Rep[Int] = this.filter(_.owner === owner).length
   def getLabel(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.label)
   def getDescription(pattern: String): Query[Rep[String], String, Seq] = this.filter(_.pattern === pattern).map(_.description)
   def getPublic(pattern: String): Query[Rep[Boolean], Boolean, Seq] = this.filter(_.pattern === pattern).map(_.public)

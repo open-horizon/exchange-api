@@ -26,6 +26,30 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
+  private val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestMgmtPolsGet",
+                password     = Option(Password.hash("u1pw")),
+                username     = "u1"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestMgmtPolsGet",
+                password     = None,
+                username     = "u2"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestMgmtPolsGet2",
+                password     = Option(Password.hash("u1pw")),
+                username     = "u1"))
   private val TESTMANAGEMENTPOLICES: Seq[ManagementPolicyRow] =
     Seq(ManagementPolicyRow(allowDowngrade   = true,
                             constraints      = """["a","b"]""",
@@ -37,7 +61,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
                             manifest         = "manifest",
                             managementPolicy = "TestMgmtPolsGet/pol1",
                             orgid            = "TestMgmtPolsGet",
-                            owner            = "TestMgmtPolsGet/u1",
+                            owner            = TESTUSERS(0).user,
                             patterns         = """["p1","p2"]""",
                             properties       = """[{"name":"name1","type":"type1","value":"value1"},{"name":"name2","value":"value2"}]""",
                             start            = "start",
@@ -52,7 +76,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
                             manifest         = "manifest2",
                             managementPolicy = "TestMgmtPolsGet/pol2",
                             orgid            = "TestMgmtPolsGet",
-                            owner            = "TestMgmtPolsGet/u2",
+                            owner            = TESTUSERS(1).user,
                             patterns         = "",
                             properties       = "",
                             start            = "",
@@ -67,7 +91,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
                             manifest         = "",
                             managementPolicy = "TestMgmtPolsGet2/pol1",
                             orgid            = "TestMgmtPolsGet2",
-                            owner            = "TestMgmtPolsGet2/u1",
+                            owner            = TESTUSERS(2).user,
                             patterns         = "",
                             properties       = "",
                             start            = "",
@@ -89,31 +113,6 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
                orgType            = "",
                tags               = None,
                limits             = ""))
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = false,
-                hubAdmin    = false,
-                email       = "",
-                hashedPw    = Password.fastHash("u1pw"),
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestMgmtPolsGet",
-                updatedBy   = "",
-                username    = "TestMgmtPolsGet/u1"),
-        UserRow(admin       = false,
-                hubAdmin    = false,
-                email       = "",
-                hashedPw    = "",
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestMgmtPolsGet",
-                updatedBy   = "",
-                username    = "TestMgmtPolsGet/u2"),
-        UserRow(admin       = false,
-                hubAdmin    = false,
-                email       = "",
-                hashedPw    = Password.fastHash("u1pw"),
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestMgmtPolsGet2",
-                updatedBy   = "",
-                username    = "TestMgmtPolsGet2/u1"))
   
   
   override def beforeAll(): Unit = {

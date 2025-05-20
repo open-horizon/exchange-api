@@ -4,16 +4,20 @@ import org.apache.pekko.event.LoggingAdapter
 import org.openhorizon.exchangeapi.auth.Access.Access
 import org.openhorizon.exchangeapi.utility.ExchMsg
 
+import java.util.UUID
 import scala.util.{Failure, Success, Try}
 
-case class IUser(creds: Creds) extends Identity {
-  override def isSuperUser: Boolean = Role.isSuperUser(creds.id)
+case class IUser(creds: Creds,
+                 identity: Identity2) extends Identity {
+  def this(identity: Identity2) =
+    this(creds = Creds(id = identity.resource),
+         identity = identity)
+  
+  def resource: String = identity.resource
+  
+  override def isSuperUser: Boolean = identity.isSuperUser
 
-  override lazy val role: String =
-    if (isSuperUser) AuthRoles.SuperUser
-    else if (isAdmin) AuthRoles.AdminUser
-    else if (isHubAdmin) AuthRoles.HubAdmin
-    else AuthRoles.User
+  override lazy val role: String = identity.role
 
   override def authorizeTo(target: Target, access: Access)(implicit logger: LoggingAdapter): Try[Identity] = {
     val requiredAccess: Access =
@@ -121,17 +125,9 @@ case class IUser(creds: Creds) extends Identity {
     else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
   }
 
-  override def isAdmin: Boolean = {
-    if (isSuperUser) return true
-    val resp: Boolean = AuthCache.getUserIsAdmin(creds.id).getOrElse(false)
-    resp
-  }
+  override def isAdmin: Boolean = identity.isOrgAdmin
 
-  override def isHubAdmin: Boolean = {
-    if (isSuperUser) return true
-    val resp: Boolean = AuthCache.getUserIsHubAdmin(creds.id).getOrElse(false)
-    resp
-  }
+  override def isHubAdmin: Boolean = identity.isHubAdmin
 
   def iOwnTarget(target: Target): Boolean = {
     if (target.mine) true

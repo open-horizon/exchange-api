@@ -10,8 +10,9 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, OrgAndId, Password, TUser}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Identity2, OrgAndId, Password, TUser}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -82,22 +83,42 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postChangePassword(@Parameter(hidden = true) organization: String,
+  def postChangePassword(@Parameter(hidden = true) identity: Identity2,
+                         @Parameter(hidden = true) organization: String,
                          @Parameter(hidden = true) compositeId: String,
                          @Parameter(hidden = true) username: String): Route =
     entity(as[ChangePwRequest]) {
       reqBody =>
-        logger.debug(s"Doing POST /orgs/$organization/users/$username")
+        logger.debug(s"POST /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
         
         validateWithMsg(reqBody.getAnyProblem) {
+          
+          val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+          
+          val action =
+            for {
+              numUsersModified <-
+                Compiled(UsersTQ.filter(user => (user.organization === organization &&
+                                                 user.username === username))
+                                .filterIf(identity.isUser && !identity.isSuperUser)(users => (users.organization ++ "/" ++ users.username) =!= "root/root")
+                                .filterIf(identity.isStandardUser)(users => users.user === identity.identifier)
+                                .filterIf(identity.isOrgAdmin)(users => users.organization === identity.organization && !users.isHubAdmin)
+                                .filterIf(identity.isHubAdmin)(user => (user.isHubAdmin || user.isOrgAdmin))
+                                .map(user =>
+                                      (user.modifiedAt,
+                                       user.modifiedBy,
+                                       user.password)))
+                                .update(timestamp,
+                                        identity.identifier,
+                                        Option(Password.hash(reqBody.newPassword))) // Grab this last second.
+              } yield(numUsersModified)
+          
           complete({
-            val hashedPw: String = Password.hash(reqBody.newPassword)
-            val action = reqBody.getDbUpdate(compositeId, organization, hashedPw)
             db.run(action.transactionally.asTry).map({
               case Success(n) =>
                 logger.debug("POST /orgs/" + organization + "/users/" + username + "/changepw result: " + n)
                 if (n.asInstanceOf[Int] > 0) {
-                  AuthCache.putUser(compositeId, hashedPw, reqBody.newPassword)
+                  //AuthCache.putUser(compositeId, hashedPw, reqBody.newPassword)
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("password.updated.successfully")))
                 }
                 else
@@ -111,15 +132,15 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
         }
     }
   
-  val changePassword: Route =
+  def changePassword(identity: Identity2): Route =
     path("orgs" / Segment / "users" / Segment / "changepw") {
-      (orgid, username) =>
-        val resource: String = OrgAndId(orgid, username).toString
+      (organization, username) =>
+        val resource: String = OrgAndId(organization, username).toString
         
         post {
-          exchAuth(TUser(resource), Access.WRITE) {
+          exchAuth(TUser(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              postChangePassword(orgid, resource, username)
+              postChangePassword(identity, organization, resource, username)
           }
         }
     }

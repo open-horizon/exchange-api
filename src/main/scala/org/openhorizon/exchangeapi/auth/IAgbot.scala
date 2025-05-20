@@ -6,8 +6,13 @@ import org.openhorizon.exchangeapi.utility.ExchMsg
 
 import scala.util.{Failure, Success, Try}
 
-case class IAgbot(creds: Creds) extends Identity {
-  override lazy val role: String = AuthRoles.Agbot
+case class IAgbot(creds: Creds,
+                  identity: Identity2) extends Identity {
+  def this(identity: Identity2) =
+    this(creds = Creds(id = identity.resource),
+         identity = identity)
+  
+  override lazy val role: String = identity.role
 
   def authorizeTo(target: Target, access: Access)(implicit logger: LoggingAdapter): Try[Identity] = {
     // Transform any generic access into specific access
@@ -79,5 +84,5 @@ case class IAgbot(creds: Creds) extends Identity {
     else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
   }
 
-  override def isMultiTenantAgbot: Boolean = getOrg == "IBM"    //someday: implement instance-level ACLs instead of hardcoding this
+  override def isMultiTenantAgbot: Boolean = identity.isMultiTenantAgbot    //someday: implement instance-level ACLs instead of hardcoding this
 }

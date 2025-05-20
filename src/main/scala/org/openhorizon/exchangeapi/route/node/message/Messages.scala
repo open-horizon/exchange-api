@@ -11,7 +11,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, get, parameter, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.{GetNodeMsgsResponse, PostNodesMsgsRequest}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.message.{NodeMsg, NodeMsgRow, NodeMsgsTQ}
@@ -50,11 +50,14 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getMessagesNode(@Parameter(hidden = true) node: String,
+  def getMessagesNode(@Parameter(hidden = true) identity: Identity2,
+                      @Parameter(hidden = true) node: String,
                       @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) resource: String): Route =
     parameter("maxmsgs".?) {
       maxmsgsStrOpt =>
+        logger.debug(s"GET /orgs/{organization}/nodes/{node}/msgs?maxmsgs=${maxmsgsStrOpt.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        
         validate(Try(maxmsgsStrOpt.map(_.toInt)).isSuccess, ExchMsg.translate("invalid.int.for.name", maxmsgsStrOpt.getOrElse(""), "maxmsgs")) {
           complete({
             // Set the query, including maxmsgs
@@ -130,14 +133,16 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postMessagesNode(@Parameter(hidden = true) identity: Identity,
+  def postMessagesNode(@Parameter(hidden = true) identity: Identity2,
                        @Parameter(hidden = true) node: String,
                        @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String): Route =
     entity(as[PostNodesMsgsRequest]) {
       reqBody =>
+        logger.debug(s"POST /orgs/{organization}/nodes/{node}/msgs - By ${identity.resource}:${identity.role}")
+        
         complete({
-          val agbotId: String = identity.creds.id      //someday: handle the case where the acls allow users to send msgs
+          val agbotId: String = identity.resource      //someday: handle the case where the acls allow users to send msgs
           var msgNum = ""
           val maxMessagesInMailbox: Int = Configuration.getConfig.getInt("api.limits.maxMessagesInMailbox")
           val getNumOwnedDbio = if (maxMessagesInMailbox == 0) DBIO.successful(0) else NodeMsgsTQ.getNumOwned(resource).result // avoid DB read for this if there is no max
@@ -179,21 +184,21 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
         })
     }
   
-  val messagesNode: Route =
+  def messagesNode(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "msgs") {
       (organization,
        node) =>
         val resource: String = OrgAndId(organization, node).toString
         
         get {
-          exchAuth(TNode(resource),Access.READ) {
+          exchAuth(TNode(resource),Access.READ, validIdentity = identity) {
             _ =>
-              getMessagesNode(node, organization, resource)
+              getMessagesNode(identity, node, organization, resource)
           }
         } ~
         post {
-          exchAuth(TNode(resource),Access.SEND_MSG_TO_NODE) {
-            identity =>
+          exchAuth(TNode(resource),Access.SEND_MSG_TO_NODE, validIdentity = identity) {
+            _ =>
               postMessagesNode(identity, node, organization, resource)
           }
         }

@@ -10,7 +10,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.node.status.{NodeStatus, NodeStatusTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
@@ -73,9 +73,11 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getStatusNode(@Parameter(hidden = true) node: String,
+  def getStatusNode(@Parameter(hidden = true) identity: Identity2,
+                    @Parameter(hidden = true) node: String,
                     @Parameter(hidden = true) organization: String,
-                    @Parameter(hidden = true) resource: String): Route =
+                    @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/nodes/${node}/status - By ${identity.resource}:${identity.role}")
     complete({
       db.run(NodeStatusTQ.getNodeStatus(resource).result).map({
         list =>
@@ -87,6 +89,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
             (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
       })
     })
+  }
   
   // =========== PUT /orgs/{organization}/nodes/{node}/status ===============================
   @PUT
@@ -165,12 +168,14 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putStatusNode(@Parameter(hidden = true) node: String,
+  def putStatusNode(@Parameter(hidden = true) identity: Identity2,
+                    @Parameter(hidden = true) node: String,
                     @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PutNodeStatusRequest]) {
         reqBody =>
+          logger.debug(s"PUT /orgs/${organization}/nodes/${node}/status - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
               db.run(reqBody.toNodeStatusRow(resource).upsert.asTry.flatMap({
@@ -206,10 +211,12 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteStatusNode(@Parameter(hidden = true) node: String,
+  def deleteStatusNode(@Parameter(hidden = true) identity: Identity2,
+                       @Parameter(hidden = true) node: String,
                        @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String): Route =
     delete {
+      logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/status - By ${identity.resource}:${identity.role}")
       complete({
         db.run(NodeStatusTQ.getNodeStatus(resource).delete.asTry.flatMap({
           case Success(v) =>
@@ -235,22 +242,22 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val statusNode: Route =
+  def statusNode(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "status") {
       (organization, node) =>
         val resource: String = OrgAndId(organization, node).toString
         
         (delete | put) {
-          exchAuth(TNode(resource), Access.WRITE) {
+          exchAuth(TNode(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteStatusNode(node, organization, resource) ~
-              putStatusNode(node, organization, resource)
+              deleteStatusNode(identity, node, organization, resource) ~
+              putStatusNode(identity, node, organization, resource)
           }
         } ~
         get{
-          exchAuth(TNode(resource),Access.READ) {
+          exchAuth(TNode(resource),Access.READ, validIdentity = identity) {
             _ =>
-              getStatusNode(node, organization, resource)
+              getStatusNode(identity, node, organization, resource)
           }
         }
     }

@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.agent
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotMsgsResponse, PutAgbotsRequest}
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
@@ -42,21 +42,29 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  private val TESTAGBOT: AgbotRow =
-    AgbotRow(id            = "TestGetAgentConfigMgmt/a1",
-             lastHeartbeat = ApiTime.nowUTC,
-             msgEndPoint   = "",
-             name          = "",
-             orgid         = "TestGetAgentConfigMgmt",
-             owner         = "TestGetAgentConfigMgmt/u1",
-             publicKey     = "",
-             token         = "$2a$10$RdMlsjB6jwIaoqJNIoCUieM710YLHDYGuRD.y8q0IpqFufkor1by6")  // TestGetAgentConfigMgmt/a1:a1tok
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
+  private val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestGetAgentConfigMgmt",
+                password     = Option(Password.hash("admin1pw")),
+                username     = "admin1"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestGetAgentConfigMgmt",
+                password     = Option(Password.hash("a1pw")),
+                username     = "u1"))
   private val TESTNODE: Seq[NodeRow] =
     Seq(NodeRow(id = "TestGetAgentConfigMgmt/n1",
                 orgid = "TestGetAgentConfigMgmt",
                 token = "$2a$04$qMlSbnMbLt6PyYZY3PbwEOQdlN0/Kginx9oiD1Jx9woGK7CiPUe1e",  // TestGetAgentConfigMgmt/n1:n1tok
                 name = "",
-                owner = "TestGetAgentConfigMgmt/u1",
+                owner = TESTUSERS(1).user,
                 nodeType = "device",
                 pattern = "",
                 regServices = "[]",
@@ -77,23 +85,15 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
                orgId              = "TestGetAgentConfigMgmt",
                orgType            = "",
                tags               = None))
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = true,
-                email       = "",
-                hashedPw    = "$2a$10$CpZ3bjz0LxkxioZUO4bM4euITQQ6C0523SYLp2ziamYd/G84YtEJy",  // TestGetAgentConfigMgmt/admin1:admin1pw
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestGetAgentConfigMgmt",
-                updatedBy   = "",
-                username    = "TestGetAgentConfigMgmt/admin1"),
-        UserRow(admin       = false,
-                email       = "",
-                hashedPw    = "$2a$10$277Ds6AvpLchRM7UBslfpuoS1cU8rFvdv9vG3lXnmVCigws90WBl.",  // TestGetAgentConfigMgmt/u1:a1pw
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestGetAgentConfigMgmt",
-                updatedBy   = "",
-                username    = "TestGetAgentConfigMgmt/u1"))
+  private val TESTAGBOT: AgbotRow =
+    AgbotRow(id            = "TestGetAgentConfigMgmt/a1",
+             lastHeartbeat = ApiTime.nowUTC,
+             msgEndPoint   = "",
+             name          = "",
+             orgid         = "TestGetAgentConfigMgmt",
+             owner         = TESTUSERS(1).user,
+             publicKey     = "",
+             token         = "$2a$10$RdMlsjB6jwIaoqJNIoCUieM710YLHDYGuRD.y8q0IpqFufkor1by6")  // TestGetAgentConfigMgmt/a1:a1tok
   
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
@@ -250,7 +250,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
                    msgEndPoint   = "",
                    name          = "",
                    orgid         = "IBM",
-                   owner         = "TestGetAgentConfigMgmt/u1",
+                   owner         = TESTUSERS(1).user,
                    publicKey     = "",
                    token         = "$2a$10$IxvKVE5o2tzqFh/aSygDE.cqBQFGjMuWqK24EqRyTn8RkklJAlI0a"))  // IBM/TestGetAgentConfigMgmt-a1:TestGetAgentConfigMgmt-a1tok
     val TESTCHG: Seq[(java.sql.Timestamp, String)] =
@@ -277,7 +277,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
                   orgid = "IBM",
                   token = "$2a$04$VKBje3vZ5DAGGZymgTJip.ish0LhvUTK0gqG4RscO0oogffHNFHgC",  // IBM/TestGetAgentConfigMgmt-n1:TestGetAgentConfigMgmt-n1tok
                   name = "",
-                  owner = "TestGetAgentConfigMgmt/u1",
+                  owner = TESTUSERS(1).user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -306,15 +306,15 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - IBM Organization Admin") {
     val TESTCHG: Seq[(java.sql.Timestamp, String)] =
       Seq((ApiTime.nowTimestamp, "IBM"))
-    val TESTUSERS: Seq[UserRow] =
-      Seq(UserRow(admin       = true,
-                  email       = "",
-                  hashedPw    = "$2a$10$jzpB/Kxf6l4mnBniTKNS6uo0rTRtywIAh4l6fj8WOAPIVHq03X0AG",  // IBM/TestGetAgentConfigMgmt-admin1:TestGetAgentConfigMgmt-admin1pw
-                  hubAdmin    = false,
-                  lastUpdated = ApiTime.nowUTC,
-                  orgid       = "IBM",
-                  updatedBy   = "",
-                  username    = "IBM/TestGetAgentConfigMgmt-admin1"))
+    val TESTUSERS: Seq[UserRow] = {
+      Seq(UserRow(createdAt    = TIMESTAMP,
+                  isHubAdmin   = false,
+                  isOrgAdmin   = true,
+                  modifiedAt   = TIMESTAMP,
+                  organization = "IBM",
+                  password     = Option(Password.hash("TestGetAgentConfigMgmt-admin1pw")),
+                  username     = "TestGetAgentConfigMgmt-admin1"))
+    }
     
     fixtureUsers(
       _ =>{
@@ -332,15 +332,15 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - IBM User") {
     val TESTCHG: Seq[(java.sql.Timestamp, String)] =
       Seq((ApiTime.nowTimestamp, "IBM"))
-    val TESTUSERS: Seq[UserRow] =
-      Seq(UserRow(admin       = false,
-                  email       = "",
-                  hashedPw    = "$2a$10$qCFvL9XKLJPH0rKCn2qNWuAXEmjppuIkyl2bQZOPi/XgtyUzxYEQm",  // IBM/TestGetAgentConfigMgmt-u1:TestGetAgentConfigMgmt-u1pw
-                  hubAdmin    = false,
-                  lastUpdated = ApiTime.nowUTC,
-                  orgid       = "IBM",
-                  updatedBy   = "",
-                  username    = "IBM/TestGetAgentConfigMgmt-u1"))
+    val TESTUSERS: Seq[UserRow] = {
+      Seq(UserRow(createdAt    = TIMESTAMP,
+                  isHubAdmin   = false,
+                  isOrgAdmin   = false,
+                  modifiedAt   = TIMESTAMP,
+                  organization = "IBM",
+                  password     = Option(Password.hash("TestGetAgentConfigMgmt-u1pw")),
+                  username     = "TestGetAgentConfigMgmt-u1"))
+    }
     
     fixtureUsers(
       _ =>{

@@ -13,6 +13,7 @@ import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
@@ -20,6 +21,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -63,6 +65,8 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
   private val AWAITDURATION: Duration = 15.seconds
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
   
   private val TESTORGANIZATION: OrgRow =
     OrgRow(heartbeatIntervals = "",
@@ -197,12 +201,14 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   
   // Nodes should be able to see changes to Node Management Policies
   test("GET /orgs/" + orgid + "/changes - As a node") {
+    val rootUser: UUID = Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === "root" && users.username === "root").map(_.user).result.head), AWAITDURATION)
+    
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "MgmtPolSuite/n1",
                   orgid = "MgmtPolSuite",
                   token = "$2a$04$BFX1t20Vd08CQvOisW8B0.JhXw63q0/NydkAwqa2OawPjQmUfJaQG", // MgmtPolSuite/n1:n1pw
                   name = "",
-                  owner = "root/root",
+                  owner = rootUser,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",

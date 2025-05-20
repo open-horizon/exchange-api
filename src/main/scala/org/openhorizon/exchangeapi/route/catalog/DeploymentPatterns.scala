@@ -8,9 +8,9 @@ import jakarta.ws.rs.{GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, parameter, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TPattern}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TPattern}
 import org.openhorizon.exchangeapi.route.deploymentpattern.GetPatternsResponse
 import org.openhorizon.exchangeapi.table.deploymentpattern.{Pattern, PatternsTQ}
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
@@ -111,9 +111,10 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getDeploymentPatterns: Route =
+  def getDeploymentPatterns(@Parameter(hidden = true) identity: Identity2): Route =
     parameter("orgtype".?) {
       orgType =>
+        logger.debug(s"GET /catalog/patterns?orgtype=${orgType.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         complete({
           val svcQuery =
             for {
@@ -130,12 +131,12 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
         })
     }
   
-  val deploymentPatternsCatalog: Route =
+  def deploymentPatternsCatalog(identity: Identity2): Route =
     path("catalog" / "patterns") {
       get {
-        exchAuth(TPattern(OrgAndId("*","*").toString),Access.READ_ALL_PATTERNS) {
+        exchAuth(TPattern(OrgAndId("*","*").toString), Access.READ_ALL_PATTERNS, validIdentity = identity) {
           _ =>
-            getDeploymentPatterns
+            getDeploymentPatterns(identity)
         }
       }
     }

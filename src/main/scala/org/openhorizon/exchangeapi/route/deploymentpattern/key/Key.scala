@@ -11,7 +11,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TPattern}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TPattern}
 import org.openhorizon.exchangeapi.route.deploymentpattern.PutPatternKeyRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
@@ -44,6 +44,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def deleteKeyDeploymentPattern(@Parameter(hidden = true) pattern: String,
+                                 @Parameter(hidden = true) identity: Identity2,
                                  @Parameter(hidden = true) keyId: String,
                                  @Parameter(hidden = true) orgid: String,
                                  @Parameter(hidden = true) compositeId: String): Route =
@@ -98,6 +99,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def getKeyDeploymentPattern(@Parameter(hidden = true) pattern: String,
+                              @Parameter(hidden = true) identity: Identity2,
                               @Parameter(hidden = true) keyId: String,
                               @Parameter(hidden = true) orgid: String,
                               @Parameter(hidden = true) compositeId: String): Route =
@@ -145,6 +147,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def putKeyDeploymentPattern(@Parameter(hidden = true) pattern: String,
+                              @Parameter(hidden = true) identity: Identity2,
                               @Parameter(hidden = true) keyId: String,
                               @Parameter(hidden = true) orgid: String,
                               @Parameter(hidden = true) compositeId: String): Route =
@@ -185,7 +188,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val keyDeploymentPattern: Route =
+  def keyDeploymentPattern(identity: Identity2): Route =
     path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns") / Segment / "keys" / Segment) {
       (organization,
        deploymentPattern,
@@ -193,16 +196,16 @@ trait Key extends JacksonSupport with AuthenticationSupport {
         val resource: String = OrgAndId(organization, deploymentPattern).toString
         
         (delete | put) {
-          exchAuth(TPattern(resource), Access.WRITE) {
+          exchAuth(TPattern(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteKeyDeploymentPattern(deploymentPattern, key, organization, resource) ~
-              putKeyDeploymentPattern(deploymentPattern, key, organization, resource)
+              deleteKeyDeploymentPattern(deploymentPattern, identity, key, organization, resource) ~
+              putKeyDeploymentPattern(deploymentPattern, identity, key, organization, resource)
           }
         } ~
         get {
-          exchAuth(TPattern(resource),Access.READ) {
+          exchAuth(TPattern(resource),Access.READ, validIdentity = identity) {
             _ =>
-              getKeyDeploymentPattern(deploymentPattern, key, organization, resource)
+              getKeyDeploymentPattern(deploymentPattern, identity, key, organization, resource)
           }
         }
     }

@@ -95,10 +95,13 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postConfigurationState(@Parameter(hidden = true) node: String,
+  def postConfigurationState(@Parameter(hidden = true) identity: Identity2,
+                             @Parameter(hidden = true) node: String,
                              @Parameter(hidden = true) organization: String,
                              @Parameter(hidden = true) resource: String): Route =
-    entity(as[PostNodeConfigStateRequest]) { reqBody =>
+    entity(as[PostNodeConfigStateRequest]) {
+      reqBody =>
+        logger.debug(s"POST /orgs/${organization}/nodes/${node}/services_configstate - By ${identity.resource}:${identity.role}")
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(NodesTQ.getRegisteredServices(resource).result.asTry.flatMap({
@@ -128,16 +131,16 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val configurationState: Route =
+  def configurationState(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "services_configstate") {
       (organization,
        node) =>
         val resource: String = OrgAndId(organization, node).toString
         
         post {
-          exchAuth(TNode(resource),Access.WRITE) {
+          exchAuth(TNode(resource),Access.WRITE, validIdentity = identity) {
             _ =>
-              postConfigurationState(node, organization, resource)
+              postConfigurationState(identity, node, organization, resource)
           }
         }
     }

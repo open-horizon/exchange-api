@@ -12,7 +12,7 @@ import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.cloud.IbmCloudAuth
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, TOrg}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, Identity2, TOrg}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgsTQ}
@@ -77,12 +77,14 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getOrganization(@Parameter(hidden = true) organization: String): Route =
+  def getOrganization(@Parameter(hidden = true) identity: Identity2,
+                      @Parameter(hidden = true) organization: String): Route =
     {
       parameter("attribute".?) {
         attribute =>
-          exchAuth(TOrg(organization), Access.READ) { ident =>
-            logger.debug(s"GET /orgs/$organization ident: ${ident.getIdentity}")
+          exchAuth(TOrg(organization), Access.READ, validIdentity = identity) {
+            _ =>
+            logger.debug(s"GET /orgs/$organization - By ${identity.resource}:${identity.role}")
             complete({
               attribute match {
                 case Some(attr) => // Only returning 1 attr of the org
@@ -176,29 +178,30 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postOrganization(@Parameter(hidden = true) orgId: String): Route =
+  def postOrganization(@Parameter(hidden = true) identity: Identity2,
+                       @Parameter(hidden = true) organization: String): Route =
     entity(as[PostPutOrgRequest]) {
       reqBody =>
-        logger.debug(s"Doing POST /orgs/$orgId")
+        logger.debug(s"POST /orgs/$organization - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem(reqBody.limits.getOrElse(OrgLimits(0)).maxNodes)) {
             complete({
-              db.run(reqBody.toOrgRow(orgId).insert.asTry.flatMap({
+              db.run(reqBody.toOrgRow(organization).insert.asTry.flatMap({
                 case Success(n) =>
                   // Add the resource to the resourcechanges table
-                  logger.debug(s"POST /orgs/$orgId result: $n")
-                  ResourceChange(0L, orgId, orgId, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.CREATED).insert.asTry
+                  logger.debug(s"POST /orgs/$organization result: $n")
+                  ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.CREATED).insert.asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(n) =>
-                  logger.debug(s"POST /orgs/$orgId put in changes table: $n")
-                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.created", orgId)))
+                  logger.debug(s"POST /orgs/$organization put in changes table: $n")
+                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.created", organization)))
                 case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", orgId, t.getMessage)))
-                  else if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("org.already.exists", orgId, t.getMessage)))
-                  else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.created", orgId, t.toString))
+                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", organization, t.getMessage)))
+                  else if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("org.already.exists", organization, t.getMessage)))
+                  else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.created", organization, t.toString))
                 case Failure(t) =>
-                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", orgId, t.getMessage)))
-                  else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.created", orgId, t.toString)))
+                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", organization, t.getMessage)))
+                  else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.created", organization, t.toString)))
               })
             })
           }
@@ -242,10 +245,11 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putOrganization(@Parameter(hidden = true) organization: String,
+  def putOrganization(@Parameter(hidden = true) identity: Identity2,
+                      @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) reqBody: PostPutOrgRequest): Route =
     {
-      logger.debug(s"Doing PUT /orgs/$organization with orgId:$organization")
+      logger.debug(s"PUT /orgs/$organization - By ${identity.resource}:${identity.role}")
      
       validateWithMsg(reqBody.getAnyProblem(reqBody.limits.getOrElse(OrgLimits(0)).maxNodes)) {
         complete({
@@ -313,10 +317,11 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def patchOrganization(@Parameter(hidden = true) organization: String,
+  def patchOrganization(@Parameter(hidden = true) identity: Identity2,
+                        @Parameter(hidden = true) organization: String,
                         @Parameter(hidden = true) reqBody: PatchOrgRequest): Route =
     {
-      logger.debug(s"Doing PATCH /orgs/$organization with orgId:$organization")
+      logger.debug(s"PATCH /orgs/$organization - By ${identity.resource}:${identity.role}")
       
       validateWithMsg(reqBody.getAnyProblem(reqBody.limits.getOrElse(OrgLimits(0)).maxNodes)) {
         complete({
@@ -357,14 +362,15 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteOrganization(@Parameter(hidden = true) organization: String): Route =
+  def deleteOrganization(@Parameter(hidden = true) identity: Identity2,
+                         @Parameter(hidden = true) organization: String): Route =
     {
-      logger.debug(s"Doing DELETE /orgs/$organization")
+      logger.debug(s"DELETE /orgs/$organization - By ${identity.resource}:${identity.role}")
       
       validate(organization != "root", ExchMsg.translate("cannot.delete.root.org")) {
         complete({
           // DB actions to get the user/agbot/node id's in this org
-          var getResourceIds = DBIO.sequence(Seq(UsersTQ.getAllUsersUsername(organization).result, AgbotsTQ.getAllAgbotsId(organization).result, NodesTQ.getAllNodesId(organization).result))
+          var getResourceIds = DBIO.sequence(Seq(UsersTQ.map(_.username).result, AgbotsTQ.getAllAgbotsId(organization).result, NodesTQ.getAllNodesId(organization).result))
           var resourceIds: Seq[Seq[String]] = null
           var orgFound = true
           // remove does *not* throw an exception if the key does not exist
@@ -404,19 +410,19 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val organization: Route =
+  def organization(identity: Identity2): Route =
     path("orgs" / Segment) {
       organization =>
         delete {
-          exchAuth(TOrg(organization), Access.DELETE_ORG) {
+          exchAuth(TOrg(organization), Access.DELETE_ORG, validIdentity = identity) {
             _ =>
-              deleteOrganization(organization)
+              deleteOrganization(identity, organization)
           }
         } ~
         get {
-          exchAuth(TOrg(organization), Access.READ) {
+          exchAuth(TOrg(organization), Access.READ, validIdentity = identity) {
             _ =>
-              getOrganization(organization)
+              getOrganization(identity, organization)
           }
         } ~
         patch {
@@ -424,16 +430,16 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
             reqBody =>
               val access: Access.Value = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
           
-              exchAuth(TOrg(organization), access) {
+              exchAuth(TOrg(organization), access, validIdentity = identity) {
                 _ =>
-                  patchOrganization(organization, reqBody)
+                  patchOrganization(identity, organization, reqBody)
               }
           }
         } ~
         post {
-          exchAuth(TOrg(""), Access.CREATE) {
+          exchAuth(TOrg(""), Access.CREATE, validIdentity = identity) {
             _ =>
-              postOrganization(organization)
+              postOrganization(identity, organization)
           }
         } ~
         put {
@@ -441,9 +447,9 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
             reqBody =>
               val access: Access.Value = if (reqBody.orgType.getOrElse("") == "IBM") Access.SET_IBM_ORG_TYPE else Access.WRITE
               
-              exchAuth(TOrg(organization), access) {
+              exchAuth(TOrg(organization), access, validIdentity = identity) {
                 _ =>
-                  putOrganization(organization, reqBody)
+                  putOrganization(identity, organization, reqBody)
               }
             }
         }

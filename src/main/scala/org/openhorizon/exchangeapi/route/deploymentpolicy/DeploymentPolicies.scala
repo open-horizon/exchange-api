@@ -8,13 +8,18 @@ import jakarta.ws.rs.{GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, parameter, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, OrgAndId, TBusiness}
+import org.json4s.DefaultFormats
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TBusiness}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, BusinessPolicy}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
+import scala.annotation.unused
 import scala.concurrent.ExecutionContext
+import scala.util.{Failure, Success}
 
 
 @Path("/v1/orgs/{organization}/business/policies")
@@ -92,14 +97,57 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getDeploymentPolicies(@Parameter(hidden = true) ident: Identity,
-                            @Parameter(hidden = true) orgid: String): Route =
+  def getDeploymentPolicies(@Parameter(hidden = true) identity: Identity2,
+                            @Parameter(hidden = true) organization: String): Route =
     parameter("idfilter".?, "owner".?, "label".?, "description".?) {
       (idfilter,
        owner,
        label,
        description) =>
+        logger.debug(s"GET /orgs/${organization}/business/policies?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        
+        val getAllDeployPolicies =
+          for {
+            deployPolicies <-
+              BusinessPoliciesTQ.filter(_.orgid === organization)
+                                .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(policies => policies.orgid === identity.organization)
+                                .filterOpt(description)((policies, description) => (if (description.contains("%")) policies.description like description else policies.description === description))
+                                .filterOpt(idfilter)((policies, idfilter) => (if (idfilter.contains("%")) policies.businessPolicy like idfilter else policies.businessPolicy === idfilter))
+                                .filterOpt(label)((policies, label) => (if (label.contains("%")) policies.label like label else policies.label === label))
+                                .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                .on(_.owner === _._2)
+                                .filterOpt(owner)((policies, owner) => (if (owner.contains("%")) (policies._2._1 ++ "/" ++ policies._2._3) like owner else (policies._2._1 ++ "/" ++ policies._2._3) === owner))
+                                .map(policies =>
+                                      ((policies._1.constraints,
+                                        policies._1.created,
+                                        policies._1.description,
+                                        policies._1.label,
+                                        policies._1.lastUpdated,
+                                        (policies._2._1 ++ "/" ++ policies._2._3),
+                                        policies._1.properties,
+                                        policies._1.secretBinding,
+                                        policies._1.service,
+                                        policies._1.userInput),
+                                       policies._1.businessPolicy))
+          } yield deployPolicies
+        
         complete({
+          db.run(Compiled(getAllDeployPolicies).result.transactionally.asTry).map {
+            case Success(deployPolRecords) =>
+              logger.debug("GET /orgs/" + organization + "/business/policies result size: " + deployPolRecords.size)
+              val defaultFormats: DefaultFormats.type = DefaultFormats
+              val deployPolsMap = deployPolRecords.map(results => results._2 -> new BusinessPolicy(results._1)(defaultFormats)).toMap
+              if (deployPolRecords.nonEmpty)
+                (StatusCodes.OK, GetBusinessPoliciesResponse(deployPolsMap, 0))
+              else
+                (StatusCodes.NotFound, GetBusinessPoliciesResponse(deployPolsMap, 0))
+            case Failure(exception) =>
+              logger.error(cause = exception, message = "GET /orgs/" + organization + "/business/policies")
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+          }
+        })
+        
+        /*complete({
           var q = BusinessPoliciesTQ.getAllBusinessPolicies(orgid) // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
           description.foreach(desc => {
             if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc)
@@ -111,7 +159,7 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
             if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab)
           })
           owner.foreach(owner => {
-            if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner)
+            if (owner.contains("%")) q = q.filter(_.owner === owner) else q = q.filter(_.owner === owner)
           })
           
           db.run(q.result).map({ list =>
@@ -120,15 +168,15 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
             val code: StatusCode = if (businessPolicy.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
             (code, GetBusinessPoliciesResponse(businessPolicy, 0))
           })
-        })
+        })*/
     }
   
-  val deploymentPolicies: Route =
+  def deploymentPolicies(identity: Identity2): Route =
     path("orgs" / Segment / ("business" | "deployment") / "policies") {
       organization =>
         get {
-          exchAuth(TBusiness(OrgAndId(organization, "*").toString), Access.READ) {
-            identity =>
+          exchAuth(TBusiness(OrgAndId(organization, "*").toString), Access.READ, validIdentity = identity) {
+            _ =>
               getDeploymentPolicies(identity, organization)
           }
         }

@@ -316,6 +316,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
       None, None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, None)
     val response = Http(URL+"/nodes/"+nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
+    info("body: "+response.body)
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
   // TODO: Put back Token Validation tests
@@ -451,7 +452,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
           Prop("version","1.0.0","version","in")), Some(""))
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      None, Some(Map("horizon"->"3.2.3")), nodePubKey, None, Some(NodeHeartbeatIntervals(5,15,2)), clusterNamespace = None, isNamespaceScoped = Option(true))
+      None, Some(Map("horizon"->"3.2.3")), "", None, Some(NodeHeartbeatIntervals(5,15,2)), clusterNamespace = None, isNamespaceScoped = Option(true))
     val response = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
@@ -3243,7 +3244,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   // Test Org maxNodes limit
-  val hubadmin = "NodeSuitTestsHubAdmin"
+  val hubadmin = "NodeSuiteTestsHubAdmin"
   val urlRootOrg = urlRoot + "/v1/orgs/root"
   val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/"+hubadmin+":"+pw))
   val ORG3USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(orgid3+"/"+user+":"+pw))

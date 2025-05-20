@@ -11,7 +11,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.JValue
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.PutNodeErrorRequest
 import org.openhorizon.exchangeapi.route.search.NodeError
 import org.openhorizon.exchangeapi.table.node.error.NodeErrorTQ
@@ -44,10 +44,12 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteErrors(@Parameter(hidden = true) node: String,
+  def deleteErrors(@Parameter(hidden = true) identity: Identity2,
+                   @Parameter(hidden = true) node: String,
                    @Parameter(hidden = true) organization: String,
                    @Parameter(hidden = true) resource: String): Route =
     delete {
+      logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/errors - By ${identity.resource}:${identity.role}")
       complete({
         db.run(NodeErrorTQ.getNodeError(resource).delete.asTry.flatMap({
           case Success(v) =>
@@ -86,9 +88,11 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getErrors(@Parameter(hidden = true) node: String,
+  def getErrors(@Parameter(hidden = true) identity: Identity2,
+                @Parameter(hidden = true) node: String,
                 @Parameter(hidden = true) organization: String,
-                @Parameter(hidden = true) resource: String): Route =
+                @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/nodes/${node}/errors - By ${identity.resource}:${identity.role}")
     complete({
       db.run(NodeErrorTQ.getNodeError(resource).result).map({
         list =>
@@ -99,6 +103,7 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
             (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
       })
     })
+  }
   
   // =========== PUT /orgs/{organization}/nodes/{node}/errors ===============================
   @PUT
@@ -163,12 +168,14 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putErrors(@Parameter(hidden = true) node: String,
+  def putErrors(@Parameter(hidden = true) identity: Identity2,
+                @Parameter(hidden = true) node: String,
                 @Parameter(hidden = true) organization: String,
                 @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PutNodeErrorRequest]) {
         reqBody =>
+          logger.debug(s"PUT /orgs/${organization}/nodes/${node}/errors - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
               db.run(reqBody.toNodeErrorRow(resource).upsert.asTry.flatMap({
@@ -193,23 +200,23 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val errors: Route =
+  def errors(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "errors") {
       (organization,
        node) =>
         val resource: String = OrgAndId(organization, node).toString
         
         (delete | put) {
-          exchAuth(TNode(resource), Access.WRITE) {
+          exchAuth(TNode(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteErrors(node, organization, resource) ~
-              putErrors(node, organization, resource)
+              deleteErrors(identity, node, organization, resource) ~
+              putErrors(identity, node, organization, resource)
           }
         } ~
         get {
-          exchAuth(TNode(resource),Access.READ) {
+          exchAuth(TNode(resource),Access.READ, validIdentity = identity) {
             _ =>
-              getErrors(node, organization, resource)
+              getErrors(identity, node, organization, resource)
           }
         }
     }

@@ -1,28 +1,27 @@
-package org.openhorizon.exchangeapi.route.agreementbot
+package org.openhorizon.exchangeapi.route.agreementbot.message
 
-import org.apache.pekko.actor.ActorSystem
-import org.apache.pekko.event.LoggingAdapter
-import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives._
-import org.apache.pekko.http.scaladsl.server.Route
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, POST, Path}
-import org.checkerframework.checker.units.qual.t
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity, OrgAndId, TAgbot}
+import org.apache.pekko.actor.ActorSystem
+import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
+import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.http.scaladsl.server.Route
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotMsgsResponse, PostAgbotsMsgsRequest}
 import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMsgRow, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange
-import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
-import org.openhorizon.exchangeapi.table
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
-import scala.util.{Failure, Success, Try}
+import scala.util.{Failure, Success}
 
 
 @Path("/v1/orgs/{organization}/agbots/{agreementbot}/msgs")
@@ -54,10 +53,12 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/message")
   def getMessages(@Parameter(hidden = true) agreementBot: String,
+                  @Parameter(hidden = true) identity: Identity2,
                   @Parameter(hidden = true) organization: String,
-                  @Parameter(hidden = true) resource: String): Route =
+                  @Parameter(hidden = true) resource: String): Route = {
     parameter("maxmsgs".as[Int].?) {
       maxMsgs =>
+        logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/msgs?maxmsgs=${maxMsgs.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         complete({
           // Set the query, including maxmsgs
           var query = AgbotMsgsTQ.getMsgs(resource).sortBy(_.msgId)
@@ -78,6 +79,7 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
             })
         })
     }
+  }
   
   // ========== POST /orgs/{organization}/agbots/{agreementbot}/msgs ========================================
   @POST
@@ -116,13 +118,13 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
                                                description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/message")
   def postMessages(@Parameter(hidden = true) agreementBot: String,
-                   @Parameter(hidden = true) identity: Identity,
+                   @Parameter(hidden = true) identity: Identity2,
                    @Parameter(hidden = true) organization: String,
                    @Parameter(hidden = true) resource: String): Route =
     entity (as[PostAgbotsMsgsRequest]) {
       reqBody =>
         complete({
-          val nodeId: String = identity.creds.id //somday: handle the case where the acls allow users to send msgs
+          val nodeId: String = identity.resource //somday: handle the case where the acls allow users to send msgs
           var msgNum = ""
           val maxMessagesInMailbox: Int = Configuration.getConfig.getInt("api.limits.maxMessagesInMailbox")
           val getNumOwnedDbio =
@@ -178,21 +180,21 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
     }
   
   
-  val messagesAgreementBot: Route =
+  def messagesAgreementBot(identity: Identity2): Route =
     path("orgs" / Segment / "agbots" / Segment / "msgs") {
       (organization,
        agreementBot) =>
         val resource: String = OrgAndId(organization, agreementBot).toString
         
         get {
-          exchAuth(TAgbot(resource), Access.READ) {
+          exchAuth(TAgbot(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getMessages(agreementBot, organization, resource)
+              getMessages(agreementBot, identity, organization, resource)
           }
         } ~
         post {
-          exchAuth(TAgbot(resource), Access.SEND_MSG_TO_AGBOT) {
-            identity =>
+          exchAuth(TAgbot(resource), Access.SEND_MSG_TO_AGBOT, validIdentity = identity) {
+            _ =>
               postMessages(agreementBot, identity, organization, resource)
           }
         }

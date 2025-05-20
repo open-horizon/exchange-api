@@ -10,7 +10,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.GetNodeAgreementsResponse
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreement, NodeAgreementsTQ}
@@ -43,9 +43,11 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteAgreementsNode(@Parameter(hidden = true) node: String,
+  def deleteAgreementsNode(@Parameter(hidden = true) identity: Identity2,
+                           @Parameter(hidden = true) node: String,
                            @Parameter(hidden = true) organization: String,
-                           @Parameter(hidden = true) resource: String): Route =
+                           @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/agreements - By ${identity.resource}:${identity.role}")
     complete({
       // remove does *not* throw an exception if the key does not exist
       db.run(NodeAgreementsTQ.getAgreements(resource).delete.asTry.flatMap({
@@ -75,6 +77,7 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
           (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreements.not.deleted", resource, t.toString)))
       })
     })
+  }
   
   /* ====== GET /orgs/{organization}/nodes/{node}/agreements ================================ */
   @GET
@@ -117,9 +120,11 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getAgreementsNode(@Parameter(hidden = true) node: String,
+  def getAgreementsNode(@Parameter(hidden = true) identity: Identity2,
+                        @Parameter(hidden = true) node: String,
                         @Parameter(hidden = true) organization: String,
-                        @Parameter(hidden = true) resource: String): Route =
+                        @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/nodes/${node}/agreements - By ${identity.resource}:${identity.role}")
     complete({
       db.run(NodeAgreementsTQ.getAgreements(resource).result).map({ list =>
         logger.debug(s"GET /orgs/$organization/nodes/$node/agreements result size: ${list.size}")
@@ -128,22 +133,23 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
         (code, GetNodeAgreementsResponse(agreements, 0))
       })
     })
+  }
   
-  val agreementsNode: Route =
+  def agreementsNode(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "agreements") {
       (organization, node) =>
         val resource: String = OrgAndId(organization, node).toString
         
         delete {
-          exchAuth(TNode(resource), Access.WRITE) {
+          exchAuth(TNode(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteAgreementsNode(node, organization, resource)
+              deleteAgreementsNode(identity, node, organization, resource)
           }
         } ~
         get {
-          exchAuth(TNode(resource), Access.READ) {
+          exchAuth(TNode(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getAgreementsNode(node, organization, resource)
+              getAgreementsNode(identity, node, organization, resource)
           }
         }
     }

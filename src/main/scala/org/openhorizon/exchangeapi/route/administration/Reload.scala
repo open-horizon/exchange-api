@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{OPTIONS, POST, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Password, Role, TAction}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Identity2, Password, Role, TAction}
 import org.openhorizon.exchangeapi.table.ExchangeApiTables
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
@@ -44,8 +44,8 @@ trait Reload extends JacksonSupport with AuthenticationSupport {
                                            responseCode = "403")),
              summary = "Tells the exchange reread its config file")
   //val postReload: Route = (path("admin" / "reload") & post) {
-  def postReload: Route = {
-    logger.debug("Doing POST /admin/reload")
+  def postReload(@Parameter(hidden = true) identity: Identity2): Route = {
+    logger.debug(s"POST /admin/reload - By ${identity.resource}:${identity.role}")
       complete({
         Configuration.reload()
         (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("reload.successful")))
@@ -53,12 +53,12 @@ trait Reload extends JacksonSupport with AuthenticationSupport {
   }
   
   
-  val reload: Route =
+  def reload(identity: Identity2): Route =
     path("admin" / "reload") {
       post {
-        exchAuth(TAction(), Access.ADMIN) {
+        exchAuth(TAction(), Access.ADMIN, validIdentity = identity) {
           _ =>
-            postReload
+            postReload(identity)
         }
       }
     }

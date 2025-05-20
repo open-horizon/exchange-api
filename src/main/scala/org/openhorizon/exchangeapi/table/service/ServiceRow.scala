@@ -5,9 +5,11 @@ import org.json4s.{DefaultFormats, Formats}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
+
 final case class ServiceRow(service: String,
                             orgid: String,
-                            owner: String,
+                            owner: UUID,
                             label: String,
                             description: String,
                             public: Boolean,
@@ -27,19 +29,20 @@ final case class ServiceRow(service: String,
                             lastUpdated: String) {
   protected implicit val jsonFormats: Formats = DefaultFormats
   
-  def toService: Service = {
-    val mh: Map[String, Any] = if (matchHardware != "") read[Map[String, Any]](matchHardware) else Map[String, Any]()
-    val rs: List[ServiceRef] = if (requiredServices != "") read[List[ServiceRef]](requiredServices) else List[ServiceRef]()
+  //def toService: Service = {
+    //val mh: Map[String, Any] = if (matchHardware != "") read[Map[String, Any]](matchHardware) else Map[String, Any]()
+    //val rs: List[ServiceRef] = if (requiredServices != "") read[List[ServiceRef]](requiredServices) else List[ServiceRef]()
     
-    val rs2: List[ServiceRef] = rs.map(sr => {
-      val vr: Option[String] = if (sr.versionRange.isEmpty) sr.version else sr.versionRange
-      ServiceRef(sr.url, sr.org, sr.version, vr, sr.arch)
-    })
+    //val rs2: List[ServiceRef] =
+    //  rs.map(sr => {
+    //            val vr: Option[String] = if (sr.versionRange.isEmpty) sr.version else sr.versionRange
+    //            ServiceRef(sr.url, sr.org, sr.version, vr, sr.arch)
+    //          })
     
-    val input: List[Map[String, String]] = if (userInput != "") read[List[Map[String, String]]](userInput) else List[Map[String, String]]()
-    val p: Map[String, Any] = if (imageStore != "") read[Map[String, Any]](imageStore) else Map[String, Any]()
-    new Service(owner, label, description, public, documentation, url, version, arch, sharable, mh, rs2, input, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, p, lastUpdated)
-  }
+    //val input: List[Map[String, String]] = if (userInput != "") read[List[Map[String, String]]](userInput) else List[Map[String, String]]()
+    //val p: Map[String, Any] = if (imageStore != "") read[Map[String, Any]](imageStore) else Map[String, Any]()
+    //new Service(arch, clusterDeployment, clusterDeploymentSignature, deployment, deploymentSignature, description, documentation, p, label, lastUpdated, mh,, owner.toString, public, rs2, sharable, url, input, version)
+  //}
   
   // update returns a DB action to update this row
   def update: DBIO[_] = (for {m <- ServicesTQ if m.service === service} yield m).update(this)

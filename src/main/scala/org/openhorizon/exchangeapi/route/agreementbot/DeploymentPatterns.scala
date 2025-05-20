@@ -12,7 +12,7 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, POST, Path}
 import org.openhorizon.exchangeapi.{auth, table}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.{AgbotPattern, AgbotPatternsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.resourcechange
@@ -47,9 +47,11 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
   private def deleteDeploymentPatterns(@Parameter(hidden = true) agreementBot: String,
+                                       @Parameter(hidden = true) identity: Identity2,
                                        @Parameter(hidden = true) organization: String,
                                        @Parameter(hidden = true) resource: String): Route =
     delete {
+      logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns - By ${identity.resource}:${identity.role}")
       complete({ // remove does *not* throw an exception if the key does not exist
         db.run(AgbotPatternsTQ.getPatterns(resource)
                               .delete
@@ -114,8 +116,10 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
   private def getDeploymentPatterns(@Parameter(hidden = true) agreementBot: String,
+                                    @Parameter(hidden = true) identity: Identity2,
                                     @Parameter(hidden = true) organization: String,
                                     @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/patterns - By ${identity.resource}:${identity.role}")
     complete({
       db.run(AgbotPatternsTQ.getPatterns(resource).result)
         .map({
@@ -159,11 +163,13 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
   private def postDeploymentPatterns(@Parameter(hidden = true) agreementBot: String,
+                                     @Parameter(hidden = true) identity: Identity2,
                                      @Parameter(hidden = true) organization: String,
                                      @Parameter(hidden = true) resource: String): Route =
     post {
       entity(as[PostAgbotPatternRequest]) {
         reqBody =>
+          logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/patterns - By ${identity.resource}:${identity.role}")
             validateWithMsg(reqBody.getAnyProblem) {
               complete({
                 val deploymentPattern: String = reqBody.formId
@@ -207,23 +213,23 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
     }
   
   
-  val deploymentPatternsAgreementBot: Route =
+  def deploymentPatternsAgreementBot(identity: Identity2): Route =
     path("orgs" / Segment / "agbots" / Segment / "patterns") {
       (organization,
        agreementBot) =>
         val resource: String = OrgAndId(organization, agreementBot).toString
         
         get {
-          exchAuth(TAgbot(resource), Access.READ) {
+          exchAuth(TAgbot(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getDeploymentPatterns(agreementBot, organization, resource)
+              getDeploymentPatterns(agreementBot, identity, organization, resource)
           }
         } ~
         (delete | post) {
-          exchAuth(TAgbot(resource), Access.WRITE) {
+          exchAuth(TAgbot(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteDeploymentPatterns(agreementBot, organization, resource) ~
-              postDeploymentPatterns(agreementBot, organization, resource)
+              deleteDeploymentPatterns(agreementBot, identity, organization, resource) ~
+              postDeploymentPatterns(agreementBot, identity, organization, resource)
           }
         }
     }

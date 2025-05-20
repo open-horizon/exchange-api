@@ -8,10 +8,10 @@ import jakarta.ws.rs.{DELETE, GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, _}
+import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.ExchangeApiApp.exchAuth
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TPattern}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TPattern}
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
@@ -44,6 +44,7 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
   def deleteKeysDeploymentPattern(@Parameter(hidden = true) deploymentPattern: String,
+                                  @Parameter(hidden = true) identity: Identity2,
                                   @Parameter(hidden = true) organization: String,
                                   @Parameter(hidden = true) resource: String): Route =
     {
@@ -98,6 +99,7 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
   def getKeysDeploymentPattern(@Parameter(hidden = true) deploymentPattern: String,
+                               @Parameter(hidden = true) identity: Identity2,
                                @Parameter(hidden = true) organization: String,
                                @Parameter(hidden = true) resource: String): Route =
     {
@@ -110,21 +112,21 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val keysDeploymentPattern: Route =
+  def keysDeploymentPattern(identity: Identity2): Route =
     path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns") / Segment / "keys") {
       (organization, deploymentPattern) =>
         val resource: String = OrgAndId(organization, deploymentPattern).toString
         
         delete {
-          exchAuth(TPattern(resource), Access.WRITE) {
+          exchAuth(TPattern(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteKeysDeploymentPattern(deploymentPattern, organization, resource)
+              deleteKeysDeploymentPattern(deploymentPattern, identity, organization, resource)
           }
         } ~
         get {
-          exchAuth(TPattern(resource),Access.READ) {
+          exchAuth(TPattern(resource),Access.READ, validIdentity = identity) {
             _ =>
-              getKeysDeploymentPattern(deploymentPattern, organization, resource)
+              getKeysDeploymentPattern(deploymentPattern, identity, organization, resource)
           }
         }
     }

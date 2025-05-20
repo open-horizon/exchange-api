@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.agent
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotMsgsResponse, PutAgbotsRequest}
 import org.openhorizon.exchangeapi.route.organization.{ChangeEntry, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
@@ -40,15 +40,8 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
   
   private implicit val formats: Formats = DefaultFormats.withLong
   
-  private val TESTAGBOT: AgbotRow =
-    AgbotRow(id = "TestPutAgentConfigMgmt/a1",
-             lastHeartbeat = ApiTime.nowUTC,
-             msgEndPoint = "",
-             name = "",
-             orgid = "TestPutAgentConfigMgmt",
-             owner = "TestPutAgentConfigMgmt/u1",
-             publicKey = "",
-             token = "$2a$10$mVoFqGenNc9Z7/HpNwnaiuKuNmdXxy6VHlliUZMDR280Ec5vNXXka") // TestPutAgentConfigMgmt/a1:a1tok
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
   private val TESTORGANIZATIONS: Seq[OrgRow] =
     Seq(OrgRow(heartbeatIntervals = "",
                description = "",
@@ -59,22 +52,29 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                orgType = "",
                tags = None))
   private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin = true,
-                email = "",
-                hashedPw = "$2a$10$LNH5rZACF8YnbHWtUFnULOxNecpZoq6qXG0iI47OBCdNtugUehRLG", // TestPutAgentConfigMgmt/admin1:admin1pw
-                hubAdmin = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid = "TestPutAgentConfigMgmt",
-                updatedBy = "",
-                username = "TestPutAgentConfigMgmt/admin1"),
-        UserRow(admin = false,
-                email = "",
-                hashedPw = "$2a$10$DGVQ73YXt2IXtxA3bMmxSu0q5wEj26UgE.6hGryB5BedV1E945yki", // TestPutAgentConfigMgmt/u1:a1pw
-                hubAdmin = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid = "TestPutAgentConfigMgmt",
-                updatedBy = "",
-                username = "TestPutAgentConfigMgmt/u1"))
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestPutAgentConfigMgmt",
+                password     = Option(Password.hash("admin1pw")),
+                username     = "admin1"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestPutAgentConfigMgmt",
+                password     = Option(Password.hash("a1pw")),
+                username     = "u1"))
+  private val TESTAGBOT: AgbotRow =
+    AgbotRow(id = "TestPutAgentConfigMgmt/a1",
+             lastHeartbeat = ApiTime.nowUTC,
+             msgEndPoint = "",
+             name = "",
+             orgid = "TestPutAgentConfigMgmt",
+             owner = TESTUSERS(1).user,
+             publicKey = "",
+             token = "$2a$10$mVoFqGenNc9Z7/HpNwnaiuKuNmdXxy6VHlliUZMDR280Ec5vNXXka") // TestPutAgentConfigMgmt/a1:a1tok
   
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
@@ -188,15 +188,15 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
         agentSoftwareVersions = TESTSOFT)
     
     val TESTCHG: Seq[(java.sql.Timestamp, String)] = Seq((ApiTime.nowTimestamp, "IBM"))
-    val TESTUSERS: Seq[UserRow] =
-      Seq(UserRow(admin       = false,
-        email       = "",
-        hashedPw    = "$2a$10$LZrdek.gT5GPf7aJCqKXhutbYbhMm60BdI3Ylh2dPD3aQnERE/grC",  // IBM/TestPutAgentConfigMgmt-u1:TestPutAgentConfigMgmt-u1pw
-        hubAdmin    = false,
-        lastUpdated = ApiTime.nowUTC,
-        orgid       = "IBM",
-        updatedBy   = "",
-        username    = "IBM/TestPutAgentConfigMgmt-u1"))
+    val TESTUSERS: Seq[UserRow] = {
+      Seq(UserRow(createdAt    = TIMESTAMP,
+                  isHubAdmin   = false,
+                  isOrgAdmin   = false,
+                  modifiedAt   = TIMESTAMP,
+                  organization = "IBM",
+                  password     = Option(Password.hash("TestPutAgentConfigMgmt-u1pw")),
+                  username     = "TestPutAgentConfigMgmt-u1"))
+    }
     
     fixtureUsers(
       _ => {
@@ -362,7 +362,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                    msgEndPoint = "",
                    name = "",
                    orgid = "IBM",
-                   owner = "TestPutAgentConfigMgmt/u1",
+                   owner = TESTUSERS(1).user,
                    publicKey = "",
                    token = "$2a$10$gNEK9DtpAIvPERHItqvr5uOGyQLJiuZWaEjC0QMGT5Cf3BkNQ5v.y")) // IBM/TestPutAgentConfigMgmt-a1:a1tok
     val TESTCERT: Seq[String] = Seq("1.1.1")
@@ -416,15 +416,15 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                            agentSoftwareVersions = TESTSOFT)
     
     val TESTCHG: Seq[(java.sql.Timestamp, String)] = Seq((ApiTime.nowTimestamp, "IBM"))
-    val TESTUSERS: Seq[UserRow] =
-      Seq(UserRow(admin       = true,
-                  email       = "",
-                  hashedPw    = "$2a$10$XWF8g7Y0bSt7GkmzH0hKQu.J2NmA8snpGFcSMOyf2wDQpM4t3hB92",  // IBM/TestPutAgentConfigMgmt-admin1:TestPutAgentConfigMgmt-admin1pw
-                  hubAdmin    = false,
-                  lastUpdated = ApiTime.nowUTC,
-                  orgid       = "IBM",
-                  updatedBy   = "",
-                  username    = "IBM/TestPutAgentConfigMgmt-admin1"))
+    val TESTUSERS: Seq[UserRow] = {
+      Seq(UserRow(createdAt    = TIMESTAMP,
+                  isHubAdmin   = false,
+                  isOrgAdmin   = true,
+                  modifiedAt   = TIMESTAMP,
+                  organization = "IBM",
+                  password     = Option(Password.hash("TestPutAgentConfigMgmt-admin1pw")),
+                  username     = "TestPutAgentConfigMgmt-admin1"))
+    }
     
     fixtureUsers(
       _ => {

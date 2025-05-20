@@ -50,13 +50,17 @@ lazy val root = (project in file("."))
     
     // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
     libraryDependencies ++= Seq(
-      "org.apache.pekko" %% "pekko-http"            % pekkoHttpVersion.value,
-      "org.apache.pekko" %% "pekko-http-xml"        % pekkoHttpVersion.value,
       "com.github.pjfanning" %% "pekko-http-jackson" % "[3.0.0,)",
-      "org.apache.pekko" %% "pekko-http-cors" % "[1.1.0]",
-      "org.apache.pekko" %% "pekko-slf4j" % "[1.1.1]",
+      "org.apache.pekko"     %% "pekko-http"         % pekkoHttpVersion.value,
+      "org.apache.pekko"     %% "pekko-http-xml"     % pekkoHttpVersion.value,
+      "org.apache.pekko"     %% "pekko-http-caching" % pekkoHttpVersion.value,
+      "org.apache.pekko"     %% "pekko-http-cors"    % pekkoHttpVersion.value,
+      "org.apache.pekko"     %% "pekko-slf4j"        % "[1.1.1]",
+      
+      "org.pac4j" % "pac4j-oauth" % "6.1.2",
+      "org.pac4j" % "pac4j-oidc"  % "6.1.2",
 
-      "org.json4s" %% "json4s-native" % "4.0.6",
+      "org.json4s" %% "json4s-native"  % "4.0.6",
       "org.json4s" %% "json4s-jackson" % "4.0.6",
       
       "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0]",

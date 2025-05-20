@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.agent
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotMsgsResponse, PutAgbotsRequest}
 import org.openhorizon.exchangeapi.route.organization.{ChangeEntry, PatchOrgRequest, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
@@ -26,6 +26,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import java.sql.Timestamp
 import java.time.ZoneId
+import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -41,15 +42,8 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  private val TESTAGBOT: AgbotRow =
-    AgbotRow(id            = "TestDeleteAgentConfigMgmt/a1",
-             lastHeartbeat = ApiTime.nowUTC,
-             msgEndPoint   = "",
-             name          = "",
-             orgid         = "TestDeleteAgentConfigMgmt",
-             owner         = "TestDeleteAgentConfigMgmt/u1",
-             publicKey     = "",
-             token         = "$2a$10$dP1e0wIHWOK.VgzsE4cLEuqfiXik6Vz/VEjIMJvVP8BQEp8RFuZVW")  // TestDeleteAgentConfigMgmt/a1:a1tok
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
   private val TESTORGANIZATIONS: Seq[OrgRow] =
     Seq(OrgRow(heartbeatIntervals = "",
                description        = "",
@@ -60,22 +54,29 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                orgType            = "",
                tags               = None))
   private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = true,
-                email       = "",
-                hashedPw    = "$2a$10$354oGJqNCxaAGCqPUVKWi.Zh1Yq2Fb3DalAmzdxMYnOzLL8oScNyO",  // TestDeleteAgentConfigMgmt/admin1:admin1pw
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestDeleteAgentConfigMgmt",
-                updatedBy   = "",
-                username    = "TestDeleteAgentConfigMgmt/admin1"),
-        UserRow(admin       = false,
-                email       = "",
-                hashedPw    = "$2a$10$sF2iHLnB6vM9Ju/ricD5huT6EnuVjGUKVN/LtJpyAGOT7yaU/kcaW",  // TestDeleteAgentConfigMgmt/u1:a1pw
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestDeleteAgentConfigMgmt",
-                updatedBy   = "",
-                username    = "TestDeleteAgentConfigMgmt/u1"))
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestDeleteAgentConfigMgmt",
+                password     = Option(Password.hash("admin1pw")),
+                username     = "admin1"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestDeleteAgentConfigMgmt",
+                password     = Option(Password.hash("a1pw")),
+                username     = "u1"))
+  private val TESTAGBOT: AgbotRow =
+    AgbotRow(id            = "TestDeleteAgentConfigMgmt/a1",
+             lastHeartbeat = ApiTime.nowUTC,
+             msgEndPoint   = "",
+             name          = "",
+             orgid         = "TestDeleteAgentConfigMgmt",
+             owner         = TESTUSERS(1).user,
+             publicKey     = "",
+             token         = "$2a$10$dP1e0wIHWOK.VgzsE4cLEuqfiXik6Vz/VEjIMJvVP8BQEp8RFuZVW")  // TestDeleteAgentConfigMgmt/a1:a1tok
   
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
@@ -172,15 +173,15 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   test("DELETE /v1/orgs/IBM/AgentFileVersion -- 403 Unauthorized Access - IBM User") {
     val TESTCHG: Seq[(java.sql.Timestamp, String)] =
       Seq((ApiTime.nowTimestamp, "IBM"))
-    val TESTUSERS: Seq[UserRow] =
-      Seq(UserRow(admin       = false,
-        email       = "",
-        hashedPw    = "$2a$10$0nyuleCFffuFumOrDHnvOOpP8scH2kFfG0YDp8TcyVBhYKK7dCzPG",  // IBM/TestDeleteAgentConfigMgmt-u1:TestDeleteAgentConfigMgmt-u1pw
-        hubAdmin    = false,
-        lastUpdated = ApiTime.nowUTC,
-        orgid       = "IBM",
-        updatedBy   = "",
-        username    = "IBM/TestDeleteAgentConfigMgmt-u1"))
+    val TESTUSERS: Seq[UserRow] = {
+      Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "IBM",
+                password     = Option(Password.hash("u1pw")),
+                username     = "TestDeleteAgentConfigMgmt-u1"))
+    }
     
     fixtureUsers(
       _ =>{
@@ -284,7 +285,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
         msgEndPoint   = "",
         name          = "",
         orgid         = "IBM",
-        owner         = "TestDeleteAgentConfigMgmt/u1",
+        owner         = TESTUSERS(1).user,
         publicKey     = "",
         token         = "$2a$10$Dl2TjiIynGQEaomV0uZbcOdAAr9/X8JOuU/To4qlY7foaUbWYfeXG"))  // IBM/TestDeleteAgentConfigMgmt-a1:TestDeleteAgentConfigMgmt-a1tok
     val TESTCHG: Seq[(java.sql.Timestamp, String)] =
@@ -329,15 +330,15 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   test("DELETE /v1/orgs/IBM/AgentFileVersion -- 204 Deleted - IBM Organization Admin") {
     val TESTCHG: Seq[(java.sql.Timestamp, String)] =
       Seq((ApiTime.nowTimestamp, "IBM"))
-    val TESTUSER: Seq[UserRow] =
-      Seq(UserRow(admin       = true,
-                  email       = "",
-                  hashedPw    = "$2a$10$wIq/n8oI5hJ8vq36hS4Gy.UkBb0ZSrd8W68IVlozD13lMZwpzRz4.",  // TestDeleteAgentConfigMgmt/admin1:admin1pw
-                  hubAdmin    = false,
-                  lastUpdated = ApiTime.nowUTC,
-                  orgid       = "IBM",
-                  updatedBy   = "",
-                  username    = "IBM/TestDeleteAgentConfigMgmt-admin1"))
+    val TESTUSER: Seq[UserRow] = {
+      Seq(UserRow(createdAt    = TIMESTAMP,
+                  isHubAdmin   = false,
+                  isOrgAdmin   = true,
+                  modifiedAt   = TIMESTAMP,
+                  organization = "IBM",
+                  password     = Option(Password.hash("admin1pw")),
+                  username     = "TestDeleteAgentConfigMgmt-admin1"))
+    }
     fixtureUsers(
       _ => {
         fixtureVersionsChanged(

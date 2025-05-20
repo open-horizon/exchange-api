@@ -7,11 +7,11 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, parameter, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.jackson.Serialization.read
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodesTQ, OneService, RegService}
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.NodePolicyTQ
@@ -188,7 +188,7 @@ trait Details extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(description = "access denied", responseCode = "403"),
       new responses.ApiResponse(description = "not found", responseCode = "404")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def getDetails(@Parameter(hidden = true) identity: Identity,
+  def getDetails(@Parameter(hidden = true) identity: Identity2,
                  @Parameter(hidden = true) organization: String): Route =
     parameter("arch".?,
               "id".?,
@@ -200,16 +200,17 @@ trait Details extends JacksonSupport with AuthenticationSupport {
        name: Option[String],
        nodeType: Option[String],
        owner: Option[String]) =>
+        logger.debug(s"GET /orgs/{organization}/node-details?arch=${arch.getOrElse("None")},id=${id.getOrElse("None")},name=${name.getOrElse("None")},type=${nodeType.getOrElse("None")},owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         validateWithMsg(GetNodesUtils.getNodesProblem(nodeType)) {
           complete({
             implicit val jsonFormats: Formats = DefaultFormats
             val ownerFilter: Option[String] =
-              if(identity.isAdmin ||
+              if(identity.isOrgAdmin ||
                  identity.isSuperUser ||
-                 identity.role.equals(AuthRoles.Agbot))
+                 identity.isAgbot)
                 owner
               else
-                Some(identity.identityString)
+                Some(identity.resource)
             
             val getNodes =
               for {
@@ -223,7 +224,7 @@ trait Details extends JacksonSupport with AuthenticationSupport {
                                       node.nodeType === nodeType.toLowerCase.replace("device", "")
                                   }) // "" === ""
                                 .filter(_.orgid === organization)
-                                .filterOpt(ownerFilter)((node, ownerFilter) => node.owner like ownerFilter)
+                                .filterOpt(ownerFilter)((node, ownerFilter) => node.owner.toString() == ownerFilter)
                                 .joinLeft(NodeErrorTQ.filterOpt(id)((nodeErrors, id) => nodeErrors.nodeId like id)) // (Node, NodeError)
                                   .on(_.id === _.nodeId)
                                 .joinLeft(NodePolicyTQ.filterOpt(id)((nodePolicy, id) => nodePolicy.nodeId like id)) // ((Node, NodeError), NodePolicy)
@@ -251,11 +252,7 @@ trait Details extends JacksonSupport with AuthenticationSupport {
                                       node._1._1._1._1.publicKey,
                                       node._1._1._1._1.regServices,
                                       node._1._1._1._1.softwareVersions,
-                                      (if(identity.isAdmin ||
-                                        identity.isSuperUser) // Do not pull nor query the Node's token if (Super)Admin.
-                                        node._1._1._1._1.id.substring(0,0) // node.id -> ""
-                                      else
-                                        node._1._1._1._1.token),
+                                      "***************",
                                       node._1._1._1._1.userInput,
                                       node._1._1._1._1.clusterNamespace,
                                       node._1._1._1._1.isNamespaceScoped,
@@ -331,7 +328,7 @@ trait Details extends JacksonSupport with AuthenticationSupport {
                                             else
                                               node._8,
                                           orgid = node._9,
-                                          owner = node._10,
+                                          owner = node._10.toString(),
                                           pattern =
                                             if(node._11.isEmpty)
                                               None
@@ -398,12 +395,12 @@ trait Details extends JacksonSupport with AuthenticationSupport {
         }
     }
     
-  val details: Route =
+  def details(identity: Identity2): Route =
     path("orgs" / Segment / "node-details") {
       organization =>
         get {
-          exchAuth(TNode(OrgAndId(organization,"#").toString), Access.READ) {
-            identity =>
+          exchAuth(TNode(OrgAndId(organization,"#").toString), Access.READ, validIdentity = identity) {
+            _ =>
               getDetails(identity, organization)
           }
         }

@@ -10,7 +10,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TService}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TService}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
@@ -40,7 +40,8 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "service/key")
-  def deleteKeysService(@Parameter(hidden = true) organization: String,
+  def deleteKeysService(@Parameter(hidden = true) identity: Identity2,
+                        @Parameter(hidden = true) organization: String,
                         @Parameter(hidden = true) resource: String,
                         @Parameter(hidden = true) service: String): Route =
     delete {
@@ -107,7 +108,8 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getKeysService(@Parameter(hidden = true) organization: String,
+  def getKeysService(@Parameter(hidden = true) identity: Identity2,
+                     @Parameter(hidden = true) organization: String,
                      @Parameter(hidden = true) resource: String,
                      @Parameter(hidden = true) service: String): Route =
     get {
@@ -120,21 +122,21 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val keysService: Route =
+  def keysService(identity: Identity2): Route =
     path("orgs" / Segment / "services" / Segment / "keys") {
       (organization, service) =>
         val resource: String = OrgAndId(organization, service).toString
         
         delete {
-          exchAuth(TService(resource), Access.WRITE) {
+          exchAuth(TService(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteKeysService(organization, resource, service)
+              deleteKeysService(identity, organization, resource, service)
           }
         } ~
         get {
-          exchAuth(TService(resource), Access.READ) {
+          exchAuth(TService(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getKeysService(organization, resource, service)
+              getKeysService(identity, organization, resource, service)
           }
         }
     }

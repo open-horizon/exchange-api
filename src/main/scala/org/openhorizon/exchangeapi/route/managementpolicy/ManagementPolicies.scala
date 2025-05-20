@@ -10,12 +10,12 @@ import jakarta.ws.rs.{DELETE, GET, POST, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
+import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.ExchangeApiApp.exchAuth
-import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthCache, AuthenticationSupport, DBProcessingError, IUser, OrgAndId, TManagementPolicy}
+import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity2, OrgAndId, TManagementPolicy}
 import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicy}
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
@@ -94,7 +94,8 @@ trait ManagementPolicies extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getManagementPolicies(@Parameter(hidden = true) organization: String): Route =
+  def getManagementPolicies(@Parameter(hidden = true) identity: Identity2,
+                            @Parameter(hidden = true) organization: String): Route =
     parameter("idfilter".?,
               "owner".?,
               "label".?,
@@ -105,6 +106,8 @@ trait ManagementPolicies extends JacksonSupport with AuthenticationSupport {
        label,
        description,
        manifest) =>
+        logger.debug(s"GET /orgs/${organization}/managementpolicies?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},manifest=${manifest.getOrElse("None")},owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        
         complete({
           val getAllManagementPolicies =
             for {
@@ -137,9 +140,9 @@ trait ManagementPolicies extends JacksonSupport with AuthenticationSupport {
                                              .filterOpt(owner)(
                                                (managementPolicy, owner) =>
                                                  if (owner.contains("%"))
-                                                   managementPolicy.owner like owner
+                                                   managementPolicy.owner.toString() == owner
                                                  else
-                                                   managementPolicy.owner === owner)
+                                                   managementPolicy.owner.toString() == owner)
                                              .sortBy(_.managementPolicy.asc.nullsLast))
             } yield(managementPolicies)
           
@@ -157,13 +160,13 @@ trait ManagementPolicies extends JacksonSupport with AuthenticationSupport {
         })
     }
   
-  val managementPolicies: Route =
+  def managementPolicies(identity: Identity2): Route =
     path("orgs" / Segment / "managementpolicies") {
       organization =>
         get {
-          exchAuth(TManagementPolicy(OrgAndId(organization, "*").toString), Access.READ) {
+          exchAuth(TManagementPolicy(OrgAndId(organization, "*").toString), Access.READ, validIdentity = identity) {
             _ =>
-              getManagementPolicies(organization)
+              getManagementPolicies(identity, organization)
           }
         }
     }

@@ -11,7 +11,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.ExchangeApiApp.validateWithMsg
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TService}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TService}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.service.policy.{ServicePolicy, ServicePolicyTQ}
@@ -42,9 +42,11 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getPolicyService(@Parameter(hidden = true) organization: String,
+  def getPolicyService(@Parameter(hidden = true) identity: Identity2,
+                       @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String,
-                       @Parameter(hidden = true) service: String): Route =
+                       @Parameter(hidden = true) service: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/services/${service}/policy - By ${identity.resource}:${identity.role}")
     complete({
       db.run(ServicePolicyTQ.getServicePolicy(resource).result).map({
         list =>
@@ -56,7 +58,8 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
             (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
       })
     })
-
+  }
+  
   // =========== PUT /orgs/{organization}/services/{service}/policy ===============================
   @PUT
   @Operation(
@@ -122,12 +125,14 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putPolicyService(@Parameter(hidden = true) organization: String,
+  def putPolicyService(@Parameter(hidden = true) identity: Identity2,
+                       @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String,
                        @Parameter(hidden = true) service: String): Route =
     put {
       entity(as[PutServicePolicyRequest]) {
         reqBody =>
+          logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
               db.run(reqBody.toServicePolicyRow(resource).upsert.asTry.flatMap({
@@ -172,10 +177,12 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deletePolicyService(@Parameter(hidden = true) organization: String,
+  def deletePolicyService(@Parameter(hidden = true) identity: Identity2,
+                          @Parameter(hidden = true) organization: String,
                           @Parameter(hidden = true) resource: String,
                           @Parameter(hidden = true) service: String): Route =
     delete {
+      logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - By ${identity.resource}:${identity.role}")
       complete({
         var storedPublicField = false
         db.run(ServicesTQ.getPublic(resource).result.asTry.flatMap({
@@ -212,22 +219,22 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val policyService: Route =
+  def policyService(identity: Identity2): Route =
     path("orgs" / Segment / "services" / Segment / "policy") {
       (organization, service) =>
         val resource: String = OrgAndId(organization, service).toString
         
         (delete | put) {
-          exchAuth(TService(resource), Access.WRITE) {
+          exchAuth(TService(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deletePolicyService(organization, resource, service) ~
-              putPolicyService(organization, resource, service)
+              deletePolicyService(identity, organization, resource, service) ~
+              putPolicyService(identity, organization, resource, service)
           }
         } ~
         get{
-          exchAuth(TService(resource), Access.READ) {
+          exchAuth(TService(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getPolicyService(organization, resource, service)
+              getPolicyService(identity, organization, resource, service)
           }
         }
     }

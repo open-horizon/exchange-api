@@ -11,12 +11,13 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, path, post, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, OrgAndId, TManagementPolicy}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, Identity2, OrgAndId, TManagementPolicy}
 import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
@@ -79,12 +80,14 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getManagementPolicy(@Parameter(hidden = true) managementPolicy: String,
+  def getManagementPolicy(@Parameter(hidden = true) identity: Identity2,
+                          @Parameter(hidden = true) managementPolicy: String,
                           @Parameter(hidden = true) organization: String,
                           @Parameter(hidden = true) resource: String): Route =
     get {
       parameter("attribute".?) {
         attribute =>
+          logger.debug(s"GET /orgs/${organization}/managementpolicies/${managementPolicy}?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
           complete({
             attribute match {
               case Some(attribute) =>  // Only returning 1 attr of the managementPolicy
@@ -189,23 +192,24 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postManagementPolicy(@Parameter(hidden = true) ident: Identity,
+  def postManagementPolicy(@Parameter(hidden = true) identity: Identity2,
                            @Parameter(hidden = true) managementPolicy: String,
                            @Parameter(hidden = true) organization: String,
                            @Parameter(hidden = true) resource: String): Route =
     post {
       entity(as[PostPutManagementPolicyRequest]) {
         reqBody =>
+          logger.debug(s"POST /orgs/${organization}/managementpolicies/${managementPolicy} - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
-              val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }
-              db.run(ManagementPoliciesTQ.getNumOwned(owner).result.asTry.flatMap({
+              val owner: Option[UUID] = identity.identifier
+              db.run(ManagementPoliciesTQ.getNumOwned(owner.get).result.asTry.flatMap({
                 case Success(num) =>
                   logger.debug("POST /orgs/" + organization + "/managementpolicies" + managementPolicy + " num owned by " + owner + ": " + num)
                   val numOwned: Int = num
                   val maxManagementPolicies: Int = Configuration.getConfig.getInt("api.limits.maxManagementPolicies")
                   if (maxManagementPolicies == 0 || numOwned <= maxManagementPolicies) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-                    reqBody.getDbInsert(resource, organization, owner).asTry
+                    reqBody.getDbInsert(resource, organization, owner.get).asTry
                   }
                   else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.mgmtpols", maxManagementPolicies))).asTry
                 case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
@@ -218,8 +222,8 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
               })).map({
                 case Success(v) =>
                   logger.debug("POST /orgs/" + organization + "/managementpolicies/" + managementPolicy + " updated in changes table: " + v)
-                  if (owner != "") AuthCache.putManagementPolicyOwner(resource, owner) // currently only users are allowed to update management policy resources, so owner should never be blank
-                  AuthCache.putManagementPolicyIsPublic(resource, isPublic = false)
+                  // TODO: if (owner.isDefined) AuthCache.putManagementPolicyOwner(resource, owner.get) // currently only users are allowed to update management policy resources, so owner should never be blank
+                  // TODO: AuthCache.putManagementPolicyIsPublic(resource, isPublic = false)
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("mgmtpol.created", resource)))
                 case Failure(t: DBProcessingError) =>
                   t.toComplete
@@ -312,17 +316,18 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putManagementPolicy(@Parameter(hidden = true) ident: Identity,
+  def putManagementPolicy(@Parameter(hidden = true) identity: Identity2,
                           @Parameter(hidden = true) managementPolicy: String,
                           @Parameter(hidden = true) organization: String,
                           @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PostPutManagementPolicyRequest]) {
         reqBody =>
+          logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
-              val owner: String = ident match { case IUser(creds) => creds.id; case _ => "" }
-              db.run(reqBody.getDbUpdate(resource, organization, owner).asTry.flatMap({
+              val owner: Option[UUID] = identity.identifier
+              db.run(reqBody.getDbUpdate(resource, organization, owner.get).asTry.flatMap({
                 case Success(v) =>
                   // Add the resource to the resourcechanges table
                   logger.debug("PUT /orgs/" + organization + "/managementpolicies/" + managementPolicy + " result: " + v)
@@ -331,8 +336,8 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
               })).map({
                 case Success(v) =>
                   logger.debug("PUT /orgs/" + organization + "/managementpolicies/" + managementPolicy + " updated in changes table: " + v)
-                  if (owner != "") AuthCache.putManagementPolicyOwner(resource, owner) // currently only users are allowed to update management policy resources, so owner should never be blank
-                  AuthCache.putManagementPolicyIsPublic(resource, isPublic = false)
+                  // TODO: if (owner.isDefined) AuthCache.putManagementPolicyOwner(resource, owner) // currently only users are allowed to update management policy resources, so owner should never be blank
+                  // TODO: AuthCache.putManagementPolicyIsPublic(resource, isPublic = false)
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("mgmtpol.updated", resource)))
                 case Failure(t: DBProcessingError) =>
                   t.toComplete
@@ -358,11 +363,12 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteManagementPolicy(@Parameter(hidden = true) managementPolicy: String,
+  def deleteManagementPolicy(@Parameter(hidden = true) identity: Identity2,
+                             @Parameter(hidden = true) managementPolicy: String,
                              @Parameter(hidden = true) organization: String,
                              @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"Doing DELETE /orgs/$organization/managementpolicies/$managementPolicy")
+      logger.debug(s"DELETE /orgs/$organization/managementpolicies/$managementPolicy - By ${identity.resource}:${identity.role}")
       complete({
         db.run(ManagementPoliciesTQ.getManagementPolicy(resource).delete.transactionally.asTry.flatMap({
           case Success(v) =>
@@ -390,27 +396,27 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val managementPolicy: Route =
+  def managementPolicy(identity: Identity2): Route =
     path("orgs" / Segment / "managementpolicies" / Segment) {
       (organization, managementPolicy) =>
         val resource: String = OrgAndId(organization, managementPolicy).toString
         
         (delete | put) {
-          exchAuth(TManagementPolicy(resource), Access.WRITE) {
-            identity =>
-              deleteManagementPolicy(managementPolicy, organization, resource) ~
+          exchAuth(TManagementPolicy(resource), Access.WRITE, validIdentity = identity) {
+            _ =>
+              deleteManagementPolicy(identity, managementPolicy, organization, resource) ~
               putManagementPolicy(identity, managementPolicy, organization, resource)
           }
         } ~
         get {
-          exchAuth(TManagementPolicy(resource), Access.READ) {
+          exchAuth(TManagementPolicy(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getManagementPolicy(managementPolicy, organization, resource)
+              getManagementPolicy(identity, managementPolicy, organization, resource)
           }
         } ~
         post {
-          exchAuth(TManagementPolicy(resource), Access.CREATE) {
-            identity =>
+          exchAuth(TManagementPolicy(resource), Access.CREATE, validIdentity = identity) {
+            _ =>
               postManagementPolicy(identity, managementPolicy, organization, resource)
           }
         }

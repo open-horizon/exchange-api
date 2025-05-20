@@ -11,7 +11,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.PutNodeMgmtPolStatusRequest
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{GetNMPStatusResponse, NodeMgmtPolStatusRow, NodeMgmtPolStatuses}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
@@ -56,12 +56,13 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteStatusMangementPolicy(@Parameter(hidden = true) managementPolicy: String,
+  def deleteStatusMangementPolicy(@Parameter(hidden = true) identity: Identity2,
+                                  @Parameter(hidden = true) managementPolicy: String,
                                   @Parameter(hidden = true) node: String,
                                   @Parameter(hidden = true) organization: String,
                                   @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"Doing DELETE /orgs/$organization/nodes/$node/managementStatus/$managementPolicy")
+      logger.debug(s"DELETE /orgs/$organization/nodes/$node/managementStatus/$managementPolicy - By ${identity.resource}:${identity.role}")
       complete({
         // remove does *not* throw an exception if the key does not exist
         db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(resource, organization + "/" + managementPolicy).delete.transactionally.asTry.flatMap({
@@ -137,12 +138,13 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getStatusMangementPolicy(@Parameter(hidden = true) managementPolicy: String,
+  def getStatusMangementPolicy(@Parameter(hidden = true) identity: Identity2,
+                               @Parameter(hidden = true) managementPolicy: String,
                                @Parameter(hidden = true) node: String,
                                @Parameter(hidden = true) organization: String,
                                @Parameter(hidden = true) resource: String): Route =
     {
-      logger.debug(s"Doing GET /orgs/$organization/nodes/$node/managementStatus/$managementPolicy")
+      logger.debug(s"GET /orgs/$organization/nodes/$node/managementStatus/$managementPolicy - By ${identity.resource}:${identity.role}")
       complete({
         db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(resource, organization + "/" + managementPolicy).result).map({ list =>
           logger.debug(s"GET /orgs/$organization/nodes/$node/managementStatus/$managementPolicy status result size: ${list.size}")
@@ -228,13 +230,15 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putStatusManagementPolicy(@Parameter(hidden = true) managementPolicy: String,
+  def putStatusManagementPolicy(@Parameter(hidden = true) identity: Identity2,
+                                @Parameter(hidden = true) managementPolicy: String,
                                 @Parameter(hidden = true) node: String,
                                 @Parameter(hidden = true) organization: String,
                                 @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PutNodeMgmtPolStatusRequest]) {
         reqBody =>
+          logger.debug(s"PUT /orgs/${organization}/nodes/${node}/managementStatus/${managementPolicy} - By ${identity.resource}:${identity.role}")
           complete({
             db.run(
               NodeMgmtPolStatuses
@@ -294,7 +298,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val statusManagementPolicy: Route =
+  def statusManagementPolicy(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) {
       (organization,
        node,
@@ -302,16 +306,16 @@ trait Status extends JacksonSupport with AuthenticationSupport {
         val resource: String = OrgAndId(organization, node).toString
         
         (delete | put) {
-          exchAuth(TNode(resource), Access.WRITE) {
+          exchAuth(TNode(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteStatusMangementPolicy(managementPolicy, node, organization, resource) ~
-              putStatusManagementPolicy(managementPolicy, node, organization, resource)
+              deleteStatusMangementPolicy(identity, managementPolicy, node, organization, resource) ~
+              putStatusManagementPolicy(identity, managementPolicy, node, organization, resource)
           }
         } ~
         get {
-          exchAuth(TNode(resource),Access.READ) {
+          exchAuth(TNode(resource),Access.READ, validIdentity = identity) {
             _ =>
-              getStatusMangementPolicy(managementPolicy, node, organization, resource)
+              getStatusMangementPolicy(identity, managementPolicy, node, organization, resource)
           }
         }
     }

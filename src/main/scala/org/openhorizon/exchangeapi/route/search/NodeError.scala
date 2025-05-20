@@ -10,7 +10,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.StatusCode
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, IUser, Identity, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, IUser, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.PostNodeErrorResponse
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.error.NodeErrorTQ
@@ -38,36 +38,42 @@ trait NodeError extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def postNodeErrorSearch(@Parameter(hidden = true) identity: Identity,
-                          @Parameter(hidden = true) organization: String): Route =
-  {
-    logger.debug(s"Doing POST /orgs/$organization/search/nodes/error")
+  def postNodeErrorSearch(@Parameter(hidden = true) identity: Identity2,
+                          @Parameter(hidden = true) organization: String): Route = {
+    logger.debug(s"GET /orgs/$organization/search/nodes/error/all - By ${identity.resource}:${identity.role}")
     
-    complete({
-      var queryParam = NodesTQ.filter(_.orgid === organization)
-      val userId: String = organization + "/" + identity.getIdentity
-      identity match {
-        case _: IUser => if(!(identity.isSuperUser || identity.isAdmin)) queryParam = queryParam.filter(_.owner === userId)
-        case _ => ;
-      }
-      val q = for {
-        (n, _) <- NodeErrorTQ.filter(_.errors =!= "").filter(_.errors =!= "[]") join queryParam on (_.nodeId === _.id)
-      } yield n.nodeId
+    val searchNodeErrors =
+      for {
+        nodeErrors <-
+                    NodeErrorTQ.filter(_.errors =!= "")
+                              .filter(_.errors =!= "[]")
+                              .join(NodesTQ.filter(_.orgid === organization)
+                                           .filterIf(identity.isStandardUser)(_.owner === identity.identifier.get)
+                                           .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot))(_.orgid === identity.organization)
+                                           .map(_.id))
+                              .on(_.nodeId === _)
+                              .map(nodeErrors => nodeErrors._1.nodeId)
+      } yield nodeErrors
       
-      db.run(q.result).map({ list =>
-        logger.debug("POST /orgs/"+organization+"/search/nodes/error result size: "+list.size)
-        val code: StatusCode = if (list.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
-        (code, PostNodeErrorResponse(list))
-      })
-    })
+      complete{
+        db.run(Compiled(searchNodeErrors).result.transactionally).map {
+          nodeErrors =>
+            logger.debug(s"GET /orgs/$organization/search/nodes/error/all - result size: ${nodeErrors.size}")
+            if (nodeErrors.nonEmpty) {
+              (HttpCode.POST_OK, PostNodeErrorResponse(nodeErrors))
+            }
+            else
+              (HttpCode.NOT_FOUND, PostNodeErrorResponse(Seq.empty[String]))
+        }
+      }
   }
   
-  val nodeErrorSearch: Route =
+  def nodeErrorSearch(identity: Identity2): Route =
     path("orgs" / Segment / "search" / "nodes" / "error") {
       organization =>
         post {
-          exchAuth(TNode(OrgAndId(organization,"#").toString),Access.READ) {
-            identity =>
+          exchAuth(TNode(OrgAndId(organization,"#").toString),Access.READ, validIdentity = identity) {
+            _ =>
               postNodeErrorSearch(identity, organization)
           }
         }

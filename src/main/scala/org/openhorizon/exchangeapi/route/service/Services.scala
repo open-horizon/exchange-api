@@ -22,11 +22,13 @@ import org.openhorizon.exchangeapi.table.service.dockerauth.{ServiceDockAuth, Se
 import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
 import org.openhorizon.exchangeapi.table.service.policy.{ServicePolicy, ServicePolicyTQ}
 import org.openhorizon.exchangeapi.table.service.{Service, ServiceRef, ServicesTQ}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import java.net.{MalformedURLException, URL}
+import java.util.UUID
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
@@ -149,34 +151,104 @@ trait Services extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getServices(@Parameter(hidden = true) identity: Identity,
+  def getServices(@Parameter(hidden = true) identity: Identity2,
                   @Parameter(hidden = true) organization: String): Route =
-    parameter("owner".?, "public".?, "url".?, "version".?, "arch".?, "nodetype".?, "requiredurl".?) {
+    parameter("owner".?, "public".as[Boolean].optional, "url".?, "version".?, "arch".?, "nodetype".?, "requiredurl".?) {
       (owner, public, url, version, arch, nodetype, requiredurl) =>
-        validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
+        logger.debug(s"GET /orgs/{organization}/services?arch=${arch.getOrElse("None")},nodetype=${nodetype.getOrElse("None")},owner=${owner.getOrElse("None")},public=${"None"},requiredurl=${requiredurl.getOrElse("None")},url=${url.getOrElse("None")},version=${version.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        
+        validateWithMsg(if (version.isDefined && !Version(version.get).isValid)
+                          Option(ExchMsg.translate("version.not.valid.format", version.get))
+                        else if (nodetype.isDefined && !NodeType.containsString(nodetype.get.toLowerCase))
+                          Option(ExchMsg.translate("invalid.node.type2", NodeType.valuesAsString))
+                        else
+                          None) {
+          implicit val jsonFormats: Formats = DefaultFormats
+          
+          val device: Option[Boolean] =
+            if (nodetype.isEmpty)
+              None
+            else if (nodetype.getOrElse("") == "device")
+              Option(true)
+            else
+              None
+          
+          val cluster: Option[Boolean] =
+            if (nodetype.isEmpty)
+              None
+            else if (nodetype.getOrElse("") == "cluster")
+              Option(true)
+            else
+              None
+          
+          
+          val getServices =
+            for {
+              services <-
+                ServicesTQ.filter(services => services.orgid === organization)
+                          .filterIf(identity.isAgbot && !identity.isMultiTenantAgbot)(services => (services.orgid === identity.organization) || (services.orgid === organization && services.public))
+                          .filterIf(identity.isUser)(services => (services.orgid === identity.organization && services.owner === identity.identifier) || (services.orgid === organization && services.public))
+                          .filterOpt(arch)((services, arch) => if (arch.contains('%')) services.arch like arch else services.arch === arch)
+                          .filterOpt(cluster)((services, _) => services.clusterDeployment =!= "")
+                          .filterOpt(device)((services, _) => services.deployment =!= "")
+                          .filterOpt(public)((services, public) => services.public === public)
+                          .filterOpt(requiredurl)((services, requiredurl) => services.requiredServices like "%\"url\":\"" + requiredurl + "\"%")
+                          .filterOpt(url)((services, url) => if (url.contains('%')) services.url like url else services.url === url)
+                          .filterOpt(version)((services, version) => if (version.contains('%')) services.version like version else services.version === version)
+                          .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                          .on(_.owner === _._2)
+                          .filterOpt(owner)((services, owner) => if (owner.contains('%')) (services._2._1 ++ "/" ++ services._2._3) like owner else (services._2._1 ++ "/" ++ services._2._3) === owner) // This comes after the join
+                          .sortBy(services => (services._1.orgid.asc, services._1.service.asc))
+                          .map(services =>
+                                (
+                                 (services._1.arch,
+                                  services._1.clusterDeployment,
+                                  services._1.clusterDeploymentSignature,
+                                  services._1.deployment,
+                                  services._1.deploymentSignature,
+                                  services._1.description,
+                                  services._1.documentation,
+                                  services._1.imageStore,
+                                  services._1.label,
+                                  services._1.lastUpdated,
+                                  services._1.matchHardware,
+                                  services._1.orgid,
+                                  (services._2._1 ++ "/" ++ services._2._3),  // owner
+                                  services._1.public,
+                                  services._1.requiredServices,
+                                  services._1.sharable,
+                                  services._1.url,
+                                  services._1.userInput,
+                                  services._1.version), services._1.service))
+            } yield services
+          
+          
           complete({
             //var q = ServicesTQ.subquery
-            var q = ServicesTQ.getAllServices(organization)
+            //var q = ServicesTQ.getAllServices(organization)
             // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
-            owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-            public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
-            url.foreach(url => { if (url.contains("%")) q = q.filter(_.url like url) else q = q.filter(_.url === url) })
-            version.foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
-            arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
-            nodetype.foreach(nt => { if (nt == "device") q = q.filter(_.deployment =!= "") else if (nt == "cluster") q = q.filter(_.clusterDeployment =!= "") })
+            //owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner === owner) else q = q.filter(_.owner === owner) })
+            //public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
+            //url.foreach(url => { if (url.contains("%")) q = q.filter(_.url like url) else q = q.filter(_.url === url) })
+            //version.foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
+            //arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
+            //nodetype.foreach(nt => { if (nt == "device") q = q.filter(_.deployment =!= "") else if (nt == "cluster") q = q.filter(_.clusterDeployment =!= "") })
   
             // We are cheating a little on this one because the whole requiredServices structure is serialized into a json string when put in the db, so it has a string value like
             // [{"url":"mydomain.com.rtlsdr","version":"1.0.0","arch":"amd64"}]. But we can still match on the url.
-            requiredurl.foreach(requrl => {
-              val requrl2: String = "%\"url\":\"" + requrl + "\"%"
-              q = q.filter(_.requiredServices like requrl2)
-            })
+            //requiredurl.foreach(requrl => {
+            //  val requrl2: String = "%\"url\":\"" + requrl + "\"%"
+            //  q = q.filter(_.requiredServices like requrl2)
+            //})
   
-            db.run(q.result).map({ list =>
-              logger.debug("GET /orgs/"+organization+"/services result size: "+list.size)
-              val services: Map[String, Service] = list.filter(e => identity.getOrg == e.orgid || e.public || identity.isSuperUser || identity.isMultiTenantAgbot).map(e => e.service -> e.toService).toMap
-              val code: StatusCode = if (services.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-              (code, GetServicesResponse(services, 0))
+            db.run(getServices.result.asTry).map({
+              case Success(serviceRecords) =>
+                logger.debug("GET /orgs/"+organization+"/services result size: " + serviceRecords.size)
+                
+                val serviceMap = serviceRecords.map(records => records._2 -> new Service(records._1)).toMap
+              
+              //val services: Map[String, Service] = list.filter(e => identity.organization == e.orgid || e.public || identity.isSuperUser || identity.isMultiTenantAgbot).map(e => e.service -> e.toService).toMap
+              (if (serviceRecords.nonEmpty) StatusCodes.OK else StatusCodes.NotFound, GetServicesResponse(serviceMap, 0))
             })
           })
         }
@@ -265,14 +337,15 @@ trait Services extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postServices(@Parameter(hidden = true) identity: Identity,
+  def postServices(@Parameter(hidden = true) identity: Identity2,
                    @Parameter(hidden = true) organization: String): Route =
     entity(as[PostPutServiceRequest]) {
       reqBody =>
+        logger.debug(s"POST /orgs/$organization /services - By ${identity.resource}:${identity.role}")
         validateWithMsg(reqBody.getAnyProblem(organization, null)) {
           complete({
             val service: String = reqBody.formId(organization)
-            val owner: String = identity match { case IUser(creds) => creds.id; case _ => "" }   // currently only users are allowed to create/update services, so owner will never be blank
+            val owner: Option[UUID] = identity.identifier   // currently only users are allowed to create/update services, so owner will never be blank
             
             // Make a list of service searches for the required services. This can match more services than we need, because it wildcards the version.
             // We'll look for versions within the required ranges in the db access routine below.
@@ -304,7 +377,8 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                     if (invalidIndex >= 0) break() // a requiredService was not satisfied, so break out of the outer loop and return an error
                   }
                 }
-                if (invalidIndex < 0) ServicesTQ.getNumOwned(owner).result.asTry // we are good, move on to the next step
+                //logger.error(s"POST /orgs/$organization /services - L380 owner: ${owner.isDefined},    ${owner.getOrElse("None")}")
+                if (invalidIndex < 0) ServicesTQ.getNumOwned(owner.get).result.asTry // we are good, move on to the next step
                 else {
                   //else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced service in requiredServices does not exist in the exchange")).asTry
                   val errStr: String = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
@@ -317,7 +391,8 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                 val numOwned: Int = num
                 val maxServices: Int = Configuration.getConfig.getInt("api.limits.maxServices")
                 if (maxServices == 0 || maxServices >= numOwned) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-                  reqBody.toServiceRow(service, organization, owner).insert.asTry
+                  //logger.error(s"POST /orgs/$organization /services - L394 owner: ${owner.isDefined},    ${owner.getOrElse("None")}")
+                  reqBody.toServiceRow(service, organization, owner.get).insert.asTry
                 }
                 else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.the.limit.of.services", maxServices))).asTry
               case Failure(t) => DBIO.failed(t).asTry
@@ -331,8 +406,8 @@ trait Services extends JacksonSupport with AuthenticationSupport {
             })).map({
               case Success(v) =>
                 logger.debug("POST /orgs/" + organization + "/services added to changes table: " + v)
-                if (owner != "") AuthCache.putServiceOwner(service, owner) // currently only users are allowed to update service resources, so owner should never be blank
-                AuthCache.putServiceIsPublic(service, reqBody.public)
+                // TODO: if (owner.isEmpty) AuthCache.putServiceOwner(service, owner) // currently only users are allowed to update service resources, so owner should never be blank
+                // TODO: AuthCache.putServiceIsPublic(service, reqBody.public)
                 (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.created", service)))
               case Failure(t: DBProcessingError) =>
                 t.toComplete
@@ -346,18 +421,18 @@ trait Services extends JacksonSupport with AuthenticationSupport {
         }
     }
   
-  val services: Route =
+  def services(identity: Identity2): Route =
     path("orgs" / Segment / "services") {
       organization =>
         get {
-          exchAuth(TService(OrgAndId(organization, "*").toString), Access.READ) {
-            identity =>
+          exchAuth(TService(OrgAndId(organization, "*").toString), Access.READ, validIdentity = identity) {
+            _ =>
               getServices(identity, organization)
           }
         } ~
         post {
-          exchAuth(TService(OrgAndId(organization, "").toString), Access.CREATE) {
-            identity =>
+          exchAuth(TService(OrgAndId(organization, "").toString), Access.CREATE, validIdentity = identity) {
+            _ =>
                postServices(identity, organization)
           }
         }

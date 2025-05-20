@@ -10,7 +10,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{GetNMPStatusResponse, NodeMgmtPolStatuses}
 import slick.jdbc.PostgresProfile.api._
 
@@ -86,8 +86,10 @@ trait Statuses extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getStatusManagementPolicies(@Parameter(hidden = true) node: String,
-                                  @Parameter(hidden = true) organization: String): Route =
+  def getStatusManagementPolicies(@Parameter(hidden = true) identity: Identity2,
+                                  @Parameter(hidden = true) node: String,
+                                  @Parameter(hidden = true) organization: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/nodes/${node}/managementStatus - By ${identity.resource}:${identity.role}")
     complete({
       var q = NodeMgmtPolStatuses.getNodeMgmtPolStatuses(organization + "/" + node).sortBy(_.policy.asc.nullsFirst)
       db.run(q.result).map({ list =>
@@ -100,16 +102,17 @@ trait Statuses extends JacksonSupport with AuthenticationSupport {
         (code, GetNMPStatusResponse(list))
       })
     })
+  }
   
-  val statuses: Route =
+  def statuses(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "managementStatus") {
       (organization, node) =>
         val compositeId: String = OrgAndId(organization, node).toString
         
         get {
-          exchAuth(TNode(compositeId),Access.READ) {
+          exchAuth(TNode(compositeId),Access.READ, validIdentity = identity) {
             _ =>
-              getStatusManagementPolicies(node, organization)
+              getStatusManagementPolicies(identity, node, organization)
           }
         }
     }

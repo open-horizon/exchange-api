@@ -9,7 +9,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
@@ -40,11 +40,12 @@ trait Heartbeat extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def postHeartbeatNode(@Parameter(hidden = true) node: String,
+  def postHeartbeatNode(@Parameter(hidden = true) identity: Identity2,
+                        @Parameter(hidden = true) node: String,
                         @Parameter(hidden = true) organization: String,
                         @Parameter(hidden = true) resource:String): Route =
     {
-      logger.debug(s"Doing POST /orgs/$organization/users/$node/heartbeat")
+      logger.debug(s"POST /orgs/$organization/users/$node/heartbeat - By ${identity.resource}:${identity.role}")
       complete({
         db.run(NodesTQ.getLastHeartbeat(resource).update(Some(ApiTime.nowUTC)).asTry).map({
           case Success(v) =>
@@ -61,16 +62,16 @@ trait Heartbeat extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val heartbeatNode: Route =
+  def heartbeatNode(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "heartbeat") {
       (organization,
        node) =>
         val resource: String = OrgAndId(organization, node).toString
         
         post {
-          exchAuth(TNode(resource),Access.WRITE) {
+          exchAuth(TNode(resource),Access.WRITE, validIdentity = identity) {
             _ =>
-              postHeartbeatNode(node, organization, resource)
+              postHeartbeatNode(identity, node, organization, resource)
           }
         }
     }

@@ -8,9 +8,9 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
-import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, parameter, put, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.{NodePolicy, NodePolicyTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
@@ -43,10 +43,12 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deletePolicyNode(@Parameter(hidden = true) node: String,
+  def deletePolicyNode(@Parameter(hidden = true) identity: Identity2,
+                       @Parameter(hidden = true) node: String,
                        @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String): Route =
     delete {
+      logger.debug(s"DELETE /orgs/{organization}/nodes/{node}/policy - By ${identity.resource}:${identity.role}")
       complete({
         db.run(NodePolicyTQ.getNodePolicy(resource).delete.asTry.flatMap({
           case Success(v) =>
@@ -90,9 +92,11 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getPolicyNode(@Parameter(hidden = true) node: String,
+  def getPolicyNode(@Parameter(hidden = true) identity: Identity2,
+                    @Parameter(hidden = true) node: String,
                     @Parameter(hidden = true) organization: String,
-                    @Parameter(hidden = true) resource: String): Route =
+                    @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/{organization}/nodes/{node}/policy - By ${identity.resource}:${identity.role}")
     complete({
       db.run(NodePolicyTQ.getNodePolicy(resource).result).map({ list =>
         logger.debug("GET /orgs/"+organization+"/nodes/"+node+"/policy result size: "+list.size)
@@ -103,6 +107,7 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
           (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
       })
     })
+  }
   
   // =========== PUT /orgs/{organization}/nodes/{node}/policy ===============================
   @PUT
@@ -197,7 +202,8 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putPolicyNode(@Parameter(hidden = true) node: String,
+  def putPolicyNode(@Parameter(hidden = true) identity: Identity2,
+                    @Parameter(hidden = true) node: String,
                     @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) resource: String): Route =
     put {
@@ -205,6 +211,7 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
         noheartbeat =>
           entity(as[PutNodePolicyRequest]) {
             reqBody =>
+              logger.debug(s"PUT /orgs/{organization}/nodes/{node}/policy?noheartbeat=${noheartbeat.getOrElse("None")} - By ${identity.resource}:${identity.role}")
               validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
                 complete({
                   val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
@@ -253,23 +260,23 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val policyNode: Route =
+  def policyNode(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "policy") {
       (organization,
        node) =>
         val resource: String = OrgAndId(organization, node).toString
         
         (delete | put) {
-          exchAuth(TNode(resource), Access.WRITE) {
+          exchAuth(TNode(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deletePolicyNode(node, organization, resource) ~
-              putPolicyNode(node, organization, resource)
+              deletePolicyNode(identity, node, organization, resource) ~
+              putPolicyNode(identity, node, organization, resource)
           }
         } ~
         get {
-          exchAuth(TNode(resource),Access.READ) {
+          exchAuth(TNode(resource),Access.READ, validIdentity = identity) {
             _ =>
-              getPolicyNode(node, organization, resource)
+              getPolicyNode(identity, node, organization, resource)
           }
         }
     }

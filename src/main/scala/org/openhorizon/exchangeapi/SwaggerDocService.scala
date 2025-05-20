@@ -114,7 +114,8 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[org.openhorizon.exchangeapi.route.user.ChangePassword],
         classOf[org.openhorizon.exchangeapi.route.user.Confirm],
         classOf[org.openhorizon.exchangeapi.route.user.User],
-        classOf[org.openhorizon.exchangeapi.route.user.Users])
+        classOf[org.openhorizon.exchangeapi.route.user.Users],
+        classOf[org.openhorizon.exchangeapi.route.apikey.UserApiKeys])
   override def apiDocsPath: String = "api-docs" //where you want the swagger-json endpoint exposed
   // override def basePath: String = ""
   private def domain: String = {

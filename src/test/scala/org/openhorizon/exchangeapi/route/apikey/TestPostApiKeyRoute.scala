@@ -131,7 +131,7 @@ test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username.split
    info("Body: " + response.body)
   assert(response.code === HttpCode.POST_OK.intValue)
   val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
-  assert(responseBody.user === TESTUSERS(1).username.split("/")(1))
+  assert(responseBody.owner === TESTUSERS(1).username)
   assert(responseBody.description === "Test API Key")
   assert(responseBody.id.nonEmpty)
   assert(responseBody.value.nonEmpty)
@@ -153,7 +153,7 @@ test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username.split
 
    assert(response.code === HttpCode.POST_OK.intValue)
    val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
-   assert(responseBody.user === TESTUSERS(0).username.split("/")(1))
+   assert(responseBody.owner === TESTUSERS(0).username)
    assert(responseBody.description === "Admin Created Key")
    assert(responseBody.id.nonEmpty)
    assert(responseBody.value.nonEmpty)
@@ -174,7 +174,7 @@ test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username.split
 
   assert(response.code === HttpCode.POST_OK.intValue)
   val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
-  assert(responseBody.user === TESTUSERS(1).username.split("/")(1))
+  assert(responseBody.owner === TESTUSERS(1).username)
   assert(responseBody.description === "Admin Created Key for a user")
   assert(responseBody.id.nonEmpty)
   assert(responseBody.value.nonEmpty)

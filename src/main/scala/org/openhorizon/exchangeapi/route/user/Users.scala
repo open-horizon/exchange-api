@@ -60,10 +60,7 @@ trait Users extends JacksonSupport with AuthenticationSupport {
         {
           "id": "string",
           "description": "string",
-          "created_at": "string",
-          "created_by": "string",
-          "modified_at": "string",
-          "modified_by": "string"
+          "lastUpdated": "string"
         }
       ]
     },
@@ -77,10 +74,7 @@ trait Users extends JacksonSupport with AuthenticationSupport {
         {
           "id": "string",
           "description": "string",
-          "created_at": "string",
-          "created_by": "string",
-          "modified_at": "string",
-          "modified_by": "string"
+          "lastUpdated": "string"
         }
       ]
     }
@@ -121,11 +115,8 @@ trait Users extends JacksonSupport with AuthenticationSupport {
                 ApiKeyMetadata(
                 id = row.id,
                 description = row.description,
-                user = null, 
-                createdAt = row.createdAt,
-                createdBy = row.createdBy,
-                modifiedAt = row.modifiedAt,
-                modifiedBy = row.modifiedBy ))
+                owner = null, 
+                lastUpdated = row.modifiedBy ))
 
               val user = org.openhorizon.exchangeapi.table.user.User(
                 password = if (identity.isSuperUser || identity.isHubAdmin) userRow.hashedPw else StrConstants.hiddenPw,

@@ -65,12 +65,9 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
           new ExampleObject(value = """{
             "id": "uuid",
             "description": "string",
-            "user": "string",
+            "owner": "string",
             "value": "string",
-            "created_at": "timestamp",
-            "created_by": "string",
-            "modified_at": "timestamp",
-            "modified_by": "string"
+            "lastUpdated": "string"
           }""")
         )
       ))),
@@ -110,12 +107,9 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
       val response = PostApiKeyResponse(
           id = keyId,
           description = body.description,
-          user = username,
+          owner = row.username,
           value = encodedValue,
-          created_at = now,
-          created_by = fullId,
-          modified_at = now,
-          modified_by = fullId)
+          lastUpdated = row.modifiedAt)
            (HttpCode.POST_OK, response)
           case Failure(_) =>
             (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("apikey.creation.failed")))
@@ -186,12 +180,8 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
             value = """{
               "id": "uuid",
               "description": "string",
-              "user": "string",
-              "created_at": "timestamp",
-              "created_by": "string",
-              "modified_at": "timestamp",
-              "modified_by": "string"
-
+              "owner": "string",
+              "lastUpdated": "string"
             }"""
           )
         )

@@ -6,6 +6,7 @@ import org.openhorizon.exchangeapi.table.agent.configuration.AgentConfigurationV
 import org.openhorizon.exchangeapi.table.agent.software.AgentSoftwareVersionsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.AgbotPatternsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.AgbotBusinessPolsTQ
+import org.openhorizon.exchangeapi.table.apikey.ApiKeysTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.search.SearchOffsetPolicyTQ
@@ -439,7 +440,9 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
           sqlu"""CREATE INDEX IF NOT EXISTS idx_serv_pol_fk_services ON public.servicekeys(serviceid);""",
           sqlu"""CREATE INDEX IF NOT EXISTS idx_service_fk_orgs ON public.services(orgid);""",
           sqlu"""CREATE INDEX IF NOT EXISTS idx_service_fk_users ON public.services(owner);""",
-          sqlu"""CREATE INDEX IF NOT EXISTS idx_user_fk_users ON public.users(modified_by);""")
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_user_fk_users ON public.users(modified_by);""",
+          ApiKeysTQ.schema.create)
+              
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }

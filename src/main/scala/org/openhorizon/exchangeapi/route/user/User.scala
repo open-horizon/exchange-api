@@ -18,6 +18,7 @@ import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership, getOwnerOfResource, myUserPassAuthenticator, routes}
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthRoles, AuthenticationSupport, BadInputException, IUser, Identity, Identity2, OrgAndId, Password, Role, TUser}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ, User => UserTable}
+import org.openhorizon.exchangeapi.table.apikey.{ApiKeyRow, ApiKeys, ApiKeysTQ,ApiKeyMetadata}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, StrConstants}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{CompiledStreamingExecutable, MappedProjection}
@@ -29,6 +30,7 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import scalacache.modes.scalaFuture._
+import scala.concurrent.Future
 
 
 @Path("/v1/orgs/{organization}/users/{username}")
@@ -60,7 +62,14 @@ trait User extends JacksonSupport with AuthenticationSupport {
       "admin": false,
       "email": "string",
       "lastUpdated": "string",
-      "updatedBy": "string"
+      "updatedBy": "string",
+      "apikeys": [
+        {
+          "id": "string",
+          "description": "string",
+          "lastUpdated": "string"
+        }
+      ]
     }
   },
   "lastIndex": 0
@@ -82,10 +91,10 @@ trait User extends JacksonSupport with AuthenticationSupport {
     get {
       logger.debug(s"GET /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
       
-      val getUser: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String)], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]]), (UserRow, Option[(String, UUID, String)]), Seq], Seq[(UserRow, Option[(String, UUID, String)])], (UserRow, Option[(String, UUID, String)])] =
+      val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String)], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
         for {
           users <-
-            Compiled(UsersTQ.filter(user => (user.organization === organization &&
+            Compiled((UsersTQ.filter(user => (user.organization === organization &&
                                              user.username === username))
                             .filterIf(identity.isStandardUser)(users => users.user === identity.identifier.get) // Users can see themselves
                             .filterIf(identity.isOrgAdmin)(users => !users.isHubAdmin && users.organization === identity.organization && !(users.organization === "root" && users.username === "root")) // Organization Admins can see other Org Admins and Users in their Organization. They cannot see Hub Admins, and they cannot see Root.
@@ -94,20 +103,22 @@ trait User extends JacksonSupport with AuthenticationSupport {
                             .take(1)
                             .joinLeft(UsersTQ.map(users => (users.organization, users.user, users.username)))
                             .on(_.modifiedBy === _._2)
+                            .joinLeft(ApiKeysTQ)
+                            .on(_._1.user === _.user)
                             .map(users =>
-                                  ((users._1.createdAt,
-                                   users._1.email,
-                                   users._1.identityProvider,
-                                   users._1.isHubAdmin,
-                                   users._1.isOrgAdmin,
-                                   users._1.modifiedAt,
-                                   users._1.modifiedBy,
-                                   users._1.organization,
+                                  ((users._1._1.createdAt,
+                                   users._1._1.email,
+                                   users._1._1.identityProvider,
+                                   users._1._1.isHubAdmin,
+                                   users._1._1.isOrgAdmin,
+                                   users._1._1.modifiedAt,
+                                   users._1._1.modifiedBy,
+                                   users._1._1.organization,
                                    Option(StrConstants.hiddenPw),  // DO NOT grab and return credentials.
-                                   users._1.user,
-                                   users._1.username), users._2))  // Because of the outer-join we cannot touch the content of these values to combine them ((organization, username) => (organization/username)).
+                                   users._1._1.user,
+                                   users._1._1.username), users._1._2, users._2)))  // Because of the outer-join we cannot touch the content of these values to combine them ((organization, username) => (organization/username)).
                      ++
-                     UsersTQ.filter(user => (user.organization === organization && // Have to retrieve the Some and None values separately to substitute the Some values.
+                     (UsersTQ.filter(user => (user.organization === organization && // Have to retrieve the Some and None values separately to substitute the Some values.
                                              user.username === username))
                             .filterIf(identity.isStandardUser)(users => users.user === identity.identifier.get) // Users can see themselves
                             .filterIf(identity.isOrgAdmin)(users => !users.isHubAdmin && users.organization === identity.organization && !(users.organization === "root" && users.username === "root")) // Organization Admins can see other Org Admins and Users in their Organization. They cannot see Hub Admins, and they cannot see Root.
@@ -116,37 +127,55 @@ trait User extends JacksonSupport with AuthenticationSupport {
                             .take(1)
                             .joinLeft(UsersTQ.map(users => (users.organization, users.user, users.username)))
                             .on(_.modifiedBy === _._2)
+                            .joinLeft(ApiKeysTQ)
+                            .on(_._1.user === _.user)
                             .map(users =>
-                                   ((users._1.createdAt,
-                                     users._1.email,
-                                     users._1.identityProvider,
-                                     users._1.isHubAdmin,
-                                     users._1.isOrgAdmin,
-                                     users._1.modifiedAt,
-                                     users._1.modifiedBy,
-                                     users._1.organization,
+                                   ((users._1._1.createdAt,
+                                     users._1._1.email,
+                                     users._1._1.identityProvider,
+                                     users._1._1.isHubAdmin,
+                                     users._1._1.isOrgAdmin,
+                                     users._1._1.modifiedAt,
+                                     users._1._1.modifiedBy,
+                                     users._1._1.organization,
                                      None,
-                                     users._1.user,
-                                     users._1.username), users._2)))
-        } yield users.map(user => (user._1.mapTo[UserRow], user._2))
+                                     users._1._1.user,
+                                     users._1._1.username), users._1._2, users._2))))
+        } yield users.map(user => (user._1.mapTo[UserRow], user._2, user._3))
         
-      complete {
-        db.run(getUser.result.transactionally.asTry).map {
-          case Success(result) =>
-            logger.debug(s"GET /orgs/$organization/users/$username result size: " + result.size)
-           
-            if (result.nonEmpty)
-              (StatusCodes.OK, GetUsersResponse( result.map(result => s"${result._1.organization}/${result._1.username}" -> new UserTable(result)).toMap)) // Ugly mapping, TODO: redesign response body
-            else
-              (StatusCodes.NotFound, GetUsersResponse())
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.added", t.toString))
-          case Failure(t) =>
-            (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
-        }
-      }
+      complete({
+            db.run(getUserWithApiKeys.result.transactionally).map { result =>
+                  // logger.debug(s"GET /orgs/$organization/users/$username result size: " + result.size)
+
+                  if (result.nonEmpty) {
+                        val userResult = result.head
+                        val userRow = userResult._1
+                        val modifiedByInfo = userResult._2
+
+                        val apiKeyMetadataList = result.filter(_._3.isDefined).map { case (_, _, Some(apiKeyRow)) =>
+                              new ApiKeyMetadata(apiKeyRow, null)
+                        }.distinct
+
+                        val user = new UserTable((userRow, modifiedByInfo), Some(apiKeyMetadataList))
+                        val userMap: Map[String, UserTable] =
+                              Map(s"${userRow.organization}/${userRow.username}" -> user) // Ugly mapping, TODO: redesign response body
+
+                        (StatusCodes.OK, GetUsersResponse(userMap, 0))
+                  } else {
+                        (StatusCodes.NotFound, GetUsersResponse())
+                  }
+            }.recover {
+                  case t: org.postgresql.util.PSQLException =>
+                        ExchangePosgtresErrorHandling.ioProblemError(
+                              t, ExchMsg.translate("user.not.added", t.toString))
+
+                  case t =>
+                        (HttpCode.BAD_INPUT,
+                              ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
+            }
+      })
     }
-  
+
   // =========== POST /orgs/{organization}/users/{username} ===============================
   @POST
   @Operation(
@@ -220,6 +249,8 @@ trait User extends JacksonSupport with AuthenticationSupport {
           
           validateWithMsg(if(Option(reqBody.password).isEmpty || Option(reqBody.email).isEmpty || reqBody.password == null || reqBody.email == null)
                             Option(ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
+                          else if (Set("apikey", "iamapikey").contains(username.toLowerCase)) //block creation of user with reserved usernames 'apikey' or 'iamapikey
+                            Option(ExchMsg.translate("user.reserved.name")) 
                           else if (reqBody.password.isBlank || reqBody.password.isEmpty)
                             Option(ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
                           else if (organization == "root" &&

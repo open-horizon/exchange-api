@@ -14,6 +14,7 @@ import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, g
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s._
 import org.json4s.jackson.Serialization.write
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.node.NodeType
@@ -24,6 +25,7 @@ import org.openhorizon.exchangeapi.table.service.policy.{ServicePolicy, ServiceP
 import org.openhorizon.exchangeapi.table.service.{Service, ServiceRef, ServicesTQ}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
@@ -32,6 +34,7 @@ import java.util.UUID
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
 import scala.util._
 import scala.util.control.Breaks._
 
@@ -182,9 +185,9 @@ trait Services extends JacksonSupport with AuthenticationSupport {
               None
           
           
-          val getServices =
+          val getServices: Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, String, String, String, String, String, String, String, String, String, String, String, String, Boolean, String, String, String, String, String), String), Seq] =
             for {
-              services <-
+              services: ((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String]), Rep[String]) <-
                 ServicesTQ.filter(services => services.orgid === organization)
                           .filterIf(identity.isAgbot && !identity.isMultiTenantAgbot)(services => (services.orgid === identity.organization) || (services.orgid === organization && services.public))
                           .filterIf(identity.isUser)(services => (services.orgid === identity.organization && services.owner === identity.identifier) || (services.orgid === organization && services.public))
@@ -200,8 +203,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                           .filterOpt(owner)((services, owner) => if (owner.contains('%')) (services._2._1 ++ "/" ++ services._2._3) like owner else (services._2._1 ++ "/" ++ services._2._3) === owner) // This comes after the join
                           .sortBy(services => (services._1.orgid.asc, services._1.service.asc))
                           .map(services =>
-                                (
-                                 (services._1.arch,
+                                ((services._1.arch,
                                   services._1.clusterDeployment,
                                   services._1.clusterDeploymentSignature,
                                   services._1.deployment,
@@ -219,38 +221,21 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                                   services._1.sharable,
                                   services._1.url,
                                   services._1.userInput,
-                                  services._1.version), services._1.service))
+                                  services._1.version),
+                                 services._1.service))
             } yield services
           
-          
-          complete({
-            //var q = ServicesTQ.subquery
-            //var q = ServicesTQ.getAllServices(organization)
-            // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
-            //owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner === owner) else q = q.filter(_.owner === owner) })
-            //public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
-            //url.foreach(url => { if (url.contains("%")) q = q.filter(_.url like url) else q = q.filter(_.url === url) })
-            //version.foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
-            //arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
-            //nodetype.foreach(nt => { if (nt == "device") q = q.filter(_.deployment =!= "") else if (nt == "cluster") q = q.filter(_.clusterDeployment =!= "") })
-  
-            // We are cheating a little on this one because the whole requiredServices structure is serialized into a json string when put in the db, so it has a string value like
-            // [{"url":"mydomain.com.rtlsdr","version":"1.0.0","arch":"amd64"}]. But we can still match on the url.
-            //requiredurl.foreach(requrl => {
-            //  val requrl2: String = "%\"url\":\"" + requrl + "\"%"
-            //  q = q.filter(_.requiredServices like requrl2)
-            //})
-  
-            db.run(getServices.result.asTry).map({
-              case Success(serviceRecords) =>
+          complete {
+            db.run(Compiled(getServices).result).map {
+              serviceRecords =>
                 logger.debug("GET /orgs/"+organization+"/services result size: " + serviceRecords.size)
                 
-                val serviceMap = serviceRecords.map(records => records._2 -> new Service(records._1)).toMap
-              
-              //val services: Map[String, Service] = list.filter(e => identity.organization == e.orgid || e.public || identity.isSuperUser || identity.isMultiTenantAgbot).map(e => e.service -> e.toService).toMap
-              (if (serviceRecords.nonEmpty) StatusCodes.OK else StatusCodes.NotFound, GetServicesResponse(serviceMap, 0))
-            })
-          })
+                if (serviceRecords.nonEmpty)
+                  (StatusCodes.OK, GetServicesResponse(serviceRecords.map(records => records._2 -> new Service(records._1)).toMap))
+                else
+                  (StatusCodes.NotFound, GetServicesResponse())
+            }
+          }
         }
     }
   
@@ -392,7 +377,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                 val maxServices: Int = Configuration.getConfig.getInt("api.limits.maxServices")
                 if (maxServices == 0 || maxServices >= numOwned) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                   //logger.error(s"POST /orgs/$organization /services - L394 owner: ${owner.isDefined},    ${owner.getOrElse("None")}")
-                  reqBody.toServiceRow(service, organization, owner.get).insert.asTry
+                  reqBody.toServiceRow(service, organization, identity.identifier.getOrElse(identity.owner.get)).insert.asTry
                 }
                 else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.the.limit.of.services", maxServices))).asTry
               case Failure(t) => DBIO.failed(t).asTry
@@ -408,6 +393,8 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                 logger.debug("POST /orgs/" + organization + "/services added to changes table: " + v)
                 // TODO: if (owner.isEmpty) AuthCache.putServiceOwner(service, owner) // currently only users are allowed to update service resources, so owner should never be blank
                 // TODO: AuthCache.putServiceIsPublic(service, reqBody.public)
+                cacheResourceOwnership.put(organization, service, "service")((identity.identifier.getOrElse(identity.owner.get), reqBody.public), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
+                
                 (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.created", service)))
               case Failure(t: DBProcessingError) =>
                 t.toComplete
@@ -422,7 +409,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
     }
   
   def services(identity: Identity2): Route =
-    path("orgs" / Segment / "services") {
+    path(("catalog" | "orgs") / Segment / "services") {
       organization =>
         get {
           exchAuth(TService(OrgAndId(organization, "*").toString), Access.READ, validIdentity = identity) {

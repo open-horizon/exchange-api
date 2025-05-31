@@ -51,14 +51,14 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestNodesGetDetails",
-                password     = Option(Password.hash("u1pw")),
+                password     = Option(Password.fastHash("u1pw")),
                 username     = "u1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestNodesGetDetails",
-                password     = Option(Password.hash("u2pw")),
+                password     = Option(Password.fastHash("u2pw")),
                 username     = "u2"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -252,7 +252,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(0).name                  === Option(TESTNODES(0).name))
     assert(NODES(0).nodeType              === TESTNODES(0).nodeType)
     assert(NODES(0).orgid                 === TESTNODES(0).orgid)
-    assert(NODES(0).owner                 === TESTNODES(0).owner)
+    assert(NODES(0).owner                 === TESTUSERS(0).organization + "/" + TESTUSERS(0).username)
     assert(NODES(0).pattern               === Option(TESTNODES(0).pattern))
     assert(NODES(0).properties            === Option(parse(TESTNODEPOLICIES(0).properties).extract[List[OneProperty]]))
     assert(NODES(0).publicKey             === Option(TESTNODES(0).publicKey))
@@ -360,7 +360,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES.size === 1)
     assert(NODES(0).id === TESTNODES(1).id)
   
-    assert(NODES(0).token === TESTNODES(1).token)
+    assert(NODES(0).token === StrConstants.hiddenPw)
   }
   
   test("GET /orgs/" + "TestNodesGetDetails" + "/node-details -- Filter By Owner - Root") {
@@ -385,7 +385,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     assert(NODES(0).id === TESTNODES(0).id &&
            NODES(1).id === TESTNODES(2).id)
     
-    assert(NODES(0).token === TESTNODES(0).token)
+    assert(NODES(0).token === StrConstants.hiddenPw)
     assert(NODES(1).token === StrConstants.hiddenPw)
   }
 }

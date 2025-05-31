@@ -47,7 +47,7 @@ trait DropDatabase extends JacksonSupport with AuthenticationSupport {
         .map({
           case Success(v) =>
             logger.debug(s"POST /admin/dropdb result: $v")
-            AuthCache.clearAllCaches(includingIbmAuth = true)
+            // TODO: AuthCache.clearAllCaches(includingIbmAuth = true)
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("db.deleted")))
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("db.not.deleted", t.toString))

@@ -395,10 +395,10 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
               logger.debug(s"DELETE /orgs/$organization updated in changes table: $v")
               if (orgFound && resourceIds!=null) {
                 // Loop thru user/agbot/node id's and remove them from the cache
-                for (id <- resourceIds(0)) { /*println(s"removing $id from cache");*/ AuthCache.removeUser(id) } // users
-                for (id <- resourceIds(1)) { /*println(s"removing $id from cache");*/ AuthCache.removeAgbotAndOwner(id) } // agbots
-                for (id <- resourceIds(2)) { /*println(s"removing $id from cache");*/ AuthCache.removeNodeAndOwner(id) } // nodes
-                IbmCloudAuth.clearCache() // no alternative but sledgehammer approach because the IAM cache is keyed by api key
+              //  for (id <- resourceIds(0)) { /*println(s"removing $id from cache");*/ AuthCache.removeUser(id) } // users
+              //  for (id <- resourceIds(1)) { /*println(s"removing $id from cache");*/ AuthCache.removeAgbotAndOwner(id) } // agbots
+              //  for (id <- resourceIds(2)) { /*println(s"removing $id from cache");*/ AuthCache.removeNodeAndOwner(id) } // nodes
+              //  IbmCloudAuth.clearCache() // no alternative but sledgehammer approach because the IAM cache is keyed by api key
                 (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
               } else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization)))
             case Failure(t: org.postgresql.util.PSQLException) =>

@@ -15,18 +15,23 @@ import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.Serialization.{read, write}
 import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, Identity2, OrgAndId, TBusiness, TNode}
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ, BusinessPolicy}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, Version}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
 import java.util.UUID
 import scala.collection.immutable._
-import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util._
 import scala.util.control.Breaks._
 
@@ -63,8 +68,8 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + organization + "/business/policies/" + deploymentPolicy + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              AuthCache.removeBusinessOwner(resource)
-              AuthCache.removeBusinessIsPublic(resource)
+              // TODO: AuthCache.removeBusinessOwner(resource)
+              // TODO: AuthCache.removeBusinessIsPublic(resource)
               resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
@@ -73,6 +78,9 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
         })).map({
           case Success(v) =>
             logger.debug("DELETE /orgs/" + organization + "/business/policies/" + deploymentPolicy + " updated in changes table: " + v)
+            
+            cacheResourceOwnership.remove(organization, deploymentPolicy, "deployment_policy")
+            
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("business.policy.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
@@ -156,29 +164,91 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       attribute =>
         logger.debug(s"GET /orgs/${organization}/business/policies/${deploymentPolicy}?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         
-        complete({
-          attribute match {
-            case Some(attribute) =>  // Only returning 1 attr of the businessPolicy
-              val q = BusinessPoliciesTQ.getAttribute(resource, attribute) // get the proper db query for this attribute
-              if (q == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.wrong.attribute", attribute)))
-              else db.run(q.result).map({ list =>
-                logger.debug("GET /orgs/" + organization + "/business/policies/" + deploymentPolicy + " attribute result: " + list.toString)
-                if (list.nonEmpty) {
-                  (HttpCode.OK, GetBusinessPolicyAttributeResponse(attribute, list.head.toString))
-                } else {
-                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+        attribute match {
+          case Some(attribute) =>  // Only returning 1 attr of the businessPolicy
+              val getDeploymentPolicyAttribute: Query[Rep[String], String, Seq] =
+                for {
+                  deploymentPolicyAttribute: Rep[String] <-
+                    if (attribute.toLowerCase == "owner")
+                      BusinessPoliciesTQ.filter(deployment_policies => deployment_policies.orgid === organization &&
+                                                                       deployment_policies.businessPolicy === resource)
+                                        .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(policies => policies.orgid === identity.organization)
+                                        .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                        .on(_.owner === _._2)
+                                        .take(1)
+                                        .map(deployment_policies => (deployment_policies._2._1 ++ "/" ++ deployment_policies._2._3))
+                    else
+                      BusinessPoliciesTQ.filter(deployment_policies => deployment_policies.orgid === organization &&
+                                                                       deployment_policies.businessPolicy === resource)
+                                        .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(policies => policies.orgid === identity.organization)
+                                        .take(1)
+                                        .map(deployment_policies =>
+                                              attribute.toLowerCase match {
+                                                case "constraints" => deployment_policies.constraints
+                                                case "created" => deployment_policies.created
+                                                case "description" => deployment_policies.description
+                                                case "label" => deployment_policies.label
+                                                case "lastupdated" => deployment_policies.lastUpdated
+                                                case "properties" => deployment_policies.properties
+                                                case "secretbinding" => deployment_policies.secretBinding
+                                                case "service" => deployment_policies.service
+                                                case "userinput" => deployment_policies.userInput
+                                                case _ => null
+                                              })
+                } yield deploymentPolicyAttribute
+            
+            complete {
+              if (getDeploymentPolicyAttribute == null)
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.wrong.attribute", attribute)))
+              else
+                db.run(Compiled(getDeploymentPolicyAttribute).result).map {
+                  list =>
+                    logger.debug("GET /orgs/" + organization + "/business/policies/" + deploymentPolicy + " attribute result: " + list.toString)
+                    
+                    if (list.nonEmpty)
+                      (HttpCode.OK, GetBusinessPolicyAttributeResponse(attribute, list.head.toString))
+                    else
+                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
                 }
-              })
-  
-            case None =>  // Return the whole business policy resource
-              db.run(BusinessPoliciesTQ.getBusinessPolicy(resource).result).map({ list =>
-                logger.debug("GET /orgs/" + organization + "/business/policies result size: " + list.size)
-                val businessPolicies: Map[String, BusinessPolicy] = list.map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
-                val code: StatusCode = if (businessPolicies.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-                (code, GetBusinessPoliciesResponse(businessPolicies, 0))
-              })
-          }
-        })
+            }
+          
+          case _ =>
+            val getDeploymentPolicy: Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, String, String, String, String, String, String, String, String, String), String), Seq] =
+              for {
+                deployment_policy: ((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String]), Rep[String]) <-
+                  BusinessPoliciesTQ.filter(deployment_policies => deployment_policies.orgid === organization &&
+                                                                   deployment_policies.businessPolicy === resource)
+                                    .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(policies => policies.orgid === identity.organization)
+                                    .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                    .on(_.owner === _._2)
+                                    .take(1)
+                                    .map(policies =>
+                                          ((policies._1.constraints,
+                                            policies._1.created,
+                                            policies._1.description,
+                                            policies._1.label,
+                                            policies._1.lastUpdated,
+                                            (policies._2._1 ++ "/" ++ policies._2._3),
+                                            policies._1.properties,
+                                            policies._1.secretBinding,
+                                            policies._1.service,
+                                            policies._1.userInput),
+                                           policies._1.businessPolicy))
+              } yield deployment_policy
+            
+            complete {
+              db.run(Compiled(getDeploymentPolicy).result).map {
+                result =>
+                  logger.debug("GET /orgs/" + organization + "/business/policies result size: " + result.size)
+                  implicit val formats: Formats = DefaultFormats
+                  
+                  if (result.nonEmpty)
+                    (StatusCodes.OK, GetBusinessPoliciesResponse(result.map(deployment_policy => deployment_policy._2 -> new BusinessPolicy(deployment_policy._1)).toMap))
+                  else
+                    (StatusCodes.NotFound, GetBusinessPoliciesResponse())
+              }
+            }
+        }
     }
   
   // =========== PATCH /orgs/{organization}/business/policies/{policy} ===============================
@@ -510,6 +580,8 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
               logger.debug("POST /orgs/" + organization + "/business/policies/" + deploymentPolicy + " updated in changes table: " + v)
               // TODO: if (owner.isDefined) AuthCache.putBusinessOwner(resource, owner.get) // currently only users are allowed to update business policy resources, so owner should never be blank
               // TODO: AuthCache.putBusinessIsPublic(resource, isPublic = false)
+              cacheResourceOwnership.put(organization, deploymentPolicy, "deployment_policy")((identity.identifier.getOrElse(identity.owner.get), false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
+              
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.created", resource)))
             case Failure(t: DBProcessingError) =>
               t.toComplete
@@ -681,9 +753,19 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     path("orgs" / Segment / ("business" | "deployment") / "policies" / Segment) {
       (organization, deploymentPolicy) =>
         val resource: String = OrgAndId(organization, deploymentPolicy).toString
+        val resource_type: String = "deployment_policy"
+        
+        val i: Option[UUID] =
+          try
+            Option(Await.result(cacheResourceOwnership.cachingF(organization, deploymentPolicy, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)._1)
+          catch {
+            case _: Throwable => None
+          }
         
         (delete | patch | put) {
-          exchAuth(TBusiness(resource), Access.WRITE, validIdentity = identity) {
+          exchAuth(TBusiness(resource, i), Access.WRITE, validIdentity = identity) {
             _ =>
               deleteDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
                 patchDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
@@ -691,13 +773,13 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
           }
         } ~
         get {
-          exchAuth(TBusiness(resource), Access.READ, validIdentity = identity) {
+          exchAuth(TBusiness(resource, i), Access.READ, validIdentity = identity) {
             _ =>
               getDeploymentPolicy(deploymentPolicy, identity, organization, resource)
           }
         } ~
         post {
-          exchAuth(TBusiness(resource), Access.CREATE, validIdentity = identity) {
+          exchAuth(TBusiness(resource, i), Access.CREATE, validIdentity = identity) {
             _ =>
               postDeploymentPolicy(deploymentPolicy, identity, organization, resource)
           }

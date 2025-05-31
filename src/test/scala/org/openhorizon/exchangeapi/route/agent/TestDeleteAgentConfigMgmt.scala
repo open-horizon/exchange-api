@@ -59,15 +59,16 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestDeleteAgentConfigMgmt",
-                password     = Option(Password.hash("admin1pw")),
+                password     = Option(Password.fastHash("admin1pw")),
                 username     = "admin1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestDeleteAgentConfigMgmt",
-                password     = Option(Password.hash("a1pw")),
+                password     = Option(Password.fastHash("u1pw")),
                 username     = "u1"))
+  
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestDeleteAgentConfigMgmt/a1",
              lastHeartbeat = ApiTime.nowUTC,
@@ -179,7 +180,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "IBM",
-                password     = Option(Password.hash("u1pw")),
+                password     = Option(Password.fastHash("TestDeleteAgentConfigMgmt-u1pw")),
                 username     = "TestDeleteAgentConfigMgmt-u1"))
     }
     
@@ -336,7 +337,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                   isOrgAdmin   = true,
                   modifiedAt   = TIMESTAMP,
                   organization = "IBM",
-                  password     = Option(Password.hash("admin1pw")),
+                  password     = Option(Password.fastHash("TestDeleteAgentConfigMgmt-admin1pw")),
                   username     = "TestDeleteAgentConfigMgmt-admin1"))
     }
     fixtureUsers(

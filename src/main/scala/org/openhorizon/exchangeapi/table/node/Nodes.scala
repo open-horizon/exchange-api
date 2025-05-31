@@ -33,4 +33,6 @@ class Nodes(tag: Tag) extends Table[NodeRow](tag, "nodes") {
   def user = foreignKey("user_fk", owner, UsersTQ)(_.user, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   //def patKey = foreignKey("pattern_fk", pattern, PatternsTQ)(_.pattern, onUpdate=ForeignKeyAction.Cascade)     // <- we can't make this a foreign key because it is optional
+  def idx_node_fk_orgs = index(name = "idx_node_fk_orgs", on = orgid, unique = false)
+  def idx_node_fk_users = index(name = "idx_node_fk_users", on = owner, unique = false)
 }

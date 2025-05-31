@@ -186,7 +186,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
   }
   
   test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng0/n1 -- 403 access denied - Assigning a node owned by another user - u1") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.head.name + "/nodes/" + TESTNODES.last.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.username + ":u1pw"))).asString
+    val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.head.name + "/nodes/" + TESTNODES.last.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.organization + "/" + TESTUSERS.last.username + ":u1pw"))).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     
@@ -214,7 +214,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     
     fixtureNodes(
       _ => {
-        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.last.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.username + ":u1pw"))).asString
+        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.last.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.organization + "/" + TESTUSERS.last.username + ":u1pw"))).asString
         info("Code: " + response.code)
         info("Body: " + response.body)
         
@@ -243,7 +243,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     
     fixtureNodes(
       _ => {
-        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.head.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.username + ":u1pw"))).asString
+        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.head.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.organization + "/" + TESTUSERS.last.username + ":u1pw"))).asString
         info("Code: " + response.code)
         info("Body: " + response.body)
         

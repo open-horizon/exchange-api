@@ -73,5 +73,31 @@ final case class PostPutServiceRequest(label: String,
 
   def formId(orgid: String): String = ServicesTQ.formId(orgid, url, version, arch)
 
-  def toServiceRow(service: String, orgid: String, owner: UUID): ServiceRow = ServiceRow(service, orgid, owner, label, description.getOrElse(label), public, documentation.getOrElse(""), url, version, arch, sharable, write(matchHardware), write(requiredServices), write(userInput), deployment.getOrElse(""), deploymentSignature.getOrElse(""), clusterDeployment.getOrElse(""), clusterDeploymentSignature.getOrElse(""), write(imageStore), ApiTime.nowUTC)
+  def toServiceRow(service: String, orgid: String, owner: UUID): ServiceRow = {
+    ServiceRow(arch = arch,
+                /*arch.toUpperCase match {
+                  case "X86" | "I386" | "IA-32" => "I386"
+                  case "X86_64" | "X86-64" | "AMD64" | "INTEL 64" => "AMD64"
+                  case _ => _
+                }*/
+               clusterDeployment = clusterDeployment.getOrElse(""),
+               clusterDeploymentSignature = clusterDeploymentSignature.getOrElse(""),
+               description = description.getOrElse(label),
+               documentation = documentation.getOrElse(""),
+               deployment = deployment.getOrElse(""),
+               deploymentSignature = deploymentSignature.getOrElse(""),
+               imageStore = write(imageStore),
+               label = label,
+               lastUpdated = ApiTime.nowUTC,
+               matchHardware = write(matchHardware),
+               orgid = orgid,
+               owner = owner,
+               public = public,
+               requiredServices = write(requiredServices),
+               service = service,
+               sharable = sharable,
+               url = url,
+               userInput = write(userInput),
+               version = version)
+  }
 }

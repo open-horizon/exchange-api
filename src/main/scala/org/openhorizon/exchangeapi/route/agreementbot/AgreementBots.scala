@@ -71,6 +71,7 @@ trait AgreementBots extends JacksonSupport with AuthenticationSupport {
           for {
             agbots <-
               AgbotsTQ.filter(_.orgid === organization)
+                      .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot) (agreement_bots => agreement_bots.orgid === identity.organization || agreement_bots.orgid === "IBM")
                       .filterOpt(idfilter)((agbot, id) =>
                         if (id.contains("%"))
                           agbot.id like id

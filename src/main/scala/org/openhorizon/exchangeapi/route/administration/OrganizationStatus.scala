@@ -55,7 +55,7 @@ trait OrganizationStatus extends JacksonSupport with AuthenticationSupport {
                              .filterIf(identity.isNode)(_.orgid === identity.organization)
                              .map(_.orgid)
                              .joinLeft(NodesTQ.filterIf(!(identity.role == AuthRoles.SuperUser || identity.isMultiTenantAgbot))(node => (node.orgid === identity.organization || node.orgid === "IBM"))
-                                              .filterIf(!(identity.role == AuthRoles.AdminUser || identity.role == AuthRoles.HubAdmin) && identity.role.equals(AuthRoles.User))(_.owner === identity.identifier.get)
+                                              .filterIf(!(identity.role == AuthRoles.AdminUser || identity.role == AuthRoles.HubAdmin) && identity.isUser)(_.owner === identity.identifier.get)
                                               .filterIf(identity.isNode)(_.id === identity.resource)
                                               .groupBy(node => node.orgid)
                                               .map{case (orgid, group) => (orgid, group.map(_.id).length)})

@@ -6,7 +6,7 @@
 
 package org.openhorizon.exchangeapi
 
-import com.google.common.cache.{Cache, CacheBuilder}
+import com.github.benmanes.caffeine.cache
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -21,8 +21,6 @@ import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import org.apache.pekko.Done
 import org.apache.pekko.actor.{Actor, ActorRef, ActorSystem, CoordinatedShutdown, Props, Timers}
 import org.apache.pekko.event.{Logging, LoggingAdapter}
-import org.apache.pekko.http.caching.LfuCache
-import org.apache.pekko.http.caching.scaladsl.{Cache, CachingSettings}
 import org.apache.pekko.http.cors.scaladsl.CorsDirectives._
 import org.apache.pekko.http.cors.scaladsl.CorsRejection
 import org.apache.pekko.http.javadsl.model.HttpHeader
@@ -31,10 +29,11 @@ import org.apache.pekko.http.scaladsl.{ConnectionContext, Http}
 import org.apache.pekko.http.scaladsl.model.{HttpRequest, StatusCodes}
 import org.apache.pekko.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `must-revalidate`, `no-cache`, `no-store`}
 import org.apache.pekko.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
-import org.apache.pekko.http.scaladsl.server.{AuthenticationFailedRejection, AuthorizationFailedRejection, CircuitBreakerOpenRejection, ExceptionHandler, ExpectedWebSocketRequestRejection, InvalidOriginRejection, MalformedQueryParamRejection, MalformedRequestContentRejection, MethodRejection, MissingAttributeRejection, MissingCookieRejection, MissingFormFieldRejection, MissingHeaderRejection, Rejection, RejectionHandler, RejectionWithOptionalCause, RequestEntityExpectedRejection, Route, RouteResult, SchemeRejection, TooManyRangesRejection, TransformationRejection, ValidationRejection}
+import org.apache.pekko.http.scaladsl.server.{AuthenticationFailedRejection, AuthorizationFailedRejection, CircuitBreakerOpenRejection, ExceptionHandler, ExpectedWebSocketRequestRejection, InvalidOriginRejection, MalformedQueryParamRejection, MalformedRequestContentRejection, MethodRejection, MissingAttributeRejection, MissingCookieRejection, MissingFormFieldRejection, MissingHeaderRejection, MissingQueryParamRejection, Rejection, RejectionHandler, RejectionWithOptionalCause, RequestEntityExpectedRejection, Route, RouteResult, SchemeRejection, TooManyRangesRejection, TransformationRejection, ValidationRejection}
 import org.apache.pekko.http.scaladsl.server.RouteResult.Rejected
 import org.apache.pekko.http.scaladsl.server.directives.{Credentials, DebuggingDirectives, LogEntry}
 import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.pattern.{BackoffOpts, FutureRef}
 import org.json4s._
 import org.openhorizon.exchangeapi.SwaggerDocService.complete
 import org.openhorizon.exchangeapi.auth.AuthCache.logger
@@ -43,7 +42,6 @@ import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
 import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements}
 import org.openhorizon.exchangeapi.route.agreementbot.message.{Message, Messages}
-import org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns
 import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
 import org.openhorizon.exchangeapi.route.managementpolicy.{ManagementPolicies, ManagementPolicy}
@@ -69,8 +67,12 @@ import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, ExchangeRejection, NotFoundRejection}
 import scalacache.Entry
-import scalacache.guava.GuavaCache
+import scalacache._
+import scalacache.caffeine._
 import scalacache.modes.scalaFuture._
+import com.github.benmanes.caffeine.cache.Caffeine
+import org.apache.pekko.pattern.BackoffOpts.onFailure
+import org.apache.pekko.routing.NoRouter
 import slick.jdbc.TransactionIsolation.Serializable
 
 import java.io.{File, FileInputStream, InputStream}
@@ -86,7 +88,6 @@ import scala.io.{BufferedSource, Source}
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 import scala.util.matching.Regex
 import scala.util.Properties
-import scala.util.{Failure, Success}
 
 // Global vals and methods
 object ExchangeApi {
@@ -163,7 +164,6 @@ object ExchangeApiApp extends App
   with NodeGroup
   with NodeGroups
   with Organization
-  with OrganizationDeploymentPatterns
   with Organizations
   // with OrganizationServices
   with OrganizationStatus
@@ -212,7 +212,7 @@ object ExchangeApiApp extends App
   implicit val logger: LoggingAdapter = Logging(system, "Exchange")
   ExchangeApi.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
   
-  AuthCache.createRootInCache()
+  //AuthCache.createRootInCache()
   
   // Check common overwritten pekko configuration parameters
   logger.debug("pekko.corrdinated-shutdown:  " + system.settings.config.getConfig("pekko.coordinated-shutdown").toString)
@@ -223,6 +223,10 @@ object ExchangeApiApp extends App
   // Set a custom exception handler. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/exception-handling.html#exception-handling
   implicit def myExceptionHandler: ExceptionHandler =
     ExceptionHandler {
+      case exception: UnsupportedOperationException =>
+        complete(StatusCodes.Unauthorized, ApiResponse(ApiRespType.BADCREDS, "unauthorized"))
+      case exception: MappingException =>
+        complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, exception.getMessage)))
       case e: java.util.concurrent.RejectedExecutionException => // this is the exception if any of the routes have trouble reaching the db during a db.run()
         //extractUri { uri =>   // in case we need the url for some reason
         //}
@@ -254,6 +258,10 @@ object ExchangeApiApp extends App
                     .handle {
                       case MalformedQueryParamRejection(parameterName, errorMsg, _) =>
                         complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.int.for.name", parameterName))))
+                    }
+                    .handle {
+                      case MissingQueryParamRejection(parameterName) =>
+                        complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, parameterName)))
                     }
                     // do not know when this is run
                     // .handleAll[MethodRejection] { methodRejections =>
@@ -306,42 +314,79 @@ object ExchangeApiApp extends App
     }
   }
   
-  def getPassword(organization: String,
-                  resource: String,
-                  username: String): Option[(String, Int)] = {
-    val fetchResourcePassword =
+  val identityCacheSettings: cache.Cache[String, Entry[(Identity2, String)]] =
+    Caffeine.newBuilder()
+                .maximumSize(Configuration.getConfig.getInt("api.cache.idsMaxSize"))
+                .expireAfterWrite(Configuration.getConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
+                .build[String, Entry[(Identity2, String)]]
+  implicit val cacheResourceIdentity: CaffeineCache[(Identity2, String)] = CaffeineCache(identityCacheSettings)
+  
+  /*val identityCacheSettings: common.cache.Cache[String, Entry[(Identity2, String)]] =
+    CacheBuilder.newBuilder()
+                .maximumSize(Configuration.getConfig.getInt("api.cache.idsMaxSize"))
+                .expireAfterWrite(Configuration.getConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
+                .build[String, Entry[(Identity2, String)]]
+  implicit val cacheResourceIdentity: GuavaCache[(Identity2, String)] = GuavaCache(identityCacheSettings)*/
+  
+  /*val defaultCachingSettings = CachingSettings(system)
+  val lfuCacheSettings =
+    defaultCachingSettings.lfuCacheSettings
+      .withInitialCapacity(300)
+      .withMaxCapacity(500)
+      .withTimeToLive(20.seconds)
+      .withTimeToIdle(10.seconds)
+  val cachingSettings =
+    defaultCachingSettings.withLfuCacheSettings(lfuCacheSettings)
+  val lfuCache: Cache[String, (Identity2, String)] = LfuCache(cachingSettings)*/
+  
+  // This should only be used for Authorization: Basic challenges using organization/username:password
+  // This does not support other authentication types (OAuth, Api Keys), nor using a UUID as provided user.
+  // Without unified identity, we have to protect against privilege escalation attacks by defaulting to the user archetype of least permissions.
+  /*
+   * Had a really elegant solution for grabbing/creating everything needed, doing a union between the table types,
+   * and then yielding the identity object and the credential in a tuple. There seems to be a technical limitation
+   * present in Slick which frustratingly prevents you from doing a union with an Option[UUID] present in the query.
+   * We concatenate the yielded Sequences to together as the next best thing. Certainly not as performant, but it works.
+   */
+  def getResourceIdentityAndPassword(organization: String,
+                                     username: String): Future[((Boolean, Option[UUID], Boolean, Option[UUID], Int), String)] = {
+    val getIdentityQuery =
       for {
-        resourcePassword <-
-          (NodesTQ.filter(nodes => nodes.orgid === organization &&
-                                   nodes.id === resource)
-                  .map(nodes => (nodes.token, 0)) ++
-           AgbotsTQ.filter(agbots => agbots.orgid === organization &&
-                                     agbots.id === resource)
-                   .map(agbots => (agbots.token, 1)) ++
-           UsersTQ.filter(users => users.organization === organization &&
-                                   users.username === username)
-                  .map(users => (users.password.getOrElse(""), 2)))
-            .sortBy(_._2.asc)
+        nodeIdentities <-
+          NodesTQ.filter(nodes => nodes.orgid === organization &&
+                                            nodes.id === (organization ++ "/" ++ username))
+            .map(nodes => ((false, Rep.None[UUID], false, nodes.owner.?, 0), nodes.token))
             .take(1)
             .result
-      } yield resourcePassword.headOption
-      
-    Await.result(db.run(fetchResourcePassword.transactionally), 10.seconds)
+            
+        agbotIdentities <-
+          AgbotsTQ.filter(agbots => agbots.orgid === organization && agbots.id === (organization ++ "/" ++ username))
+             .map(agbots => ((false, Rep.None[UUID], false, agbots.owner.?, 1), agbots.token))
+            .take(1)
+            .result
+        
+        useridentities <-
+          UsersTQ.filter(users => users.organization === organization && users.username === username)
+             .map(users => ((users.isHubAdmin, users.user.?, users.isOrgAdmin, Rep.None[UUID], 2), users.password.getOrElse("")))
+            .take(1)
+            .result
+      } yield ((nodeIdentities ++ agbotIdentities ++ useridentities)).minBy(_._1._5)
+    
+    db.run(getIdentityQuery.transactionally)
   }
   
   val reg: Regex = """^(\S*?)/(\S*)$""".r
   
   
-  // TODO: Basic authentication idea
+  
   def myUserPassAuthenticator(credentials: Credentials): Future[Option[Identity2]] = {
     credentials match {
       case p@Credentials.Provided(resource) =>
         Future {
           val (organization: String,
                username: String) = {
-            // logger.debug(s"line 323    resource:$resource")
             resource match {
-              case reg(organization, username) =>
+              case reg(organization: String, username) =>
                 (organization, username)
               case _ =>
                 ("", "")
@@ -350,69 +395,63 @@ object ExchangeApiApp extends App
           
           if (organization.isEmpty &&
               username.isEmpty)
-            Future.successful(None)
+            return Future.successful(None)
           
-          val (storedSecret: String, userType: Int) = getPassword(organization, resource, username).getOrElse(("", 0))
           
-          if (p.provideVerify(secret = storedSecret,
-                              verifier = (storedSecret, requestPassword) =>  // (Hashed credential in database, Plain-text password from Authorization: Basic header)
-                              {/*logger.debug("Line 333:    credential: " + requestPassword + "    secret: " + storedSecret);*/ Password.check(requestPassword, storedSecret)})) {
-            userType match { // Hack. Non-unified identity currently.
-              case 0 =>
-                Some(Identity2(organization = organization,
-                               role = AuthRoles.Node,
-                               username = username))
-              case 1 =>
-                Some(Identity2(organization = organization,
-                               role = AuthRoles.Agbot,
-                               username = username))
-              case 2 =>
-                val useridentity: (Boolean, Boolean, UUID) =
-                  Await.result(db.run(
-                    Compiled(UsersTQ.filter(users => users.organization === organization &&
-                                                     users.username === username)
-                                    .map(users => (users.isHubAdmin,
-                                                   users.isOrgAdmin,
-                                                   users.user))
-                                    .take(1))
-                                    .result
-                                    .head
-                                    .transactionally),
-                               10.seconds)
-                val authenticatedUserIdentity =
-                  Some(Identity2(identifier = Option(useridentity._3),
-                                 organization = organization,
-                                 role =
-                                   useridentity match {
-                                     case (true, true, _) =>
-                                       if ((s"$organization/$username" != "root/root"))
-                                         logger.warning(s"User resource $organization/$username(resource: ${useridentity._3}) has Root level access permissions") // Root level permissions are used in test environments, any other user should not have root level access in a production environment.
-                                       AuthRoles.SuperUser
-                                     case (true, false, _) =>
-                                       AuthRoles.HubAdmin
-                                     case (false, true, _) =>
-                                       AuthRoles.AdminUser
-                                     case _ =>
-                                       AuthRoles.User
-                                   },
-                               username = username))
-                
-                // Guard, should never hit this condition. Reject the authentication attempt if true, as we cannot determine this resource's identity.
-                if (authenticatedUserIdentity.get.isUser &&
-                    authenticatedUserIdentity.get.identifier.isEmpty) {
-                  logger.error(s"The ${authenticatedUserIdentity.get.role} resource ${authenticatedUserIdentity.get.resource} is missing a UUID")
-                  
-                  None
-                }
-                else
-                  authenticatedUserIdentity
-                
-              case _ => None
+          def x (resource: String): Future[(Identity2, String)] = {
+            cacheResourceIdentity.cachingF(resource)(ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds)) {
+              // On cache miss execute this block to try and find what the value should be.
+              // If found add to the cache for next time.
+              getResourceIdentityAndPassword(organization, username).map {
+                // Yield this Resource's identity metadata and construct a future identity object. Resource's stored credential tags along.
+                // This object will be returned and used if authenticated.
+                identityMetadata: ((Boolean, Option[UUID], Boolean, Option[UUID], Int), String) => (new Identity2(organization, identityMetadata._1, username), identityMetadata._2)
+              }
             }
           }
-          else
-            None
-        }
+          
+          //x BackoffOpts.onFailure { case t => t }
+          
+          def y(resourceIdentityAndCred: Option[(Identity2, String)]): Future[Option[Identity2]] = Future {
+            resourceIdentityAndCred match {
+             case Some(resourceIdentityAndCred) =>
+               // Guard, should never hit this condition. Reject the authentication attempt if true, as we cannot determine this resource's identity.
+               if (resourceIdentityAndCred._1.role == AuthRoles.Anonymous) {
+                 logger.debug(s"Authentication: This resource ${resourceIdentityAndCred._1.resource} yields user archetype ${resourceIdentityAndCred._1.role}.")
+                 None
+               }
+               // Guard, should never hit this condition. Reject the authentication attempt if true, as we cannot determine this resource's identity.
+               else if (resourceIdentityAndCred._1.isUser &&
+                       resourceIdentityAndCred._1.identifier.isEmpty) {
+                 logger.debug(s"Authentication: The ${resourceIdentityAndCred._1.role} resource ${resourceIdentityAndCred._1.resource} is missing a UUID.")
+                 None
+               }
+               else if (p.provideVerify(secret = resourceIdentityAndCred._2,
+                                       verifier =
+                                          // (Hashed credential in database, Plain-text password from Authorization: Basic header)
+                                         (storedSecret, requestPassword) => {
+                                           /*logger.debug("Line 333:    credential: " + requestPassword + "    secret: " + storedSecret);*/
+                                           Password.check(requestPassword, storedSecret) // BCrypt requires the use of its own Hash comparator.
+                                         })) {
+                 // Root level permissions are used in test environments, any other user should not have root level access in a production environment.
+                 if ((resourceIdentityAndCred._1.resource != "root/root"))
+                   logger.warning(s"User resource ${resourceIdentityAndCred._1.resource}(resource: ${resourceIdentityAndCred._1.identifier.getOrElse("")}) has Root level access permissions")
+                 Option(resourceIdentityAndCred._1) // Return the successfully authenticated Identity
+               }
+               else
+                None
+              case None => None
+            }
+          }
+          
+          // Chains the input/output of our futures.
+          // Also yields a result this future can use due to nesting futures.
+          for {
+            a <- x(resource)
+            //_ = logger.debug(s"Async returns: ${a._1.toString}, ${a._1.identifier.getOrElse("None")}")
+            b <- y(Option(a)) fallbackTo(Future{None})
+          } yield b
+        }.flatMap(x => x) // Flattens the nested futures.
       case _ =>
         Future.successful(None)
     }
@@ -421,6 +460,7 @@ object ExchangeApiApp extends App
   //someday: use directive https://doc.pekko.io/docs/pekko-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
   lazy val routes: Route =
     DebuggingDirectives.logRequestResult(requestResponseLogging _) {
+      withLog(logger) {
       pathPrefix("v1") {
         respondWithDefaultHeaders(`Cache-Control`(Seq(`max-age`(0), `must-revalidate`, `no-cache`, `no-store`)),
                                   // RawHeader("Content-Type", "application/json"/*; charset=UTF-8"*/),
@@ -428,10 +468,10 @@ object ExchangeApiApp extends App
                                   RawHeader("X-Content-Type-Options", "nosniff"),
                                   RawHeader("X-XSS-Protection", "1; mode=block")) {
           handleExceptions(myExceptionHandler) {
-            handleRejections(corsRejectionHandler.withFallback(myRejectionHandler)) {
+            handleRejections(corsRejectionHandler.withFallback(myRejectionHandler).seal) {
               cors() {
                 handleExceptions(myExceptionHandler) {
-                  handleRejections(corsRejectionHandler.withFallback(myRejectionHandler).seal) {
+                  handleRejections((corsRejectionHandler.withFallback(myRejectionHandler)).seal) {
                     // These routes do not require Authentication. They accept all requests.
                     SwaggerDocService.routes ~
                     swaggerUiRoutes ~
@@ -496,7 +536,7 @@ object ExchangeApiApp extends App
                         nodeGroup(validIdentity) ~
                         nodeGroups(validIdentity) ~
                         organization(validIdentity) ~
-                        organizationDeploymentPatterns(validIdentity) ~
+                        //organizationDeploymentPatterns(validIdentity) ~
                         organizations(validIdentity) ~
                         // organizationServices(validIdentity) ~
                         organizationStatus(validIdentity) ~
@@ -522,7 +562,7 @@ object ExchangeApiApp extends App
             }
           }
         }
-      }
+      }}
     }
   
   val db: Database = DatabaseConnection.getDatabase//Database.forConfig("exchange-db-connection", system.settings.config.getConfig("exchange-db-connection"))
@@ -545,62 +585,90 @@ object ExchangeApiApp extends App
   }
 
   // Initialize authentication cache from objects in the db
-  AuthCache.initAllCaches(db, includingIbmAuth = true)
+  //AuthCache.initAllCaches(db, includingIbmAuth = true)
 
-  /*implicit val ownershipCache = CacheBuilder.newBuilder()
-                                                                        .maximumSize(Configuration.getConfig.getInt("api.cache.resourcesMaxSize"))
-                                                                        .expireAfterWrite(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
-                                                                        .build[String, Entry[UUID]]
-  implicit val resourceOwnership = GuavaCache(ownershipCache) */
+  implicit val ownershipCache: cache.Cache[String, Entry[(UUID, Boolean)]] =
+    Caffeine.newBuilder()
+            .maximumSize(Configuration.getConfig.getInt("api.cache.resourcesMaxSize"))
+            .expireAfterWrite(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
+            .build[String, Entry[(UUID, Boolean)]]
+    
+  implicit val cacheResourceOwnership: CaffeineCache[(UUID, Boolean)] = CaffeineCache(ownershipCache)
   
-  def getOwnerOfResource(organization: String, resource: String, something: String) = {
-    val getOwnerOfResource =
+  /*implicit val ownershipCache: common.cache.Cache[String, Entry[(UUID, Boolean)]] =
+    CacheBuilder.newBuilder()
+                .maximumSize(Configuration.getConfig.getInt("api.cache.resourcesMaxSize"))
+                .expireAfterWrite(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
+                .build[String, Entry[(UUID, Boolean)]]
+    
+  implicit val cacheResourceOwnership: GuavaCache[(UUID, Boolean)] = GuavaCache(ownershipCache)*/
+  
+  def getOwnerOfResource(organization: String, resource: String, something: String): Future[(UUID, Boolean)] = {
+    val getOwnerOfResource: DBIOAction[(UUID, Boolean), NoStream, Effect.Read] =
       for {
-         owner <-
+        owner: Seq[(UUID, Boolean)] <-
            something match {
              case "agreement_bot" =>
                Compiled(AgbotsTQ.filter(agbots => agbots.id === resource &&
                                                   agbots.orgid === organization)
                                 .take(1)
-                                .map(_.owner))
+                                .map(agbots => (agbots.owner, false)))
                  .result
              case "deployment_pattern" =>
                Compiled(PatternsTQ.filter(deployPatterns => deployPatterns.pattern === resource &&
                                                             deployPatterns.orgid === organization)
                                   .take(1)
-                                  .map(_.owner))
+                                  .map(deployment_patterns => (deployment_patterns.owner, deployment_patterns.public)))
                  .result
               case "deployment_policy" =>
                 Compiled(BusinessPoliciesTQ.filter(deployPolicies => deployPolicies.businessPolicy === resource &&
                                                                      deployPolicies.orgid === organization)
                                            .take(1)
-                                           .map(_.owner))
+                                           .map(deployPolicies => (deployPolicies.owner, false)))
                 .result
              case "management_policy" =>
                Compiled(ManagementPoliciesTQ.filter(managePolicies => managePolicies.managementPolicy === resource &&
                                                                       managePolicies.orgid === organization)
                                             .take(1)
-                                            .map(_.owner))
+                                            .map(managePolicies => (managePolicies.owner, false)))
                  .result
              case "node" =>
                Compiled(NodesTQ.filter(nodes => nodes.id === resource &&
                                                 nodes.orgid === organization)
                                .take(1)
-                               .map(_.owner))
+                               .map(nodes => (nodes.owner, false)))
                  .result
              case "service" =>
                Compiled(ServicesTQ.filter(services => services.service === resource &&
                                                       services.orgid === organization)
                                   .take(1)
-                                  .map(_.owner))
+                                  .map(services => (services.owner, services.public)))
+                 .result
+             case "user" =>
+               Compiled(UsersTQ.filter(users => users.organization === organization &&
+                                                users.username === resource.split("/")(1))
+                               .take(1)
+                               .map(users => (users.user, false)))
                  .result
              case _ =>
                DBIO.failed(new Exception())
            }
-      } yield owner.headOption
+      } yield owner.head
     
-    Await.result(db.run(getOwnerOfResource.transactionally), 15.seconds)
+    db.run(getOwnerOfResource.transactionally)
   }
+  
+  /*val defaultCachingSettings = CachingSettings(system)
+  val lfuCacheSettings =
+    defaultCachingSettings.lfuCacheSettings
+      .withInitialCapacity(25)
+      .withMaxCapacity(50)
+      .withTimeToLive(20.seconds)
+      .withTimeToIdle(10.seconds)
+  val cachingSettings =
+    defaultCachingSettings.withLfuCacheSettings(lfuCacheSettings)
+  implicit def lfuCache: PekkoCache[(String, String, String), UUID] = LfuCache(cachingSettings))*/
+  
 
   /** Task for trimming `resourcechanges` table */
   def trimResourceChanges(): Unit ={

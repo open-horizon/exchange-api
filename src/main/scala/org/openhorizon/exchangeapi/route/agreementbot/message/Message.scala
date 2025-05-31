@@ -9,13 +9,18 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.{ExceptionHandler, Route}
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.route.agreementbot.GetAgbotMsgsResponse
 import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMsgsTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success}
 
 
@@ -160,17 +165,27 @@ trait Message extends JacksonSupport with AuthenticationSupport {
         (organization,
          agreementBot,
          rawMessage) =>
-           val message: Int = rawMessage.toInt // Throws NumberFormatException
-           val resource: String = OrgAndId(organization, agreementBot).toString
+          val message: Int = rawMessage.toInt // Throws NumberFormatException
+          val resource: String = OrgAndId(organization, agreementBot).toString
+          val resource_type = "agreement_bot"
+          
+          val i: Option[UUID] =
+            try
+              Option(Await.result(cacheResourceOwnership.cachingF(organization, agreementBot, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+                ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+              }, 15.seconds)._1)
+            catch {
+              case _: Throwable => None
+            }
            
            get {
-             exchAuth(TAgbot(resource), Access.READ, validIdentity = identity) {
+             exchAuth(TAgbot(resource, i), Access.READ, validIdentity = identity) {
                _ =>
                  getMessage(agreementBot, identity, message, organization, resource)
              }
            } ~
            delete {
-             exchAuth(TAgbot(resource), Access.WRITE, validIdentity = identity) {
+             exchAuth(TAgbot(resource, i), Access.WRITE, validIdentity = identity) {
                _ =>
                 deleteMessage(agreementBot, identity, message, organization, resource)
              }

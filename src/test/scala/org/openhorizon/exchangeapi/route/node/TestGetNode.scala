@@ -40,7 +40,7 @@ class TestGetNode extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestGetNode",
-                password     = Option(Password.hash("u1pw")),
+                password     = Option(Password.fastHash("u1pw")),
                 username     = "u1"))
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch               = "",

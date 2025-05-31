@@ -114,10 +114,21 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
               The filter is: n.pattern=="" && n.lastHeartbeat>=lastTime
               Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
             */
-            val lastTime: String = if (reqBody.lastTime != "") reqBody.lastTime else ApiTime.beginningUTC
-            val q = for {
-              (n, a) <- NodesTQ.filter(_.orgid === organization).filter(_.pattern === "").filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ on (_.id === _.nodeId)
-            } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
+            val lastTime: String =
+              if (reqBody.lastTime != "")
+                reqBody.lastTime
+              else
+                ApiTime.beginningUTC
+            
+            val q =
+              for {
+                (n, a) <-
+                  NodesTQ.filter(_.orgid === organization)
+                         .filter(_.pattern === "")
+                         .filter(_.lastHeartbeat >= lastTime)
+                         .joinLeft(NodeAgreementsTQ)
+                         .on (_.id === _.nodeId)
+              } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
   
             db.run(q.result).map({
               list =>

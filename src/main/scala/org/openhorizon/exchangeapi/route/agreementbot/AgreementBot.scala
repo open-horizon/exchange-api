@@ -16,14 +16,17 @@ import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotRow, Agbots, 
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
-import org.openhorizon.exchangeapi.table
+import org.openhorizon.exchangeapi.{ExchangeApiApp, table}
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.table.user.UsersTQ
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.MappedProjection
 
 import java.util.UUID
-import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/agbots/{agreementbot}")
@@ -76,15 +79,15 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
     parameter("attribute".?) {
       attribute =>
         
-        def isValidAttribute(attribute: Option[String]): Boolean =
+        def isValidAttribute(attribute: String): Boolean =
           attribute match {
-            case // Some("id") |
-                 Some("lastHeartbeat") |
-                 Some("msgEndPoint") |
-                 Some("name") |
-                 // Some("orgid") |
-                 Some("owner") |
-                 Some("publicKey") => true
+            case // "id" |
+                 "lastheartbeat" |
+                 "msgendpoint" |
+                 "name" |
+                 "orgid" |
+                 "owner" |
+                 "publickey" => true
             case _ => false
           }
         
@@ -96,111 +99,75 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                             !identity.isMultiTenantAgbot)(agbots => agbots.orgid === identity.organization ||
                                                                     agbots.orgid === "IBM")
         
-        validate(isValidAttribute(attribute), errorMsg = ExchMsg.translate("no.valid.agbot.attribute.specified")) {
-          val getAgbotAttribute: Query[MappedProjection[GetAgbotAttributeResponse, (String, String)], GetAgbotAttributeResponse, Seq] =
-            for {
-              agbotAttribute <-
-                if (attribute.getOrElse("") == "owner")
-                  baseAgbotQuery.join(UsersTQ.map(users => (users.organization, users.user, users.username)))
-                                .on(_.owner === _._2)
-                                .map(agbots => (attribute.getOrElse(""), (agbots._2._1 ++ "/" ++ agbots._2._3)))
-                else
-                  baseAgbotQuery.map(agbots =>
-                                      (attribute.getOrElse(""),
-                                        attribute.getOrElse("") match {
-                                         // case "id" => agbots.id
-                                         case "lastHeartbeat" => agbots.lastHeartbeat
-                                         case "msgEndPoint" => agbots.msgEndPoint
-                                         case "name" => agbots.name
-                                         // case "orgid" => agbots.orgid
-                                         case "publicKey" => agbots.publicKey
-                                       }))
-            } yield agbotAttribute.mapTo[GetAgbotAttributeResponse]
-            
-          complete({
-            db.run(getAgbotAttribute.result.transactionally.asTry).map {
-              case Success(agbotAtrribute) =>
-                if (agbotAtrribute.size == 1)
-                  (HttpCode.OK, agbotAtrribute.head)
-                else if (agbotAtrribute.isEmpty)
-                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
-                else
-                  logger.error(s"Doing GET /orgs/$organization/agbots/$agreementBot?attribute=${attribute.getOrElse("None")} - result: ${agbotAtrribute.toString()}")
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.agbot.not.found", resource)))
-              case Failure(exception) =>
-                logger.error(cause = exception, message = s"GET /orgs/$organization/agbots/$agreementBot?attribute=${attribute.getOrElse("None")}")
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
-            }
-          })
-        } ~
-        {
-          val getAgbot: Query[MappedProjection[Agbot, (String, String, String, String, String, String, String, String)], Agbot, Seq] =
-            for {
-              agbot <-
-                baseAgbotQuery.join(UsersTQ.map(users => (users.organization, users.user, users.username)))
-                              .on(_.owner === _._2)
-                              .take(1)
-                              .map(agbots =>
-                                    (agbots._1.id,
-                                     agbots._1.lastHeartbeat,
-                                     agbots._1.msgEndPoint,
-                                     agbots._1.name,
-                                     agbots._1.orgid,
-                                      (agbots._2._1 ++ "/" ++ agbots._2._3),
-                                     agbots._1.publicKey,
-                                     "***************"))
-            } yield agbot.mapTo[Agbot]
-          
-          complete({
-            db.run(getAgbot.result.transactionally.asTry).map {
-              case Success(agbot) =>
-                if (agbot.size == 1)
-                  (HttpCode.OK, agbot.head)
-                else if (agbot.isEmpty)
-                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
-                else
-                  logger.error(s"Doing GET /orgs/$organization/agbots/$agreementBot - result: ${agbot.toString()}")
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.agbot.not.found", resource)))
-              case Failure(exception) =>
-                logger.error(cause = exception, message = s"GET /orgs/$organization/agbots/$agreementBot")
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
-            }
-          })
-        }
-       // val q: PostgresProfile.api.Query[_, _, Seq] =
-       //     if (attribute.isDefined)
-        //      AgbotsTQ.getAttribute(resource, attribute.get)
-        //    else
-        //      null
-        //validate(attribute.isEmpty || q != null, ExchMsg.translate("agbot.name.not.in.resource")) {
-        //    complete({
-        //      logger.debug(s"GET /orgs/$organization/agbots/$agreementBot identity: ${identity.resource}") // can't display the whole ident object, because that contains the pw/token
-        //      attribute match {
-        //        case Some(attr) => // Only returning 1 attr of the agbot
-        //          db.run(q.result)
-         //           .map({
-         /*             list => //logger.debug("GET /orgs/"+orgid+"/agbots/"+id+" attribute result: "+list.toString)
-                        if (list.nonEmpty)
-                          (HttpCode.OK, GetAgbotAttributeResponse(attr, list.head.toString))
-                        else
-                          (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))) // validateAccessToAgbot() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
-                    })
-                case None => // Return the whole agbot, including the services
-                  db.run(AgbotsTQ.getAgbot(resource).result)
-                    .map({
-                      list =>
-                        logger.debug(s"GET /orgs/$organization/agbots result size: ${list.size}")
-                        val agbots: Map[String, Agbot] = list.map(e => e.id -> e.toAgbot(identity.isSuperUser)).toMap
-                        val code: StatusCode =
-                          if (agbots.nonEmpty)
-                            StatusCodes.OK
-                          else
-                            StatusCodes.NotFound
-                        (code, GetAgbotsResponse(agbots, 0))
-                    })
+        attribute match {
+          case Some(attribute) if attribute.nonEmpty && isValidAttribute(attribute.toLowerCase) =>
+            val getAgbotAttribute: Query[MappedProjection[GetAgbotAttributeResponse, (String, String)], GetAgbotAttributeResponse, Seq] =
+              for {
+                agbotAttribute <-
+                  if (attribute == "owner")
+                    baseAgbotQuery.join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                  .on(_.owner === _._2)
+                                  .map(agbots => (attribute, (agbots._2._1 ++ "/" ++ agbots._2._3)))
+                  else
+                    baseAgbotQuery.map(agbots =>
+                                        (attribute,
+                                          attribute.toLowerCase match {
+                                           // case "id" => agbots.id
+                                           case "lastheartbeat" => agbots.lastHeartbeat
+                                           case "msgendpoint" => agbots.msgEndPoint
+                                           case "name" => agbots.name
+                                           // case "orgid" => agbots.orgid
+                                           case "publickey" => agbots.publicKey
+                                         }))
+              } yield agbotAttribute.mapTo[GetAgbotAttributeResponse]
+              
+            complete({
+              db.run(getAgbotAttribute.result.transactionally.asTry).map {
+                case Success(agbotAtrribute) =>
+                  if (agbotAtrribute.size == 1)
+                    (HttpCode.OK, agbotAtrribute.head)
+                  else if (agbotAtrribute.isEmpty)
+                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                  else
+                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.agbot.not.found", resource)))
+                case Failure(exception) =>
+                  logger.error(cause = exception, message = s"GET /orgs/$organization/agbots/$agreementBot?attribute=${attribute}")
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
               }
             })
-          }*/
+          case _ =>
+            val getAgbot: Query[MappedProjection[Agbot, (String, String, String, String, String, String, String, String)], Agbot, Seq] =
+              for {
+                agbot <-
+                  baseAgbotQuery.join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                .on(_.owner === _._2)
+                                .take(1)
+                                .map(agbots =>
+                                      (agbots._1.id,
+                                       agbots._1.lastHeartbeat,
+                                       agbots._1.msgEndPoint,
+                                       agbots._1.name,
+                                       agbots._1.orgid,
+                                        (agbots._2._1 ++ "/" ++ agbots._2._3),
+                                       agbots._1.publicKey,
+                                       "***************"))
+              } yield agbot.mapTo[Agbot]
+          
+            complete({
+              db.run(getAgbot.result.transactionally.asTry).map {
+                case Success(agbot) =>
+                  if (agbot.size == 1)
+                    (HttpCode.OK, GetAgbotsResponse(agbot.map(agreement_bots => agreement_bots.id -> agreement_bots).toMap))
+                  else if (agbot.isEmpty)
+                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                  else
+                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.agbot.not.found", resource)))
+                case Failure(exception) =>
+                  logger.error(cause = exception, message = s"GET /orgs/$organization/agbots/$agreementBot")
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+              }
+            })
+        }
     }
   }
   
@@ -244,8 +211,8 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
               val owner: Option[UUID] = identity.identifier
-              val hashedTok: String = Password.hash(reqBody.token)
-              db.run(AgbotsTQ.getNumOwned(owner.get)
+              val hashedTok: String = Password.fastHash(reqBody.token)
+              db.run(AgbotsTQ.getNumOwned(identity.identifier.getOrElse(identity.owner.get))
                              .result
                              .flatMap({
                                xs =>
@@ -257,9 +224,9 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                                      owner.isEmpty) { // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
                                    val action =
                                      if (owner.isEmpty)
-                                       reqBody.getDbUpdate(resource, organization, owner.get, hashedTok)
+                                       reqBody.getDbUpdate(resource, organization, identity.identifier.getOrElse(identity.owner.get), hashedTok)
                                      else
-                                       reqBody.getDbUpsert(resource, organization, owner.get, hashedTok)
+                                       reqBody.getDbUpsert(resource, organization, identity.identifier.getOrElse(identity.owner.get), hashedTok)
                                    action.asTry}
                                  else
                                    DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.agbots", maxAgbots))).asTry})
@@ -272,6 +239,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                   case Success(v) =>
                     logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot updated in changes table: $v")
                     //TODO: AuthCache.putAgbotAndOwner(resource, hashedTok, reqBody.token, owner.get)
+                    
                     (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.added.updated")))
                   case Failure(t: DBProcessingError) =>
                     t.toComplete
@@ -330,7 +298,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
               complete({
                 val hashedTok: String =
                   if (reqBody.token.isDefined)
-                    Password.hash(reqBody.token.get)
+                    Password.fastHash(reqBody.token.get)
                   else
                     "" // hash the token if that is what is being updated
                 val (action, attrName) = reqBody.getDbUpdate(resource, organization, hashedTok)
@@ -343,8 +311,9 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                                  case Success(v) => // Add the resource to the resourcechanges table
                                    logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot result: $v")
                                    if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
-                                     if (reqBody.token.isDefined)
-                                       AuthCache.putAgbot(resource, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner
+                                     if (reqBody.token.isDefined) {
+                                       // TODO: AuthCache.putAgbot(resource, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner}
+                                     }
                                      resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.MODIFIED).insert.asTry
                                    }
                                    else
@@ -395,7 +364,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                          case Success(v) =>
                            if (v > 0) { // there were no db errors, but determine if it actually found it or not
                              logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot result: $v")
-                             AuthCache.removeAgbotAndOwner(resource)
+                             // TODO: AuthCache.removeAgbotAndOwner(resource)
                              resourcechange.ResourceChange(0L,
                                             organization,
                                             agreementBot,
@@ -411,6 +380,9 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
           .map({
             case Success(v) =>
               logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot updated in changes table: $v")
+              
+              cacheResourceOwnership.remove(organization, agreementBot, "agreement_bot")
+              
               (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.deleted")))
             case Failure(t: DBProcessingError) =>
               t.toComplete
@@ -427,15 +399,25 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
     path("orgs" / Segment / "agbots" / Segment) {
       (organization, agreementBot) =>
         val resource: String = OrgAndId(organization, agreementBot).toString
+        val resource_type = "agreement_bot"
+        
+        val i: Option[UUID] =
+          try
+            Option(Await.result(cacheResourceOwnership.cachingF(organization, agreementBot,resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)._1)
+          catch {
+            case _: Throwable => None
+          }
         
         get {
-          exchAuth(TAgbot(resource), Access.READ, validIdentity = identity) {
+          exchAuth(TAgbot(resource, i), Access.READ, validIdentity = identity) {
             _ =>
               getAgreementBot(agreementBot, identity, organization, resource)
           }
         } ~
         (delete | patch | put) {
-          exchAuth(TAgbot(resource), Access.WRITE, validIdentity = identity) {
+          exchAuth(TAgbot(resource, i), Access.WRITE, validIdentity = identity) {
             _ =>
               deleteAgreementBot(agreementBot, identity, organization, resource) ~
               patchAgreementBot(agreementBot, identity, organization, resource) ~

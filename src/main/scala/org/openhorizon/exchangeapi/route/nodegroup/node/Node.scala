@@ -106,7 +106,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
             
             _ <-
               if (nodeGroupsUpdated.equals(0))
-                DBIO.failed(new ResourceNotFoundException())
+                DBIO.failed(ResourceNotFoundException())
               else
                 DBIO.successful(())
             
@@ -116,7 +116,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
             
             _ <-
               if (nodeAssignmentsDeleted.equals(0))
-                DBIO.failed(new ResourceNotFoundException())
+                DBIO.failed(ResourceNotFoundException())
               else
                 DBIO.successful(())
           } yield (changeRecordsInserted, nodeAssignmentsDeleted, nodeGroupsUpdated)  // Yielding these for debugging, no functional reason.
@@ -172,14 +172,17 @@ trait Node extends JacksonSupport with AuthenticationSupport {
       complete({
         val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
         val nodesQuery: Query[org.openhorizon.exchangeapi.table.node.Nodes, NodeRow, Seq] =
-          if (identity.role == AuthRoles.AdminUser ||
+          if (identity.isOrgAdmin ||
+              identity.isSuperUser ||
               identity.isAgbot)
             NodesTQ.getAllNodes(organization)
           else
-            NodesTQ.getAllNodes(organization).filter(_.owner === identity.identifier)
+            NodesTQ.getAllNodes(organization).filter(_.owner === identity.identifier.get)
+        
         val nodeGroupQuery: Query[NodeGroup, NodeGroupRow, Seq] =
           NodeGroupTQ.filter(_.name === highAvailabilityGroup)
                      .filter(_.organization === organization)
+        
         val changeRecords: Seq[ResourceChangeRow] =
           Seq(ResourceChangeRow(category = ResChangeCategory.NODE.toString,
                                 changeId = 0L,
@@ -204,10 +207,10 @@ trait Node extends JacksonSupport with AuthenticationSupport {
             
             _ <-
               if (nodeGroupAdmin.isEmpty)
-                DBIO.failed(new ResourceNotFoundException())
-              else if (identity.role != AuthRoles.AdminUser &&
+                DBIO.failed(ResourceNotFoundException())
+              else if ((!identity.isOrgAdmin && !identity.isSuperUser) &&
                        nodeGroupAdmin.getOrElse(false))
-                DBIO.failed(new AccessDeniedException())
+                DBIO.failed(AccessDeniedException())
               else
                 DBIO.successful(())
             
@@ -222,7 +225,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
             
             _ <-
               if (!assignedNodesNotOwned.equals(0))
-                DBIO.failed(new AccessDeniedException())
+                DBIO.failed(AccessDeniedException())
               else
                 DBIO.successful(())
             
@@ -232,7 +235,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
             
             _ <-
               if (priorAssignment.nonEmpty)
-                DBIO.failed(new AlreadyExistsException())
+                DBIO.failed(AlreadyExistsException())
               else
                 DBIO.successful(())
             
@@ -246,7 +249,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 DBIO.successful(())
             
             nodeGroupsUpdated <-
-              Compiled(nodeGroupQuery.filterIf(!identity.isOrgAdmin)(_.admin === false)
+              Compiled(nodeGroupQuery.filterIf(!identity.isOrgAdmin && !identity.isSuperUser)(_.admin === false)
                                      .map(_.lastUpdated))
                                      .update(fixFormatting(changeTimestamp.toInstant
                                                                           .atZone(ZoneId.of("UTC"))
@@ -255,11 +258,11 @@ trait Node extends JacksonSupport with AuthenticationSupport {
             
             _ <-
               if (nodeGroupsUpdated.equals(0))
-                DBIO.failed(new ResourceNotFoundException())
+                DBIO.failed(ResourceNotFoundException())
               else
                 DBIO.successful(())
             
-            nodeGroupID <- Compiled(nodeGroupQuery.filterIf(!identity.isOrgAdmin)(_.admin === false)
+            nodeGroupID <- Compiled(nodeGroupQuery.filterIf(!identity.isOrgAdmin && !identity.isSuperUser)(_.admin === false)
                                                   .map(_.group)).result.headOption
             
             nodeAssignmentsInserted <-
@@ -286,7 +289,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
           case Failure(e: ResourceNotFoundException) =>
             (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.group.not.found", (organization + "/" + highAvailabilityGroup))))
           case Failure(e: PSQLException) =>
-            if (e.getServerErrorMessage.getConstraint.equals("fk_node"))
+            if (e.getServerErrorMessage.getConstraint.equals("node_grp_assgn_fk_nodes"))
               (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource)))
             else
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.inserted", resource, e.toString)))

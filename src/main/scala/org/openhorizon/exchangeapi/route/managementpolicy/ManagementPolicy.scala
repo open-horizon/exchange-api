@@ -11,14 +11,20 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, path, post, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, Identity2, OrgAndId, TManagementPolicy}
-import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
+import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicy => MgmtPolicy}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
 import java.util.UUID
-import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success}
 
 
@@ -88,29 +94,109 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       parameter("attribute".?) {
         attribute =>
           logger.debug(s"GET /orgs/${organization}/managementpolicies/${managementPolicy}?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
-          complete({
-            attribute match {
-              case Some(attribute) =>  // Only returning 1 attr of the managementPolicy
-                val q = ManagementPoliciesTQ.getAttribute(resource, attribute) // get the proper db query for this attribute
-                if (q == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.wrong.attribute", attribute)))
-                else db.run(q.result).map({ list =>
-                  logger.debug("GET /orgs/" + organization + "/managementpolicies/" + managementPolicy + " attribute result: " + list.toString)
-                  if (list.nonEmpty) {
-                    (HttpCode.OK, GetManagementPolicyAttributeResponse(attribute, list.head.toString))
-                  } else {
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+          
+          attribute match {
+            case Some(attribute) =>  // Only returning 1 attr of the managementPolicy
+              val getManagementPolicyAtrribute: Query[Rep[String], String, Seq] =
+                for {
+                  managementPolicyAttribute: Rep[String] <-
+                    if (attribute.toLowerCase == "allowdowngrade" ||
+                        attribute.toLowerCase == "enabled")
+                      ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
+                                          .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
+                                          .take(1)
+                                          .map(management_policies =>
+                                                 attribute.toLowerCase match {
+                                                   case "allowdowngrade" => management_policies.allowDowngrade.toString()
+                                                   case "enabled" => management_policies.enabled.toString()
+                                                 })
+                    else if (attribute.toLowerCase == "owner")
+                      ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
+                                          .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
+                                          .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                          .on(_.owner === _._2)
+                                          .take(1)
+                                          .map(management_policies => (management_policies._2._1 ++ "/" ++ management_policies._2._3))
+                    else if (attribute.toLowerCase == "startwindow")
+                      ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
+                                          .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
+                                          .take(1)
+                                          .map(management_policies => management_policies.startWindow.toString())
+                    else
+                      ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
+                                          .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
+                                          .take(1)
+                                          .map(management_policies =>
+                                                 attribute.toLowerCase match {
+                                                   case "constraints" => management_policies.constraints
+                                                   case "created" => management_policies.created
+                                                   case "description" => management_policies.description
+                                                   case "label" => management_policies.label
+                                                   case "lastupdated" => management_policies.lastUpdated
+                                                   case "manifest" => management_policies.manifest
+                                                   case "patterns" => management_policies.patterns
+                                                   case "properties" => management_policies.properties
+                                                   case "start" => management_policies.start
+                                                   case _ => null
+                                                 })
+                                            
+                } yield managementPolicyAttribute
+              
+              complete {
+                if (getManagementPolicyAtrribute == null)
+                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.wrong.attribute", attribute)))
+                else
+                  db.run(Compiled(getManagementPolicyAtrribute).result).map {
+                    result =>
+                      logger.debug("GET /orgs/" + organization + "/managementpolicies/" + managementPolicy + " attribute result: " + result.toString)
+                      
+                      if (result.nonEmpty)
+                        (HttpCode.OK, GetManagementPolicyAttributeResponse(attribute, result.head))
+                      else
+                        (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
                   }
-                })
+              }
     
-              case None =>  // Return the whole management policy resource
-                db.run(ManagementPoliciesTQ.getManagementPolicy(resource).result).map({ list =>
-                  logger.debug("GET /orgs/" + organization + "/managementpolicies result size: " + list.size)
-                  val managementPolicies: Map[String, org.openhorizon.exchangeapi.table.managementpolicy.ManagementPolicy] = list.map(e => e.managementPolicy -> e.toManagementPolicy).toMap //mapping management policy object to string
-                  val code: StatusCode = if (managementPolicies.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-                  (code, GetManagementPoliciesResponse(managementPolicies, 0))
-                })
-            }
-          })
+            case _ =>  // Return the whole management policy resource
+              val getManagementPolicy: Query[((Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Long]), Rep[String]), ((Boolean, String, String, String, Boolean, String, String, String, String, String, String, String, Long), String), Seq] =
+                for{
+                  managementPolicy: ((Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Long]), Rep[String]) <-
+                    ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
+                                        .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
+                                        .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                        .on(_.owner === _._2)
+                                        .take(1)
+                                        .map(management_policies =>
+                                               ((management_policies._1.allowDowngrade,
+                                                 management_policies._1.constraints,
+                                                 management_policies._1.created,
+                                                 management_policies._1.description,
+                                                 management_policies._1.enabled,
+                                                 management_policies._1.label,
+                                                 management_policies._1.lastUpdated,
+                                                 management_policies._1.manifest,
+                                                 //management_policies._1.orgid,
+                                                 (management_policies._2._1 ++ "/" ++ management_policies._2._3),
+                                                 management_policies._1.patterns,
+                                                 management_policies._1.properties,
+                                                 management_policies._1.start,
+                                                 management_policies._1.startWindow),
+                                                management_policies._1.managementPolicy))
+                } yield managementPolicy
+              
+              complete {
+                db.run(Compiled(getManagementPolicy).result).map {
+                  result =>
+                    logger.debug("GET /orgs/" + organization + "/managementpolicies result size: " + result.size)
+                    implicit val formats: Formats = DefaultFormats
+                    
+                    if (result.nonEmpty)
+                      (StatusCodes.OK, GetManagementPoliciesResponse(result.map(management_policy => management_policy._2 -> new MgmtPolicy(management_policy._1)).toMap))
+                    else
+                      (StatusCodes.NotFound, GetManagementPoliciesResponse())
+                }
+              }
+          }
       }
     }
 
@@ -224,6 +310,8 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
                   logger.debug("POST /orgs/" + organization + "/managementpolicies/" + managementPolicy + " updated in changes table: " + v)
                   // TODO: if (owner.isDefined) AuthCache.putManagementPolicyOwner(resource, owner.get) // currently only users are allowed to update management policy resources, so owner should never be blank
                   // TODO: AuthCache.putManagementPolicyIsPublic(resource, isPublic = false)
+                  cacheResourceOwnership.put(organization, managementPolicy, "management_policy")((identity.identifier.getOrElse(identity.owner.get), false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
+                  
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("mgmtpol.created", resource)))
                 case Failure(t: DBProcessingError) =>
                   t.toComplete
@@ -375,8 +463,8 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + organization + "/managementpolicies/" + managementPolicy + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              AuthCache.removeManagementPolicyOwner(resource)
-              AuthCache.removeManagementPolicyIsPublic(resource)
+              // TODO: AuthCache.removeManagementPolicyOwner(resource)
+              // TODO: AuthCache.removeManagementPolicyIsPublic(resource)
               ResourceChange(0L, organization, managementPolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.not.found", resource))).asTry
@@ -385,6 +473,9 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
         })).map({
           case Success(v) =>
             logger.debug("DELETE /orgs/" + organization + "/managementpolicies/" + managementPolicy + " updated in changes table: " + v)
+            
+            cacheResourceOwnership.remove(organization, managementPolicy, "management_policy")
+            
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("management.policy.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
@@ -400,22 +491,32 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
     path("orgs" / Segment / "managementpolicies" / Segment) {
       (organization, managementPolicy) =>
         val resource: String = OrgAndId(organization, managementPolicy).toString
+        val resource_type: String = "management_policy"
+        
+        val i: Option[UUID] =
+          try
+            Option(Await.result(cacheResourceOwnership.cachingF(organization, managementPolicy, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)._1)
+          catch {
+            case _: Throwable => None
+          }
         
         (delete | put) {
-          exchAuth(TManagementPolicy(resource), Access.WRITE, validIdentity = identity) {
+          exchAuth(TManagementPolicy(resource, i), Access.WRITE, validIdentity = identity) {
             _ =>
               deleteManagementPolicy(identity, managementPolicy, organization, resource) ~
               putManagementPolicy(identity, managementPolicy, organization, resource)
           }
         } ~
         get {
-          exchAuth(TManagementPolicy(resource), Access.READ, validIdentity = identity) {
+          exchAuth(TManagementPolicy(resource, i), Access.READ, validIdentity = identity) {
             _ =>
               getManagementPolicy(identity, managementPolicy, organization, resource)
           }
         } ~
         post {
-          exchAuth(TManagementPolicy(resource), Access.CREATE, validIdentity = identity) {
+          exchAuth(TManagementPolicy(resource, i), Access.CREATE, validIdentity = identity) {
             _ =>
               postManagementPolicy(identity, managementPolicy, organization, resource)
           }

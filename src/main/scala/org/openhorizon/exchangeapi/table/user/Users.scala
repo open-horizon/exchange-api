@@ -23,15 +23,10 @@ class Users(tag: Tag) extends Table[UserRow](tag, "users") {
   def username = column[String]("username")
   
   def * : ProvenShape[UserRow] = (createdAt, email, identityProvider, isHubAdmin, isOrgAdmin, modifiedAt, modifiedBy, organization, password, user, username).mapTo[UserRow]
-  //def apple: MappedProjection[Apple, (Option[String], UUID)] = (email, user).mapTo[Apple]
-  def something: MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, UUID, String)] = (createdAt, email, identityProvider, isHubAdmin, isOrgAdmin, modifiedAt, modifiedBy, organization, user, username).<>(toUser, toRow)
   
   def usersUnqKey = index(name = "users_uk", on = (organization, username), unique = true)
   def usersOrgForKey = foreignKey("users_org_fk", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def usersUsrForKey = foreignKey("users_usr_fk", modifiedBy, UsersTQ)(_.user.?, onUpdate=ForeignKeyAction.SetNull, onDelete=ForeignKeyAction.Cascade)
-  
-  def toUser(row: (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, UUID, String)): UserRow = new UserRow(row)
-  
-  def toRow(user: UserRow): Option[(Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, UUID, String)] =
-    Some((user.createdAt, user.email, user.identityProvider, user.isHubAdmin, user.isOrgAdmin, user.modifiedAt, user.modified_by, user.organization, user.user, user.username))
+  def usersUsrForKey = foreignKey("users_usr_fk", modifiedBy, UsersTQ)(_.user.?, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.SetNull)
+  def idx_user_fk_orgs = index(name = "idx_user_fk_orgs", on = organization, unique = false)
+  def idx_user_fk_users = index(name = "idx_user_fk_users", on = modifiedBy, unique = false)
 }

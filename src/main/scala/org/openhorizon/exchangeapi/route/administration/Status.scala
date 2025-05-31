@@ -48,7 +48,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
         for {
           numOrganizations <-
             Compiled(OrgsTQ.filterOpt(organization)((org, organization) => org.orgid === organization)
-                           .filterIf(!(identity.isSuperUser || identity.isHubAdmin))(org => org.orgid === organization.getOrElse(identity.organization) || org.orgid === "IBM")
+                           .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot && !identity.isHubAdmin)(agbots => agbots.orgid === organization.getOrElse(identity.organization) || agbots.orgid === "IBM")
                            .map(_.orgid)
                            .length)
               .result
@@ -60,15 +60,17 @@ trait Status extends JacksonSupport with AuthenticationSupport {
               DBIO.successful(0)
           
           numAgbots <-
-            Compiled(AgbotsTQ.filterOpt(organization)((agbot, organization) => agbot.orgid === organization)
-                             .filterIf(!(identity.isSuperUser || identity.isHubAdmin || identity.isMultiTenantAgbot))(agbot => agbot.orgid === organization.getOrElse(identity.organization) || agbot.orgid === "IBM")
+            Compiled(AgbotsTQ.filterOpt(organization)((agbots, organization) => agbots.orgid === organization)
+                             .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot) || identity.isNode || identity.isStandardUser)(agbots => agbots.orgid === organization.getOrElse(identity.organization) || agbots.orgid === "IBM")
+                             //.filterIf(identity.isStandardUser)(agbots => agbots.owner === identity.identifier.get || agbots.orgid === "IBM")
                              .map(agbot => (agbot.id, agbot.orgid))
                              .length)
               .result
           
           numAgbotAgeements <-
             Compiled(AgbotsTQ.filterOpt(organization)((agbot, organization) => agbot.orgid === organization)
-                             .filterIf(!(identity.isSuperUser || identity.isHubAdmin || identity.isMultiTenantAgbot))(agbot => agbot.orgid === organization.getOrElse(identity.organization) || agbot.orgid === "IBM")
+                             .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot) || identity.isNode || identity.isStandardUser)(agbots => agbots.orgid === organization.getOrElse(identity.organization) || agbots.orgid === "IBM")
+                             //.filterIf(identity.isStandardUser)(agbots => agbots.owner === identity.identifier.get || agbots.orgid === "IBM")
                              .map(agbot => (agbot.id))
                              .join(AgbotAgreementsTQ.map(agreement => (agreement.agrId, agreement.agbotId)))
                              .on((agbot, agreement) => (agbot === agreement._2))
@@ -78,7 +80,8 @@ trait Status extends JacksonSupport with AuthenticationSupport {
           
           numAgbotMessages <-
             Compiled(AgbotsTQ.filterOpt(organization)((agbot, organization) => agbot.orgid === organization)
-                             .filterIf(!(identity.isSuperUser || identity.isHubAdmin || identity.isMultiTenantAgbot))(agbot => agbot.orgid === organization.getOrElse(identity.organization) || agbot.orgid === "IBM")
+                             .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot) || identity.isNode || identity.isStandardUser)(agbots => agbots.orgid === organization.getOrElse(identity.organization) || agbots.orgid === "IBM")
+                             //.filterIf(identity.isStandardUser)(agbots => agbots.owner === identity.identifier.get || agbots.orgid === "IBM")
                              .map(agbot => (agbot.id))
                              .join(AgbotMsgsTQ.map(message => (message.agbotId, message.msgId)))
                              .on((agbot, message) => (agbot === message._1))
@@ -87,50 +90,50 @@ trait Status extends JacksonSupport with AuthenticationSupport {
               .result
           
           numNodes <-
-            if(!identity.isSuperUser && identity.isHubAdmin)
+            if(identity.isHubAdmin)
               DBIO.successful(-1)
             else
               Compiled(NodesTQ.filterOpt(organization)((node, organization) => node.orgid === organization)
-                              .filterIf(!(identity.isSuperUser || identity.isMultiTenantAgbot))(node => node.orgid === organization.getOrElse(identity.organization))
-                              .filterIf(!(identity.isOrgAdmin || identity.isHubAdmin) && identity.role.equals(AuthRoles.User))(_.owner === identity.identifier)
+                              .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot))(node => node.orgid === organization.getOrElse(identity.organization))
+                              .filterIf(identity.isStandardUser)(_.owner === identity.identifier.get)
                               .filterIf(identity.isNode)(_.id === identity.resource)
                               .map(node => (node.id, node.orgid))
                               .length)
                 .result
           
           numNodesRegistered <-
-            if(!identity.isSuperUser && identity.isHubAdmin)
+            if(identity.isHubAdmin)
               DBIO.successful(-1)
             else
               Compiled(NodesTQ.filterOpt(organization)((org, organization) => org.orgid === organization)
-                              .filterIf(!(identity.isSuperUser || identity.isMultiTenantAgbot))(org => org.orgid === organization.getOrElse(identity.organization))
-                              .filterIf(!(identity.isOrgAdmin || identity.isHubAdmin) && identity.role.equals(AuthRoles.User))(_.owner === identity.identifier)
+                              .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot))(node => node.orgid === organization.getOrElse(identity.organization))
+                              .filterIf(identity.isStandardUser)(_.owner === identity.identifier.get)
                               .filterIf(identity.isNode)(_.id === identity.resource)
-                              .filter(_.publicKey =!= "")
+                              .filter(nodes => nodes.pattern =!= "" || nodes.publicKey =!= "")
                               .map(node => (node.id, node.orgid))
                               .length)
                 .result
           
           numNodesUnregistered <-
-            if(!identity.isSuperUser && identity.isHubAdmin)
+            if(identity.isHubAdmin)
               DBIO.successful(-1)
             else
               Compiled(NodesTQ.filterOpt(organization)((node, organization) => node.orgid === organization)
-                              .filterIf(!(identity.isSuperUser || identity.isMultiTenantAgbot))(node => node.orgid === organization.getOrElse(identity.organization))
-                              .filterIf(!(identity.isOrgAdmin || identity.isHubAdmin) && identity.role.equals(AuthRoles.User))(_.owner === identity.identifier)
+                               .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot))(node => node.orgid === organization.getOrElse(identity.organization))
+                              .filterIf(identity.isStandardUser)(_.owner === identity.identifier.get)
                               .filterIf(identity.isNode)(_.id === identity.resource)
-                              .filter(_.publicKey === "")
+                              .filter(nodes => nodes.pattern === "" && nodes.publicKey === "")
                               .map(node => (node.id, node.orgid))
                               .length)
                 .result
           
           numNodeAgreements <-
-            if(!identity.isSuperUser && identity.isHubAdmin)
+            if(identity.isHubAdmin)
               DBIO.successful(-1)
             else
               Compiled(NodesTQ.filterOpt(organization)((node, organization) => node.orgid === organization)
-                              .filterIf(!(identity.isSuperUser || identity.isMultiTenantAgbot))(node => node.orgid === organization.getOrElse(identity.organization))
-                              .filterIf(!(identity.isOrgAdmin || identity.isHubAdmin) && identity.role.equals(AuthRoles.User))(_.owner === identity.identifier)
+                              .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot))(node => node.orgid === organization.getOrElse(identity.organization))
+                              .filterIf(identity.isStandardUser)(_.owner === identity.identifier.get)
                               .filterIf(identity.isNode)(_.id === identity.resource)
                               .map(node => (node.id))
                               .join(NodeAgreementsTQ.map(agreement => (agreement.agId, agreement.nodeId)))
@@ -140,12 +143,12 @@ trait Status extends JacksonSupport with AuthenticationSupport {
                 .result
           
           numNodeMessages <-
-            if(!identity.isSuperUser && identity.isHubAdmin)
+            if(identity.isHubAdmin)
               DBIO.successful(-1)
             else
               Compiled(NodesTQ.filterOpt(organization)((node, organization) => node.orgid === organization)
-                              .filterIf(!(identity.isSuperUser || identity.isMultiTenantAgbot))(node => node.orgid === organization.getOrElse(identity.organization))
-                              .filterIf(!(identity.isOrgAdmin || identity.isHubAdmin) && identity.role.equals(AuthRoles.User))(_.owner === identity.identifier)
+                              .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot))(node => node.orgid === organization.getOrElse(identity.organization))
+                              .filterIf(identity.isStandardUser)(_.owner === identity.identifier.get)
                               .filterIf(identity.isNode)(_.id === identity.resource)
                               .map(node => (node.id))
                               .join(NodeMsgsTQ.map(message => (message.msgId, message.nodeId)))
@@ -159,8 +162,10 @@ trait Status extends JacksonSupport with AuthenticationSupport {
               DBIO.successful(-1)
             else
               Compiled(UsersTQ.filterOpt(organization)((user, organization) => user.organization === organization)
-                              .filterIf(!(identity.isSuperUser || identity.isHubAdmin))(user => user.organization === organization.getOrElse(identity.organization))
-                              .filterIf(!(identity.isOrgAdmin || identity.isHubAdmin) && identity.role.equals(AuthRoles.User))(_.username === identity.resource)
+                              .filterIf(!identity.isSuperUser)(users => (users.organization =!= "root" && users.username =!= "root"))
+                              .filterIf(identity.isHubAdmin)(users => (users.isHubAdmin || users.isOrgAdmin))
+                              .filterIf(identity.isOrgAdmin)(user => user.organization === organization.getOrElse(identity.organization))
+                              .filterIf(identity.isStandardUser)(users => users.user === identity.identifier)
                               .map(user => (user.organization, user.username))
                               .length)
                 .result

@@ -11,16 +11,21 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, get, parameter, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.{GetNodeMsgsResponse, PostNodesMsgsRequest}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.message.{NodeMsg, NodeMsgRow, NodeMsgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success, Try}
 
 
@@ -189,15 +194,25 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
       (organization,
        node) =>
         val resource: String = OrgAndId(organization, node).toString
+        val resource_type: String = "node"
+        
+        val i: Option[UUID] =
+          try
+            Option(Await.result(cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)._1)
+          catch {
+            case _: Throwable => None
+          }
         
         get {
-          exchAuth(TNode(resource),Access.READ, validIdentity = identity) {
+          exchAuth(TNode(resource, i),Access.READ, validIdentity = identity) {
             _ =>
               getMessagesNode(identity, node, organization, resource)
           }
         } ~
         post {
-          exchAuth(TNode(resource),Access.SEND_MSG_TO_NODE, validIdentity = identity) {
+          exchAuth(TNode(resource, i),Access.SEND_MSG_TO_NODE, validIdentity = identity) {
             _ =>
               postMessagesNode(identity, node, organization, resource)
           }

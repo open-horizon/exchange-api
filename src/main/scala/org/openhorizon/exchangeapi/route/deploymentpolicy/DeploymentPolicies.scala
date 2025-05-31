@@ -10,7 +10,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.json4s.DefaultFormats
+import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TBusiness}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, BusinessPolicy}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
@@ -106,9 +106,9 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
        description) =>
         logger.debug(s"GET /orgs/${organization}/business/policies?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         
-        val getAllDeployPolicies =
+        val getAllDeployPolicies: Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, String, String, String, String, String, String, String, String, String), String), Seq] =
           for {
-            deployPolicies <-
+            deployPolicies: ((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String]), Rep[String]) <-
               BusinessPoliciesTQ.filter(_.orgid === organization)
                                 .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(policies => policies.orgid === identity.organization)
                                 .filterOpt(description)((policies, description) => (if (description.contains("%")) policies.description like description else policies.description === description))
@@ -135,40 +135,17 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
           db.run(Compiled(getAllDeployPolicies).result.transactionally.asTry).map {
             case Success(deployPolRecords) =>
               logger.debug("GET /orgs/" + organization + "/business/policies result size: " + deployPolRecords.size)
-              val defaultFormats: DefaultFormats.type = DefaultFormats
-              val deployPolsMap = deployPolRecords.map(results => results._2 -> new BusinessPolicy(results._1)(defaultFormats)).toMap
+              val defaultFormats: Formats = DefaultFormats
+              
               if (deployPolRecords.nonEmpty)
-                (StatusCodes.OK, GetBusinessPoliciesResponse(deployPolsMap, 0))
+                (StatusCodes.OK, GetBusinessPoliciesResponse(deployPolRecords.map(results => results._2 -> new BusinessPolicy(results._1)(defaultFormats)).toMap))
               else
-                (StatusCodes.NotFound, GetBusinessPoliciesResponse(deployPolsMap, 0))
+                (StatusCodes.NotFound, GetBusinessPoliciesResponse())
             case Failure(exception) =>
               logger.error(cause = exception, message = "GET /orgs/" + organization + "/business/policies")
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
           }
         })
-        
-        /*complete({
-          var q = BusinessPoliciesTQ.getAllBusinessPolicies(orgid) // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
-          description.foreach(desc => {
-            if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc)
-          })
-          idfilter.foreach(id => {
-            if (id.contains("%")) q = q.filter(_.businessPolicy like id) else q = q.filter(_.businessPolicy === id)
-          })
-          label.foreach(lab => {
-            if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab)
-          })
-          owner.foreach(owner => {
-            if (owner.contains("%")) q = q.filter(_.owner === owner) else q = q.filter(_.owner === owner)
-          })
-          
-          db.run(q.result).map({ list =>
-            logger.debug("GET /orgs/" + orgid + "/business/policies result size: " + list.size)
-            val businessPolicy: Map[String, BusinessPolicy] = list.filter(e => ident.getOrg == e.orgid || ident.isSuperUser || ident.isMultiTenantAgbot).map(e => e.businessPolicy -> e.toBusinessPolicy).toMap
-            val code: StatusCode = if (businessPolicy.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-            (code, GetBusinessPoliciesResponse(businessPolicy, 0))
-          })
-        })*/
     }
   
   def deploymentPolicies(identity: Identity2): Route =

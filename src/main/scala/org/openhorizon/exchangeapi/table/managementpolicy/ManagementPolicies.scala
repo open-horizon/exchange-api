@@ -31,4 +31,6 @@ class ManagementPolicies(tag: Tag) extends Table[ManagementPolicyRow](tag, "mana
   
   def user_fk = foreignKey("user_fk", owner, UsersTQ)(_.user, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgid_fk = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def idx_mgmt_pol_fk_orgs = index(name = "idx_mgmt_pol_fk_orgs", on = orgid, unique = false)
+  def idx_mgmt_pol_fk_users = index(name = "idx_mgmt_pol_fk_users", on = owner, unique = false)
 }

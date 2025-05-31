@@ -93,9 +93,9 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
   
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
-                                       (UsersTQ ++= TESTUSERS) andThen
-                                       (NodesTQ ++= TESTNODES) andThen
-                                       (NodeGroupTQ ++= TESTNODEGROUPS)), AWAITDURATION)
+                                 (UsersTQ ++= TESTUSERS) andThen
+                                 (NodesTQ ++= TESTNODES) andThen
+                                 (NodeGroupTQ ++= TESTNODEGROUPS)), AWAITDURATION)
   
     val nodeGroup: Long = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.head.name).map(_.group).result.head), AWAITDURATION)
     val TESTNODEGROUPASSIGNMENTS: Seq[NodeGroupAssignmentRow] =

@@ -10,15 +10,19 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.ExchangeApiApp.validateWithMsg
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceOwnership, validateWithMsg}
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TService}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.service.policy.{ServicePolicy, ServicePolicyTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/services/{service}/policy")
@@ -223,16 +227,29 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
     path("orgs" / Segment / "services" / Segment / "policy") {
       (organization, service) =>
         val resource: String = OrgAndId(organization, service).toString
+        val resource_type: String = "service"
+        
+        val (owner: Option[UUID], public: Boolean) =
+          try {
+            val result: (UUID, Boolean) = Await.result(cacheResourceOwnership.cachingF(organization, service, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)
+            
+            (Option(result._1), result._2)
+          }
+          catch {
+            case _: Throwable => (None, false)
+          }
         
         (delete | put) {
-          exchAuth(TService(resource), Access.WRITE, validIdentity = identity) {
+          exchAuth(TService(resource, owner, public), Access.WRITE, validIdentity = identity) {
             _ =>
               deletePolicyService(identity, organization, resource, service) ~
               putPolicyService(identity, organization, resource, service)
           }
         } ~
         get{
-          exchAuth(TService(resource), Access.READ, validIdentity = identity) {
+          exchAuth(TService(resource, owner, public), Access.READ, validIdentity = identity) {
             _ =>
               getPolicyService(identity, organization, resource, service)
           }

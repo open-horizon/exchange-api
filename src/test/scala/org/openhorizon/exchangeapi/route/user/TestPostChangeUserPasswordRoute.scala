@@ -3,6 +3,7 @@ package org.openhorizon.exchangeapi.route.user
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization
 import org.mindrot.jbcrypt.BCrypt
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceIdentity
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
@@ -12,6 +13,8 @@ import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
+import scalacache.modes.scalaFuture._
+import scalacache.modes.sync.mode
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
@@ -69,21 +72,21 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
                 username     = "TestPostChangeUserPasswordRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORG1ADMINPASSWORD)),
+                password     = Option(Password.fastHash(ORG1ADMINPASSWORD)),
                 username     = "orgAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                password     = Option(Password.fastHash(ORG1USERPASSWORD)),
                 username     = "orgUser"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -97,7 +100,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                password     = Option(Password.fastHash(ORG1USERPASSWORD)),
                 username     = "orgUser2"))
   }
   
@@ -106,7 +109,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       AgbotRow(
         id = TESTORGS(0).orgId + "/agbot",
         orgid = TESTORGS(0).orgId,
-        token = Password.hash(AGBOTTOKEN),
+        token = Password.fastHash(AGBOTTOKEN),
         name = "",
         owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
@@ -132,7 +135,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
         publicKey          = "",
         regServices        = "",
         softwareVersions   = "",
-        token              = Password.hash(NODETOKEN),
+        token              = Password.fastHash(NODETOKEN),
         userInput          = ""
       )
     )
@@ -167,6 +170,8 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       (UsersTQ.filter(_.user === TESTUSERS(2).user).update(TESTUSERS(2)) andThen
        UsersTQ.filter(_.user === TESTUSERS(1).user).update(TESTUSERS(1))).transactionally
     ), AWAITDURATION)
+    
+    
   }
 
   private val normalRequestBody: ChangePwRequest = ChangePwRequest(newPassword = "newPassword")

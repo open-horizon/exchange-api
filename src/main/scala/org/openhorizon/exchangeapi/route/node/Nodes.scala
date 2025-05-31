@@ -168,7 +168,7 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
                       .filterIf(identity.isNode)(_.id === identity.resource)
                       .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
                       .on(_.owner === _._2)
-                      .filterIf(owner.isDefined && (identity.isOrgAdmin || identity.role.equals(AuthRoles.Agbot)))(nodes => ((nodes._2._1 ++ "/" ++ nodes._2._3) like owner.getOrElse("")))
+                      .filterIf(owner.isDefined && (identity.isOrgAdmin || identity.isAgbot))(nodes => ((nodes._2._1 ++ "/" ++ nodes._2._3) like owner.getOrElse("")))
                       .map(nodes =>
                             (nodes._1.arch,
                              nodes._1.clusterNamespace,
@@ -232,7 +232,7 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
   def nodes(identity: Identity2): Route =
     path("orgs" / Segment / "nodes") {
       organization =>
-        exchAuth(TNode(OrgAndId(organization, "#").toString), Access.READ, validIdentity = identity) {
+        exchAuth(TNode(OrgAndId(organization, "#").toString, None), Access.READ, validIdentity = identity) {
           _ =>
             getNodes(identity, organization)
         }

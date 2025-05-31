@@ -68,7 +68,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
                 username     = "TestGetUserRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -161,7 +161,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     ), AWAITDURATION)
   }
 
-  def assertUsersEqual(user1: User, user2: UserRow): Unit = {
+  def assertUsersEqual(user1: TestUser, user2: UserRow): Unit = {
     assert(user1.password === StrConstants.hiddenPw)
     assert(user1.admin === user2.isOrgAdmin)
     assert(user1.hubAdmin === user2.isHubAdmin)
@@ -170,7 +170,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(user1.updatedBy === user2.modified_by.getOrElse(""))
   }
 
-  def assertUsersEqualNoPass(user1: User, user2: UserRow): Unit = {
+  def assertUsersEqualNoPass(user1: TestUser, user2: UserRow): Unit = {
     assert(user1.password.isEmpty)
     assert(user1.admin === user2.isOrgAdmin)
     assert(user1.hubAdmin === user2.isHubAdmin)
@@ -184,7 +184,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.isEmpty)
   }
 
@@ -193,7 +193,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.isEmpty)
   }
 
@@ -202,7 +202,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.isEmpty)
   }
 
@@ -211,7 +211,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains("root/root"))
   }
@@ -221,7 +221,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains(TESTUSERS(2).organization + "/" +TESTUSERS(2).username))
     assertUsersEqual(responseBody.users((TESTUSERS(2).organization + "/" +TESTUSERS(2).username)), TESTUSERS(2))
@@ -232,7 +232,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains(TESTUSERS(1).organization + "/" +TESTUSERS(1).username))
     assertUsersEqual(responseBody.users((TESTUSERS(1).organization + "/" +TESTUSERS(1).username)), TESTUSERS(1))
@@ -250,7 +250,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains(TESTUSERS(2).organization + "/" +TESTUSERS(3).username))
     assertUsersEqualNoPass(responseBody.users((TESTUSERS(2).organization + "/" +TESTUSERS(3).username)), TESTUSERS(2))
@@ -296,7 +296,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains(TESTUSERS(2).organization + "/" +TESTUSERS(2).username))
     assertUsersEqualNoPass(responseBody.users((TESTUSERS(2).organization + "/" +TESTUSERS(2).username)), TESTUSERS(2))
@@ -307,7 +307,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains(TESTUSERS(2).organization + "/" +TESTUSERS(2).username))
     assertUsersEqualNoPass(responseBody.users((TESTUSERS(2).organization + "/" +TESTUSERS(2).username)), TESTUSERS(2))

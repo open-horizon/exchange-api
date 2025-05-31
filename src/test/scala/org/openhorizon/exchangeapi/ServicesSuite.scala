@@ -8,22 +8,33 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.organization.{PostPutOrgRequest, ResourceChangesRequest, ResourceChangesRespObject}
-import org.openhorizon.exchangeapi.route.service.{GetServiceAttributeResponse, GetServicesResponse, PatchServiceRequest, PostPutServiceDockAuthRequest, PostPutServiceRequest, PutServicePolicyRequest}
+import org.openhorizon.exchangeapi.route.service.{GetServiceAttributeResponse, PatchServiceRequest, PostPutServiceDockAuthRequest, PostPutServiceRequest, PutServicePolicyRequest, TestGetServicesResponse}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
-import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeOperation, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuth
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicy
 import org.openhorizon.exchangeapi.table.service.{OneProperty, ServiceRef}
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, HttpCode}
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 
 import scala.collection.immutable._
 import scalaj.http._
+import slick.jdbc
+import slick.jdbc.PostgresProfile.api._
+
+import java.util.UUID
+import scala.concurrent.Await
+import scala.concurrent.duration.{Duration, DurationInt}
 
 /**
  * Tests for the /services routes. To run
@@ -34,7 +45,7 @@ import scalaj.http._
  * clear and detailed tutorial of FunSuite: http://doc.scalatest.org/1.9.1/index.html#org.scalatest.FunSuite
  */
 @RunWith(classOf[JUnitRunner])
-class ServicesSuite extends AnyFunSuite {
+class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   val localUrlRoot = "http://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
@@ -134,9 +145,103 @@ class ServicesSuite extends AnyFunSuite {
   val maxRecords = 10000
   val secondsAgo = 120
   val orgsList = List(orgid, orgid2)
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
 
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
+  private val AWAITDURATION: Duration = 15.seconds
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
+  val rootUser: UUID = Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === "root" && users.username === "root").map(_.user).result.head), AWAITDURATION)
 
+  
+  private val TESTORGANIZATIONS: Seq[OrgRow] =
+    Seq(OrgRow(heartbeatIntervals = "",
+               description        = "",
+               label              = "",
+               lastUpdated        = ApiTime.nowUTC,
+               orgId              = orgid,
+               orgType            = "",
+               tags               = None,
+               limits             = ""),
+        OrgRow(heartbeatIntervals = "",
+               description        = "",
+               label              = "",
+               lastUpdated        = ApiTime.nowUTC,
+               orgId              = orgid2,
+               orgType            = "",
+               tags               = None,
+               limits             = ""))
+  private val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = orgid,
+                password     = Option(Password.fastHash(pw)),
+                username     = user),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = orgid,
+                password     = Option(Password.hash(pw2)),
+                username     = user2))
+  private val TESTNODES: Seq[NodeRow] =
+    Seq(NodeRow(arch               = "",
+                id                 = orgid + "/" + nodeId,
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "bc dev test",
+                nodeType           = "device",
+                orgid              = orgid,
+                owner              = TESTUSERS(0).user,
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = Password.hash(nodeToken),
+                userInput          = ""),
+        NodeRow(arch               = "",
+                id                 = orgid + "/" + nodeId2,
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "bc dev test",
+                nodeType           = "device",
+                orgid              = orgid,
+                owner              = TESTUSERS(0).user,
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = Password.hash(nodeToken2),
+                userInput          = ""))
+  private val TESTAGBOT: AgbotRow =
+    AgbotRow(id            = orgid + "/" + agbotId,
+             lastHeartbeat = ApiTime.nowUTC,
+             msgEndPoint   = "",
+             name          = "agbot"+agbotId+"-norm",
+             orgid         = orgid,
+             owner         = TESTUSERS(0).user,
+             publicKey     = "ABC",
+             token         = Password.hash(agbotToken))
+  
+  override def beforeAll(): Unit = {
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
+                                 (UsersTQ ++= TESTUSERS) andThen
+                                 (NodesTQ ++= TESTNODES) andThen
+                                 (AgbotsTQ += TESTAGBOT)), AWAITDURATION)
+  }
+  
+  override def afterAll(): Unit = {
+    Await.ready(DBCONNECTION.run((OrgsTQ.filter(organizations => organizations.orgid inSet TESTORGANIZATIONS.map(_.orgId).toSet).delete) andThen
+                                 (ResourceChangesTQ.filter(log => log.orgId inSet TESTORGANIZATIONS.map(_.orgId).toSet).delete)), AWAITDURATION)
+  }
+  
   /** Delete all the test users */
   def deleteAllUsers() = {
     for (i <- List(user,user2)) {
@@ -145,9 +250,12 @@ class ServicesSuite extends AnyFunSuite {
       assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
     }
   }
+  
+  
+  
 
   /** Create an org to use for this test */
-  test("POST /orgs/"+orgid+" - create org") {
+  ignore("POST /orgs/"+orgid+" - create org") {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -160,7 +268,7 @@ class ServicesSuite extends AnyFunSuite {
   }
 
   /** Create a second org to use for this test */
-  test("POST /orgs/"+orgid2+" - create org") {
+  ignore("POST /orgs/"+orgid2+" - create org") {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -173,13 +281,13 @@ class ServicesSuite extends AnyFunSuite {
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the services, because they are deleted when the user is deleted. */
-  test("Begin - DELETE all test users") {
+  ignore("Begin - DELETE all test users") {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllUsers()
   }
 
   /** Add users, node, agbot, for future tests */
-  test("Add users, node, agbot for future tests") {
+  ignore("Add users, node, agbot for future tests") {
     var userInput = PostPutUsersRequest(pw, admin = false, Some(false), user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
@@ -190,12 +298,12 @@ class ServicesSuite extends AnyFunSuite {
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
 
-    val devInput = PutNodesRequest(nodeToken, "bc dev test", None, "", None, None, None, None, "", None, None)
+    val devInput = PutNodesRequest(nodeToken, "bc dev test", None, "", None, None, None, None, Option(""), None, None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)
 
-    val devInput2 = PutNodesRequest(nodeToken2, "bc dev test", None, "", None, None, None, None, "", None, None)
+    val devInput2 = PutNodesRequest(nodeToken2, "bc dev test", None, "", None, None, None, None, Option(""), None, None)
     val devResponse2 = Http(URL+"/nodes/"+nodeId2).postData(write(devInput2)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse2.code)
     assert(devResponse2.code === HttpCode.PUT_OK.intValue)
@@ -503,10 +611,10 @@ class ServicesSuite extends AnyFunSuite {
 
   test("GET /orgs/"+orgid+"/services") {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    //info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj: TestGetServicesResponse = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 6)
 
     assert(respObj.services.contains(orgservice))
@@ -525,7 +633,7 @@ class ServicesSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)
     assert(respObj.services.contains(orgservice2))
   }
@@ -535,7 +643,7 @@ class ServicesSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)
     assert(respObj.services.contains(orgservice2))
   }
@@ -544,7 +652,7 @@ class ServicesSuite extends AnyFunSuite {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("nodetype","device").asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     val svc = respObj.services
     assert(svc.size === 4)
     assert(svc.contains(orgservice) && svc.contains(orgservice2) && svc.contains(orgservice4) && svc.contains(orgreqservice))
@@ -554,7 +662,7 @@ class ServicesSuite extends AnyFunSuite {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("nodetype","cluster").asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     val svc = respObj.services
     assert(svc.size === 2)
     assert(svc.contains(orgservice3) && svc.contains(orgservice4))
@@ -571,7 +679,7 @@ class ServicesSuite extends AnyFunSuite {
     var response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("public","true").asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
-    var respObj = parse(response.body).extract[GetServicesResponse]
+    var respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)
     assert(respObj.services.contains(orgservice2))
 
@@ -579,7 +687,7 @@ class ServicesSuite extends AnyFunSuite {
     response = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("public","false").asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
-    respObj = parse(response.body).extract[GetServicesResponse]
+    respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 5)
     assert(respObj.services.contains(orgservice))
   }
@@ -589,7 +697,7 @@ class ServicesSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 6)
   }
 
@@ -597,16 +705,16 @@ class ServicesSuite extends AnyFunSuite {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 6)
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+" - as user") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)
 
     assert(respObj.services.contains(orgservice))
@@ -728,8 +836,8 @@ class ServicesSuite extends AnyFunSuite {
 
   test("GET /orgs/"+orgid+"/services/"+service+" - as agbot, check patch by getting that 1 attr") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","sharable").asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
     val respObj = parse(response.body).extract[GetServiceAttributeResponse]
     assert(respObj.attribute === "sharable")
@@ -741,7 +849,7 @@ class ServicesSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //val getServiceResp = parse(response.body).extract[GetServicesResponse]
+    //val getServiceResp = parse(response.body).extract[TestGetServicesResponse]
     //assert(getServiceResp.services.size === 0)
   }
 
@@ -760,7 +868,7 @@ class ServicesSuite extends AnyFunSuite {
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     //assert(respObj.services.size === 1)  // cant check this because there could be other services defined in the IBM org
 
     assert(respObj.services.contains(ibmOrgService))
@@ -773,7 +881,7 @@ class ServicesSuite extends AnyFunSuite {
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)  // cant check this because there could be other services defined in the IBM org
 
     assert(respObj.services.contains(ibmOrgService))
@@ -1118,9 +1226,9 @@ class ServicesSuite extends AnyFunSuite {
   test("GET /orgs/"+orgid+"/services/"+service+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    info("body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //val getServiceResp = parse(response.body).extract[GetServicesResponse]
+    //val getServiceResp = parse(response.body).extract[TestGetServicesResponse]
     //assert(getServiceResp.services.size === 0)
   }
 
@@ -1141,7 +1249,7 @@ class ServicesSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //val getServiceResp = parse(response.body).extract[GetServicesResponse]
+    //val getServiceResp = parse(response.body).extract[TestGetServicesResponse]
     //assert(getServiceResp.services.size === 0)
   }
 

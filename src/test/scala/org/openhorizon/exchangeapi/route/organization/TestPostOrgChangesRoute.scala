@@ -283,19 +283,19 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   var lastChangeId: Long = 0L //will be set in beforeAll()
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.run(
-      (OrgsTQ ++= TESTORGS) andThen
-        (UsersTQ ++= TESTUSERS) andThen
-      (ResourceChangesTQ ++= TESTRESOURCECHANGES) andThen
-        (AgbotsTQ ++= TESTAGBOTS) andThen
-        (NodesTQ ++= TESTNODES)
-        ), AWAITDURATION
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
+                                 (UsersTQ ++= TESTUSERS) andThen
+                                 (ResourceChangesTQ ++= TESTRESOURCECHANGES) andThen
+                                 (AgbotsTQ ++= TESTAGBOTS) andThen
+                                 (NodesTQ ++= TESTNODES)), AWAITDURATION
     )
-    lastChangeId = Await.result(DBCONNECTION.run(ResourceChangesTQ //get changeId of last RC added to DB
-      .filter(_.orgId startsWith "testPostOrgChangesRoute")
-      .sortBy(_.changeId.desc)
-      .take(1)
-      .result), AWAITDURATION).head.changeId
+    lastChangeId =
+      Await.result(DBCONNECTION.run(ResourceChangesTQ //get changeId of last RC added to DB
+                                      .filter(_.orgId startsWith "testPostOrgChangesRoute")
+                                      .map(_.changeId)
+                                      .sortBy(_.desc)
+                                      .take(1)
+                                      .result), AWAITDURATION).head
   }
 
   override def afterAll(): Unit = {
@@ -334,7 +334,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   private val defaultIdRequest: ResourceChangesRequest = ResourceChangesRequest(
     changeId = lastChangeId, //will ensure that at least the final RC added will be returned
     lastUpdated = None,
-    maxRecords = 100,
+    maxRecords = 300,
     orgList = None
   )
 
@@ -401,7 +401,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(response.code === HttpCode.POST_OK.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.nonEmpty)
-    assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId === lastChangeId))) //check if RC with lastChangeId is in response
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId.equals(lastChangeId)))) //check if RC with lastChangeId is in response
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
   }
   

@@ -19,12 +19,12 @@ final case class PutNodesRequest(token: String,
                                  userInput: Option[List[OneUserInputService]] = Option(List.empty[OneUserInputService]),
                                  msgEndPoint: Option[String] = Option(""),
                                  softwareVersions: Option[Map[String,String]] = Option(Map.empty[String, String]),
-                                 publicKey: String,
+                                 publicKey: Option[String] = None,
                                  arch: Option[String] = Option(""),
                                  heartbeatIntervals: Option[NodeHeartbeatIntervals] = Option(NodeHeartbeatIntervals(0,0,0)),
                                  clusterNamespace: Option[String] = None,
                                  isNamespaceScoped: Option[Boolean] = Option(false)) {
-  require(token!=null && name!=null && pattern!=null && publicKey!=null)
+  require(token!=null && name!=null && pattern!=null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
   def getAnyProblem(id: String, noheartbeat: Option[String]): Option[String] = {
@@ -74,7 +74,7 @@ final case class PutNodesRequest(token: String,
             orgid = orgid,
             owner = UUID.randomUUID(),
             pattern = pattern,
-            publicKey = publicKey,
+            publicKey = publicKey.getOrElse(""),
             regServices = write(rsvc2),
             softwareVersions = write(softwareVersions),
             token = hashedTok,
@@ -104,7 +104,7 @@ final case class PutNodesRequest(token: String,
             orgid = orgid,
             owner = UUID.randomUUID(),
             pattern = pattern,
-            publicKey = publicKey,
+            publicKey = publicKey.getOrElse(""),
             regServices = write(rsvc2),
             softwareVersions = write(softwareVersions),
             token = hashedTok,

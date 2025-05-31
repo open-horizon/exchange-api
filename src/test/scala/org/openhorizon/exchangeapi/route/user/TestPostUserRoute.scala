@@ -72,21 +72,21 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
                 username     = "TestPostUserRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORGADMINPASSWORD)),
+                password     = Option(Password.fastHash(ORGADMINPASSWORD)),
                 username     = "orgAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORGUSERPASSWORD)),
+                password     = Option(Password.fastHash(ORGUSERPASSWORD)),
                 username     = "orgUser"))
   }
   
@@ -95,7 +95,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       AgbotRow(
         id = TESTORGS(0).orgId + "/agbot",
         orgid = TESTORGS(0).orgId,
-        token = Password.hash(AGBOTTOKEN),
+        token = Password.fastHash(AGBOTTOKEN),
         name = "",
         owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
@@ -121,7 +121,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
         publicKey          = "",
         regServices        = "",
         softwareVersions   = "",
-        token              = Password.hash(NODETOKEN),
+        token              = Password.fastHash(NODETOKEN),
         userInput          = ""
       )
     )

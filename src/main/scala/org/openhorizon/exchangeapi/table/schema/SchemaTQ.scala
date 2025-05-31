@@ -400,8 +400,46 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
           sqlu"""ALTER TABLE public.managementpolicies ADD CONSTRAINT mgmtpol_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");""",
           sqlu"""ALTER TABLE public.nodes ADD CONSTRAINT nodes_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");""",
           sqlu"""ALTER TABLE public.patterns ADD CONSTRAINT pattrns_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");""",
-          sqlu"""ALTER TABLE public.services ADD CONSTRAINT svcs_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");"""
-              )
+          sqlu"""ALTER TABLE public.services ADD CONSTRAINT svcs_user_fk FOREIGN KEY (owner) REFERENCES public.users ("user");""",
+          
+          // Create missing foreign key references
+          sqlu"""ALTER TABLE public.nodepolicies ADD CONSTRAINT node_deploy_pol_fk_nodes FOREIGN KEY (nodeid) REFERENCES public.nodes ("id");""",
+          sqlu"""ALTER TABLE public.nodeerror ADD CONSTRAINT node_error_fk_nodes FOREIGN KEY (nodeid) REFERENCES public.nodes ("id");""",
+          sqlu"""ALTER TABLE public.management_policy_status_node ADD CONSTRAINT node_mgmt_pol_status_fk_nodes FOREIGN KEY (node) REFERENCES public.nodes ("id");""",
+          
+          // Create missing indexes on foreign keys
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_agbot_agree_fk_agbots ON public.agbotagreements(agbotid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_agbot_deploy_pol_fk_agbots ON public.agbotbusinesspols(agbotid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_agbot_msg_fk_agbots ON public.agbotmsgs(agbotid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_agbot_pattern_fk_agbots ON public.agbotpatterns(agbotid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_agbot_fk_orgs ON public.agbots(orgid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_agbot_fk_users ON public.agbots(owner);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_deploy_pattern_fk_orgs ON public.patterns(orgid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_deploy_pattern_fk_users ON public.patterns(owner);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_deploy_pattern_keys_fk_patterns ON public.patternkeys(patternid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_deploy_pol_fk_orgs ON public.businesspolicies(orgid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_deploy_pol_fk_users ON public.businesspolicies(owner);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_mgmt_pol_fk_orgs ON public.managementpolicies(orgid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_mgmt_pol_fk_users ON public.managementpolicies(owner);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_agree_fk_nodes ON public.nodeagreements(nodeid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_deploy_pol_fk_nodes ON public.nodepolicies(nodeid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_error_fk_nodes ON public.nodeerror(nodeId);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_grp_assgn_fk_nodes ON public.node_group_assignment(node);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_grp_assgn_fk_node_grps ON public.node_group_assignment(group);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_mgmt_pol_stat_fk_mgmt_pols ON public.management_policy_status_node(policy);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_mgmt_pol_stat_fk_nodes ON public.management_policy_status_node(node);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_msg_fk_agbots ON public.nodemsgs(agbotid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_msg_fk_nodes ON public.nodemsgs(nodeid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_status_fk_nodes ON public.nodestatus(nodeId);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_fk_orgs ON public.nodemsgs(orgid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_node_fk_users ON public.nodemsgs(users);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_search_offset_pol_fk_deploy_pols ON public.search_offset_policy(policy);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_serv_dock_auth_fk_services ON public.servicedockauths(serviceid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_serv_key_fk_services ON public.servicekeys(serviceid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_serv_pol_fk_services ON public.servicekeys(serviceid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_service_fk_orgs ON public.services(orgid);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_service_fk_users ON public.services(owner);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_user_fk_users ON public.users(modified_by);""")
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }

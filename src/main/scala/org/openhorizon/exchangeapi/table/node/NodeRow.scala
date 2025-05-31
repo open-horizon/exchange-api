@@ -56,10 +56,10 @@ final case class NodeRow(id: String,
          orgid = organization,
          owner = owner,
          pattern = request.pattern,
-         publicKey = request.publicKey,
+         publicKey = request.publicKey.getOrElse(""),
          regServices = write(request.registeredServices.get.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
          softwareVersions = write(request.softwareVersions.get),
-         token = Password.hash(request.token),
+         token = Password.fastHash(request.token),
          userInput = write(request.userInput.get))
 
   def upsert: DBIO[_] = {

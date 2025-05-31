@@ -28,8 +28,12 @@ class Services(tag: Tag) extends Table[ServiceRow](tag, "services") {
   def clusterDeploymentSignature = column[String]("clusterdeploymentsignature")
   def imageStore = column[String]("imagestore")
   def lastUpdated = column[String]("lastupdated")
+ 
   // this describes what you get back when you return rows from a query
   def * = (service, orgid, owner, label, description, public, documentation, url, version, arch, sharable, matchHardware, requiredServices, userInput, deployment, deploymentSignature, clusterDeployment, clusterDeploymentSignature, imageStore, lastUpdated).<>(ServiceRow.tupled, ServiceRow.unapply)
+  
   def user = foreignKey("user_fk", owner, UsersTQ)(_.user, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def idx_service_fk_orgs = index(name = "idx_service_fk_orgs", on = orgid, unique = false)
+  def idx_service_fk_users = index(name = "idx_service_fk_users", on = owner, unique = false)
 }

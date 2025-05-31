@@ -77,7 +77,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
                 username     = "TestGetAllNodeGroupsRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -250,6 +250,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
     ), AWAITDURATION)
     val mainGroup: Long = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS(1).name).result), AWAITDURATION).head.group
     val nodeGroupAdmin: Long = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.last.name).result), AWAITDURATION).head.group
+    info(s"$mainGroup    $nodeGroupAdmin")
     val TESTNODEGROUPASSIGNMENTS: Seq[NodeGroupAssignmentRow] =
       Seq(NodeGroupAssignmentRow(group = mainGroup,
                                  node = TESTNODES.head.id),
@@ -269,8 +270,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
     Await.ready(DBCONNECTION.run(
       ResourceChangesTQ.filter(_.orgId startsWith "testGetAllNodeGroupsRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testGetAllNodeGroupsRoute").delete andThen
-      UsersTQ.filter(_.organization === "root")
-             .filter(_.username startsWith TESTUSERS(0).username).delete
+      UsersTQ.filter(_.user === TESTUSERS(0).user).delete
     ), AWAITDURATION)
   }
 

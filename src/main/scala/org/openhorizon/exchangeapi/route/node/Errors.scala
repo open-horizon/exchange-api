@@ -11,16 +11,21 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.JValue
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.PutNodeErrorRequest
 import org.openhorizon.exchangeapi.route.search.NodeError
 import org.openhorizon.exchangeapi.table.node.error.NodeErrorTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/nodes/{node}/errors")
@@ -205,16 +210,25 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
       (organization,
        node) =>
         val resource: String = OrgAndId(organization, node).toString
+        val resource_type: String = "node"
+        val i: Option[UUID] =
+          try
+            Option(Await.result(cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)._1)
+          catch {
+            case _: Throwable => None
+          }
         
         (delete | put) {
-          exchAuth(TNode(resource), Access.WRITE, validIdentity = identity) {
+          exchAuth(TNode(resource, i), Access.WRITE, validIdentity = identity) {
             _ =>
               deleteErrors(identity, node, organization, resource) ~
               putErrors(identity, node, organization, resource)
           }
         } ~
         get {
-          exchAuth(TNode(resource),Access.READ, validIdentity = identity) {
+          exchAuth(TNode(resource, i),Access.READ, validIdentity = identity) {
             _ =>
               getErrors(identity, node, organization, resource)
           }

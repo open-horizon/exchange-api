@@ -46,7 +46,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestNodePatch",
-                password     = Option(Password.hash("u1pw")),
+                password     = Option(Password.fastHash("u1pw")),
                 username     = "u1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -301,6 +301,10 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodePatch").delete andThen
                                        OrgsTQ.filter(_.orgid startsWith "TestNodePatch").delete), AWAITDURATION)
+    
+    val response: HttpResponse[String] = Http(sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
   }
   
   

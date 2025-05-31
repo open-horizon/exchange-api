@@ -8,11 +8,16 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TUser}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 
 @Path("/v1/orgs/{organization}/users/{username}/confirm")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "user")
@@ -49,9 +54,19 @@ trait Confirm extends JacksonSupport with AuthenticationSupport  {
     path("orgs" / Segment / "users" / Segment / "confirm") {
       (organization, username) =>
         val resource: String = OrgAndId(organization, username).toString
+        val resource_type = "user"
+        var i: Option[UUID] = None
+        try {
+          i = Option(Await.result(cacheResourceOwnership.cachingF(organization, username, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+          }, 15.seconds)._1)
+        }
+        catch {
+          case t: Throwable => i = None
+        }
         
         post {
-          exchAuth(TUser(resource), Access.READ, validIdentity = identity) {
+          exchAuth(TUser(resource, i), Access.READ, validIdentity = identity) {
             _ =>
               postConfirm(identity, organization, username)
           }

@@ -29,4 +29,6 @@ class Patterns(tag: Tag) extends Table[PatternRow](tag, "patterns") {
   
   def user = foreignKey("user_fk", owner, UsersTQ)(_.user, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def idx_deploy_pattern_fk_orgs = index(name = "idx_deploy_pattern_fk_orgs", on = orgid, unique = false)
+  def idx_deploy_pattern_fk_users = index(name = "idx_deploy_pattern_fk_users", on = owner, unique = false)
 }

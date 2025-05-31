@@ -10,15 +10,19 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, Path}
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.{AgbotBusinessPol, AgbotBusinessPolsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
-import org.openhorizon.exchangeapi.table
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.{ExchangeApiApp, table}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success}
 
 
@@ -136,15 +140,25 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
        agreementBot,
        deploymentPolicy) =>
         val resource: String = OrgAndId(organization, agreementBot).toString
+        val resource_type = "agreement_bot"
+        
+        val i: Option[UUID] =
+          try
+            Option(Await.result(cacheResourceOwnership.cachingF(organization, agreementBot, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)._1)
+          catch {
+            case _: Throwable => None
+          }
         
         get {
-          exchAuth(TAgbot(resource), Access.READ, validIdentity = identity) {
+          exchAuth(TAgbot(resource, i), Access.READ, validIdentity = identity) {
             _ =>
               getDeploymentPolicy(agreementBot, deploymentPolicy, identity, organization, resource)
           }
         } ~
         delete {
-          exchAuth(TAgbot(resource), Access.WRITE, validIdentity = identity) {
+          exchAuth(TAgbot(resource, i), Access.WRITE, validIdentity = identity) {
             _ =>
               deleteDeploymentPolicy(agreementBot, deploymentPolicy, identity, organization, resource)
           }

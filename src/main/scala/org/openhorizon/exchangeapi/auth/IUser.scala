@@ -15,6 +15,8 @@ case class IUser(creds: Creds,
   
   def resource: String = identity.resource
   
+  override def identity2: Identity2 = identity.copy()
+  
   override def isSuperUser: Boolean = identity.isSuperUser
 
   override lazy val role: String = identity.role
@@ -24,7 +26,7 @@ case class IUser(creds: Creds,
       // Transform any generic access into specific access
       if (isMyOrg(target) || target.isPublic) {
         target match {
-          case TUser(id) => access match { // a user accessing a user
+          case TUser(id, _) => access match { // a user accessing a user
             case Access.READ => logger.debug(s"authorizeTo(): target id=$id, identity creds.id=${creds.id}")
               if (id == creds.id) Access.READ_MYSELF
               // since we are in the section in which identity and target are in the same org, if identity is a hub admin we are viewing the users in the root org. Note: the root user is also an hub admin and org admin.
@@ -38,37 +40,37 @@ case class IUser(creds: Creds,
               else Access.CREATE_USER // this also applies to a hub admin creating another hub admin
             case _ => access
           }
-          case TNode(_) => access match { // a user accessing a node
+          case TNode(_, _) => access match { // a user accessing a node
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_NODES else Access.READ_ALL_NODES
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_NODES else Access.WRITE_ALL_NODES
             case Access.CREATE => Access.CREATE_NODE // not used, because WRITE is used for create also
             case _ => access
           }
-          case TAgbot(_) => access match { // a user accessing a agbot
+          case TAgbot(_, _) => access match { // a user accessing a agbot
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-          case TService(_) => access match { // a user accessing a service
+          case TService(_, _, _) => access match { // a user accessing a service
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_SERVICES else Access.READ_ALL_SERVICES
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_SERVICES else Access.WRITE_ALL_SERVICES
             case Access.CREATE => Access.CREATE_SERVICES
             case _ => access
           }
-          case TPattern(_) => access match { // a user accessing a pattern
+          case TPattern(_, _, _) => access match { // a user accessing a pattern
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_PATTERNS else Access.READ_ALL_PATTERNS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_PATTERNS else Access.WRITE_ALL_PATTERNS
             case Access.CREATE => Access.CREATE_PATTERNS
             case _ => access
           }
-          case TBusiness(_) => access match { // a user accessing a business policy
+          case TBusiness(_, _) => access match { // a user accessing a business policy
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_BUSINESS else Access.READ_ALL_BUSINESS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_BUSINESS else Access.WRITE_ALL_BUSINESS
             case Access.CREATE => Access.CREATE_BUSINESS
             case _ => access
           }
-          case TManagementPolicy(_) => access match { // a user accessing a business policy
+          case TManagementPolicy(_, _) => access match { // a user accessing a business policy
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_MANAGEMENT_POLICY else Access.READ_ALL_MANAGEMENT_POLICY
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_MANAGEMENT_POLICY else Access.WRITE_ALL_MANAGEMENT_POLICY
             case Access.CREATE => Access.CREATE_MANAGEMENT_POLICY
@@ -88,7 +90,7 @@ case class IUser(creds: Creds,
       } else if (isHubAdmin) { // cross-org access is "normal" for a hub admin, because the hub admin is defined in the root org
         // since we are in the cross-org section, the target will never be itself or root
         target match {
-          case TUser(id) => access match { // a hub admin accessing a user
+          case TUser(id, _) => access match { // a hub admin accessing a user
               case Access.READ => logger.debug(s"authorizeTo(): target id=$id, identity creds.id=${creds.id}")
                 Access.READ_MY_USERS // the get routes filter out regular users
               case Access.WRITE => Access.WRITE_MY_USERS // we don't know the content of the request body here, routes's getAnyProblem() methods will prevent updating regular users
@@ -102,7 +104,7 @@ case class IUser(creds: Creds,
               case Access.CREATE => Access.CREATE_ORGS
               case _ => access // this includes the case of an org admin or hub admin trying to DELETE_ORG
             }
-          case TAgbot(_) => access match {    // a hub admin accessing an agbot
+          case TAgbot(_, _) => access match {    // a hub admin accessing an agbot
             case Access.READ => Access.READ_ALL_AGBOTS
             case Access.WRITE => Access.WRITE_ALL_AGBOTS
             case _ => access
@@ -120,9 +122,9 @@ case class IUser(creds: Creds,
           case _ => access
         }
       }
-    if (requiredAccess == Access.NOT_FOUND) Failure(new ResourceNotFoundException(ExchMsg.translate("resource.not.found", target.id)))
+    if (requiredAccess == Access.NOT_FOUND) Failure(ResourceNotFoundException(ExchMsg.translate("resource.not.found", target.id)))
     else if (Role.hasAuthorization(role, requiredAccess)) Success(this)
-    else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
+    else Failure(AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
   }
 
   override def isAdmin: Boolean = identity.isOrgAdmin

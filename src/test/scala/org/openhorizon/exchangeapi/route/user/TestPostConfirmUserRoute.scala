@@ -66,35 +66,35 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
                 username     = "TestPostConfirmUserRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORGADMINPASSWORD)),
+                password     = Option(Password.fastHash(ORGADMINPASSWORD)),
                 username     = "orgAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORGUSERPASSWORD)),
+                password     = Option(Password.fastHash(ORGUSERPASSWORD)),
                 username     = "orgUser"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(1).orgId,
-                password     = Option(Password.hash(ORGUSERPASSWORD)),
+                password     = Option(Password.fastHash(ORGUSERPASSWORD)),
                 username     = "orgUser"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORGUSERPASSWORD)),
+                password     = Option(Password.fastHash(ORGUSERPASSWORD)),
                 username     = "orgUser2"))
   }
   
@@ -103,7 +103,7 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
       AgbotRow(
         id = TESTORGS(0).orgId + "/agbot",
         orgid = TESTORGS(0).orgId,
-        token = Password.hash(AGBOTTOKEN),
+        token = Password.fastHash(AGBOTTOKEN),
         name = "",
         owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
@@ -129,7 +129,7 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
         publicKey          = "",
         regServices        = "",
         softwareVersions   = "",
-        token              = Password.hash(NODETOKEN),
+        token              = Password.fastHash(NODETOKEN),
         userInput          = ""
       )
     )
@@ -161,11 +161,11 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private val defaultUsername = TESTUSERS(2).username
 
-  test("POST /orgs/doesNotExist" + ROUTE1 + defaultUsername + ROUTE2 + " -- as org admin -- 403 ACCESS DENIED") {
+  test("POST /orgs/doesNotExist" + ROUTE1 + defaultUsername + ROUTE2 + " -- as org admin -- 404 NOT FOUND") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   //this should fail
@@ -176,11 +176,11 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  test("POST /orgs/" + "doesNotExist" + ROUTE1 + "doesNotExist" + ROUTE2 + " -- as org admin -- 403 ACCESS DENIED") {
+  test("POST /orgs/" + "doesNotExist" + ROUTE1 + "doesNotExist" + ROUTE2 + " -- as org admin -- 404 NOT FOUND") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE1 + "doesNotExist" + ROUTE2).postForm.headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2 + " -- as root -- 201 OK") {

@@ -16,11 +16,12 @@ import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeOperation, ResourceChangeRow, ResourceChanges, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import org.openhorizon.exchangeapi.ExchangeApi
+import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled
 
-import java.time.ZonedDateTime
+import java.time.{ZoneId, ZonedDateTime}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -49,7 +50,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
     val changesMap: scala.collection.mutable.Map[String, ChangeEntry] = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
     // fill in changesMap
     for (entry <- inputList) { // looping through every single ResourceChangeRow in inputList, given that we apply `.take(maxRecords)` in the query, this should never be over maxRecords, so no more need to break
-      val resChange: ResourceChangesInnerObject = ResourceChangesInnerObject(entry.changeId, ApiTime.fixFormatting(entry.lastUpdated.toString))
+      val resChange: ResourceChangesInnerObject = ResourceChangesInnerObject(entry.changeId, ApiTime.fixFormatting(entry.lastUpdated.toInstant.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("UTC")).toString))
       changesMap.get(entry.orgId + "_" + entry.id + "_" + entry.resource) match { // using the map allows for better searching and entry
         case Some(change) =>
           // inputList is already sorted by changeId from the query so we know this change happened later
@@ -186,7 +187,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
         identity.role match {
           case AuthRoles.Node =>
             logger.debug(s"Doing POST /orgs/$organization/changes - User Arch:                Node")
-            allChanges.filter(u => (u.category === "mgmtpolicy") || (u.category === "node" && u.id === identity.resource) || (u.category === "service" || u.category === "org"))
+            allChanges.filter(u => (u.category === "mgmtpolicy") || (u.category === "node" && u.id === identity.username) || (u.category === "service" || u.category === "org"))
           case AuthRoles.Agbot =>
             logger.debug(s"Doing POST /orgs/$organization/changes - User Arch:                Agbot: " + identity.isMultiTenantAgbot)
             allChanges.filterIf(identity.isMultiTenantAgbot && !(orgSet.contains("*") || orgSet.contains("")))(u => (u.orgId inSet orgSet) || ((u.resource === "org") && (u.operation === ResChangeOperation.CREATED.toString)))

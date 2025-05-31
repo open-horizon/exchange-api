@@ -44,7 +44,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
             isOrgAdmin   = false,
             modifiedAt   = TIMESTAMP,
             organization = "TestNodePutMgmtPolStatus",
-            password     = Option(Password.hash("u1pw")),
+            password     = Option(Password.fastHash("u1pw")),
             username     = "u1")
   private val TESTNODE: NodeRow =
     NodeRow(arch               = "amd64",

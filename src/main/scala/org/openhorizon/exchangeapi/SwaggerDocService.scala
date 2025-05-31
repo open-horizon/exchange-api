@@ -14,7 +14,7 @@ import org.openhorizon.exchangeapi.route.agreement.Confirm
 import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements}
 import org.openhorizon.exchangeapi.route.agreementbot.message.{Message, Messages}
 import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat}
-import org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns
+//import org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns
 import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
 import org.openhorizon.exchangeapi.route.managementpolicy.{ManagementPolicies, ManagementPolicy}
@@ -63,7 +63,7 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[Message],
         classOf[Messages],
         classOf[org.openhorizon.exchangeapi.route.catalog.DeploymentPatterns],
-        classOf[org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns],
+        //classOf[org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns],
         // classOf[org.openhorizon.exchangeapi.route.catalog.OrganizationServices],
         classOf[org.openhorizon.exchangeapi.route.catalog.Services],
         classOf[org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPattern],

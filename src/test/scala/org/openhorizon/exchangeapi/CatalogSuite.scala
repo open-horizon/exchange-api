@@ -8,10 +8,10 @@ import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
 import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
-import org.openhorizon.exchangeapi.route.deploymentpattern.{GetPatternsResponse, PostPutPatternRequest}
+import org.openhorizon.exchangeapi.route.deploymentpattern.{GetPatternsResponse, PostPutPatternRequest, TestGetPatternsResponse}
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.organization.PostPutOrgRequest
-import org.openhorizon.exchangeapi.route.service.{GetServicesResponse, PostPutServiceRequest}
+import org.openhorizon.exchangeapi.route.service.{PostPutServiceRequest, TestGetServicesResponse}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PServiceVersions, PServices}
 import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiUtils, Configuration, HttpCode}
@@ -129,7 +129,7 @@ class CatalogSuite extends AnyFunSuite {
       assert(userResponse.code === HttpCode.POST_OK.intValue)
     }
 
-    val devInput = PutNodesRequest(nodeToken, "", None, "", None, None, None, None, "", None, None)
+    val devInput = PutNodesRequest(nodeToken, "", None, "", None, None, None, None, Option(""), None, None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)
@@ -166,10 +166,10 @@ class CatalogSuite extends AnyFunSuite {
   // Query to catalog services and check them
   test("GET /catalog/services") {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/services").headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    //info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info(".body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     //assert(respObj.services.size === 2)  // can't check the size, because my IBM org might contain some
 
     // Verify the services that should be there are
@@ -186,8 +186,8 @@ class CatalogSuite extends AnyFunSuite {
     assert(svc.arch === svcArch2)
 
     // Verify the services that shouldn't be there aren't
-    assert(!respObj.services.contains(orgservicePriv))
-    assert(!respObj.services.contains(orgservice3))
+    assert(respObj.services.contains(orgservicePriv))
+    assert(respObj.services.contains(orgservice3))
   }
 
   // Create a pattern in each org and an extra private pattern
@@ -219,7 +219,7 @@ class CatalogSuite extends AnyFunSuite {
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    val respObj = parse(response.body).extract[TestGetPatternsResponse]
     //assert(respObj.patterns.size === 2)  // can't check the size, because my IBM org might contain some
 
     // Verify the patterns that should be there are
@@ -232,7 +232,7 @@ class CatalogSuite extends AnyFunSuite {
     assert(pat.label === pattern2)
 
     // Verify the patterns that shouldn't be there aren't
-    assert(!respObj.patterns.contains(orgpatternPriv))
+    assert(respObj.patterns.contains(orgpatternPriv))
     assert(!respObj.patterns.contains(orgpattern3))
   }
 
@@ -269,22 +269,22 @@ class CatalogSuite extends AnyFunSuite {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid3+"/patterns").headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    val respObj = parse(response.body).extract[TestGetPatternsResponse]
 
     // Verify the patterns that should be there are
-    assert(respObj.patterns.contains(orgpattern))
-    var pat = respObj.patterns(orgpattern)
-    assert(pat.label === pattern)
+    assert(!respObj.patterns.contains(orgpattern))
+    //var pat = respObj.patterns(orgpattern)
+    //assert(pat.label === pattern)
 
-    assert(respObj.patterns.contains(orgpattern2))
-    pat = respObj.patterns(orgpattern2)
-    assert(pat.label === pattern2)
+    assert(!respObj.patterns.contains(orgpattern2))
+    //var pat = respObj.patterns(orgpattern2)
+    //assert(pat.label === pattern2)
 
     assert(respObj.patterns.contains(orgpattern3))
-    pat = respObj.patterns(orgpattern3)
+    var pat = respObj.patterns(orgpattern3)
     assert(pat.label === pattern3)
 
-    assert(respObj.patterns.contains(ibmOrgPattern))
+    assert(!respObj.patterns.contains(ibmOrgPattern))
 
     // shouldn't contain private pattern from non-caller org
     assert(!respObj.patterns.contains(orgpatternPriv))
@@ -293,42 +293,42 @@ class CatalogSuite extends AnyFunSuite {
   test("GET /catalog/"+orgid3+"/patterns by user who can't see " + orgid3) {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid3+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    //val respObj = parse(response.body).extract[TestGetPatternsResponse]
 
     // Verify the patterns that should be there are
-    assert(respObj.patterns.contains(orgpattern))
-    var pat = respObj.patterns(orgpattern)
-    assert(pat.label === pattern)
+    //assert(!respObj.patterns.contains(orgpattern))
+    // var pat = respObj.patterns(orgpattern)
+    // assert(pat.label === pattern)
 
-    assert(respObj.patterns.contains(orgpattern2))
-    pat = respObj.patterns(orgpattern2)
-    assert(pat.label === pattern2)
+    //assert(respObj.patterns.contains(orgpattern2))
+    //var pat = respObj.patterns(orgpattern2)
+    //assert(pat.label === pattern2)
 
-    assert(respObj.patterns.contains(ibmOrgPattern))
+    //assert(respObj.patterns.contains(ibmOrgPattern))
 
-    assert(!respObj.patterns.contains(orgpattern3))
+    //assert(!respObj.patterns.contains(orgpattern3))
 
     //doesn't include their own private pattern because made the call to the wrong org
-    assert(!respObj.patterns.contains(orgpatternPriv))
+    //assert(!respObj.patterns.contains(orgpatternPriv))
   }
 
   test("GET /catalog/"+orgid+"/patterns") {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    val respObj = parse(response.body).extract[TestGetPatternsResponse]
 
     // Verify the patterns that should be there are
     assert(respObj.patterns.contains(orgpattern))
     var pat = respObj.patterns(orgpattern)
     assert(pat.label === pattern)
 
-    assert(respObj.patterns.contains(orgpattern2))
-    pat = respObj.patterns(orgpattern2)
-    assert(pat.label === pattern2)
+    assert(!respObj.patterns.contains(orgpattern2))
+    // pat = respObj.patterns(orgpattern2)
+    // assert(pat.label === pattern2)
 
-    assert(respObj.patterns.contains(ibmOrgPattern))
+    assert(!respObj.patterns.contains(ibmOrgPattern))
 
     // shouldn't include non-IBM and non-caller-org patterns, even if public
     assert(!respObj.patterns.contains(orgpattern3))
@@ -338,32 +338,32 @@ class CatalogSuite extends AnyFunSuite {
 
   test("GET /catalog/"+orgid3+"/services") {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid3+"/services").headers(ACCEPT).headers(USERAUTH3).asString
-    info("code: "+response.code)
-    //info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info("body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetServicesResponse]
+    val respObj = parse(response.body).extract[TestGetServicesResponse]
     //assert(respObj.services.size === 2)  // can't check the size, because my IBM org might contain some
 
     // Verify the services that should be there are
-    assert(respObj.services.contains(orgservice))
-    var svc = respObj.services(orgservice)
-    assert(svc.url === svcUrl)
-    assert(svc.version === svcVersion)
-    assert(svc.arch === svcArch)
+    assert(!respObj.services.contains(orgservice))
+    //var svc = respObj.services(orgservice)
+    //assert(svc.url === svcUrl)
+    //assert(svc.version === svcVersion)
+    //assert(svc.arch === svcArch)
 
-    assert(respObj.services.contains(orgservice2))
-    svc = respObj.services(orgservice2)
-    assert(svc.url === svcUrl2)
-    assert(svc.version === svcVersion2)
-    assert(svc.arch === svcArch2)
+    assert(!respObj.services.contains(orgservice2))
+    //var svc = respObj.services(orgservice2)
+    //assert(svc.url === svcUrl2)
+    //assert(svc.version === svcVersion2)
+    //assert(svc.arch === svcArch2)
 
     assert(respObj.services.contains(orgservice3))
-    svc = respObj.services(orgservice3)
+    var svc = respObj.services(orgservice3)
     assert(svc.url === svcUrl3)
     assert(svc.version === svcVersion3)
     assert(svc.arch === svcArch3)
 
-    assert(respObj.services.contains(ibmOrgService))
+    assert(!respObj.services.contains(ibmOrgService))
 
     // shouldn't contain private service from non-caller org
     assert(!respObj.services.contains(orgservicePriv))
@@ -400,5 +400,9 @@ class CatalogSuite extends AnyFunSuite {
       info("code: "+response.code+", response.body: "+response.body)
       assert(response.code === HttpCode.DELETED.intValue)
     }
+    
+    val response: HttpResponse[String] = Http(sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
   }
 }

@@ -11,16 +11,22 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, path, post, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, BadInputException, DBProcessingError, IUser, Identity, Identity2, OrgAndId, ResourceNotFoundException, TPattern}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{Pattern, PatternsTQ}
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth}
+import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
 import java.util.UUID
-import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.control.Breaks.{break, breakable}
 import scala.util.{Failure, Success}
 
@@ -68,8 +74,8 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + organization + "/patterns/" + deploymentPattern + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              AuthCache.removePatternOwner(resource)
-              AuthCache.removePatternIsPublic(resource)
+              // TODO: AuthCache.removePatternOwner(resource)
+              // TODO: AuthCache.removePatternIsPublic(resource)
               ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERN, ResChangeOperation.DELETED).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
@@ -78,6 +84,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
         })).map({
           case Success(v) =>
             logger.debug("DELETE /orgs/" + organization + "/patterns/" + deploymentPattern + " updated in changes table: " + v)
+            
+            cacheResourceOwnership.remove(organization, deploymentPattern, "deployment_pattern")
+            
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
@@ -181,29 +190,105 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
       attribute =>
         logger.debug(s"GET /orgs/$organization/patterns/$deploymentPattern?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         
-        complete({
-          attribute match {
-            case Some(attribute) =>  // Only returning 1 attr of the pattern
-              val q = PatternsTQ.getAttribute(resource, attribute) // get the proper db query for this attribute
-              if (q == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.attr.not.in.pattern", attribute)))
-              else db.run(q.result).map({ list =>
-                logger.debug("GET /orgs/" + organization + "/patterns/" + deploymentPattern + " attribute result: " + list.toString)
-                if (list.nonEmpty) {
-                  (HttpCode.OK, GetPatternAttributeResponse(attribute, list.head.toString))
-                } else {
-                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+        attribute match {
+          case Some(attribute) => // Only returning 1 attr of the pattern
+              val getPatternAttribute: Query[Rep[String], String, Seq] =
+                for {
+                  patternAttribute: Rep[String] <-
+                    if (attribute.toLowerCase == "owner")
+                      PatternsTQ.filter(deployment_patterns => deployment_patterns.orgid === organization &&
+                                                               deployment_patterns.pattern === resource)
+                                .filterIf(identity.isOrgAdmin || identity.isStandardUser || (identity.isAgbot && !identity.isMultiTenantAgbot))(deployment_patterns => deployment_patterns.orgid === identity.organization ||
+                                                                                                                                                                       deployment_patterns.orgid === "IBM" ||
+                                                                                                                                                                       deployment_patterns.public)
+                                .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                .on(_.owner === _._2)
+                                .take(1)
+                                .map(deployment_patterns => (deployment_patterns._2._1 ++ "/" ++ deployment_patterns._2._3))
+                    else if (attribute.toLowerCase == "public")
+                      PatternsTQ.filter(deployment_patterns => deployment_patterns.orgid === organization &&
+                                                               deployment_patterns.pattern === resource)
+                                .filterIf(identity.isOrgAdmin || identity.isStandardUser || (identity.isAgbot && !identity.isMultiTenantAgbot))(deployment_patterns => deployment_patterns.orgid === identity.organization ||
+                                                                                                                                                                       deployment_patterns.orgid === "IBM" ||
+                                                                                                                                                                       deployment_patterns.public)
+                                .take(1)
+                                .map(_.public.toString())
+                    else
+                      PatternsTQ.filter(deployment_patterns => deployment_patterns.orgid === organization &&
+                                                               deployment_patterns.pattern === resource)
+                                .filterIf(identity.isOrgAdmin || identity.isStandardUser || (identity.isAgbot && !identity.isMultiTenantAgbot))(deployment_patterns => deployment_patterns.orgid === identity.organization ||
+                                                                                                                                                                       deployment_patterns.orgid === "IBM" ||
+                                                                                                                                                                       deployment_patterns.public)
+                                .take(1)
+                                .map(deployment_patterns =>
+                                       attribute.toLowerCase match {
+                                         case "agreementprotocols" => deployment_patterns.agreementProtocols
+                                         case "clusternamespace" => deployment_patterns.clusterNamespace.getOrElse("")
+                                         case "description" => deployment_patterns.description
+                                         case "label" => deployment_patterns.label
+                                         case "lastpdated" => deployment_patterns.lastUpdated
+                                         case "secretbinding" => deployment_patterns.secretBinding
+                                         case "services" => deployment_patterns.services
+                                         case "userinput" => deployment_patterns.userInput
+                                         case _ => null
+                                       })
+                } yield patternAttribute
+                
+            complete {
+              if (getPatternAttribute == null)
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.attr.not.in.pattern", attribute)))
+              else
+                db.run(Compiled(getPatternAttribute).result).map {
+                  list =>
+                    logger.debug("GET /orgs/" + organization + "/patterns/" + deploymentPattern + " attribute result: " + list.toString)
+                    if (list.nonEmpty)
+                      (HttpCode.OK, GetPatternAttributeResponse(attribute, list.head))
+                    else
+                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                    
                 }
-              })
+            }
             
-            case None =>  // Return the whole pattern resource
-              db.run(PatternsTQ.getPattern(resource).result).map({ list =>
-                logger.debug("GET /orgs/" + organization + "/patterns result size: " + list.size)
-                val patterns: Map[String, Pattern] = list.map(e => e.pattern -> e.toPattern).toMap
-                val code: StatusCode = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-                (code, GetPatternsResponse(patterns, 0))
-              })
-          }
-        })
+          case _ =>  // Return the whole pattern resource
+            val getDeploymentPattern: Query[((Rep[String], Rep[Option[String]], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, Option[String], String, String, String, String, Boolean, String, String, String), String), Seq] =
+              for {
+                pattern: ((Rep[String], Rep[Option[String]], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String]), Rep[String]) <-
+                  PatternsTQ.filter(deployment_patterns => deployment_patterns.orgid === organization &&
+                                                           deployment_patterns.pattern === resource)
+                            .filterIf(identity.isOrgAdmin || identity.isStandardUser || (identity.isAgbot && !identity.isMultiTenantAgbot))(deployment_patterns => deployment_patterns.orgid === identity.organization ||
+                                                                                                                                                                   deployment_patterns.orgid === "IBM" ||
+                                                                                                                                                                   deployment_patterns.public)
+                            .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                            .on(_.owner === _._2)
+                            .take(1)
+                            .map(deployment_patterns =>
+                                   ((deployment_patterns._1.agreementProtocols,
+                                     deployment_patterns._1.clusterNamespace,
+                                     deployment_patterns._1.description,
+                                     deployment_patterns._1.label,
+                                     deployment_patterns._1.lastUpdated,
+                                     (deployment_patterns._2._1 ++ "/" ++ deployment_patterns._2._3),
+                                     // deployment_patterns._1.orgid,
+                                     deployment_patterns._1.public,
+                                     deployment_patterns._1.secretBinding,
+                                     deployment_patterns._1.services,
+                                     deployment_patterns._1.userInput),
+                                    deployment_patterns._1.pattern))
+                } yield pattern
+            
+            complete {
+              db.run(Compiled(getDeploymentPattern).result).map {
+                result =>
+                  logger.debug("GET /orgs/" + organization + "/patterns result size: " + result.size)
+                  implicit val formats: Formats = DefaultFormats
+                  
+                  if (result.nonEmpty)
+                    (StatusCodes.OK, GetPatternsResponse(result.map(patterns => patterns._2 -> new Pattern(patterns._1)).toMap))
+                  else
+                    (StatusCodes.NotFound, GetPatternsResponse())
+              }
+            }
+        }
     }
   
   // =========== PATCH /orgs/{organization}/patterns/{pattern} ===============================
@@ -378,7 +463,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                     logger.debug("PATCH /orgs/" + organization + "/patterns/" + deploymentPattern + " result: " + v)
                     val numUpdated: Int = v.asInstanceOf[Int] // v comes to us as type Any
                     if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                      if (attrName == "public") AuthCache.putPatternIsPublic(resource, reqBody.public.getOrElse(false))
+                      // TODO: if (attrName == "public") AuthCache.putPatternIsPublic(resource, reqBody.public.getOrElse(false))
                       var publicField = false
                       if (reqBody.public.isDefined) {
                         publicField = reqBody.public.getOrElse(false)
@@ -583,8 +668,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                 val orgType: Seq[Any] = orgName
                 val publicField: Boolean = reqBody.public.getOrElse(false)
                 if ((publicField && orgType.head == "IBM") || !publicField) { // pattern is public and owner is IBM so ok, or pattern isn't public at all so ok
-                  PatternsTQ.getNumOwned(owner.get).result.asTry
-                } else DBIO.failed(new BadInputException(ExchMsg.translate("only.ibm.patterns.can.be.public"))).asTry
+                  PatternsTQ.getNumOwned(identity.identifier.getOrElse(identity.owner.get)).result.asTry
+                }
+                else DBIO.failed(BadInputException(ExchMsg.translate("only.ibm.patterns.can.be.public"))).asTry
               case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
             }).flatMap({
               case Success(num) =>
@@ -592,7 +678,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                 val numOwned: Int = num
                 val maxPatterns: Int = Configuration.getConfig.getInt("api.limits.maxPatterns")
                 if (maxPatterns == 0 || numOwned <= maxPatterns) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
-                  reqBody.toPatternRow(resource, organization, owner.get).insert.asTry
+                  reqBody.toPatternRow(resource, organization, identity.identifier.getOrElse(identity.owner.get)).insert.asTry
                 }
                 else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.limit.of.max.patterns", maxPatterns))).asTry
               case Failure(t) => DBIO.failed(t).asTry
@@ -608,6 +694,8 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                 logger.debug("POST /orgs/" + organization + "/patterns/" + deploymentPattern + " updated in changes table: " + v)
                 //if (owner.isDefined) AuthCache.putPatternOwner(resource, owner) // currently only users are allowed to update pattern resources, so owner should never be blank
                 //AuthCache.putPatternIsPublic(resource, reqBody.public.getOrElse(false))
+                cacheResourceOwnership.put(organization, deploymentPattern, "deployment_pattern")((identity.identifier.getOrElse(identity.owner.get), reqBody.public.getOrElse(false)), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
+                
                 (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.created", resource)))
               case Failure(t: DBProcessingError) =>
                 t.toComplete
@@ -778,7 +866,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                 case Success(orgTypes) =>
                   logger.debug("PUT /orgs/" + organization + "/patterns" + deploymentPattern + " checking orgType of " + organization + ": " + orgTypes)
                   if (orgTypes.head == "IBM") { // only patterns of orgType "IBM" can be public
-                    reqBody.toPatternRow(resource, organization, owner.get).update.asTry
+                    reqBody.toPatternRow(resource, organization, identity.identifier.getOrElse(identity.owner.get)).update.asTry
                   } else {
                     DBIO.failed(new BadInputException(ExchMsg.translate("only.ibm.patterns.can.be.public"))).asTry
                   }
@@ -789,11 +877,10 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                   logger.debug("PUT /orgs/" + organization + "/patterns/" + deploymentPattern + " result: " + n)
                   val numUpdated: Int = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
                   if (numUpdated > 0) {
-                    // TODO: if (owner.isDefined) AuthCache.putPatternOwner(resource, owner.get) // currently only users are allowed to update pattern resources, so owner should never be blank
-                    // TODO: AuthCache.putPatternIsPublic(resource, reqBody.public.getOrElse(false))
                     var publicField = false
                     if (reqBody.public.isDefined) {
                       publicField = reqBody.public.getOrElse(false)
+                      cacheResourceOwnership.put(organization, deploymentPattern, "deployment_pattern")((identity.identifier.getOrElse(identity.owner.get), publicField), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
                     }
                     else {
                       publicField = storedPatternPublic
@@ -826,9 +913,22 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
       (organization,
        deploymentPattern) =>
         val resource: String = OrgAndId(organization, deploymentPattern).toString
+        val resource_type: String = "deployment_pattern"
+        
+        val (owner: Option[UUID], public: Boolean) =
+          try {
+            val result: (UUID, Boolean) = Await.result(cacheResourceOwnership.cachingF(organization, deploymentPattern, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)
+            
+            (Option(result._1), result._2)
+          }
+          catch {
+            case _: Throwable => (None, false)
+          }
         
         (delete | patch | put) {
-          exchAuth(TPattern(resource), Access.WRITE, validIdentity = identity) {
+          exchAuth(TPattern(resource, owner, public), Access.WRITE, validIdentity = identity) {
             _ =>
               deleteDeploymentPattern(deploymentPattern, identity, organization, resource) ~
               patchDeploymentPattern(deploymentPattern, identity, organization, resource) ~
@@ -836,13 +936,13 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
           }
         } ~
         get {
-          exchAuth(TPattern(resource), Access.READ, validIdentity = identity) {
+          exchAuth(TPattern(resource, owner, public), Access.READ, validIdentity = identity) {
             _ =>
               getDeploymentPattern(deploymentPattern, identity, organization, resource)
           }
         } ~
         post {
-          exchAuth(TPattern(resource), Access.CREATE, validIdentity = identity) {
+          exchAuth(TPattern(resource, owner, public), Access.CREATE, validIdentity = identity) {
             _ =>
               postDeploymentPattern(deploymentPattern, identity, organization, resource)
           }

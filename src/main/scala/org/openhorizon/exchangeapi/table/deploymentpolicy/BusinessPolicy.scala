@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.deploymentpolicy
 
-import org.json4s.DefaultFormats
+import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization.read
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService}
 import org.openhorizon.exchangeapi.table.service.OneProperty
@@ -17,7 +17,7 @@ final case class BusinessPolicy(
                            service: BService,
                            userInput: List[OneUserInputService]) {
   
-  def this(tuple: (String, String, String, String, String, String, String, String, String, String))(implicit defaultFormats: DefaultFormats) =
+  def this(tuple: (String, String, String, String, String, String, String, String, String, String))(implicit defaultFormats: Formats) =
     this(constraints = if (tuple._1 != "") read[List[String]](tuple._1) else List[String](),
         created = tuple._2,
         description = tuple._3,

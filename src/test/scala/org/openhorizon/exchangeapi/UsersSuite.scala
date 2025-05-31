@@ -11,7 +11,7 @@ import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.organization.PostPutOrgRequest
 import org.openhorizon.exchangeapi.route.service.PostPutServiceRequest
-import org.openhorizon.exchangeapi.route.user.{GetUsersResponse, PostPutUsersRequest}
+import org.openhorizon.exchangeapi.route.user.{GetUsersResponse, PostPutUsersRequest, TestGetUsersResponse}
 
 import scala.collection.mutable.ListBuffer
 import org.openhorizon.exchangeapi.table._
@@ -250,7 +250,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
       response = Http(CLOUDURL + "/users/" + iamUser).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code + ", response.body: " + response.body)
       assert(response.code === HttpCode.OK.intValue)
-      var getUserResp = parse(response.body).extract[GetUsersResponse]
+      var getUserResp = parse(response.body).extract[TestGetUsersResponse]
       assert(getUserResp.users.size === 1)
       assert(getUserResp.users.contains(cloudorg + "/" + iamUser))
       var u = getUserResp.users(cloudorg + "/" + iamUser)
@@ -260,7 +260,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
       response = Http(CLOUDURL + "/users/iamapikey").headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
       assert(response.code === HttpCode.OK.intValue)
-      getUserResp = parse(response.body).extract[GetUsersResponse]
+      getUserResp = parse(response.body).extract[TestGetUsersResponse]
       assert(getUserResp.users.size === 1)
       assert(getUserResp.users.contains(cloudorg + "/" + iamUser))
       u = getUserResp.users(cloudorg + "/" + iamUser)
@@ -310,7 +310,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
         assert(response.code === HttpCode.POST_OK.intValue)
 
         // Only for ibm public cloud: ensure we can add a node to check acls to other objects
-        val inputNode = PutNodesRequest("abc", "my node", None, "", None, None, None, None, "ABC", None, None)
+        val inputNode = PutNodesRequest("abc", "my node", None, "", None, None, None, None, Option("ABC"), None, None)
         response = Http(CLOUDURL + "/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.PUT_OK.intValue)

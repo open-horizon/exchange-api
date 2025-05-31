@@ -188,23 +188,6 @@ trait AuthenticationSupport extends AuthorizationSupport {
   // Custom directive to extract the Authorization header creds and authenticate/authorize to the exchange
   //someday: this must be used as a separate directive, don't yet know how to combine it with the other directives using &
   def exchAuth(target: Target, access: Access, hint: String = "", validIdentity: Identity2): Directive1[Identity] = {
-    // val optEncodedAuth = ctx.request.getHeader("Authorization")
-    //extract(_.request.getHeader("Authorization")).flatMap {
-    //  optEncodedAuth =>
-        
-    //    val encodedAuth: String =
-    //      if (optEncodedAuth.isPresent)
-    //        optEncodedAuth.get().value()
-    //      else
-    //        ""
-        
-    //    val optCreds: Option[Creds] =
-    //      encodedAuth match {
-    //        case ExchangeApiApp.basicAuthRegex(basicAuthEncoded) =>
-    //          AuthenticationSupport.parseCreds(basicAuthEncoded)
-    //        case _ => None
-    //      }
-        
     
              val ident: Identity =
                validIdentity.role match {
@@ -236,46 +219,11 @@ trait AuthenticationSupport extends AuthorizationSupport {
                  // logger.debug(s"AuthenticationSupport:236     authorizeto:success")
                  provide(identity)
              }
-    
-    //     authenticate(optCreds, hint = hint) match {
-   //       case Failure(t) => reject(AuthRejection(t))
-   //       case Success(authenticatedIdentity) =>
-            //println("exchAuth(): id "+authenticatedIdentity.identity.creds.id+" authenticated, now authorizing to "+target.id+" for "+access)
-            
-        //}
-    //}
   }
-
-  /*def authenticate(creds: Option[Creds], hint: String = ""): Try[AuthenticatedIdentity] = {
-    /*
-     * For JAAS, the LoginContext is what you use to attempt to login a user
-     * and get a Subject back. It takes care of creating the LoginModules and
-     * calling them. It is configured by the jaas.config file, which specifies
-     * which LoginModules to use.
-     */
-    logger.debug(s"authenticate: $creds")
-    if (creds.isEmpty) return Failure(new InvalidCredentialsException)
-    val loginCtx =
-      new LoginContext("ExchangeApiLogin",
-                       null,
-                       new ExchCallbackHandler(RequestInfo(creds.get, /*request, params,*/ AuthenticationSupport.isDbMigration /*, anonymousOk*/ , hint)),
-                       AuthenticationSupport.loginConfig)
-    for (err <- Try(loginCtx.login()).failed) {
-      return Failure(err)
-    }
-    val subject: Subject = loginCtx.getSubject // if we authenticated an api key, the subject contains the associated username
-    Success(AuthenticatedIdentity(subject.getPrivateCredentials(classOf[Identity]).asScala.head, subject))
-  }*/
 
   /** Returns a temporary pw reset token. */
   def createToken(username: String): String = {
-    // Get their current pw to use as the secret
-    AuthCache.getUser(username) match {
-      case Some(userHashedTok) =>
-        Token.create(userHashedTok) // always create the token with the hashed pw because that will always be there during creation and validation of the token
-      case None =>
-        "" // this case will never happen (we always pass in superUser), but here to remove compile warning
-    }
+    ""
   }
 }
 

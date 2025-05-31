@@ -133,8 +133,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getServicesCatalog(@Parameter(hidden = true) identity: Identity2,
-                         @Parameter(hidden = true) organizatonRoute: Option[String]): Route =
+  def getServicesCatalog(@Parameter(hidden = true) identity: Identity2): Route =
     parameter("organization".?, "owner".?, "public".as[Boolean].optional, "url".?, "version".?, "arch".?, "nodetype".?, "requiredurl".?) {
       (organization,
        owner,
@@ -166,8 +165,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
         val getServices =
           for {
             services <-
-              ServicesTQ.filterOpt(organizatonRoute)((services, organization) => services.orgid === organization ||  services.orgid === "IBM" || services.public)
-                        .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(services => services.orgid === identity.organization || services.orgid === "IBM" || services.public)
+              ServicesTQ.filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(services => services.orgid === identity.organization || services.orgid === "IBM" || services.public)
                         .filterOpt(arch)((services, arch) => if (arch.contains('%')) services.arch like arch else services.arch === arch)
                         .filterOpt(cluster)((services, _) => services.clusterDeployment =!= "")
                         .filterOpt(device)((services, _) => services.deployment =!= "")
@@ -202,69 +200,29 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                                 services._1.version),
                                services._1.service))
           } yield services
-        
-        
-        organizatonRoute match {
-          case Some(_) =>
-            logger.debug(s"Doing GET /catalog/${organizatonRoute}/services")
-            complete({
-              db.run(Compiled(getServices).result.transactionally.asTry).map {
-                case Success(serviceRecords) =>
-                  logger.debug(s"GET /catalog/${organizatonRoute}/services - result size: ${serviceRecords.size}, parameters[arch:${arch}, nodetype:${nodetype}, organization:${organization}, owner:${owner}, public:${public}, requiredurl:${requiredurl}, url:${url}, version:${version}")
-                  val servicesMap = serviceRecords.map(services => services._2 -> new Service(services._1)).toMap
-                  if (serviceRecords.nonEmpty)
-                    (StatusCodes.OK, GetServicesResponse(servicesMap, 0))
-                  else
-                    (StatusCodes.NotFound, GetServicesResponse(servicesMap, 0))
-                case Failure(exception) =>
-                  logger.error(cause = exception, message = s"GET /catalog/${organizatonRoute}/services - parameters[arch:${arch}, nodetype:${nodetype}, organization:${organization}, owner:${owner}, public:${public}, requiredurl:${requiredurl}, url:${url}, version:${version}")
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
-              }
-            })
           
-          case _ =>
-            complete({
-              db.run(Compiled(getServices).result.transactionally.asTry).map {
-                case Success(serviceRecords) =>
-                  logger.debug(s"GET /catalog/services - result size: ${serviceRecords.size}, parameters[arch:${arch}, nodetype:${nodetype}, organization:${organization}, owner:${owner}, public:${public}, requiredurl:${requiredurl}, url:${url}, version:${version}")
-                  val servicesMap = serviceRecords.map(services => services._2 -> new Service(services._1)).toMap
-                  if (serviceRecords.nonEmpty)
-                    (StatusCodes.OK, GetServicesResponse(servicesMap, 0))
-                  else
-                    (StatusCodes.NotFound, GetServicesResponse(servicesMap, 0))
-                case Failure(exception) =>
-                  logger.error(cause = exception, message = s"GET /catalog/services - parameters[arch:${arch}, nodetype:${nodetype}, organization:${organization}, owner:${owner}, public:${public}, requiredurl:${requiredurl}, url:${url}, version:${version}")
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
-                  
-              }
-            })
+        complete {
+          db.run(Compiled(getServices).result.transactionally.asTry).map {
+            case Success(serviceRecords) =>
+              logger.debug(s"GET /catalog/services - result size: ${serviceRecords.size}, parameters[arch:${arch}, nodetype:${nodetype}, organization:${organization}, owner:${owner}, public:${public}, requiredurl:${requiredurl}, url:${url}, version:${version}")
+              
+              if (serviceRecords.nonEmpty)
+                (StatusCodes.OK, GetServicesResponse(serviceRecords.map(services => services._2 -> new Service(services._1)).toMap))
+              else
+                (StatusCodes.NotFound, GetServicesResponse())
+            case Failure(exception) =>
+              logger.error(cause = exception, message = s"GET /catalog/services - parameters[arch:${arch}, nodetype:${nodetype}, organization:${organization}, owner:${owner}, public:${public}, requiredurl:${requiredurl}, url:${url}, version:${version}")
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+          }
         }
     }
   
-    /*parameter("orgtype".?) {
-      orgType =>
-        complete({
-          val svcQuery =
-            for {
-              (_, svc) <-
-                OrgsTQ.getOrgidsOfType(orgType.getOrElse("IBM")) join ServicesTQ on ((o, s) => {o === s.orgid && s.public})
-            } yield svc
-          
-          db.run(svcQuery.result).map({ list =>
-            logger.debug("GET /catalog/services result size: "+list.size)
-            val services: Map[String, Service] = list.map(a => a.service -> a.toService).toMap
-            val code: StatusCode = if (services.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-            (code, GetServicesResponse(services, 0))
-          })
-        })
-    }*/
-  
   def servicesCatalog(identity: Identity2): Route =
-    path("catalog" / "services") {
+    path(("catalog" / "services") | "services") {
       get {
         exchAuth(TService(OrgAndId("*","*").toString),Access.READ_ALL_SERVICES, validIdentity = identity) {
           _ =>
-            getServicesCatalog(identity, organizatonRoute = None)
+            getServicesCatalog(identity)
         }
       }
     }

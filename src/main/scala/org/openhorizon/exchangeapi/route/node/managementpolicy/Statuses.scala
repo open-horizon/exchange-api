@@ -10,11 +10,17 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{GetNMPStatusResponse, NodeMgmtPolStatuses}
+import org.openhorizon.exchangeapi.utility.Configuration
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 
 
 @Path("/v1/orgs/{organization}/nodes/{node}/managementStatus")
@@ -107,10 +113,20 @@ trait Statuses extends JacksonSupport with AuthenticationSupport {
   def statuses(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "managementStatus") {
       (organization, node) =>
-        val compositeId: String = OrgAndId(organization, node).toString
+        val resource: String = OrgAndId(organization, node).toString
+        val resource_type: String = "node"
+        
+        val i: Option[UUID] =
+          try
+            Option(Await.result(cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)._1)
+          catch {
+            case _: Throwable => None
+          }
         
         get {
-          exchAuth(TNode(compositeId),Access.READ, validIdentity = identity) {
+          exchAuth(TNode(resource, i),Access.READ, validIdentity = identity) {
             _ =>
               getStatusManagementPolicies(identity, node, organization)
           }

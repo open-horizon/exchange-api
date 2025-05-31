@@ -12,18 +12,22 @@ import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, patch, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, Identity2, OrgAndId, TService}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service
-import org.openhorizon.exchangeapi.table.service.{ServiceRef, ServiceRow, Service => ServiceTable, Services, ServicesTQ}
+import org.openhorizon.exchangeapi.table.service.{ServiceRef, ServiceRow, Services, ServicesTQ, Service => ServiceTable}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.MappedProjection
 
 import java.lang.IllegalStateException
 import java.util.UUID
-import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success}
 import scala.util.control.Breaks.{break, breakable}
 
@@ -145,112 +149,140 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       parameter("attribute".?) {
         attribute =>
           logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
-          def isValidAttribute(attribute: Option[String]) = true
+          def isValidAttribute(attribute: String) =
+            attribute match {
+              case "arch" |
+                   "clusterdeployment" |
+                   "clusterdeploymentsignature" |
+                   "deployment" |
+                   "deploymentsignature" |
+                   "description" |
+                   "documentation" |
+                   "imagestore" |
+                   "label" |
+                   "lastupdated" |
+                   "matchhardware" |
+                   "organization" |
+                   "owner" |
+                   "public" |
+                   "requiredservices" |
+                   "sharable" |
+                   "url" |
+                   "userinput" |
+                   "version" => true
+              case _ => false
+            }
           
-          validate(check = isValidAttribute(attribute),
-                   errorMsg = "") {
-            val getServiceAttribute: Query[MappedProjection[GetServiceAttributeResponse, (String, String)], GetServiceAttributeResponse, Seq] =
-              for {
-                serviceAttribute <-
-                   ServicesTQ.filter(services => services.orgid === organization &&
-                                                 services.service === service)
-                             .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
-                             .on(_.owner === _._2)
-                             .map(services => (attribute.getOrElse(""),
-                                               attribute.getOrElse("").toLowerCase match{
-                                                 case "arch" => services._1.arch
-                                                 case "clusterdeployment" => services._1.clusterDeployment
-                                                 case "clusterdeploymentsignature" => services._1.clusterDeploymentSignature
-                                                 case "deployment" => services._1.deployment
-                                                 case "deploymentsignature" => services._1.deploymentSignature
-                                                 case "description" => services._1.description
-                                                 case "documentation" => services._1.documentation
-                                                 case "imagestore" => services._1.imageStore
-                                                 case "label" => services._1.label
-                                                 case "lastupdated" => services._1.lastUpdated
-                                                 case "matchhardware" => services._1.matchHardware
-                                                 case "organization" => services._1.orgid
-                                                 case "owner" =>  (services._2._1 ++ "/" ++ services._2._3)
-                                                 case "public" => services._1.public.asColumnOf[String]
-                                                 case "requiredservices" => services._1.requiredServices
-                                                 case "sharable" => services._1.sharable
-                                                 case "url" => services._1.url
-                                                 case "userinput" => services._1.userInput
-                                                 case "version" => services._1.version
-                                                }))
-              } yield serviceAttribute.mapTo[GetServiceAttributeResponse]
+          val serviceQuery: Query[(Services, (Rep[String], Rep[UUID], Rep[String])), (ServiceRow, (String, UUID, String)), Seq] =
+            ServicesTQ.filter(services => services.orgid === organization &&
+                                          services.service === resource)
+                      .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                      .on(_.owner === _._2)
+                      .take(1)
+          
+          attribute match {
+            case Some(attribute) if attribute.nonEmpty && isValidAttribute(attribute.toLowerCase) =>
+              val getServiceAttribute: Query[MappedProjection[GetServiceAttributeResponse, (String, String)], GetServiceAttributeResponse, Seq] =
+                for {
+                  serviceAttribute: (ConstColumn[String], Rep[String]) <-
+                    if (attribute == "public")
+                      serviceQuery.map(services => (attribute, (services._1.public.toString())))
+                    else
+                      serviceQuery.map(services => (attribute,
+                                                 attribute.toLowerCase match{
+                                                   case "arch" => services._1.arch
+                                                   case "clusterdeployment" => services._1.clusterDeployment
+                                                   case "clusterdeploymentsignature" => services._1.clusterDeploymentSignature
+                                                   case "deployment" => services._1.deployment
+                                                   case "deploymentsignature" => services._1.deploymentSignature
+                                                   case "description" => services._1.description
+                                                   case "documentation" => services._1.documentation
+                                                   case "imagestore" => services._1.imageStore
+                                                   case "label" => services._1.label
+                                                   case "lastupdated" => services._1.lastUpdated
+                                                   case "matchhardware" => services._1.matchHardware
+                                                   case "organization" => services._1.orgid
+                                                   case "owner" =>  (services._2._1 ++ "/" ++ services._2._3)
+                                                   case "requiredservices" => services._1.requiredServices
+                                                   case "sharable" => services._1.sharable
+                                                   case "url" => services._1.url
+                                                   case "userinput" => services._1.userInput
+                                                   case "version" => services._1.version
+                                                  }))
+                } yield serviceAttribute.mapTo[GetServiceAttributeResponse]
               
             complete({
-              db.run(getServiceAttribute.result.transactionally.asTry).map {
+              db.run(Compiled(getServiceAttribute).result.transactionally.asTry).map {
                 case Success(serviceAttribute) =>
+                  logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute} - serviceAttribute: ${serviceAttribute.size}")
                   if (serviceAttribute.size == 1)
-                    (HttpCode.OK, serviceAttribute)
+                    (HttpCode.OK, serviceAttribute.head)
                   else if (serviceAttribute.isEmpty)
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource)))
                   else
-                    logger.error(s"GET /orgs/$organization/services/$service?attribute=${attribute.getOrElse("")} - result: ${serviceAttribute.toString()}")
                     (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
                 case Failure(exception) =>
-                  logger.error(cause = exception, message = s"GET /orgs/$organization/services/$service?attribute=${attribute.getOrElse("")}")
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.message", exception)))
               }
             })
-          } ~
-          {
-            val getService: Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String],
-                                    Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String],
-                                    Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String],
-                                    Rep[String]), Rep[String]),
-                                  ((String, String, String, String, String, String, String, String, String, String,
-                                    String, String, String, Boolean, String, String, String, String, String), String),
-                                  Seq] =
-              for {
-                service <-
-                  ServicesTQ.filter(services => services.orgid === organization &&
-                                                services.service === service)
-                            .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
-                            .on(_.owner === _._2)
-                            .map(services =>
-                                  ((services._1.arch,
-                                    services._1.clusterDeployment,
-                                    services._1.clusterDeploymentSignature,
-                                    services._1.deployment,
-                                    services._1.deploymentSignature,
-                                    services._1.description,
-                                    services._1.documentation,
-                                    services._1.imageStore,
-                                    services._1.label,
-                                    services._1.lastUpdated,
-                                    services._1.matchHardware,
-                                    services._1.orgid,
-                                    (services._2._1 ++ "/" ++ services._2._3),
-                                    services._1.public,
-                                    services._1.requiredServices,
-                                    services._1.sharable,
-                                    services._1.url,
-                                    services._1.userInput,
-                                    services._1.version),
-                                   services._1.service))
-              } yield service
             
-            complete({
-              db.run(getService.result.transactionally.asTry).map {
-                case Success(result) =>
-                  if (result.size == 1) {
-                    implicit val formats: Formats = DefaultFormats
-                    val serviceMap: Map[String, ServiceTable] = result.map(service => service._2 -> new ServiceTable(service._1)).toMap
-                    (HttpCode.OK, GetServicesResponse(serviceMap, 0))
-                  } else if (result.isEmpty)
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
-                  else
-                    logger.error(s"GET /orgs/$organization/services/$result?attribute=${attribute.getOrElse("")} - result: ${result.toString()}")
-                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
-                case Failure(exception) =>
-                  logger.error(cause = exception, message = s"GET /orgs/$organization/services/$service?attribute=${attribute.getOrElse("")}")
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
-                  
-              }
-            })
+            case _ =>
+              logger.debug("I AM RUNNING DOWN HERE!")
+              val getService: Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String],
+                                      Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String],
+                                      Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String],
+                                      Rep[String]), Rep[String]),
+                                    ((String, String, String, String, String, String, String, String, String, String,
+                                      String, String, String, Boolean, String, String, String, String, String), String),
+                                    Seq] =
+                for {
+                  service <-
+                    ServicesTQ.filter(services => services.orgid === organization &&
+                                                  services.service === resource)
+                              .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                              .on(_.owner === _._2)
+                              .take(1)
+                              .map(services =>
+                                    ((services._1.arch,
+                                      services._1.clusterDeployment,
+                                      services._1.clusterDeploymentSignature,
+                                      services._1.deployment,
+                                      services._1.deploymentSignature,
+                                      services._1.description,
+                                      services._1.documentation,
+                                      services._1.imageStore,
+                                      services._1.label,
+                                      services._1.lastUpdated,
+                                      services._1.matchHardware,
+                                      services._1.orgid,
+                                      (services._2._1 ++ "/" ++ services._2._3),
+                                      services._1.public,
+                                      services._1.requiredServices,
+                                      services._1.sharable,
+                                      services._1.url,
+                                      services._1.userInput,
+                                      services._1.version),
+                                     services._1.service))
+                } yield service
+              
+              complete({
+                db.run(Compiled(getService).result.transactionally.asTry).map {
+                  case Success(result) =>
+                    logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - result: ${result.size}")
+                    if (result.size == 1) {
+                      implicit val formats: Formats = DefaultFormats
+                      val serviceMap: Map[String, ServiceTable] = result.map(service => service._2 -> new ServiceTable(service._1)).toMap
+                      (HttpCode.OK, GetServicesResponse(serviceMap, 0))
+                    }
+                    else if (result.isEmpty)
+                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource)))
+                    else
+                      (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+                  case Failure(exception) =>
+                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.message", exception)))
+                    
+                }
+              })
           }
           
           
@@ -386,7 +418,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                       if (invalidIndex >= 0) break() // an requiredService was not satisfied, so break out and return an error
                     }
                   }
-                  if (invalidIndex < 0) reqBody.toServiceRow(resource, organization, owner.get).update.asTry // we are good, move on to the next step
+                  if (invalidIndex < 0) reqBody.toServiceRow(resource, organization, identity.identifier.getOrElse(identity.owner.get)).update.asTry // we are good, move on to the next step
                   else {
                     val errStr: String = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
                     DBIO.failed(new Throwable(errStr)).asTry
@@ -543,7 +575,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                     logger.debug("PUT /orgs/" + organization + "/services/" + service + " result: " + v)
                     val numUpdated: Int = v.asInstanceOf[Int] // v comes to us as type Any
                     if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                      if (attrName == "public") AuthCache.putServiceIsPublic(resource, reqBody.public.getOrElse(false))
+                      // TODO: if (attrName == "public") AuthCache.putServiceIsPublic(resource, reqBody.public.getOrElse(false))
                       ServicesTQ.getPublic(resource).result.asTry
                     } else {
                       DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
@@ -606,7 +638,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
         val findService: Query[Services, ServiceRow, Seq] =
           ServicesTQ.filter(service => (service.orgid === organization && service.service === resource))
         
-        val deleteService =
+        val deleteService: DBIOAction[Unit, NoStream, Effect.Read with Effect with Effect.Write] =
           for {
              getPublicAttribute: Option[Boolean] <- Compiled(findService.map(_.public)).result.headOption
             
@@ -635,8 +667,8 @@ trait Service extends JacksonSupport with AuthenticationSupport {
               
               _ <-
                 try {
-                  AuthCache.removeServiceIsPublic(resource)
-                  AuthCache.removeServiceOwner(resource)
+                  // TODO: AuthCache.removeServiceIsPublic(resource)
+                  // TODO: AuthCache.removeServiceOwner(resource)
                   DBIO.successful(())
                 }
                 catch {
@@ -647,9 +679,11 @@ trait Service extends JacksonSupport with AuthenticationSupport {
             
           } yield()
           
-        db.run(deleteService.transactionally.asTry)
-          .map({
+        db.run((deleteService).transactionally.asTry)
+          .map{
             case Success(_) =>
+              cacheResourceOwnership.remove(organization, service, "service")
+              
               (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.deleted")))
             case Failure(t: NoSuchElementException) =>
               (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource)))
@@ -661,43 +695,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", resource, t.toString)))
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", resource, t.toString)))
-          })
-        
-        // remove does *not* throw an exception if the key does not exist
-        /*var storedPublicField = false
-        db.run(ServicesTQ.getPublic(resource).result.asTry.flatMap({
-          case Success(public) =>
-            // Get the value of the public field before doing the deletion
-            logger.debug("DELETE /orgs/" + organization + "/services/" + service + " public field: " + public)
-            if (public.nonEmpty) {
-              storedPublicField = public.head
-              ServicesTQ.getService(resource).delete.transactionally.asTry
-            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
-          case Failure(t) => DBIO.failed(t).asTry
-        }).flatMap({
-          case Success(v) =>
-            // Add the resource to the resourcechanges table
-            logger.debug("DELETE /orgs/" + organization + "/services/" + service + " result: " + v)
-            if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              AuthCache.removeServiceOwner(resource)
-              AuthCache.removeServiceIsPublic(resource)
-              val serviceId: String = resource.substring(resource.indexOf("/") + 1, resource.length)
-              ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICE, ResChangeOperation.DELETED).insert.asTry
-            } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
-            }
-          case Failure(t) => DBIO.failed(t).asTry
-        })).map({
-          case Success(v) =>
-            logger.debug("DELETE /orgs/" + organization + "/services/" + service + " updated in changes table: " + v)
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.deleted")))
-          case Failure(t: DBProcessingError) =>
-            t.toComplete
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.not.deleted", resource, t.toString))
-          case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", resource, t.toString)))
-        })*/
+          }
       })
   }
   
@@ -705,9 +703,22 @@ trait Service extends JacksonSupport with AuthenticationSupport {
     path("orgs" / Segment / "services" / Segment) {
       (organization, service) =>
         val resource: String = OrgAndId(organization, service).toString
+        val resource_type: String = "service"
+        
+        val (owner: Option[UUID], public: Boolean) =
+          try {
+            val result: (UUID, Boolean) = Await.result(cacheResourceOwnership.cachingF(organization, service, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)
+            
+            (Option(result._1), result._2)
+          }
+          catch {
+            case _: Throwable => (None, false)
+          }
         
         (delete | patch | put) {
-          exchAuth(TService(resource), Access.WRITE, validIdentity = identity) {
+          exchAuth(TService(resource, owner, public), Access.WRITE, validIdentity = identity) {
             _ =>
               deleteService(identity, organization, resource, service) ~
               patchService(identity, organization, resource, service) ~
@@ -715,7 +726,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
           }
         } ~
         get {
-          exchAuth(TService(resource), Access.READ, validIdentity = identity) {
+          exchAuth(TService(resource, owner, public), Access.READ, validIdentity = identity) {
             _ =>
               getService(identity, organization, resource, service)
           }

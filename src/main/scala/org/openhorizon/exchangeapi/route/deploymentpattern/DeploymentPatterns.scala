@@ -26,6 +26,7 @@ import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, RouteUtils, Version}
 import org.openhorizon.exchangeapi.auth
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
@@ -146,31 +147,50 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
        description,
        clusterNamespace) =>
         logger.debug(s"GET /orgs/${organization}/patterns?clusterNamespace=${clusterNamespace.getOrElse("None")},description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")},public=${public.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        implicit val formats: Formats = DefaultFormats
+        val getDeploymentPatterns: Query[((Rep[String], Rep[Option[String]], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, Option[String], String, String, String, String, Boolean, String, String, String), String), Seq] =
+          for {
+            patterns: ((Rep[String], Rep[Option[String]], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String]), Rep[String]) <-
+              PatternsTQ.filter(deployment_patterns => deployment_patterns.orgid === organization)
+                        .filterIf(identity.isOrgAdmin || identity.isStandardUser)(deployment_patterns => deployment_patterns.orgid === identity.organization || deployment_patterns.orgid === "IBM" || deployment_patterns.public)
+                        .filterOpt(clusterNamespace)((deployment_patterns, clusterNamespace) => if (clusterNamespace.contains("%")) deployment_patterns.clusterNamespace like clusterNamespace else deployment_patterns.clusterNamespace === clusterNamespace)
+                        .filterOpt(description)((deployment_patterns, description) => if (description.contains("%")) deployment_patterns.description like description else deployment_patterns.description === description)
+                        .filterOpt(idfilter)((deployment_patterns, resource) => if (resource.contains("%")) deployment_patterns.pattern like resource else deployment_patterns.pattern === resource)
+                        .filterOpt(label)((deployment_patterns, label) => if (label.contains("%")) deployment_patterns.label like label else deployment_patterns.label === label)
+                        .filterOpt(public)((deployment_patterns, public) => deployment_patterns.public === public)
+                        .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                        .on(_.owner === _._2)
+                        .filterOpt(owner)((deployment_patterns, owner) => if (owner.contains("%")) (deployment_patterns._2._1 ++ "/" ++ deployment_patterns._2._3) like owner else (deployment_patterns._2._1 ++ "/" ++ deployment_patterns._2._3) === owner)
+                .map(deployment_patterns =>
+                       ((deployment_patterns._1.agreementProtocols,
+                         deployment_patterns._1.clusterNamespace,
+                         deployment_patterns._1.description,
+                         deployment_patterns._1.label,
+                         deployment_patterns._1.lastUpdated,
+                         (deployment_patterns._2._1 ++ "/" ++ deployment_patterns._2._3),
+                         // deployment_patterns._1.orgid,
+                         deployment_patterns._1.public,
+                         deployment_patterns._1.secretBinding,
+                         deployment_patterns._1.services,
+                         deployment_patterns._1.userInput),
+                        deployment_patterns._1.pattern))
+          } yield patterns
         
-        //validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
-          complete({
-            //var q = PatternsTQ.subquery
-            var q = PatternsTQ.getAllPatterns(organization)
-            // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
-            clusterNamespace.foreach(namespace => { if (namespace.contains("%")) q = q.filter(_.clusterNamespace like namespace) else q = q.filter(_.clusterNamespace === namespace) })
-            description.foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
-            idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.pattern like id) else q = q.filter(_.pattern === id) })
-            label.foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
-            // TODO: owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner === owner) else q = q.filter(_.owner === owner) })
-            // TODO: public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
-            
-            db.run(q.result).map({ list =>
-              logger.debug("GET /orgs/"+organization+"/patterns result size: "+list.size)
-              val patterns: Map[String, Pattern] = list.filter(e => identity.organization == e.orgid || e.public || identity.isSuperUser || identity.isMultiTenantAgbot).map(e => e.pattern -> e.toPattern).toMap
-              val code: StatusCode = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-              (code, GetPatternsResponse(patterns, 0))
-            })
-          }) // end of complete
-        //}
+          complete {
+            db.run(Compiled(getDeploymentPatterns).result).map {
+              result =>
+                logger.debug("GET /orgs/"+organization+"/patterns result size: " + result.size)
+                
+                if (result.nonEmpty)
+                  (StatusCodes.OK, GetPatternsResponse(result.map(e => (e._2 -> new Pattern(e._1))).toMap))
+                else
+                  (StatusCodes.NotFound, GetPatternsResponse())
+            }
+          }
     }
   
   def deploymentPatterns(identity: Identity2): Route =
-    path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns")) {
+    path(("catalog" | "orgs") / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns")) {
       organization =>
         get {
           exchAuth(TPattern(OrgAndId(organization, "*").toString), Access.READ, validIdentity = identity) {

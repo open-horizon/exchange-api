@@ -50,14 +50,14 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestGetAgentConfigMgmt",
-                password     = Option(Password.hash("admin1pw")),
+                password     = Option(Password.fastHash("admin1pw")),
                 username     = "admin1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestGetAgentConfigMgmt",
-                password     = Option(Password.hash("a1pw")),
+                password     = Option(Password.fastHash("u1pw")),
                 username     = "u1"))
   private val TESTNODE: Seq[NodeRow] =
     Seq(NodeRow(id = "TestGetAgentConfigMgmt/n1",

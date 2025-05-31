@@ -65,21 +65,21 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
                 username     = "TestDeleteUserRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORG1ADMINPASSWORD)),
+                password     = Option(Password.fastHash(ORG1ADMINPASSWORD)),
                 username     = "orgAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                password     = Option(Password.fastHash(ORG1USERPASSWORD)),
                 username     = "orgUser"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -93,14 +93,14 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                password     = Option(Password.fastHash(ORG1USERPASSWORD)),
                 username     = "orgUser2"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = true,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
                 username     = "TestDeleteUserRouteHubAdmin2"))
   }
   
@@ -109,7 +109,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
       AgbotRow(
         id = TESTORGS(0).orgId + "/agbot",
         orgid = TESTORGS(0).orgId,
-        token = Password.hash(AGBOTTOKEN),
+        token = Password.fastHash(AGBOTTOKEN),
         name = "",
         owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
@@ -135,7 +135,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
         publicKey          = "",
         regServices        = "",
         softwareVersions   = "",
-        token              = Password.hash(NODETOKEN),
+        token              = Password.fastHash(NODETOKEN),
         userInput          = ""
       )
     )

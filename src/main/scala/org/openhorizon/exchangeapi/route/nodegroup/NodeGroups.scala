@@ -83,10 +83,11 @@ trait NodeGroups extends JacksonSupport with AuthenticationSupport {
           NodeGroupTQ.getAllNodeGroups(organization).sortBy(_.name)
         val nodesQuery: Query[Nodes, NodeRow, Seq] =
           if (identity.isOrgAdmin ||
+              identity.isSuperUser ||
               identity.isAgbot)
             NodesTQ.getAllNodes(organization)
           else
-            NodesTQ.getAllNodes(organization).filter(_.owner === identity.identifier)
+            NodesTQ.getAllNodes(organization).filter(_.owner === identity.identifier.getOrElse(identity.owner.get))
         
         val queries: DBIOAction[(Seq[NodeGroupRow], Seq[NodeGroupAssignmentRow]), NoStream, Effect.Read] =
           for {
@@ -107,7 +108,7 @@ trait NodeGroups extends JacksonSupport with AuthenticationSupport {
                 if (assignmentMap.contains(nodeGroup.group))
                   response += NodeGroupResp(admin = nodeGroup.admin,
                                             description =
-                                              if (!identity.isOrgAdmin && nodeGroup.admin)
+                                              if (!identity.isOrgAdmin && !identity.isSuperUser && nodeGroup.admin)
                                                 ""
                                               else
                                                 nodeGroup.description.getOrElse(""),
@@ -117,7 +118,7 @@ trait NodeGroups extends JacksonSupport with AuthenticationSupport {
                 else
                   response += NodeGroupResp(admin = nodeGroup.admin,
                                             description =
-                                              if (!identity.isOrgAdmin && nodeGroup.admin)
+                                              if (!identity.isOrgAdmin && !identity.isSuperUser && nodeGroup.admin)
                                                 ""
                                               else
                                                 nodeGroup.description.getOrElse(""),

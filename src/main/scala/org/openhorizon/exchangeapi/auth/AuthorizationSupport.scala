@@ -41,6 +41,9 @@ trait AuthorizationSupport {
 
     // Determines if this authenticated identity has the specified access to the specified target
     def authorizeTo(target: Target, access: Access): Try[Identity] = {
+      
+      //logger.debug(s"${target.toString},  ${access.toString},  ${identity.identity2.toString}")
+      
       try {
         identity.role match {
           case  AuthRoles.User |
@@ -50,18 +53,22 @@ trait AuthorizationSupport {
             if (target.getId == "iamapikey" ||
                 target.getId == "iamtoken") {
               // This is a cloud IAM user. Get the actual username before continuing.
-              val authenticatedIdentity: Creds = subject.getPrivateCredentials(classOf[IUser]).asScala.head.creds
-              identity.authorizeTo(TUser(authenticatedIdentity.id), access)
+              //logger.debug("HERE")
+              identity.authorizeTo(TUser(identity.identity2.resource), access)
             }
-            else
+            else {
+              //logger.debug("THERE")
               identity.authorizeTo(target, access)
+            }
           case _ =>
             // This is an exchange node or agbot
+            //logger.debug("SOMEWHERE")
             identity.authorizeTo(target, access)
         }
-      } catch {
+      }
+      catch {
         case _: Exception =>
-          Failure(new AccessDeniedException(identity.accessDeniedMsg(access, target)))
+          Failure(AccessDeniedException(identity.accessDeniedMsg(access, target)))
       }
     }
   }

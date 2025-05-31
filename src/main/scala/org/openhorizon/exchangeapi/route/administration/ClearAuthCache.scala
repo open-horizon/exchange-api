@@ -8,7 +8,9 @@ import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.Parameter
 import jakarta.ws.rs.Path
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Identity2, TAction}
+import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -24,12 +26,15 @@ trait ClearAuthCache extends JacksonSupport with AuthenticationSupport {
   implicit def executionContext: ExecutionContext
   
   
-  // =========== POST /admin/clearAuthCaches ===============================
+  // =========== POST /admin/clearauthcaches ===============================
   def postClearAuthCache(@Parameter(hidden = true) identity: Identity2): Route = {
     logger.debug(s"POST /admin/clearauthcaches  - By ${identity.resource}:${identity.role}")
     complete({ // todo: ensure other client requests are not updating the cache at the same time
     
-      AuthCache.clearAllCaches(includingIbmAuth = true)
+      //AuthCache.clearAllCaches(includingIbmAuth = true)
+      cacheResourceIdentity.removeAll()
+      cacheResourceOwnership.removeAll()
+      
       (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("cache.cleared")))
     })
   }

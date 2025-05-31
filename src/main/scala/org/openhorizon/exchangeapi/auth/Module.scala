@@ -69,7 +69,7 @@ class Module extends LoginModule with AuthorizationSupport {
         if (reqInfo.isDbMigration && !Role.isSuperUser(reqInfo.creds.id))
           throw new IsDbMigrationException()
           
-        identity = IIdentity(reqInfo.creds).authenticate(reqInfo.hint) // authenticate() is in AuthorizationSupport and both authenticates this identity and returns the correct IIdentity subclass (IUser, Inode, or IAgbot)
+        identity = IIdentity(reqInfo.creds, Identity2(None, "", None, "", "")).authenticate(reqInfo.hint) // authenticate() is in AuthorizationSupport and both authenticates this identity and returns the correct IIdentity subclass (IUser, Inode, or IAgbot)
         //}
         true
       }

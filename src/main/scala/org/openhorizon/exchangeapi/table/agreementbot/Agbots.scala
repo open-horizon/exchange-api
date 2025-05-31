@@ -21,4 +21,6 @@ class Agbots(tag: Tag) extends Table[AgbotRow](tag, "agbots") {
   def * = (id, orgid, token, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey).mapTo[AgbotRow]
   def user = foreignKey("user_fk", owner, UsersTQ)(_.user, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def idx_agbot_fk_orgs = index(name = "idx_agbot_fk_orgs", on = orgid, unique = false)
+  def idx_agbot_fk_users = index(name = "idx_agbot_fk_users", on = owner, unique = false)
 }

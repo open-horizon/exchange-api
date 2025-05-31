@@ -59,21 +59,21 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 isOrgAdmin   = true,
                 modifiedAt   = INITIALTIMESTAMP,
                 organization = "TestPostNodeGroup",
-                password     = Option(Password.hash("admin1pw")),
-                username     = "admin1"),
-        UserRow(createdAt    = INITIALTIMESTAMP,
-                isHubAdmin   = false,
-                isOrgAdmin   = true,
-                modifiedAt   = INITIALTIMESTAMP,
-                organization = "TestPostNodeGroup",
-                password     = Option(Password.hash("admin1pw")),
+                password     = Option(Password.fastHash("admin1pw")),
                 username     = "admin1"),
         UserRow(createdAt    = INITIALTIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = INITIALTIMESTAMP,
                 organization = "TestPostNodeGroup",
-                password     = Option(Password.hash("a1pw")),
+                password     = Option(Password.hash("u1pw")),
+                username     = "u1"),
+        UserRow(createdAt    = INITIALTIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = INITIALTIMESTAMP,
+                organization = "TestPostNodeGroup",
+                password     = Option(Password.hash("u2pw")),
                 username     = "u2"))
   }
   private val TESTAGBOTS: Seq[AgbotRow] =
@@ -81,11 +81,10 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                  orgid         = "TestPostNodeGroup",
                  token         = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i",
                  name          = "",
-                 owner         = UUID.randomUUID(), //org 1 user
+                 owner         = TESTUSERS(1).user, //org 1 user
                  msgEndPoint   = "",
                  lastHeartbeat = INITIALTIMESTAMPSTRING,
                  publicKey     = ""))
-
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch               = "",
                 id                 = TESTORGS.head.orgId + "/node0",
@@ -224,19 +223,19 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
-                                       (UsersTQ ++= TESTUSERS) andThen
-                                       (AgbotsTQ ++= TESTAGBOTS) andThen
-                                       (NodesTQ ++= TESTNODES)), AWAITDURATION)
+                                 (UsersTQ ++= TESTUSERS) andThen
+                                 (AgbotsTQ ++= TESTAGBOTS) andThen
+                                 (NodesTQ ++= TESTNODES)), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeGroup").delete andThen
-                                       OrgsTQ.filter(_.orgid startsWith "TestPostNodeGroup").delete), AWAITDURATION)
+                                 OrgsTQ.filter(_.orgid startsWith "TestPostNodeGroup").delete), AWAITDURATION)
   }
   
   override def afterEach(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeGroup").delete andThen
-                                       NodeGroupTQ.filter(_.organization startsWith "TestPostNodeGroup").delete), AWAITDURATION)
+                                 NodeGroupTQ.filter(_.organization startsWith "TestPostNodeGroup").delete), AWAITDURATION)
   }
   
   test("POST /orgs/" + "somerandomorg" + ROUTE + "test  -- 404 Not Found - bad organization - root") {

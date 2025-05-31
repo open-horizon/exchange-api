@@ -11,15 +11,20 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TPattern}
 import org.openhorizon.exchangeapi.route.deploymentpattern.PutPatternKeyRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/patterns/{pattern}/keys/{keyid}")
@@ -194,16 +199,29 @@ trait Key extends JacksonSupport with AuthenticationSupport {
        deploymentPattern,
        key) =>
         val resource: String = OrgAndId(organization, deploymentPattern).toString
+        val resource_type: String = "deployment_pattern"
+        
+        val (owner: Option[UUID], public: Boolean) =
+          try {
+            val result: (UUID, Boolean) = Await.result(cacheResourceOwnership.cachingF(organization, deploymentPattern, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            }, 15.seconds)
+            
+            (Option(result._1), result._2)
+          }
+          catch {
+            case _: Throwable => (None, false)
+          }
         
         (delete | put) {
-          exchAuth(TPattern(resource), Access.WRITE, validIdentity = identity) {
+          exchAuth(TPattern(resource, owner, public), Access.WRITE, validIdentity = identity) {
             _ =>
               deleteKeyDeploymentPattern(deploymentPattern, identity, key, organization, resource) ~
               putKeyDeploymentPattern(deploymentPattern, identity, key, organization, resource)
           }
         } ~
         get {
-          exchAuth(TPattern(resource),Access.READ, validIdentity = identity) {
+          exchAuth(TPattern(resource, owner, public),Access.READ, validIdentity = identity) {
             _ =>
               getKeyDeploymentPattern(deploymentPattern, identity, key, organization, resource)
           }

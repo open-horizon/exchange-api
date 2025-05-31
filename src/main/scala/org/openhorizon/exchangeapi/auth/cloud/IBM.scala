@@ -1,5 +1,7 @@
 package org.openhorizon.exchangeapi.auth.cloud
 
+import com.github.benmanes.caffeine
+import com.github.benmanes.caffeine.cache.Caffeine
 import com.google.common.cache
 import com.google.common.cache.CacheBuilder
 import org.apache.pekko.event.LoggingAdapter
@@ -12,7 +14,7 @@ import org.openhorizon.exchangeapi.table.user
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, ExchMsg, HttpCode}
 import scalacache._
-import scalacache.guava.GuavaCache
+import scalacache.caffeine.CaffeineCache
 import scalacache.modes.try_._
 import scalaj.http._
 
@@ -164,11 +166,11 @@ object IbmCloudAuth {
 
   def logger: LoggingAdapter = ExchangeApi.defaultLogger
 
-  private val guavaCache: cache.Cache[String, Entry[String]] = CacheBuilder.newBuilder()
+  private val guavaCache: caffeine.cache.Cache[String, Entry[String]] = Caffeine.newBuilder()
                                                                            .maximumSize(Configuration.getConfig.getInt("api.cache.IAMusersMaxSize"))
                                                                            .expireAfterWrite(Configuration.getConfig.getInt("api.cache.IAMusersTtlSeconds"), TimeUnit.SECONDS)
                                                                            .build[String, Entry[String]] // the cache key is <org>/<keytype>:<apikey> (where keytype is iamapikey or iamtoken), and the value is <org>/<username>
-  implicit val userCache: GuavaCache[String] = GuavaCache(guavaCache) // the effect of this is that these methods don't need to be qualified
+  implicit val userCache: CaffeineCache[String] = CaffeineCache(guavaCache) // the effect of this is that these methods don't need to be qualified
 
   // Called by ExchangeApiApp after db is established and upgraded
   def init(db: Database): Unit = {

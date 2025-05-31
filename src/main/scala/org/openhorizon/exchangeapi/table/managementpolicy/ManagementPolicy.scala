@@ -1,21 +1,33 @@
 package org.openhorizon.exchangeapi.table.managementpolicy
 
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization.read
 import org.openhorizon.exchangeapi.table.service.OneProperty
 
 
-class ManagementPolicy(var agentUpgradePolicy: AgentUpgradePolicy,
-                       var constraints: List[String],
-                       var created: String,
-                       var description: String,
-                       var enabled: Boolean,
-                       var label: String,
-                       var lastUpdated: String,
-                       var owner: String,
-                       var patterns: List[String],
-                       var properties: List[OneProperty],
-                       var start: String = "now",
-                       var startWindow: Long = 0) {
-  override def clone = new ManagementPolicy(agentUpgradePolicy.clone(), constraints, created, description, enabled, label, lastUpdated, owner, patterns, properties, start, startWindow)
-  
-  def copy: ManagementPolicy = clone()
+case class ManagementPolicy(agentUpgradePolicy: AgentUpgradePolicy = AgentUpgradePolicy(allowDowngrade = false, manifest = ""),
+                            constraints: List[String] = List.empty[String],
+                            created: String = "",
+                            description: String = "",
+                            enabled: Boolean = false,
+                            label: String = "",
+                            lastUpdated: String,
+                            owner: String,
+                            patterns: List[String] = List.empty[String],
+                            properties: List[OneProperty] = List.empty[OneProperty],
+                            start: String = "now",
+                            startWindow: Long = 0L) {
+  def this (tuple: (Boolean, String, String, String, Boolean, String, String, String, String, String, String, String, Long))(implicit format: Formats) =
+    this(agentUpgradePolicy = AgentUpgradePolicy(allowDowngrade = tuple._1, manifest = tuple._8),
+         constraints = if (tuple._2 != "") read[List[String]](tuple._2) else List[String](),
+         created = tuple._3,
+         description = tuple._4,
+         enabled = tuple._5,
+         label = tuple._6,
+         lastUpdated = tuple._7,
+         owner = tuple._9,
+         patterns = if (tuple._10 != "") read[List[String]](tuple._10) else List[String](),
+         properties = if (tuple._11 != "") read[List[OneProperty]](tuple._11) else List[OneProperty](),
+         start = tuple._12,
+         startWindow = tuple._13)
 }

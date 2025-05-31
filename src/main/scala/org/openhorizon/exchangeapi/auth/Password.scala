@@ -15,9 +15,11 @@ object Password {
    * Note: since BCrypt.hashpw() uses a different salt each time, 2 hashes of the same pw will be different. So it is not valid to hash the
    *     clear pw specified by the user and compare it to the already-hashed pw in the db. You must use BCrypt.checkpw() instead.
    */
-  def hash(password: String): String = { BCrypt.hashpw(password, BCrypt.gensalt(defaultLogRounds)) }
+  def hash(password: String): String =
+    BCrypt.hashpw(password, BCrypt.gensalt(defaultLogRounds))
 
-  def fastHash(password: String): String = { BCrypt.hashpw(password, BCrypt.gensalt(minimumLogRounds)) }
+  def fastHash(password: String): String =
+    BCrypt.hashpw(password, BCrypt.gensalt(minimumLogRounds))
 
   /** Returns true if plainPw matches hashedPw */
   def check(plainPw: String, hashedPw: String): Boolean = {

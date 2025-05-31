@@ -22,7 +22,7 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.ExecutionContext
 
 
-
+/*
 @Path("/v1/catalog/{organization}/patterns")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "catalog")
 trait OrganizationDeploymentPatterns extends JacksonSupport with AuthenticationSupport {
@@ -176,4 +176,4 @@ trait OrganizationDeploymentPatterns extends JacksonSupport with AuthenticationS
           }
         }
     }
-}
+}*/

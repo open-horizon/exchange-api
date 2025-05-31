@@ -57,14 +57,14 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestPutAgentConfigMgmt",
-                password     = Option(Password.hash("admin1pw")),
+                password     = Option(Password.fastHash("admin1pw")),
                 username     = "admin1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestPutAgentConfigMgmt",
-                password     = Option(Password.hash("a1pw")),
+                password     = Option(Password.fastHash("u1pw")),
                 username     = "u1"))
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id = "TestPutAgentConfigMgmt/a1",
@@ -194,7 +194,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                   isOrgAdmin   = false,
                   modifiedAt   = TIMESTAMP,
                   organization = "IBM",
-                  password     = Option(Password.hash("TestPutAgentConfigMgmt-u1pw")),
+                  password     = Option(Password.fastHash("TestPutAgentConfigMgmt-u1pw")),
                   username     = "TestPutAgentConfigMgmt-u1"))
     }
     
@@ -422,7 +422,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                   isOrgAdmin   = true,
                   modifiedAt   = TIMESTAMP,
                   organization = "IBM",
-                  password     = Option(Password.hash("TestPutAgentConfigMgmt-admin1pw")),
+                  password     = Option(Password.fastHash("TestPutAgentConfigMgmt-admin1pw")),
                   username     = "TestPutAgentConfigMgmt-admin1"))
     }
     

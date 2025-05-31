@@ -74,21 +74,21 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
                 username     = "TestPatchUserRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORG1ADMINPASSWORD)),
+                password     = Option(Password.fastHash(ORG1ADMINPASSWORD)),
                 username     = "orgAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                password     = Option(Password.fastHash(ORG1USERPASSWORD)),
                 username     = "orgUser"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -102,7 +102,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                password     = Option(Password.fastHash(ORG1USERPASSWORD)),
                 username     = "orgUser2"))
   }
   
@@ -111,7 +111,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
       AgbotRow(
         id = TESTORGS(0).orgId + "/agbot",
         orgid = TESTORGS(0).orgId,
-        token = Password.hash(AGBOTTOKEN),
+        token = Password.fastHash(AGBOTTOKEN),
         name = "",
         owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
@@ -137,7 +137,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
         publicKey          = "",
         regServices        = "",
         softwareVersions   = "",
-        token              = Password.hash(NODETOKEN),
+        token              = Password.fastHash(NODETOKEN),
         userInput          = ""
       )
     )
@@ -174,6 +174,10 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
        UsersTQ.filter(_.user === TESTUSERS(2).user).update(TESTUSERS(2)) andThen
        UsersTQ.filter(_.user === TESTUSERS(4).user).update(TESTUSERS(4))).transactionally
     ), AWAITDURATION)
+    
+    val response: HttpResponse[String] = Http(sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
   }
 
   def assertNoChanges(user: UserRow): Unit = {

@@ -69,9 +69,9 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
                 isHubAdmin   = true,
                 isOrgAdmin   = false,
                 modifiedAt   = INITIALTIMESTAMP,
-                organization = TESTORGS.head.orgId,
-                password     = Option(Password.hash(HUBADMINPASSWORD)),
-                username     = "hubAdmin"),
+                organization = "root",
+                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
+                username     = "TestPutNodeGroupHubAdmin"),
         UserRow(createdAt    = INITIALTIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = true,
@@ -260,7 +260,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
                      organization = TESTORGS(1).orgId))
   
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.head.username + ":" + HUBADMINPASSWORD))
+  private val HUBADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.head.organization + "/" + TESTUSERS.head.username + ":" + HUBADMINPASSWORD))
   private val ORGADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORGADMINPASSWORD))
   private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + USERPASSWORD))
   private val NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES.head.id + ":" + NODETOKEN))
@@ -276,7 +276,8 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
   
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPutNodeGroupRoute").delete andThen
-                                       OrgsTQ.filter(_.orgid startsWith "TestPutNodeGroupRoute").delete), AWAITDURATION)
+                                 OrgsTQ.filter(_.orgid startsWith "TestPutNodeGroupRoute").delete andThen
+                                 UsersTQ.filter(users => users.user === TESTUSERS.head.user).delete), AWAITDURATION)
   }
   
   override def afterEach(): Unit = {

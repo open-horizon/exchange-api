@@ -143,7 +143,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 2)
     
     assert(managementPolicies.contains("TestMgmtPolsGet/pol1"))
@@ -157,7 +157,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     assert(managementPolicies("TestMgmtPolsGet/pol1").enabled                           === TESTMANAGEMENTPOLICES(0).enabled)
     assert(managementPolicies("TestMgmtPolsGet/pol1").label                             === TESTMANAGEMENTPOLICES(0).label)
     assert(managementPolicies("TestMgmtPolsGet/pol1").lastUpdated                       === TESTMANAGEMENTPOLICES(0).lastUpdated)
-    assert(managementPolicies("TestMgmtPolsGet/pol1").owner                             === TESTMANAGEMENTPOLICES(0).owner)
+    assert(managementPolicies("TestMgmtPolsGet/pol1").owner                             === TESTUSERS(0).organization + "/" + TESTUSERS(0).username)
     assert(managementPolicies("TestMgmtPolsGet/pol1").patterns.length                   === 2)
     assert(managementPolicies("TestMgmtPolsGet/pol1").patterns(0)                       === "p1")
     assert(managementPolicies("TestMgmtPolsGet/pol1").patterns(1)                       === "p2")
@@ -190,7 +190,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 1)
     
     assert(managementPolicies.contains("TestMgmtPolsGet/pol1"))
@@ -203,7 +203,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 1)
     
     assert(managementPolicies.contains("TestMgmtPolsGet/pol2"))
@@ -217,7 +217,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 1)
     
     assert(managementPolicies.contains("TestMgmtPolsGet/pol1"))
@@ -230,7 +230,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 1)
     
     assert(managementPolicies.contains("TestMgmtPolsGet/pol1"))
@@ -244,7 +244,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 1)
     
     assert(managementPolicies.contains("TestMgmtPolsGet/pol1"))
@@ -257,7 +257,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 1)
     
     assert(managementPolicies.contains("TestMgmtPolsGet/pol2"))
@@ -271,7 +271,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 1)
     
     assert(managementPolicies.contains("TestMgmtPolsGet/pol2"))
@@ -284,7 +284,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 2)
     
     assert(managementPolicies.contains("TestMgmtPolsGet/pol1"))
@@ -299,7 +299,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 1)
     
     assert(managementPolicies.contains("TestMgmtPolsGet/pol2"))
@@ -312,7 +312,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
     
     assert(response.code === HttpCode.OK.intValue)
     
-    val managementPolicies: Map[String, ManagementPolicy] = JsonMethods.parse(response.body).extract[GetManagementPoliciesResponse].managementPolicy
+    val managementPolicies: Map[String, TestManagementPolicy] = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse].managementPolicy
     assert(managementPolicies.size === 1)
     
     assert(managementPolicies.contains("TestMgmtPolsGet2/pol1"))

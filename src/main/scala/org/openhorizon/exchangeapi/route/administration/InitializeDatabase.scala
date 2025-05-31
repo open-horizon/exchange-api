@@ -58,7 +58,7 @@ trait InitializeDatabase extends JacksonSupport with AuthenticationSupport{
   def initializeDB(identity: Identity2): Route =
     path("admin" / "initdb") {
       post {
-        AuthCache.createRootInCache() // need to do this before authenticating, because dropdb cleared it out (can not do this in dropdb, because it might expire)
+        // TODO: AuthCache.createRootInCache() // need to do this before authenticating, because dropdb cleared it out (can not do this in dropdb, because it might expire)
         exchAuth(TAction(), Access.ADMIN, hint = "token", validIdentity = identity) {
           _ =>
             postInitializeDB(identity)

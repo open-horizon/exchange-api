@@ -1,6 +1,7 @@
 package org.openhorizon.exchangeapi.auth
 
 import org.apache.pekko.event.LoggingAdapter
+import org.openhorizon.exchangeapi.ExchangeApiApp.logger
 import org.openhorizon.exchangeapi.auth.Access.Access
 import org.openhorizon.exchangeapi.utility.ExchMsg
 
@@ -17,6 +18,32 @@ case class Identity2(identifier: Option[UUID] = None,  // Only used by Users cur
                      owner: Option[UUID] = None,       // Used by Agbots and Nodes.
                      role: String,
                      username: String) {
+  /**
+   * This is a custom constructor for building Resource Identities from records retrieved from the database
+   * for Authentication.
+   *
+   * @param organization This Resource's Organization.
+   * @param tuple A tuple of Identity metadata from the database. (UsersTQ.isHubAdmin, UsersTQ.user, UsersTQ.isOrgAdmin, [AgbotsTQ.owner/NodesTQ.owner], Enumerator(0:Node, 1:Agbot, 2:User))
+   * @param username This Resource's username.
+   */
+  def this(organization: String,
+           tuple: (Boolean, Option[UUID], Boolean, Option[UUID], Int),
+           username: String) =
+    this(identifier = tuple._2,
+         organization = organization,
+         owner = tuple._4,
+         role =
+           (tuple._1, tuple._3, tuple._5) match {
+             case (_, _, 0) => AuthRoles.Node
+             case (_, _, 1) => AuthRoles.Agbot
+             case (true, true, 2) => AuthRoles.SuperUser
+             case (true, false, 2) => AuthRoles.HubAdmin
+             case (false, true, 2) => AuthRoles.AdminUser
+             case (false, false, 2) => AuthRoles.User
+             case _ => AuthRoles.Anonymous
+           },
+         username = username)
+  
   /**
     * If resource identity is an Agreement Bot, then true. Otherwise, false.
     * Multi-tenant Agreement Bots also return true.
@@ -99,10 +126,11 @@ case class Identity2(identifier: Option[UUID] = None,  // Only used by Users cur
 /** This class and its subclasses represent the identity that is used as credentials to run rest api methods */
 abstract class Identity {
   def creds: Creds
+  def identity2: Identity2
   def role: String = ""   // set in the subclasses to a role defined in Role
-  def toIUser: IUser = IUser(creds, Identity2(identifier = None, organization = getOrg, owner = None, role = AuthRoles.User, username = getIdentity))
-  def toINode: INode = INode(creds, Identity2(identifier = None, organization = getOrg, owner = None, role = AuthRoles.Node, username = getIdentity))
-  def toIAgbot: IAgbot = IAgbot(creds, Identity2(identifier = None, organization = getOrg, owner = None, role = AuthRoles.Agbot, username = getIdentity))
+  def toIUser: IUser = IUser(creds, Identity2(identifier = identity2.identifier, organization = getOrg, owner = identity2.owner, role = identity2.role, username = getIdentity))
+  def toINode: INode = INode(creds, Identity2(identifier = identity2.identifier, organization = getOrg, owner = identity2.owner, role = AuthRoles.Node, username = getIdentity))
+  def toIAgbot: IAgbot = IAgbot(creds, Identity2(identifier = identity2.identifier, organization = getOrg, owner = identity2.owner, role = AuthRoles.Agbot, username = getIdentity))
   def isSuperUser = false       // IUser overrides this
   def isAdmin = false
   def isOrgAdmin = false       // IUser overrides this
@@ -116,10 +144,11 @@ abstract class Identity {
 /** Returns true if the token is correct for this user and not expired */
 def isTokenValid(token: String, username: String): Boolean = {
   // Get their current hashed pw to use as the secret
-  AuthCache.getUser(username) match {
-    case Some(userHashedTok) => Token.isValid(token, userHashedTok)
-    case None => throw new InvalidCredentialsException(ExchMsg.translate("invalid.credentials"))
-  }
+  //AuthCache.getUser(username) match {
+  //  case Some(userHashedTok) => Token.isValid(token, userHashedTok)
+  //  case None => throw new InvalidCredentialsException(ExchMsg.translate("invalid.credentials"))
+  //}
+  false
 }
 
   // Called by auth/Module.login() to authenticate a local user/node/agbot
@@ -132,16 +161,17 @@ def isTokenValid(token: String, username: String): Boolean = {
       //else throw new InvalidCredentialsException("invalid token")  <- hint==token means it *could* be a token, not that it *must* be
     }
     
-    AuthCache.ids.getValidType(creds) match {
-      case Success(cacheIdType) =>
-        cacheIdType match {
-          case CacheIdType.User => toIUser
-          case CacheIdType.Node => toINode
-          case CacheIdType.Agbot => toIAgbot
-          case CacheIdType.None => throw new InvalidCredentialsException() // will be caught by AuthenticationSupport.authenticate()
-        }
-      case Failure(t) => throw t  // this is usually 1 of our exceptions - will be caught by AuthenticationSupport.authenticate()
-    }
+   // AuthCache.ids.getValidType(creds) match {
+   //   case Success(cacheIdType) =>
+   //     cacheIdType match {
+   //       case CacheIdType.User => toIUser
+   //       case CacheIdType.Node => toINode
+   //       case CacheIdType.Agbot => toIAgbot
+   //       case CacheIdType.None => throw new InvalidCredentialsException() // will be caught by AuthenticationSupport.authenticate()
+   //     }
+   //   case Failure(t) => throw t  // this is usually 1 of our exceptions - will be caught by AuthenticationSupport.authenticate()
+   // }
+    IIdentity(creds = Creds("", ""), identity = Identity2(identifier = None, organization = "???", owner = None, role = "???", username = "???"))
   }
 
   def authorizeTo(target: Target, access: Access)(implicit logger: LoggingAdapter): Try[Identity]

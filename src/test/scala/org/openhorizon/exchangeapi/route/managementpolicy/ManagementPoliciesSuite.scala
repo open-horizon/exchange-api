@@ -1,12 +1,12 @@
 package org.openhorizon.exchangeapi.route.managementpolicy
 
-import org.json4s.jackson.JsonMethods.parse
+import org.json4s.native.JsonMethods
 import org.json4s.native.Serialization.write
-import org.json4s.{DefaultFormats, jvalue2extractable}
+import org.json4s.{DefaultFormats, Formats, jvalue2extractable}
 import org.junit.runner.RunWith
 import org.openhorizon.exchangeapi.route.organization.{ChangeEntry, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
-import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPolicy
+import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPolicy => MgmtPol}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.service.OneProperty
@@ -62,11 +62,13 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   val orgsList = new ListBuffer[String]()
   private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
 
-  implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
+  implicit val formats: Formats = DefaultFormats.withLong // Brings in default date formats etc.
   
   private val AWAITDURATION: Duration = 15.seconds
   
   val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
+  val rootUser: UUID = Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === "root" && users.username === "root").map(_.user).result.head), AWAITDURATION)
   
   private val TESTORGANIZATION: OrgRow =
     OrgRow(heartbeatIntervals = "",
@@ -86,7 +88,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "MgmtPolSuite").delete andThen
-                                       OrgsTQ.filter(_.orgid startsWith "MgmtPolSuite").delete), AWAITDURATION)
+                                 OrgsTQ.filter(_.orgid startsWith "MgmtPolSuite").delete), AWAITDURATION)
   }
   
   // Nodes that are dynamically needed, specific to the test case.
@@ -132,7 +134,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    val respObj: ApiResponse = parse(response.body).extract[ApiResponse]
+    val respObj: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("management policy '"+orgManagementPolicy+"' created"))
   }
   
@@ -157,7 +159,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
 
-    val respObj: ApiResponse = parse(response.body).extract[ApiResponse]
+    val respObj: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("management policy updated"))
   }
   
@@ -165,17 +167,17 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   
   test("GET /orgs/"+orgid+"/managementpolicies") {
     val response: HttpResponse[String] = Http(URL+"/managementpolicies").headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
+    info("code: " + response.code)
+    info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj: GetManagementPoliciesResponse = parse(response.body).extract[GetManagementPoliciesResponse]
+    val respObj: TestGetManagementPoliciesResponse = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse]
     assert(respObj.managementPolicy.size === 1)
 
     assert(respObj.managementPolicy.contains(orgManagementPolicy))
-    var mp: ManagementPolicy = respObj.managementPolicy(orgManagementPolicy)
+    var mp: TestManagementPolicy = respObj.managementPolicy(orgManagementPolicy)
     assert(mp.label === managementPolicy)
     assert(mp.description === "desc")
-    assert(mp.owner === rootuser)
+    assert(mp.owner === "root/root")
     assert(mp.properties.head.name === "purpose")
     assert(mp.properties.head.value === "location2")
     assert(mp.constraints.head === "a == c")
@@ -186,14 +188,14 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj: GetManagementPoliciesResponse = parse(response.body).extract[GetManagementPoliciesResponse]
+    val respObj: TestGetManagementPoliciesResponse = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse]
     assert(respObj.managementPolicy.size === 1)
 
     assert(respObj.managementPolicy.contains(orgManagementPolicy))
-    var mp: ManagementPolicy = respObj.managementPolicy(orgManagementPolicy)
+    var mp: TestManagementPolicy = respObj.managementPolicy(orgManagementPolicy)
     assert(mp.label === managementPolicy)
     assert(mp.description === "desc")
-    assert(mp.owner === rootuser)
+    assert(mp.owner === "root/root")
     assert(mp.properties.head.name === "purpose")
     assert(mp.properties.head.value === "location2")
     assert(mp.constraints.head === "a == c")
@@ -201,8 +203,6 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   
   // Nodes should be able to see changes to Node Management Policies
   test("GET /orgs/" + orgid + "/changes - As a node") {
-    val rootUser: UUID = Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === "root" && users.username === "root").map(_.user).result.head), AWAITDURATION)
-    
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "MgmtPolSuite/n1",
                   orgid = "MgmtPolSuite",
@@ -229,7 +229,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
         info("code: " + response.code)
         info("body: " + response.body)
         
-        val change: ChangeEntry = parse(response.body).extract[ResourceChangesRespObject].changes.filter(c => c.resource === "mgmtpolicy" && c.orgId === "MgmtPolSuite").head
+        val change: ChangeEntry = JsonMethods.parse(response.body).extract[ResourceChangesRespObject].changes.filter(c => c.resource === "mgmtpolicy" && c.orgId === "MgmtPolSuite").head
         
         assert(change.resourceChanges.nonEmpty)
       }, TESTNODE)

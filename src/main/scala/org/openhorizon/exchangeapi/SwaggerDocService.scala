@@ -10,8 +10,7 @@ import org.openhorizon.exchangeapi.route.administration.{DropDatabase, Initializ
 import io.swagger.v3.oas.models.ExternalDocumentation
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
-import org.openhorizon.exchangeapi.route.agreement.Confirm
-import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements}
+import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements, Confirm}
 import org.openhorizon.exchangeapi.route.agreementbot.message.{Message, Messages}
 import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat}
 //import org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns
@@ -50,7 +49,7 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[org.openhorizon.exchangeapi.route.administration.Status],
         classOf[org.openhorizon.exchangeapi.route.administration.Version],
         classOf[org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement],
-        classOf[org.openhorizon.exchangeapi.route.agreement.Confirm],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.agreement.Confirm],
         classOf[Agreement],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.AgreementBot],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.AgreementBots],

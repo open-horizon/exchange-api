@@ -31,7 +31,7 @@ import slick.jdbc.PostgresProfile.api._
 import java.util.UUID
 import scala.collection.immutable._
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util._
 import scala.util.control.Breaks._
 
@@ -754,35 +754,36 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       (organization, deploymentPolicy) =>
         val resource: String = OrgAndId(organization, deploymentPolicy).toString
         val resource_type: String = "deployment_policy"
-        
-        val i: Option[UUID] =
-          try
-            Option(Await.result(cacheResourceOwnership.cachingF(organization, deploymentPolicy, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)._1)
-          catch {
-            case _: Throwable => None
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, deploymentPolicy, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
           }
         
-        (delete | patch | put) {
-          exchAuth(TBusiness(resource, i), Access.WRITE, validIdentity = identity) {
-            _ =>
-              deleteDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
-                patchDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
-                putDeploymentPolicy(deploymentPolicy, identity, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          (delete | patch | put) {
+            exchAuth(TBusiness(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
+                  patchDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
+                  putDeploymentPolicy(deploymentPolicy, identity, organization, resource)
+            }
+          } ~
+          get {
+            exchAuth(TBusiness(resource, owningResourceIdentity), Access.READ, validIdentity = identity) {
+              _ =>
+                getDeploymentPolicy(deploymentPolicy, identity, organization, resource)
+            }
+          } ~
+          post {
+            exchAuth(TBusiness(resource, owningResourceIdentity), Access.CREATE, validIdentity = identity) {
+              _ =>
+                postDeploymentPolicy(deploymentPolicy, identity, organization, resource)
+            }
           }
-        } ~
-        get {
-          exchAuth(TBusiness(resource, i), Access.READ, validIdentity = identity) {
-            _ =>
-              getDeploymentPolicy(deploymentPolicy, identity, organization, resource)
-          }
-        } ~
-        post {
-          exchAuth(TBusiness(resource, i), Access.CREATE, validIdentity = identity) {
-            _ =>
-              postDeploymentPolicy(deploymentPolicy, identity, organization, resource)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

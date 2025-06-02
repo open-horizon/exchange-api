@@ -27,7 +27,7 @@ import slick.lifted.MappedProjection
 import java.lang.IllegalStateException
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import scala.util.control.Breaks.{break, breakable}
 
@@ -704,32 +704,30 @@ trait Service extends JacksonSupport with AuthenticationSupport {
       (organization, service) =>
         val resource: String = OrgAndId(organization, service).toString
         val resource_type: String = "service"
-        
-        val (owner: Option[UUID], public: Boolean) =
-          try {
-            val result: (UUID, Boolean) = Await.result(cacheResourceOwnership.cachingF(organization, service, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)
-            
-            (Option(result._1), result._2)
-          }
-          catch {
-            case _: Throwable => (None, false)
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, service, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
           }
         
-        (delete | patch | put) {
-          exchAuth(TService(resource, owner, public), Access.WRITE, validIdentity = identity) {
-            _ =>
-              deleteService(identity, organization, resource, service) ~
-              patchService(identity, organization, resource, service) ~
-              putService(identity, organization, resource, service)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None, public: Boolean = false): Route =
+          (delete | patch | put) {
+            exchAuth(TService(resource, owningResourceIdentity, public), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteService(identity, organization, resource, service) ~
+                patchService(identity, organization, resource, service) ~
+                putService(identity, organization, resource, service)
+            }
+          } ~
+          get {
+            exchAuth(TService(resource, owningResourceIdentity, public), Access.READ, validIdentity = identity) {
+              _ =>
+                getService(identity, organization, resource, service)
+            }
           }
-        } ~
-        get {
-          exchAuth(TService(resource, owner, public), Access.READ, validIdentity = identity) {
-            _ =>
-              getService(identity, organization, resource, service)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, public)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity), public = public)
         }
     }
 }

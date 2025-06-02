@@ -77,7 +77,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
                 username     = "TestGetAllNodeGroupsRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,

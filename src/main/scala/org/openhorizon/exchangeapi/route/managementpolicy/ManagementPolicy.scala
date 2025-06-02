@@ -24,7 +24,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 
@@ -492,34 +492,35 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
       (organization, managementPolicy) =>
         val resource: String = OrgAndId(organization, managementPolicy).toString
         val resource_type: String = "management_policy"
-        
-        val i: Option[UUID] =
-          try
-            Option(Await.result(cacheResourceOwnership.cachingF(organization, managementPolicy, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)._1)
-          catch {
-            case _: Throwable => None
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, managementPolicy, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
           }
         
-        (delete | put) {
-          exchAuth(TManagementPolicy(resource, i), Access.WRITE, validIdentity = identity) {
-            _ =>
-              deleteManagementPolicy(identity, managementPolicy, organization, resource) ~
-              putManagementPolicy(identity, managementPolicy, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          (delete | put) {
+            exchAuth(TManagementPolicy(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteManagementPolicy(identity, managementPolicy, organization, resource) ~
+                putManagementPolicy(identity, managementPolicy, organization, resource)
+            }
+          } ~
+          get {
+            exchAuth(TManagementPolicy(resource, owningResourceIdentity), Access.READ, validIdentity = identity) {
+              _ =>
+                getManagementPolicy(identity, managementPolicy, organization, resource)
+            }
+          } ~
+          post {
+            exchAuth(TManagementPolicy(resource, owningResourceIdentity), Access.CREATE, validIdentity = identity) {
+              _ =>
+                postManagementPolicy(identity, managementPolicy, organization, resource)
+            }
           }
-        } ~
-        get {
-          exchAuth(TManagementPolicy(resource, i), Access.READ, validIdentity = identity) {
-            _ =>
-              getManagementPolicy(identity, managementPolicy, organization, resource)
-          }
-        } ~
-        post {
-          exchAuth(TManagementPolicy(resource, i), Access.CREATE, validIdentity = identity) {
-            _ =>
-              postManagementPolicy(identity, managementPolicy, organization, resource)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

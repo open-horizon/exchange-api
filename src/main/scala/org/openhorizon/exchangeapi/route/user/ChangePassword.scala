@@ -17,7 +17,7 @@ import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.concurrent.duration.DurationInt
 import scala.util.{Failure, Success}
 import scalacache.modes.scalaFuture._
@@ -95,10 +95,9 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
                          @Parameter(hidden = true) username: String): Route =
     entity(as[ChangePwRequest]) {
       reqBody =>
-        logger.debug(s"POST /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
+        Future { logger.debug(s"POST /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}") }
         
         validateWithMsg(reqBody.getAnyProblem) {
-          
           val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
           
           val action =
@@ -116,16 +115,21 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
                                        user.password)))
                                 .update(timestamp,
                                         identity.identifier,
-                                        Option(Password.fastHash(reqBody.newPassword))) // Grab this last second.
-              } yield(numUsersModified)
+                                        Option(Password.hash(reqBody.newPassword))) // Grab this last second.
+              } yield numUsersModified
           
-          complete({
-            db.run(action.transactionally.asTry).map({
-              case Success(n) =>
-                logger.debug("POST /orgs/" + organization + "/users/" + username + "/changepw result: " + n)
-                if (n.asInstanceOf[Int] > 0) {
-                 // cacheResourceIdentity.put(resource)(value = (identity, Password.hash(reqBody.newPassword)),
-                 //                                     ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+          complete {
+            db.run(action.transactionally.asTry).map {
+              case Success(numUsersModified) =>
+                Future { logger.debug("POST /orgs/" + organization + "/users/" + username + "/changepw result: " + numUsersModified)
+                }
+                if (0 < numUsersModified) {
+                  Future {
+                    if (resource == identity.resource)
+                      cacheResourceIdentity.put(resource)(value = (identity, Password.hash(reqBody.newPassword)), ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                    else
+                      cacheResourceIdentity.remove(resource)
+                  }
                   
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("password.updated.successfully")))
                 }
@@ -135,8 +139,8 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
                 ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.password.not.updated", resource, t.toString))
               case Failure(t) =>
                 (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.password.not.updated", resource, t.toString)))
-            })
-          })
+            }
+          }
         }
     }
   
@@ -144,22 +148,23 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
     path("orgs" / Segment / "users" / Segment / "changepw") {
       (organization, username) =>
         val resource: String = OrgAndId(organization, username).toString
-        val resource_type = "user"
-        var i: Option[UUID] = None
-        try {
-          i = Option(Await.result(cacheResourceOwnership.cachingF(organization, username, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+        val resource_type: String = "user"
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, username, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
             ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-          }, 15.seconds)._1)
-        }
-        catch {
-          case t: Throwable => i = None
-        }
-        
-        post {
-          exchAuth(TUser(resource, i), Access.WRITE, validIdentity = identity) {
-            _ =>
-              postChangePassword(identity, organization, resource, username)
           }
+        
+        def routeMethods(resource_identity: Option[UUID]): Route =
+          post {
+            exchAuth(TUser(resource, resource_identity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                postChangePassword(identity, organization, resource, username)
+            }
+          }
+          
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods(resource_identity = None)
+          case Success((resource_identity, _)) => routeMethods(resource_identity = Option(resource_identity))
         }
     }
 }

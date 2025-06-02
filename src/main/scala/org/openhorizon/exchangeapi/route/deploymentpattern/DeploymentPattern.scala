@@ -26,7 +26,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.Breaks.{break, breakable}
 import scala.util.{Failure, Success}
 
@@ -914,38 +914,36 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
        deploymentPattern) =>
         val resource: String = OrgAndId(organization, deploymentPattern).toString
         val resource_type: String = "deployment_pattern"
-        
-        val (owner: Option[UUID], public: Boolean) =
-          try {
-            val result: (UUID, Boolean) = Await.result(cacheResourceOwnership.cachingF(organization, deploymentPattern, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)
-            
-            (Option(result._1), result._2)
-          }
-          catch {
-            case _: Throwable => (None, false)
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, deploymentPattern, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
           }
         
-        (delete | patch | put) {
-          exchAuth(TPattern(resource, owner, public), Access.WRITE, validIdentity = identity) {
-            _ =>
-              deleteDeploymentPattern(deploymentPattern, identity, organization, resource) ~
-              patchDeploymentPattern(deploymentPattern, identity, organization, resource) ~
-              putDeploymentPattern(deploymentPattern, identity, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None, public: Boolean = false): Route =
+          (delete | patch | put) {
+            exchAuth(TPattern(resource, owningResourceIdentity, public), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteDeploymentPattern(deploymentPattern, identity, organization, resource) ~
+                patchDeploymentPattern(deploymentPattern, identity, organization, resource) ~
+                putDeploymentPattern(deploymentPattern, identity, organization, resource)
+            }
+          } ~
+          get {
+            exchAuth(TPattern(resource, owningResourceIdentity, public), Access.READ, validIdentity = identity) {
+              _ =>
+                getDeploymentPattern(deploymentPattern, identity, organization, resource)
+            }
+          } ~
+          post {
+            exchAuth(TPattern(resource, owningResourceIdentity, public), Access.CREATE, validIdentity = identity) {
+              _ =>
+                postDeploymentPattern(deploymentPattern, identity, organization, resource)
+            }
           }
-        } ~
-        get {
-          exchAuth(TPattern(resource, owner, public), Access.READ, validIdentity = identity) {
-            _ =>
-              getDeploymentPattern(deploymentPattern, identity, organization, resource)
-          }
-        } ~
-        post {
-          exchAuth(TPattern(resource, owner, public), Access.CREATE, validIdentity = identity) {
-            _ =>
-              postDeploymentPattern(deploymentPattern, identity, organization, resource)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, public)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity), public = public)
         }
     }
 }

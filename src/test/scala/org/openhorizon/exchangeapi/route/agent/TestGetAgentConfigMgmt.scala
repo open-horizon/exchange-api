@@ -50,19 +50,19 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestGetAgentConfigMgmt",
-                password     = Option(Password.fastHash("admin1pw")),
+                password     = Option(Password.hash("admin1pw")),
                 username     = "admin1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestGetAgentConfigMgmt",
-                password     = Option(Password.fastHash("u1pw")),
+                password     = Option(Password.hash("u1pw")),
                 username     = "u1"))
   private val TESTNODE: Seq[NodeRow] =
     Seq(NodeRow(id = "TestGetAgentConfigMgmt/n1",
                 orgid = "TestGetAgentConfigMgmt",
-                token = "$2a$04$qMlSbnMbLt6PyYZY3PbwEOQdlN0/Kginx9oiD1Jx9woGK7CiPUe1e",  // TestGetAgentConfigMgmt/n1:n1tok
+                token = Password.hash("n1tok"),  // TestGetAgentConfigMgmt/n1:n1tok
                 name = "",
                 owner = TESTUSERS(1).user,
                 nodeType = "device",
@@ -93,7 +93,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
              orgid         = "TestGetAgentConfigMgmt",
              owner         = TESTUSERS(1).user,
              publicKey     = "",
-             token         = "$2a$10$RdMlsjB6jwIaoqJNIoCUieM710YLHDYGuRD.y8q0IpqFufkor1by6")  // TestGetAgentConfigMgmt/a1:a1tok
+             token         = Password.hash("a1tok"))  // TestGetAgentConfigMgmt/a1:a1tok
   
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
@@ -252,7 +252,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
                    orgid         = "IBM",
                    owner         = TESTUSERS(1).user,
                    publicKey     = "",
-                   token         = "$2a$10$IxvKVE5o2tzqFh/aSygDE.cqBQFGjMuWqK24EqRyTn8RkklJAlI0a"))  // IBM/TestGetAgentConfigMgmt-a1:TestGetAgentConfigMgmt-a1tok
+                   token         = Password.hash("TestGetAgentConfigMgmt-a1tok")))  // IBM/TestGetAgentConfigMgmt-a1:TestGetAgentConfigMgmt-a1tok
     val TESTCHG: Seq[(java.sql.Timestamp, String)] =
       Seq((ApiTime.nowTimestamp, "IBM"))
     
@@ -275,7 +275,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "IBM/TestGetAgentConfigMgmt-n1",
                   orgid = "IBM",
-                  token = "$2a$04$VKBje3vZ5DAGGZymgTJip.ish0LhvUTK0gqG4RscO0oogffHNFHgC",  // IBM/TestGetAgentConfigMgmt-n1:TestGetAgentConfigMgmt-n1tok
+                  token = Password.hash("TestGetAgentConfigMgmt-n1tok"),  // IBM/TestGetAgentConfigMgmt-n1:TestGetAgentConfigMgmt-n1tok
                   name = "",
                   owner = TESTUSERS(1).user,
                   nodeType = "device",

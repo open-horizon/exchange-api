@@ -69,7 +69,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
                 username     = "TestDeleteOrgRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,

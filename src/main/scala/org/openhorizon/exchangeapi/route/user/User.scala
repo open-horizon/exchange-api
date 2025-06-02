@@ -13,8 +13,9 @@ import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, e
 import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.http.scaladsl.server.directives.DebuggingDirectives
 import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshaller
+import org.apache.pekko.pattern.BackoffOpts.onFailure
 import org.openhorizon.exchangeapi.ExchangeApiApp
-import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership, getOwnerOfResource, myUserPassAuthenticator}
+import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership, getOwnerOfResource, myUserPassAuthenticator, routes}
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthRoles, AuthenticationSupport, BadInputException, IUser, Identity, Identity2, OrgAndId, Password, Role, TUser}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ, User => UserTable}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, StrConstants}
@@ -270,7 +271,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                             modifiedAt = timestamp,
                             modified_by = identity.identifier,
                             organization = organization,
-                            password = Option(Password.fastHash(reqBody.password)),
+                            password = Option(Password.hash(reqBody.password)),
                             user = uuid,
                             username = username)
                 
@@ -294,7 +295,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                                                                        case (false, false) => AuthRoles.User
                                                                      }),
                                                                    username     = username),
-                                                        Password.fastHash(reqBody.password)),
+                                                        Password.hash(reqBody.password)),
                                                       ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
                   
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", s"${resource}(Resource:${uuid})")))
@@ -416,7 +417,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                                            reqBody.hubAdmin.getOrElse(false),
                                            timestamp,
                                            identity.identifier,
-                                           Option(Password.fastHash(reqBody.password))))
+                                           Option(Password.hash(reqBody.password))))
                 
                 numUsersCreated <-
                   if (numUsersModified.equals(0))
@@ -432,7 +433,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                               modifiedAt = timestamp,
                               modified_by = identity.identifier,
                               organization = organization,
-                              password = Option(Password.fastHash(reqBody.password)),
+                              password = Option(Password.hash(reqBody.password)),
                               user = uuid,
                               username = username)
                   else
@@ -459,7 +460,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                                                                        case (false, false) => AuthRoles.User
                                                                      }),
                                                                    username     = username),
-                                                        Password.fastHash(reqBody.password)),
+                                                        Password.hash(reqBody.password)),
                                                       ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
                   
                   if (result._1 == 1)
@@ -484,7 +485,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                 case IUser(identCreds) => identCreds.id;
                 case _ => ""
               }
-              val hashedPw: String = Password.hash(reqBody.password)
+              val hashedPw: String = Password.fastHash(reqBody.password)
               db.run((UsersTQ += UserRow(resource, organization, hashedPw, reqBody.admin, reqBody.hubAdmin.getOrElse(false), reqBody.email, ApiTime.nowUTC, updatedBy)).asTry).map({
                 case Success(n) =>
                   logger.debug("PUT /orgs/" + organization + "/users/" + username + " result: " + n)
@@ -637,7 +638,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                                             if (reqBody.password.getOrElse("").isEmpty)
                                               None
                                             else
-                                              Option(Password.fastHash(reqBody.password.getOrElse(""))) // We wait till the last second. Avoids creating more spots in memory where this is stored.
+                                              Option(Password.hash(reqBody.password.getOrElse(""))) // We wait till the last second. Avoids creating more spots in memory where this is stored.
                                         },
                                         timestamp,
                                         identity.identifier))
@@ -657,7 +658,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                     logger.debug("PATCH /orgs/" + organization + "/users/" + username + " - result: " + result)
                     
                     if (validAttribute == "password")
-                      cacheResourceIdentity.put(resource)(value = (identity, Password.fastHash(reqBody.password.getOrElse(""))),
+                      cacheResourceIdentity.put(resource)(value = (identity, Password.hash(reqBody.password.getOrElse(""))),
                                                           ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
                     else
                       cacheResourceIdentity.remove(resource)
@@ -718,7 +719,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                  @Parameter(hidden = true) resource: String,
                  @Parameter(hidden = true) username: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
+      Future { logger.debug(s"DELETE /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}") }
       
       validate(organization + "/" + username != Role.superUser, ExchMsg.translate("cannot.delete.root.user")) {
         
@@ -740,14 +741,12 @@ trait User extends JacksonSupport with AuthenticationSupport {
                 DBIO.failed(throw new ArrayIndexOutOfBoundsException())
               } else
                 DBIO.successful(0)
-            
-            // TODO: Auth Cache things
           } yield(numUsersDeleted)
           
-        complete({
+        complete {
           db.run(deleteUser.transactionally.asTry).map {
             case Success(result) =>
-              cacheResourceIdentity.remove(resource)
+              Future { cacheResourceIdentity.remove(resource) }
               
               (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.deleted")))
             case Failure(t: ClassNotFoundException) =>
@@ -759,26 +758,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
             case Failure(t) =>
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", resource, t.toString)))
           }
-        })
-        
-        /*complete({
-          // Note: remove does *not* throw an exception if the key does not exist
-          //todo: if ident.isHubAdmin then 1st get the target user row to verify it isn't a regular user
-          db.run(UsersTQ.getUser(resource).delete.transactionally.asTry).map({
-            case Success(v) => // there were no db errors, but determine if it actually found it or not
-              logger.debug(s"DELETE /orgs/$organization/users/$username result: $v")
-              if (v > 0) {
-                AuthCache.removeUser(resource) // these do not throw an error if the user doesn't exist
-                //IbmCloudAuth.removeUserKey(compositeId) //todo: <- doesn't work because the IAM cache key includes the api key, which we don't know at this point. Address this in https://github.com/open-horizon/exchange-api/issues/232
-                (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.deleted")))
-              }
-              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", resource)))
-            case Failure(t: org.postgresql.util.PSQLException) =>
-              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.deleted", resource, t.toString))
-            case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", resource, t.toString)))
-          })
-        })*/
+        }
       }
     }
   
@@ -787,40 +767,39 @@ trait User extends JacksonSupport with AuthenticationSupport {
       (organization,
        username) =>
         val resource: String = OrgAndId(organization, username).toString
-        val resource_type = "user"
-        var i: Option[UUID] = None
-        try {
-          i = Option(Await.result(cacheResourceOwnership.cachingF(organization, username, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)._1)
-        }
-        catch {
-              case t: Throwable => i = None
-            }
-          
-        //logger.debug(s"i: ${i}")
+        val resource_type: String = "user"
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, username, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+          }
         
-      
-            (delete | patch | put) {
-              exchAuth(TUser(resource, i), Access.WRITE, validIdentity = identity) {
-                _ =>
-                  deleteUser(identity, organization, resource, username) ~
-                    patchUser(identity, organization, resource, username) ~
-                    putUser(identity, organization, resource, username)
-              }
-            } ~
-              get {
-                exchAuth(TUser(resource, i), Access.READ, validIdentity = identity) {
-                  _ =>
-                    getUser(identity, organization, resource, username)
-                }
-              } ~
-              post {
-                exchAuth(TUser(resource, i), Access.CREATE, validIdentity = identity) {
-                  _ =>
-                    postUser(identity, organization, resource, username)
-                }
-              }
+        def routeMethods(resource_identity: Option[UUID]): Route = {
+          (delete | patch | put) {
+            exchAuth(TUser(resource, resource_identity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteUser(identity, organization, resource, username) ~
+                patchUser(identity, organization, resource, username) ~
+                putUser(identity, organization, resource, username)
+            }
+          } ~
+          get {
+            exchAuth(TUser(resource, resource_identity), Access.READ, validIdentity = identity) {
+              _ =>
+                getUser(identity, organization, resource, username)
+            }
+          } ~
+          post {
+            exchAuth(TUser(resource, resource_identity), Access.CREATE, validIdentity = identity) {
+              _ =>
+                postUser(identity, organization, resource, username)
+            }
+          }
+        }
+        
+        onComplete(cacheCallback) {
+          case Success((resource_identity, _)) => routeMethods(Option(resource_identity))
+          case Failure(_) => routeMethods(None)
+        }
     }
   }
 }

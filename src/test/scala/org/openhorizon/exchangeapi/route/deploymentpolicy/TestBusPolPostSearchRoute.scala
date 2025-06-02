@@ -4,7 +4,7 @@ import org.json4s.jackson.JsonMethods.parse
 import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable}
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{BusinessPolicyNodeResponse, PostBusinessPolicySearchRequest, PostBusinessPolicySearchResponse}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.search.{SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ}
@@ -58,7 +58,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
              orgid         = "TestPolicySearchPost",
              owner         = TESTUSER.user,
              publicKey     = "",
-             token         = "$2a$10$2ElhDrDUXcFzvU63Gl3dWeGYsWYTqgaBxkthhhdwwWc2YTP1yB4Ky") // "TestPolicySearchPost/a1:a1tok"
+             token         = Password.hash("a1tok")) // "TestPolicySearchPost/a1:a1tok"
   private val TESTORGANIZATION: OrgRow =
     OrgRow(heartbeatIntervals = "",
            description        = "",

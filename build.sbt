@@ -56,6 +56,8 @@ lazy val root = (project in file("."))
       // "org.apache.pekko"     %% "pekko-http-caching" % pekkoHttpVersion.value,
       "org.apache.pekko"     %% "pekko-http-cors"    % pekkoHttpVersion.value,
       "org.apache.pekko"     %% "pekko-slf4j"        % "[1.1.1]",
+      "org.springframework.security" % "spring-security-core" % "6.5.0",
+      "org.bouncycastle" % "bcprov-jdk18on" % "1.80",
       
       "org.pac4j" % "pac4j-oauth" % "6.1.2",
       "org.pac4j" % "pac4j-oidc"  % "6.1.2",
@@ -66,7 +68,7 @@ lazy val root = (project in file("."))
       "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0]",
       "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.14.0]",
       
-      "ch.qos.logback" % "logback-classic" % "1.5.6",
+      "ch.qos.logback" % "logback-classic" % "[1.5.18,)",
       "com.typesafe.slick" %% "slick-hikaricp" % "[3.4.1]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       "com.github.tminglei" %% "slick-pg_json4s" % "[0.21.0]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
       "org.postgresql" % "postgresql" % "[42.7.1,)",

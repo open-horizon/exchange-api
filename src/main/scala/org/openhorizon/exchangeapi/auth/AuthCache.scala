@@ -48,7 +48,7 @@ object AuthCache /* extends Control with ServletApiImplicits */ {
     val configRootPasswdHashed = {
       try {
         if(Configuration.getConfig.getBoolean("api.root.enabled"))
-          Password.hashIfNot(Configuration.getConfig.getString("api.root.password"))
+          Password.hash(Configuration.getConfig.getString("api.root.password"))
         else
           ""
       }

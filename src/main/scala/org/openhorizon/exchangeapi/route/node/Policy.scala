@@ -23,7 +23,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 
@@ -271,29 +271,29 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
        node) =>
         val resource: String = OrgAndId(organization, node).toString
         val resource_type: String = "node"
-        
-        val i: Option[UUID] =
-          try
-            Option(Await.result(cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)._1)
-          catch {
-            case _: Throwable => None
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
           }
         
-        (delete | put) {
-          exchAuth(TNode(resource, i), Access.WRITE, validIdentity = identity) {
-            _ =>
-              deletePolicyNode(identity, node, organization, resource) ~
-              putPolicyNode(identity, node, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          (delete | put) {
+            exchAuth(TNode(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deletePolicyNode(identity, node, organization, resource) ~
+                putPolicyNode(identity, node, organization, resource)
+            }
+          } ~
+          get {
+            exchAuth(TNode(resource, owningResourceIdentity),Access.READ, validIdentity = identity) {
+              _ =>
+                getPolicyNode(identity, node, organization, resource)
+            }
           }
-        } ~
-        get {
-          exchAuth(TNode(resource, i),Access.READ, validIdentity = identity) {
-            _ =>
-              getPolicyNode(identity, node, organization, resource)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
-    
 }

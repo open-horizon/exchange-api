@@ -16,7 +16,7 @@ import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.util._
@@ -142,21 +142,22 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
        node) =>
         val resource: String = OrgAndId(organization, node).toString
         val resource_type: String = "node"
-        
-        val i: Option[UUID] =
-          try
-            Option(Await.result(cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)._1)
-          catch {
-            case _: Throwable => None
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
           }
         
-        post {
-          exchAuth(TNode(resource, i),Access.WRITE, validIdentity = identity) {
-            _ =>
-              postConfigurationState(identity, node, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          post {
+            exchAuth(TNode(resource, owningResourceIdentity),Access.WRITE, validIdentity = identity) {
+              _ =>
+                postConfigurationState(identity, node, organization, resource)
+            }
           }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

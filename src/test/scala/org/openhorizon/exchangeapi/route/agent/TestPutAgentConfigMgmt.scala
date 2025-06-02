@@ -57,14 +57,14 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestPutAgentConfigMgmt",
-                password     = Option(Password.fastHash("admin1pw")),
+                password     = Option(Password.hash("admin1pw")),
                 username     = "admin1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestPutAgentConfigMgmt",
-                password     = Option(Password.fastHash("u1pw")),
+                password     = Option(Password.hash("u1pw")),
                 username     = "u1"))
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id = "TestPutAgentConfigMgmt/a1",
@@ -74,7 +74,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
              orgid = "TestPutAgentConfigMgmt",
              owner = TESTUSERS(1).user,
              publicKey = "",
-             token = "$2a$10$mVoFqGenNc9Z7/HpNwnaiuKuNmdXxy6VHlliUZMDR280Ec5vNXXka") // TestPutAgentConfigMgmt/a1:a1tok
+             token = Password.hash("a1tok")) // TestPutAgentConfigMgmt/a1:a1tok
   
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
@@ -194,7 +194,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                   isOrgAdmin   = false,
                   modifiedAt   = TIMESTAMP,
                   organization = "IBM",
-                  password     = Option(Password.fastHash("TestPutAgentConfigMgmt-u1pw")),
+                  password     = Option(Password.hash("TestPutAgentConfigMgmt-u1pw")),
                   username     = "TestPutAgentConfigMgmt-u1"))
     }
     
@@ -364,7 +364,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                    orgid = "IBM",
                    owner = TESTUSERS(1).user,
                    publicKey = "",
-                   token = "$2a$10$gNEK9DtpAIvPERHItqvr5uOGyQLJiuZWaEjC0QMGT5Cf3BkNQ5v.y")) // IBM/TestPutAgentConfigMgmt-a1:a1tok
+                   token = Password.hash("TestPutAgentConfigMgmt-a1tok"))) // IBM/TestPutAgentConfigMgmt-a1:a1tok
     val TESTCERT: Seq[String] = Seq("1.1.1")
     val TESTCONFIG: Seq[String] = Seq("2.2.2")
     val TESTSOFT: Seq[String] = Seq("3.4.3")
@@ -422,7 +422,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                   isOrgAdmin   = true,
                   modifiedAt   = TIMESTAMP,
                   organization = "IBM",
-                  password     = Option(Password.fastHash("TestPutAgentConfigMgmt-admin1pw")),
+                  password     = Option(Password.hash("TestPutAgentConfigMgmt-admin1pw")),
                   username     = "TestPutAgentConfigMgmt-admin1"))
     }
     

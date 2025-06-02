@@ -23,7 +23,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 
@@ -123,21 +123,21 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
                     @Parameter(hidden = true) identity: Identity2,
                     @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/agreements - By ${identity.resource}:${identity.role}")
-    complete({
+    Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/agreements - By ${identity.resource}:${identity.role}") }
+    
+    complete {
       db.run(AgbotAgreementsTQ.getAgreements(resource).result)
-        .map({
+        .map {
           list =>
-            logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/agreements result size: ${list.size}")
+            Future { logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/agreements result size: ${list.size}") }
             val agreements: Map[String, AgbotAgreement] = list.map(e => e.agrId -> e.toAgbotAgreement).toMap
-            val code: StatusCode =
-              if (agreements.nonEmpty)
-                StatusCodes.OK
-              else
-                StatusCodes.NotFound
-            (code, GetAgbotAgreementsResponse(agreements, 0))
-        })
-    })
+           
+            if (agreements.nonEmpty)
+              (StatusCodes.OK, GetAgbotAgreementsResponse(agreements))
+            else
+              (StatusCodes.NotFound, GetAgbotAgreementsResponse(agreements))
+        }
+    }
   }
   
   
@@ -147,27 +147,28 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
        agreementBot) =>
         val resource: String = OrgAndId(organization, agreementBot).toString
         val resource_type = "agreement_bot"
-        
-        val i: Option[UUID] =
-          try
-            Option(Await.result(cacheResourceOwnership.cachingF(organization, agreementBot, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, agreementBot, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
               ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)._1)
-          catch {
-            case _: Throwable => None
+            }
+        
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          get {
+            exchAuth(TAgbot(resource, owningResourceIdentity), Access.READ, validIdentity = identity) {
+              _ =>
+                getAgreements(agreementBot, identity, organization, resource)
+            }
+          } ~
+          delete {
+            exchAuth(TAgbot(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteAgreements(agreementBot, identity, organization, resource)
+            }
           }
         
-        get {
-          exchAuth(TAgbot(resource, i), Access.READ, validIdentity = identity) {
-            _ =>
-              getAgreements(agreementBot, identity, organization, resource)
-          }
-        } ~
-        delete {
-          exchAuth(TAgbot(resource, i), Access.WRITE, validIdentity = identity) {
-            _ =>
-              deleteAgreements(agreementBot, identity, organization, resource)
-          }
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

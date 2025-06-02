@@ -202,7 +202,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = orgid,
-                password     = Option(Password.fastHash(pw)),
+                password     = Option(Password.hash(pw)),
                 username     = user),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -302,7 +302,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                                              Prop("dataVerification","true","boolean","=")),
                                         Some("")))),
                 softwareVersions   = "",
-                token              = Password.hash(nodeToken2SearchTest2),
+                token              = Password.fastHash(nodeToken2SearchTest2),
                 userInput          = ""), */
         NodeRow(arch               = "amd64",
                 id                 = orgid + "/" + nodeId2SearchTest2,

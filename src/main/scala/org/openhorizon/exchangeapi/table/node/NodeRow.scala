@@ -59,11 +59,11 @@ final case class NodeRow(id: String,
          publicKey = request.publicKey.getOrElse(""),
          regServices = write(request.registeredServices.get.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
          softwareVersions = write(request.softwareVersions.get),
-         token = Password.fastHash(request.token),
+         token = Password.hash(request.token),
          userInput = write(request.userInput.get))
 
   def upsert: DBIO[_] = {
-    //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
+    //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.fastHash(token)  <- token is already hashed
     if (Role.isSuperUser(owner.toString))
       NodesTQ.map(d => (d.id, d.orgid, d.token, d.name, d.nodeType, d.pattern, d.regServices, d.userInput, d.msgEndPoint, d.softwareVersions, d.lastHeartbeat, d.publicKey, d.arch, d.heartbeatIntervals, d.lastUpdated, d.clusterNamespace, d.isNamespaceScoped)).insertOrUpdate((id, orgid, token, name, nodeType, pattern, regServices, userInput, msgEndPoint, softwareVersions, lastHeartbeat.orElse(None), publicKey, arch, heartbeatIntervals, lastUpdated, clusterNamespace, isNamespaceScoped))
     else
@@ -71,7 +71,7 @@ final case class NodeRow(id: String,
   }
 
   def update: DBIO[_] = {
-    //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.hash(token)  <- token is already hashed
+    //val tok = if (token == "") "" else if (Password.isHashed(token)) token else Password.fastHash(token)  <- token is already hashed
     /*if (owner == "") (
         for {
           d <- NodesTQ if d.id === id

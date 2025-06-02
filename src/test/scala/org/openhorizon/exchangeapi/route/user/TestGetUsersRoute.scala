@@ -77,21 +77,21 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
                 username     = "TestGetUsersRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.fastHash(ORG1ADMINPASSWORD)),
+                password     = Option(Password.hash(ORG1ADMINPASSWORD)),
                 username     = "orgAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.fastHash(ORG1USERPASSWORD)),
+                password     = Option(Password.hash(ORG1USERPASSWORD)),
                 username     = "orgUser"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -105,7 +105,7 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(1).orgId,
-                password     = Option(Password.fastHash(ORG2ADMINPASSWORD)),
+                password     = Option(Password.hash(ORG2ADMINPASSWORD)),
                 username     = "orgAdmin"))
   }
   
@@ -114,7 +114,7 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
       AgbotRow(
         id = TESTORGS(0).orgId + "/agbot",
         orgid = TESTORGS(0).orgId,
-        token = Password.fastHash(AGBOTTOKEN),
+        token = Password.hash(AGBOTTOKEN),
         name = "",
         owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
@@ -140,7 +140,7 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
         publicKey          = "",
         regServices        = "",
         softwareVersions   = "",
-        token              = Password.fastHash(NODETOKEN),
+        token              = Password.hash(NODETOKEN),
         userInput          = ""
       )
     )

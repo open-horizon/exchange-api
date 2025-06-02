@@ -12,7 +12,6 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configuration, DropDatabase, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
-import org.openhorizon.exchangeapi.route.agreement.Confirm
 import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat}
 import org.openhorizon.exchangeapi.table
 import org.openhorizon.exchangeapi.table.{ExchangeApiTables, ExchangePostgresProfile}
@@ -40,7 +39,7 @@ import org.openhorizon.exchangeapi.auth.AuthCache.logger
 import org.openhorizon.exchangeapi.auth.{AuthCache, AuthRoles, AuthenticationSupport, DbConnectionException, IAgbot, INode, IUser, IdNotFoundForAuthorizationException, Identity, Identity2, InvalidCredentialsException, Password, Token}
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
-import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements}
+import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements, Confirm}
 import org.openhorizon.exchangeapi.route.agreementbot.message.{Message, Messages}
 import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
@@ -73,6 +72,7 @@ import scalacache.modes.scalaFuture._
 import com.github.benmanes.caffeine.cache.Caffeine
 import org.apache.pekko.pattern.BackoffOpts.onFailure
 import org.apache.pekko.routing.NoRouter
+import org.springframework.security.crypto.bcrypt.BCrypt
 import slick.jdbc.TransactionIsolation.Serializable
 
 import java.io.{File, FileInputStream, InputStream}
@@ -119,7 +119,7 @@ object ExchangeApiApp extends App
   with Changes
   with Cleanup
   with ClearAuthCache
-  with org.openhorizon.exchangeapi.route.agreement.Confirm
+  with org.openhorizon.exchangeapi.route.agreementbot.agreement.Confirm
   with org.openhorizon.exchangeapi.route.user.Confirm
   with Configuration
   with ConfigurationState
@@ -215,10 +215,10 @@ object ExchangeApiApp extends App
   //AuthCache.createRootInCache()
   
   // Check common overwritten pekko configuration parameters
-  logger.debug("pekko.corrdinated-shutdown:  " + system.settings.config.getConfig("pekko.coordinated-shutdown").toString)
-  logger.debug("pekko.loglevel: " + system.settings.config.getString("pekko.loglevel"))
-  logger.debug("pekko.http.parsing: " + system.settings.config.getConfig("pekko.http.parsing").toString)
-  logger.debug("pekko.http.server: " + system.settings.config.getConfig("pekko.http.server").toString)
+  Future { logger.debug("pekko.corrdinated-shutdown:  " + system.settings.config.getConfig("pekko.coordinated-shutdown").toString) }
+  Future { logger.debug("pekko.loglevel: " + system.settings.config.getString("pekko.loglevel")) }
+  Future { logger.debug("pekko.http.parsing: " + system.settings.config.getConfig("pekko.http.parsing").toString) }
+  Future { logger.debug("pekko.http.server: " + system.settings.config.getConfig("pekko.http.server").toString) }
   
   // Set a custom exception handler. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/exception-handling.html#exception-handling
   implicit def myExceptionHandler: ExceptionHandler =
@@ -237,7 +237,7 @@ object ExchangeApiApp extends App
         // for now we return bad gw for any unknown exception, since that is what most of them have been
         complete((StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, msg)))
     }
-
+  
   // Set a custom rejection handler. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/rejections.html#customizing-rejection-handling
   implicit def myRejectionHandler: RejectionHandler =
     RejectionHandler.newBuilder()
@@ -303,7 +303,7 @@ object ExchangeApiApp extends App
     case _ => scala.None
   }
 
-  // Create all of the routes and concat together
+ 
   final case class testResp(result: String = "OK")
   
   def testRoute = {
@@ -320,24 +320,6 @@ object ExchangeApiApp extends App
                 .expireAfterWrite(Configuration.getConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
                 .build[String, Entry[(Identity2, String)]]
   implicit val cacheResourceIdentity: CaffeineCache[(Identity2, String)] = CaffeineCache(identityCacheSettings)
-  
-  /*val identityCacheSettings: common.cache.Cache[String, Entry[(Identity2, String)]] =
-    CacheBuilder.newBuilder()
-                .maximumSize(Configuration.getConfig.getInt("api.cache.idsMaxSize"))
-                .expireAfterWrite(Configuration.getConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
-                .build[String, Entry[(Identity2, String)]]
-  implicit val cacheResourceIdentity: GuavaCache[(Identity2, String)] = GuavaCache(identityCacheSettings)*/
-  
-  /*val defaultCachingSettings = CachingSettings(system)
-  val lfuCacheSettings =
-    defaultCachingSettings.lfuCacheSettings
-      .withInitialCapacity(300)
-      .withMaxCapacity(500)
-      .withTimeToLive(20.seconds)
-      .withTimeToIdle(10.seconds)
-  val cachingSettings =
-    defaultCachingSettings.withLfuCacheSettings(lfuCacheSettings)
-  val lfuCache: Cache[String, (Identity2, String)] = LfuCache(cachingSettings)*/
   
   // This should only be used for Authorization: Basic challenges using organization/username:password
   // This does not support other authentication types (OAuth, Api Keys), nor using a UUID as provided user.
@@ -410,32 +392,50 @@ object ExchangeApiApp extends App
             }
           }
           
-          //x BackoffOpts.onFailure { case t => t }
-          
           def y(resourceIdentityAndCred: Option[(Identity2, String)]): Future[Option[Identity2]] = Future {
             resourceIdentityAndCred match {
              case Some(resourceIdentityAndCred) =>
                // Guard, should never hit this condition. Reject the authentication attempt if true, as we cannot determine this resource's identity.
                if (resourceIdentityAndCred._1.role == AuthRoles.Anonymous) {
-                 logger.debug(s"Authentication: This resource ${resourceIdentityAndCred._1.resource} yields user archetype ${resourceIdentityAndCred._1.role}.")
+                 Future { logger.debug(s"Authentication: This resource ${resourceIdentityAndCred._1.resource} yields user archetype ${resourceIdentityAndCred._1.role}.") }
                  None
                }
                // Guard, should never hit this condition. Reject the authentication attempt if true, as we cannot determine this resource's identity.
                else if (resourceIdentityAndCred._1.isUser &&
                        resourceIdentityAndCred._1.identifier.isEmpty) {
-                 logger.debug(s"Authentication: The ${resourceIdentityAndCred._1.role} resource ${resourceIdentityAndCred._1.resource} is missing a UUID.")
+                 Future { logger.debug(s"Authentication: The ${resourceIdentityAndCred._1.role} resource ${resourceIdentityAndCred._1.resource} is missing a UUID.") }
                  None
                }
                else if (p.provideVerify(secret = resourceIdentityAndCred._2,
-                                       verifier =
+                                        verifier =
                                           // (Hashed credential in database, Plain-text password from Authorization: Basic header)
                                          (storedSecret, requestPassword) => {
+                                           if (!storedSecret.startsWith("$argon2id") && BCrypt.checkpw(requestPassword, storedSecret)) {
+                                             Future { logger.debug(s"Resource ${resourceIdentityAndCred._1.resource}(${resourceIdentityAndCred._1.identifier.getOrElse("None")}):${resourceIdentityAndCred._1.role} has a credential that is using a legacy BCrypt algorithm. Rehashing this credential to Argon2id.") }
+                                             val rehashedCredential = Password.hash(requestPassword)
+                                             
+                                             Future { cacheResourceIdentity.put(p.identifier)(value = (resourceIdentityAndCred._1, rehashedCredential), ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds)) }
+                                             
+                                             Future {
+                                               resourceIdentityAndCred._1.role match {
+                                                 case AuthRoles.Agbot =>
+                                                   Future { db.run(AgbotsTQ.filter(_.id === resourceIdentityAndCred._1.resource).map(_.token).update(rehashedCredential))}
+                                                 case AuthRoles.Node =>
+                                                   Future { db.run(NodesTQ.filter(_.id === resourceIdentityAndCred._1.resource).map(_.token).update(rehashedCredential))}
+                                                 case _ =>
+                                                   Future { db.run(UsersTQ.filter(_.user === resourceIdentityAndCred._1.identifier.get).map(_.password).update(Option(rehashedCredential)))}
+                                               }
+                                             }
+                                             
+                                             Password.check(requestPassword, rehashedCredential)
+                                           }
+                                           else
                                            /*logger.debug("Line 333:    credential: " + requestPassword + "    secret: " + storedSecret);*/
-                                           Password.check(requestPassword, storedSecret) // BCrypt requires the use of its own Hash comparator.
+                                           Password.check(requestPassword, storedSecret)
                                          })) {
                  // Root level permissions are used in test environments, any other user should not have root level access in a production environment.
                  if ((resourceIdentityAndCred._1.resource != "root/root"))
-                   logger.warning(s"User resource ${resourceIdentityAndCred._1.resource}(resource: ${resourceIdentityAndCred._1.identifier.getOrElse("")}) has Root level access permissions")
+                   Future { logger.warning(s"User resource ${resourceIdentityAndCred._1.resource}(resource: ${resourceIdentityAndCred._1.identifier.getOrElse("")}) has Root level access permissions") }
                  Option(resourceIdentityAndCred._1) // Return the successfully authenticated Identity
                }
                else
@@ -595,14 +595,6 @@ object ExchangeApiApp extends App
     
   implicit val cacheResourceOwnership: CaffeineCache[(UUID, Boolean)] = CaffeineCache(ownershipCache)
   
-  /*implicit val ownershipCache: common.cache.Cache[String, Entry[(UUID, Boolean)]] =
-    CacheBuilder.newBuilder()
-                .maximumSize(Configuration.getConfig.getInt("api.cache.resourcesMaxSize"))
-                .expireAfterWrite(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
-                .build[String, Entry[(UUID, Boolean)]]
-    
-  implicit val cacheResourceOwnership: GuavaCache[(UUID, Boolean)] = GuavaCache(ownershipCache)*/
-  
   def getOwnerOfResource(organization: String, resource: String, something: String): Future[(UUID, Boolean)] = {
     val getOwnerOfResource: DBIOAction[(UUID, Boolean), NoStream, Effect.Read] =
       for {
@@ -674,7 +666,7 @@ object ExchangeApiApp extends App
   def trimResourceChanges(): Unit ={
     // Get the time for trimming rows from the table
     val timeExpires: Timestamp = ApiTime.pastUTCTimestamp(system.settings.config.getInt("api.resourceChanges.ttl"))
-    db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.asTry).map({
+    db.run(Compiled(ResourceChangesTQ.getRowsExpired(timeExpires)).delete.asTry).map({
       case Success(v) =>
         if (v <= 0) logger.debug("No resource changes to trim")
         else logger.info("resourcechanges table trimmed, number of records deleted: " + v.toString)
@@ -700,14 +692,18 @@ object ExchangeApiApp extends App
 
   /** Task for removing expired nodemsgs and agbotmsgs */
   def removeExpiredMsgs(): Unit ={
-    db.run(NodeMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry).map({
-      case Success(v) => logger.debug("nodemsgs delete expired result: "+ v.toString)
-      case Failure(_) => logger.error("ERROR: could not remove expired node msgs")
-    })
-    db.run(AgbotMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry).map({
-      case Success(v) => logger.debug("agbotmsgs delete expired result: " + v.toString)
-      case Failure(_) => logger.error("ERROR: could not remove expired agbot msgs")
-    })
+    Future {
+      db.run(Compiled(NodeMsgsTQ.getMsgsExpired).delete.transactionally.withTransactionIsolation(Serializable).asTry).map {
+        case Success(v) => logger.debug("nodemsgs delete expired result: " + v.toString)
+        case Failure(_) => logger.error("ERROR: could not remove expired node msgs")
+      }
+    }
+    Future {
+      db.run(Compiled(AgbotMsgsTQ.getMsgsExpired).delete.transactionally.withTransactionIsolation(Serializable).asTry).map {
+        case Success(v) => logger.debug("agbotmsgs delete expired result: " + v.toString)
+        case Failure(_) => logger.error("ERROR: could not remove expired agbot msgs")
+      }
+    }
   }
 
   /** Variables and pekko Actor for removing expired nodemsgs and agbotmsgs */
@@ -717,7 +713,7 @@ object ExchangeApiApp extends App
     override def preStart(): Unit = {
       timers.startSingleTimer(key = "removeExpiredMsgsOnStart", msg = CleanupExpiredMessages, timeout = 0.seconds)
       timers.startTimerAtFixedRate(interval = timerInterval.seconds, key = "removeExpiredMsgs", msg = CleanupExpiredMessages)
-      logger.info("Scheduling Agreement Bot message and Node message cleanup every "+ timerInterval.seconds + " seconds")
+      Future { logger.info("Scheduling Agreement Bot message and Node message cleanup every " + timerInterval.seconds + " seconds") }
       super.preStart()
     }
     
@@ -801,10 +797,10 @@ object ExchangeApiApp extends App
           .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
           .onComplete {
             case Success(binding) =>
-              logger.info("Server online at "+ s"http://${serviceHost}:${binding.localAddress.getPort}/") // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
+              Future { logger.info("Server online at " + s"http://${serviceHost}:${binding.localAddress.getPort}/") } // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
               serverBindingHttp = Option(binding)
             case Failure(e) =>
-              logger.error("HTTP server could not start!")
+              Future { logger.error("HTTP server could not start!") }
               e.printStackTrace()
               system.terminate()
           }

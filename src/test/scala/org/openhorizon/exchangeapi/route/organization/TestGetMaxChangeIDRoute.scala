@@ -55,21 +55,21 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
                 username     = "testGetMaxChangeIDRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS.head.orgId,
-                password     = Option(Password.fastHash(USERPASSWORD)),
+                password     = Option(Password.hash(USERPASSWORD)),
                 username     = "user1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS.head.orgId,
-                password     = Option(Password.fastHash(ADMINPASSWORD)),
+                password     = Option(Password.hash(ADMINPASSWORD)),
                 username     = "orgadminadmin1"))
   }
   
@@ -90,7 +90,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
         publicKey          = "",
         regServices        = "",
         softwareVersions   = "",
-        token              = Password.fastHash(NODETOKEN),
+        token              = Password.hash(NODETOKEN),
         userInput          = ""
       )
     )

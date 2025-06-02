@@ -17,7 +17,8 @@ import slick.jdbc.PostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
+import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/users/{username}/confirm")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "user")
@@ -42,12 +43,12 @@ trait Confirm extends JacksonSupport with AuthenticationSupport  {
                   @Parameter(hidden = true) organization: String,
                   @Parameter(hidden = true) username: String): Route =
     {
-      logger.debug(s"POST /orgs/$organization/users/$username/confirm - By ${identity.resource}:${identity.role}")
+      Future { logger.debug(s"POST /orgs/$organization/users/$username/confirm - By ${identity.resource}:${identity.role}") }
       
-      complete({
+      complete {
         // if we get here, the user/pw has been confirmed
         (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("confirmation.successful")))
-      })
+      }
     }
   
   def confirm(identity: Identity2): Route =
@@ -55,21 +56,22 @@ trait Confirm extends JacksonSupport with AuthenticationSupport  {
       (organization, username) =>
         val resource: String = OrgAndId(organization, username).toString
         val resource_type = "user"
-        var i: Option[UUID] = None
-        try {
-          i = Option(Await.result(cacheResourceOwnership.cachingF(organization, username, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, username, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
             ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-          }, 15.seconds)._1)
-        }
-        catch {
-          case t: Throwable => i = None
-        }
-        
-        post {
-          exchAuth(TUser(resource, i), Access.READ, validIdentity = identity) {
-            _ =>
-              postConfirm(identity, organization, username)
           }
+        
+        def routeMethods(resource_identity: Option[UUID]): Route =
+          post {
+            exchAuth(TUser(resource, resource_identity), Access.READ, validIdentity = identity) {
+              _ =>
+                postConfirm(identity, organization, username)
+            }
+          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods(resource_identity = None)
+          case Success((resource_identity, _)) => routeMethods(resource_identity = Option(resource_identity))
         }
     }
 }

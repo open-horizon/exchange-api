@@ -41,7 +41,7 @@ import java.sql.Timestamp
 import java.time.ZoneId
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.control.Breaks.{break, breakable}
 import scala.util.{Failure, Success}
 import scalacache.modes.scalaFuture._
@@ -489,7 +489,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
                 implicit val formats: DefaultFormats.type = DefaultFormats
                 // Multi-threaded rest requests. Need to break records into blocks based on request.
-                val session: String = Password.fastHash(password = s"patch$organization$node${identity.resource}${changeTimestamp.getTime.toString}")
+                val session: String = Password.hash(password = s"patch$organization$node${identity.resource}${changeTimestamp.getTime.toString}")
 
                 // Have a single attribute to update, retrieve its name.
                 val validAttribute: String =
@@ -594,7 +594,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
 
                     hashedPW =
                       if (validAttribute == "token")
-                        Password.fastHash(reqBody.token.get)
+                        Password.hash(reqBody.token.get)
                       else
                         ""
 
@@ -988,7 +988,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     public = false.toString,
                     resource = ResChangeResource.NODE.toString))
               
-              val session: String = Password.fastHash(password = s"put$organization$node${identity.resource}${identity.identifier.getOrElse(identity.owner.getOrElse(""))}${modified_at}")
+              val session: String = Password.hash(password = s"put$organization$node${identity.resource}${identity.identifier.getOrElse(identity.owner.getOrElse(""))}${modified_at}")
               
               val getPatternBase: Query[Patterns, PatternRow, Seq] =
                 PatternsTQ.filter(_.pattern === reqBody.pattern)
@@ -1214,7 +1214,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                             reqBody.pattern,
                             write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
                             write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
-                            Password.fastHash(reqBody.token),
+                            Password.hash(reqBody.token),
                             write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
                       }
                       else {
@@ -1249,7 +1249,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                             reqBody.publicKey.getOrElse(""),
                             write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
                             write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
-                            Password.fastHash(reqBody.token),
+                            Password.hash(reqBody.token),
                             write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
                       }
                     }
@@ -1286,7 +1286,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                             reqBody.pattern,
                             write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
                             write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
-                            Password.fastHash(reqBody.token),
+                            Password.hash(reqBody.token),
                             write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
                       }
                       else {
@@ -1323,7 +1323,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                             reqBody.publicKey.getOrElse(""),
                             write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
                             write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
-                            Password.fastHash(reqBody.token),
+                            Password.hash(reqBody.token),
                             write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
                       }
                     }
@@ -1440,7 +1440,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       else
                         None
                     
-                    cacheResourceOwnership.put(organization, node, "node")(value = (identity.identifier.getOrElse(identity.owner.get), false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
+                    Future { cacheResourceOwnership.put(organization, node, "node")(value = (identity.identifier.getOrElse(identity.owner.get), false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) }
                     
                     if (v._3 == 1)
                       (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
@@ -1480,29 +1480,28 @@ trait Node extends JacksonSupport with AuthenticationSupport {
        node) =>
         val resource: String = OrgAndId(organization, node).toString
         val resource_type: String = "node"
-        
-        val i: Option[UUID] =
-          try
-            Option(Await.result(cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)._1)
-          catch {
-            case _: Throwable => None
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
           }
         
-        logger.debug(s"Cache: Node: ${resource} owner: '${i.getOrElse("None")}'")
-        
-        (delete | patch | put) {
-          exchAuth(TNode(resource, i), Access.WRITE, validIdentity = identity) {
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          (delete | patch | put) {
+            exchAuth(TNode(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteNode(identity, node, organization, resource) ~
+                patchNode(identity, node, organization, resource) ~
+                putNode(identity, node, organization, resource)
+            }
+          } ~
+          exchAuth(TNode(resource, owningResourceIdentity), Access.READ, validIdentity = identity) {
             _ =>
-              deleteNode(identity, node, organization, resource) ~
-              patchNode(identity, node, organization, resource) ~
-              putNode(identity, node, organization, resource)
+              getNode(identity, node, organization, resource)
           }
-        } ~
-        exchAuth(TNode(resource, i), Access.READ, validIdentity = identity) {
-          _ =>
-            getNode(identity, node, organization, resource)
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
   

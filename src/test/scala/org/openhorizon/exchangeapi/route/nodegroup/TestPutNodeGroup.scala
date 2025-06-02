@@ -70,7 +70,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
                 isOrgAdmin   = false,
                 modifiedAt   = INITIALTIMESTAMP,
                 organization = "root",
-                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
                 username     = "TestPutNodeGroupHubAdmin"),
         UserRow(createdAt    = INITIALTIMESTAMP,
                 isHubAdmin   = false,

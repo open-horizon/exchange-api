@@ -40,6 +40,7 @@ import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg}
 import org.postgresql.util.PSQLException
+import org.springframework.security.crypto.bcrypt.BCrypt
 import scalacache.modes.scalaFuture.mode
 
 import java.util.UUID
@@ -218,7 +219,8 @@ object ExchangeApiTables {
     val configRootPasswdHashed: Option[String] = {
       try {
         if(Configuration.getConfig.getBoolean("api.root.enabled"))
-            Option(Password.fastHash(Configuration.getConfig.getString("api.root.password")))
+           Option(BCrypt.hashpw(Configuration.getConfig.getString("api.root.password"), BCrypt.gensalt(10)))
+          // Option(Password.fastHash(Configuration.getConfig.getString("api.root.password")))
         else
           None
       }

@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.agreement
+package org.openhorizon.exchangeapi.route.agreementbot.agreement
 
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.enums.ParameterIn
@@ -10,7 +10,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, IAgbot, IUser, Identity, Identity2, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmRequest
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ

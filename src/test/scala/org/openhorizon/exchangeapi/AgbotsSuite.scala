@@ -136,7 +136,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = orgid,
-                password     = Option(Password.fastHash(pw)),
+                password     = Option(Password.hash(pw)),
                 username     = user),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,

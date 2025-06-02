@@ -12,7 +12,7 @@ import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
@@ -206,7 +206,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "MgmtPolSuite/n1",
                   orgid = "MgmtPolSuite",
-                  token = "$2a$04$BFX1t20Vd08CQvOisW8B0.JhXw63q0/NydkAwqa2OawPjQmUfJaQG", // MgmtPolSuite/n1:n1pw
+                  token = Password.hash("n1pw"), // MgmtPolSuite/n1:n1pw
                   name = "",
                   owner = rootUser,
                   nodeType = "device",

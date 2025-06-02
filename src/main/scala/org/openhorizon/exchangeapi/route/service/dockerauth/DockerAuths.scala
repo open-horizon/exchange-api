@@ -24,7 +24,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/services/{service}/dockauths")
@@ -259,31 +259,29 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
       (organization, service) =>
         val resource: String = OrgAndId(organization, service).toString
         val resource_type: String = "service"
-        
-        val (owner: Option[UUID], public: Boolean) =
-          try {
-            val result = Await.result(cacheResourceOwnership.cachingF(organization, service, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)
-            
-            (Option(result._1), result._2)
-          }
-          catch {
-            case _: Throwable => (None, false)
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, service, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
           }
         
-        (delete | post) {
-          exchAuth(TService(resource, owner, public), Access.WRITE, validIdentity = identity) {
-            _ =>
-              deleteDockerAuths(identity, organization, resource, service) ~
-              postDockerAuths(identity, organization, resource, service)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None, public: Boolean = false): Route =
+          (delete | post) {
+            exchAuth(TService(resource, owningResourceIdentity, public), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteDockerAuths(identity, organization, resource, service) ~
+                postDockerAuths(identity, organization, resource, service)
+            }
+          } ~
+          get {
+            exchAuth(TService(resource, owningResourceIdentity, public),Access.READ, validIdentity = identity) {
+              _ =>
+                getDockerAuths(identity, organization, resource, service)
+            }
           }
-        } ~
-        get {
-          exchAuth(TService(resource, owner, public),Access.READ, validIdentity = identity) {
-            _ =>
-              getDockerAuths(identity, organization, resource, service)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, public)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity), public = public)
         }
     }
 }

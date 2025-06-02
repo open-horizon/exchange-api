@@ -66,35 +66,35 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "root",
-                password     = Option(Password.fastHash(HUBADMINPASSWORD)),
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
                 username     = "TestPostConfirmUserRouteHubAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.fastHash(ORGADMINPASSWORD)),
+                password     = Option(Password.hash(ORGADMINPASSWORD)),
                 username     = "orgAdmin"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.fastHash(ORGUSERPASSWORD)),
+                password     = Option(Password.hash(ORGUSERPASSWORD)),
                 username     = "orgUser"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(1).orgId,
-                password     = Option(Password.fastHash(ORGUSERPASSWORD)),
+                password     = Option(Password.hash(ORGUSERPASSWORD)),
                 username     = "orgUser"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
-                password     = Option(Password.fastHash(ORGUSERPASSWORD)),
+                password     = Option(Password.hash(ORGUSERPASSWORD)),
                 username     = "orgUser2"))
   }
   
@@ -103,7 +103,7 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
       AgbotRow(
         id = TESTORGS(0).orgId + "/agbot",
         orgid = TESTORGS(0).orgId,
-        token = Password.fastHash(AGBOTTOKEN),
+        token = Password.hash(AGBOTTOKEN),
         name = "",
         owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
@@ -129,7 +129,7 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
         publicKey          = "",
         regServices        = "",
         softwareVersions   = "",
-        token              = Password.fastHash(NODETOKEN),
+        token              = Password.hash(NODETOKEN),
         userInput          = ""
       )
     )

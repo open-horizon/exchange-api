@@ -46,7 +46,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestNodePatch",
-                password     = Option(Password.fastHash("u1pw")),
+                password     = Option(Password.hash("u1pw")),
                 username     = "u1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -929,7 +929,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "publicKey",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2tok"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(
@@ -971,7 +971,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2tok"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(
@@ -1969,7 +1969,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "publicKey",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2tok"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(
@@ -2011,7 +2011,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2tok"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(
@@ -2057,7 +2057,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2tok"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(
@@ -2103,7 +2103,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2tok"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(
@@ -2145,7 +2145,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2tok"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(
@@ -2187,7 +2187,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2tok"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(
@@ -2498,7 +2498,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2pw"),
+                  token              = Password.hash("n2pw"),
                   userInput          = ""))
     
     fixtureNodes(
@@ -3211,7 +3211,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2tok"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(
@@ -3274,7 +3274,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.fastHash("n2tok"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(

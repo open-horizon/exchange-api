@@ -59,7 +59,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 isOrgAdmin   = true,
                 modifiedAt   = INITIALTIMESTAMP,
                 organization = "TestPostNodeGroup",
-                password     = Option(Password.fastHash("admin1pw")),
+                password     = Option(Password.hash("admin1pw")),
                 username     = "admin1"),
         UserRow(createdAt    = INITIALTIMESTAMP,
                 isHubAdmin   = false,
@@ -79,7 +79,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
   private val TESTAGBOTS: Seq[AgbotRow] =
     Seq(AgbotRow(id            = "TestPostNodeGroup/agbot",
                  orgid         = "TestPostNodeGroup",
-                 token         = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i",
+                 token         = Password.hash("password"),
                  name          = "",
                  owner         = TESTUSERS(1).user, //org 1 user
                  msgEndPoint   = "",
@@ -100,7 +100,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 publicKey          = "",
                 regServices        = "",
                 softwareVersions   = "",
-                token              = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i",
+                token              = Password.hash("n0pw"),
                 userInput          = ""),
         NodeRow(arch               = "",
                 id                 = TESTORGS.head.orgId + "/node1",

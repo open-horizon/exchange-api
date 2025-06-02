@@ -95,7 +95,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = timestamp,
                 organization = "root",
-                password     = Option(Password.fastHash(pw)),
+                password     = Option(Password.hash(pw)),
                 username     = "AdminSuitTestsHubAdmin"),
         UserRow(createdAt    = timestamp,
                 email        = Option("admin@host.domain"),
@@ -103,7 +103,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = true,
                 modifiedAt   = timestamp,
                 organization = "adminsuite",
-                password     = Option(Password.fastHash(pw)),
+                password     = Option(Password.hash(pw)),
                 username     = "admin"),
         UserRow(createdAt    = timestamp,
                 email        = Option("user@host.domain"),
@@ -111,7 +111,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = timestamp,
                 organization = "adminsuite",
-                password     = Option(Password.fastHash(pw)),
+                password     = Option(Password.hash(pw)),
                 username     = "user"))
   val TESTAGBOTS: Seq[AgbotRow] =
     Seq(/*AgbotRow(id = "root/adminsuiteagbot",
@@ -129,7 +129,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
                  orgid = "adminsuite",
                  owner = TESTUSERS(2).user,
                  publicKey = "password",
-                 token = Password.fastHash(pw)))
+                 token = Password.hash(pw)))
   private val TESTNODES: Seq[NodeRow] =
     Seq(/*NodeRow(arch               = "",
                 id                 = "root/adminsuitenode",
@@ -161,7 +161,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
                 publicKey          = "",
                 regServices        = "",
                 softwareVersions   = "",
-                token              = Password.fastHash(pw),
+                token              = Password.hash(pw),
                 userInput          = ""))
   
   val HUBADMINAUTH = ("Authorization","Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + pw))

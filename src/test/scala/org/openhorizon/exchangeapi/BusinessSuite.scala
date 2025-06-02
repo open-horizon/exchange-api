@@ -142,7 +142,7 @@ class BusinessSuite extends AnyFunSuite with BeforeAndAfterAll {
                 modifiedAt   = timestamp,
                 modified_by  = None,
                 organization = orgid,
-                password     = Option(Password.fastHash(pw)),
+                password     = Option(Password.hash(pw)),
                 username     = user),
         UserRow(createdAt    = timestamp,
                 email        = Option(user2 + "@hotmail.com"),

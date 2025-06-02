@@ -59,14 +59,14 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                 isOrgAdmin   = true,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestDeleteAgentConfigMgmt",
-                password     = Option(Password.fastHash("admin1pw")),
+                password     = Option(Password.hash("admin1pw")),
                 username     = "admin1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestDeleteAgentConfigMgmt",
-                password     = Option(Password.fastHash("u1pw")),
+                password     = Option(Password.hash("u1pw")),
                 username     = "u1"))
   
   private val TESTAGBOT: AgbotRow =
@@ -77,7 +77,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
              orgid         = "TestDeleteAgentConfigMgmt",
              owner         = TESTUSERS(1).user,
              publicKey     = "",
-             token         = "$2a$10$dP1e0wIHWOK.VgzsE4cLEuqfiXik6Vz/VEjIMJvVP8BQEp8RFuZVW")  // TestDeleteAgentConfigMgmt/a1:a1tok
+             token         = Password.hash("a1tok"))  // TestDeleteAgentConfigMgmt/a1:a1tok
   
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
@@ -180,7 +180,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "IBM",
-                password     = Option(Password.fastHash("TestDeleteAgentConfigMgmt-u1pw")),
+                password     = Option(Password.hash("TestDeleteAgentConfigMgmt-u1pw")),
                 username     = "TestDeleteAgentConfigMgmt-u1"))
     }
     
@@ -288,7 +288,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
         orgid         = "IBM",
         owner         = TESTUSERS(1).user,
         publicKey     = "",
-        token         = "$2a$10$Dl2TjiIynGQEaomV0uZbcOdAAr9/X8JOuU/To4qlY7foaUbWYfeXG"))  // IBM/TestDeleteAgentConfigMgmt-a1:TestDeleteAgentConfigMgmt-a1tok
+        token         = Password.hash("TestDeleteAgentConfigMgmt-a1tok")))  // IBM/TestDeleteAgentConfigMgmt-a1:TestDeleteAgentConfigMgmt-a1tok
     val TESTCHG: Seq[(java.sql.Timestamp, String)] =
       Seq((ApiTime.nowTimestamp, "IBM"))
     
@@ -337,7 +337,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                   isOrgAdmin   = true,
                   modifiedAt   = TIMESTAMP,
                   organization = "IBM",
-                  password     = Option(Password.fastHash("TestDeleteAgentConfigMgmt-admin1pw")),
+                  password     = Option(Password.hash("TestDeleteAgentConfigMgmt-admin1pw")),
                   username     = "TestDeleteAgentConfigMgmt-admin1"))
     }
     fixtureUsers(

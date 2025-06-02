@@ -51,14 +51,14 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestNodesGetDetails",
-                password     = Option(Password.fastHash("u1pw")),
+                password     = Option(Password.hash("u1pw")),
                 username     = "u1"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
                 modifiedAt   = TIMESTAMP,
                 organization = "TestNodesGetDetails",
-                password     = Option(Password.fastHash("u2pw")),
+                password     = Option(Password.hash("u2pw")),
                 username     = "u2"),
         UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -75,7 +75,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
              orgid         = "TestNodesGetDetails",
              owner         = TESTUSERS(0).user,
              publicKey     = "",
-             token         = "$2a$10$XAPxetRTktteNbKoPXdGO.vL8LKWMp0BiiVMpTCG1ZhBMUj09/iyG") // TestNodesGetDetails/a2:a1pw
+             token         = Password.hash("a1pw")) // TestNodesGetDetails/a2:a1pw
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch = "amd64",
                 id = "TestNodesGetDetails/n1",
@@ -91,7 +91,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 publicKey = "key",
                 regServices = """[{"url":"NodesSuiteTests/horizon.sdr","numAgreements":1,"configState":"active","policy":"{json policy for n1 sdr}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"memory","value":"300","propType":"int","op":">="},{"name":"version","value":"1.0.0","propType":"version","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"dataVerification","value":"true","propType":"boolean","op":"="}]},{"url":"NodesSuiteTests/horizon.netspeed","numAgreements":1,"configState":"active","policy":"{json policy for n1 netspeed}","properties":[{"name":"arch","value":"arm","propType":"string","op":"in"},{"name":"agreementProtocols","value":"ExchangeAutomatedTest","propType":"list","op":"in"},{"name":"version","value":"1.0.0","propType":"version","op":"in"}]}]""",
                 softwareVersions = """{"horizon":"3.2.1"}""",
-                token = "$2a$10$iXtbvxfSH8iN3LxPDlntEO7yLq6Wk4YhE4Tq4B7RtiqLfeHOaBE8q", // TestNodesGetDetails/n1:n1pw
+                token = Password.hash("n1pw"), // TestNodesGetDetails/n1:n1pw
                 userInput = """[{"serviceOrgid":"NodesSuiteTests","serviceUrl":"horizon.sdr","serviceArch":"amd64","serviceVersionRange":"[0.0.0,INFINITY)","inputs":[{"name":"UI_STRING","value":"mystr - updated"},{"name":"UI_INT","value":5},{"name":"UI_BOOLEAN","value":true}]}]""",
                 clusterNamespace = Option("namespace0"),
                 isNamespaceScoped = true),
@@ -110,7 +110,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
                 publicKey = "",
                 regServices = "",
                 softwareVersions = "",
-                token = "$2a$10$0EOlHl1mb2THvz3f/AnyWOV6ivUMItcQKLTzltNLmrdiLn.VCgavy",
+                token = Password.hash("n1pw"),
                 userInput = "",
                 clusterNamespace = None,
                 isNamespaceScoped = false),

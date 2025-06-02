@@ -24,7 +24,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 
@@ -244,29 +244,29 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
        agreement) =>
         val resource: String = OrgAndId(organization, agreementBot).toString
         val resource_type = "agreement_bot"
-        
-        val i: Option[UUID] =
-          try {
-            Option(Await.result(cacheResourceOwnership.cachingF(organization, agreementBot, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
-            }, 15.seconds)._1)
-          }
-          catch {
-            case _: Throwable => None
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, agreementBot, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
           }
         
-        get {
-          exchAuth(TAgbot(resource, i), Access.READ, validIdentity = identity) {
-            _ =>
-              getAgreement(agreement, agreementBot, identity, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          get {
+            exchAuth(TAgbot(resource, owningResourceIdentity), Access.READ, validIdentity = identity) {
+              _ =>
+                getAgreement(agreement, agreementBot, identity, organization, resource)
+            }
+          } ~
+          (delete | put) {
+            exchAuth(TAgbot(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteAgreement(agreement, agreementBot, identity, organization, resource) ~
+                putAgreement(agreement, agreementBot, identity, organization, resource)
+            }
           }
-        } ~
-        (delete | put) {
-          exchAuth(TAgbot(resource, i), Access.WRITE, validIdentity = identity) {
-            _ =>
-              deleteAgreement(agreement, agreementBot, identity, organization, resource) ~
-              putAgreement(agreement, agreementBot, identity, organization, resource)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

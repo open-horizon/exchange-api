@@ -1,13 +1,12 @@
 ---
-copyright:
-years: 2024 - 2025
-lastupdated: "2025-06-03"
-layout: page
-title: "Exchange API Server"
-description: "Quick start"
-
+copyright: Contributors to the Open Horizon project
+years: 2025
+title: Exchange API Server
+description: Quick start
+lastupdated: 2025-06-03
 nav_order: 3
 parent: Management Hub
+layout: page
 ---
 
 # Exchange API Server quick start

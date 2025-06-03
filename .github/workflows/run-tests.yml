@@ -1,6 +1,7 @@
 name: exchange-unit-testing
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - master

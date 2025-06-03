@@ -4,6 +4,75 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.127.0](https://github.com/open-horizon/exchange-api/pull/773) - 2025-06-03
+- Guava has been replaced by Caffeine as the backend cache implementation. ScalaCache is still the wrapper.
+  - There are other Caffeine implementations and wrappers out there. This is a start.
+  - The logger can track the individual cache hits and misses per key. Presently disabled in the logger config.
+    - Added appropriate config endpoints to the configuration file, as well as, environmental variable.
+- The following 15 individual caches have been removed and/or consolidated:
+  - usersAdmin
+  - usersHubAdmin
+  - nodesOwner
+  - agbotsOwner
+  - servicesOwner
+  - patternsOwner
+  - businessOwner
+  - servicesOwner
+  - managementPolicyOwner
+  - patternsPublic
+  - servicesPublic
+  - businessPublic
+  - managementPolicyPublic
+  - ids
+  - The IbmCloudAuth cache still exists, but it and its module are currently disabled.
+- Two new caches have been created:
+  - cacheResourceIdentity - Used for Authentication and requesting resource identity.
+  - cacheResoourceOwnership - Used for Authorization and the requested resource identity.
+  - These new caches still use the old configuration values. These will very likely need to be re-balanced in scale testing.
+- Authentication, Authorization and Identity are now much more their own independent concepts.
+  - Each is more individually extensible and testable. More work in IEAM v5.1+
+  - This release is focused more on Authentication, and a moderate amount on Identity. Authorization changes are to enable the former at this stage.
+- User Resource Identity is now based on UUIDs, not formatted strings.
+  - This will also come to Agreement Bots and Nodes in the  Future. (Unified Identity)
+  - Possibly other system resources as well (policies, patterns, groups, services, etc). work for another day...
+- Database modelling changes:
+  - Table for Users has been rebuilt.
+  - All downstream `owner` fields are now type UUID. Foreign keys remade.
+  - All client data is migrated with these schema changes.
+- Added missing database indexes on all foreign keys.
+- Added a few missing foreign keys to the database.
+- Red Hat UBI 10 support added.
+- JDK21 support added.
+- Most Get or Get all resource routes have been rebuilt.
+- All User routes have been rebuilt.
+- Rebuilt and consolidated the Catalog routes.
+- Hashpw routes have been removed from the Exchange.
+- Deprecated BCrypt support for credential hashing. Replaced with Argon2id.
+  - Configurable through the config file, or the appropriate environment variable.
+  - The Exchange will auto-magically*TM convert all hashes for all resources on authentication.
+- Updated GitHub workflows to use JDK 21.
+- Dependency Updates:
+  - ch.qos.logback.logback-classic                          1.5.6 -> 1.5.18
+  - com.github.cb372.scalacache-guava                      0.28.0 ->        [Removed]
+  - com.github.cb372.scalacache-caffeine                          -> 0.28.0 [Added]
+  - com.github.pjfanning.pekko-http-jackson                 3.0.0 -> 3.2.0
+  - com.osinka.i18n.scala-i18n                              1.0.3 -> 1.1.0
+  - org.apache.pekko.pekko-http                             1.1.0 -> 1.2.0
+  - org.apache.pekko.pekko-http-xml                         1.1.0 -> 1.2.0
+  - org.apache.pekko.pekko-http-cors                        1.1.0 -> 1.2.0
+  - org.apache.pekko.pekko-slf4j                            1.0.2 -> 1.1.3
+  - org.apache.pekko.pekko-protobuf-v3                      1.0.2 -> 1.1.3
+  - org.apache.pekko.pekko-stream                           1.0.2 -> 1.1.3
+  - org.bouncycastle.bcprov-jdk18on                               -> 1.80  [Added]
+  - org.postgresql.postgresql                              42.7.1 -> 42.7.6
+  - org.scalacheck.scalacheck                              1.17.0 -> 1.18.1
+  - org.scalatest.scalatest                           3.3.0-SNAP2 -> 3.3.0-SNAP4
+  - org.springframework.security.spring-security-core             -> 6.5.0 [Added]
+  - JDK                                                        17 -> 21
+  - SBT                                                    1.10.5 -> 1.11.0
+  - swagger ui                                             5.11.0 -> 5.22.0
+  - Red Hat UBI-Minimal                                         9 -> 10
+
 ## [2.126.1](https://github.com/open-horizon/exchange-api/pull/747) - 2025-02-13
 - Added backwards compatible tls config variables to the default config.
 

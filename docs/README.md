@@ -1,7 +1,7 @@
 ---
 copyright:
-years: 2022 - 2023
-lastupdated: "2023-04-26"
+years: 2022 - 2025
+lastupdated: "2025-06-03"
 layout: page
 title: "Exchange API Server"
 description: "Open Horizon Exchange API Documentation"
@@ -244,13 +244,9 @@ To build an exchange container with code that is targeted for a git branch:
 
 ### Putting Hashed Password in config.json
 
-The exchange root user password is set via the environment variable `EXCHANGE_ROOT_PW`. But the password doesn't need to be clear text. You can hash the password with:
+The exchange root user password is set via the environment variable `EXCHANGE_ROOT_PW`.
 
-```bash
-curl -sS -X POST -H "Authorization:Basic $HZN_ORG_ID/$HZN_EXCHANGE_USER_AUTH" -H "Content-Type: application/json" -d '{ "password": "PUT-PW-HERE" }' $HZN_EXCHANGE_URL/admin/hashpw | jq
-```
-
-And then set the environment variable `export EXCHANGE_ROOT_PW=hashedrootuserpassword` and restart the Exchange.
+And then set the environment variable `export EXCHANGE_ROOT_PW=rootuserpassword` and restart the Exchange.
 
 ### Disabling Root User
 

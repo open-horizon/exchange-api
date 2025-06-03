@@ -74,13 +74,13 @@ lazy val root = (project in file("."))
       "ch.qos.logback" % "logback-classic" % "[1.5.18,)",
       "com.typesafe.slick" %% "slick-hikaricp" % "[3.4.1]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       "com.github.tminglei" %% "slick-pg_json4s" % "[0.21.0]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
-      "org.postgresql" % "postgresql" % "[42.7.1,)",
+      "org.postgresql" % "postgresql" % "[42.7.6,)",
       "org.scalaj" %% "scalaj-http" % "[2.4.2]",                  // Deprecated as of April 2022, in v2.4.2
       "com.typesafe" % "config" % "[1.4.3,)",
       //"org.mindrot" % "jbcrypt" % "[0.4,)",                       // Last version (v0.4) release February 13, 2017
       //"com.pauldijou" %% "jwt-core" % "[5.0.0,)",
       "com.github.cb372" %% "scalacache-caffeine" % "[0.28.0]",
-      "com.osinka.i18n" %% "scala-i18n" % "[1.0.3,)",
+      "com.osinka.i18n" %% "scala-i18n" % "[1.1.0,)",
       
       "org.apache.pekko" %% "pekko-http-testkit"    % pekkoHttpVersion.value  % Test,
       "org.apache.pekko" %% "pekko-testkit"         % pekkoVersion.value      % Test,

@@ -73,7 +73,7 @@ POSTGRES_DB_USER ?= admin
 EXCHANGE_DB_USER ?= $(POSTGRES_DB_USER)
 PROJECT_DIRECTORY ?= $(shell pwd)
 # Try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.sbt
-SCALA_VERSION ?= 2.13.14
+SCALA_VERSION ?= 2.13.16
 SCALA_VERSION_SHORT ?= 2.13
 
 

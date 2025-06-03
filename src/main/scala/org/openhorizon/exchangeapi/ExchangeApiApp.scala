@@ -36,7 +36,7 @@ import org.apache.pekko.pattern.{BackoffOpts, FutureRef}
 import org.json4s._
 import org.openhorizon.exchangeapi.SwaggerDocService.complete
 import org.openhorizon.exchangeapi.auth.AuthCache.logger
-import org.openhorizon.exchangeapi.auth.{AuthCache, AuthRoles, AuthenticationSupport, DbConnectionException, IAgbot, INode, IUser, IdNotFoundForAuthorizationException, Identity, Identity2, InvalidCredentialsException, Password, Token}
+import org.openhorizon.exchangeapi.auth.{AuthCache, AuthRoles, AuthenticationSupport, DbConnectionException, IAgbot, INode, IUser, IdNotFoundForAuthorizationException, Identity, Identity2, InvalidCredentialsException, Password}
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
 import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements, Confirm}
@@ -380,7 +380,7 @@ object ExchangeApiApp extends App
             return Future.successful(None)
           
           
-          def x (resource: String): Future[(Identity2, String)] = {
+          def identityCacheGet (resource: String): Future[(Identity2, String)] = {
             cacheResourceIdentity.cachingF(resource)(ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds)) {
               // On cache miss execute this block to try and find what the value should be.
               // If found add to the cache for next time.
@@ -392,7 +392,7 @@ object ExchangeApiApp extends App
             }
           }
           
-          def y(resourceIdentityAndCred: Option[(Identity2, String)]): Future[Option[Identity2]] = Future {
+          def AuthenticationCheck (resourceIdentityAndCred: Option[(Identity2, String)]): Future[Option[Identity2]] = Future {
             resourceIdentityAndCred match {
              case Some(resourceIdentityAndCred) =>
                // Guard, should never hit this condition. Reject the authentication attempt if true, as we cannot determine this resource's identity.
@@ -447,10 +447,10 @@ object ExchangeApiApp extends App
           // Chains the input/output of our futures.
           // Also yields a result this future can use due to nesting futures.
           for {
-            a <- x(resource)
+            fetchedIdentity <- identityCacheGet(resource)
             //_ = logger.debug(s"Async returns: ${a._1.toString}, ${a._1.identifier.getOrElse("None")}")
-            b <- y(Option(a)) fallbackTo(Future{None})
-          } yield b
+            authenticatedIdentity <- AuthenticationCheck(Option(fetchedIdentity)) fallbackTo(Future{None})
+          } yield authenticatedIdentity
         }.flatMap(x => x) // Flattens the nested futures.
       case _ =>
         Future.successful(None)
@@ -595,11 +595,11 @@ object ExchangeApiApp extends App
     
   implicit val cacheResourceOwnership: CaffeineCache[(UUID, Boolean)] = CaffeineCache(ownershipCache)
   
-  def getOwnerOfResource(organization: String, resource: String, something: String): Future[(UUID, Boolean)] = {
+  def getOwnerOfResource(organization: String, resource: String, resource_type: String): Future[(UUID, Boolean)] = {
     val getOwnerOfResource: DBIOAction[(UUID, Boolean), NoStream, Effect.Read] =
       for {
         owner: Seq[(UUID, Boolean)] <-
-           something match {
+           resource_type match {
              case "agreement_bot" =>
                Compiled(AgbotsTQ.filter(agbots => agbots.id === resource &&
                                                   agbots.orgid === organization)

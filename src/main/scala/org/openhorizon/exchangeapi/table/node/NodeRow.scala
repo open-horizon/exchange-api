@@ -32,7 +32,6 @@ final case class NodeRow(id: String,
                          lastUpdated: String,
                          clusterNamespace: Option[String] = None,
                          isNamespaceScoped: Boolean = false) {
-  
   def this(heartbeat: Option[String],
            modified_at: Timestamp,
            node: String,
@@ -55,11 +54,11 @@ final case class NodeRow(id: String,
          nodeType = request.nodeType.get,
          orgid = organization,
          owner = owner,
-         pattern = request.pattern,
+         pattern = request.pattern.getOrElse(""),
          publicKey = request.publicKey.getOrElse(""),
          regServices = write(request.registeredServices.get.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
          softwareVersions = write(request.softwareVersions.get),
-         token = Password.hash(request.token),
+         token = Password.hash(request.token.getOrElse("")),
          userInput = write(request.userInput.get))
 
   def upsert: DBIO[_] = {

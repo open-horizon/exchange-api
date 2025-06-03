@@ -298,12 +298,12 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
 
-    val devInput = PutNodesRequest(nodeToken, "bc dev test", None, "", None, None, None, None, Option(""), None, None)
+    val devInput = PutNodesRequest(Option(nodeToken), "bc dev test", None, Option(""), None, None, None, None, Option(""), None, None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)
 
-    val devInput2 = PutNodesRequest(nodeToken2, "bc dev test", None, "", None, None, None, None, Option(""), None, None)
+    val devInput2 = PutNodesRequest(Option(nodeToken2), "bc dev test", None, Option(""), None, None, None, None, Option(""), None, None)
     val devResponse2 = Http(URL+"/nodes/"+nodeId2).postData(write(devInput2)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse2.code)
     assert(devResponse2.code === HttpCode.PUT_OK.intValue)

@@ -11,10 +11,10 @@ import slick.dbio.DBIO
 import java.util.UUID
 
 /** Input format for PUT /orgs/{organization}/nodes/<node-id> */
-final case class PutNodesRequest(token: String,
+final case class PutNodesRequest(token: Option[String] = None,
                                  name: String,
                                  nodeType: Option[String] = Option(NodeType.DEVICE.toString),
-                                 pattern: String,
+                                 pattern: Option[String] = None,
                                  registeredServices: Option[List[RegService]] = Option(List.empty[RegService]),
                                  userInput: Option[List[OneUserInputService]] = Option(List.empty[OneUserInputService]),
                                  msgEndPoint: Option[String] = Option(""),
@@ -24,7 +24,7 @@ final case class PutNodesRequest(token: String,
                                  heartbeatIntervals: Option[NodeHeartbeatIntervals] = Option(NodeHeartbeatIntervals(0,0,0)),
                                  clusterNamespace: Option[String] = None,
                                  isNamespaceScoped: Option[Boolean] = Option(false)) {
-  require(token!=null && name!=null && pattern!=null)
+  require(name != null)
   protected implicit val jsonFormats: Formats = DefaultFormats
   /** Halts the request with an error msg if the user input is invalid. */
   def getAnyProblem(id: String, noheartbeat: Option[String]): Option[String] = {
@@ -37,7 +37,7 @@ final case class PutNodesRequest(token: String,
     // }
     // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     if (nodeType.isDefined && !NodeType.containsString(nodeType.get)) return Option(ExchMsg.translate("invalid.node.type", NodeType.valuesAsString))
-    if (pattern != "" && """.*/.*""".r.findFirstIn(pattern).isEmpty) return Option(ExchMsg.translate("pattern.must.have.orgid.prepended"))
+    if (pattern != "" && """.*/.*""".r.findFirstIn(pattern.getOrElse("")).isEmpty) return Option(ExchMsg.translate("pattern.must.have.orgid.prepended"))
     for (m <- registeredServices.getOrElse(List())) {
       // now we support more than 1 agreement for a MS
       // if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
@@ -73,7 +73,7 @@ final case class PutNodesRequest(token: String,
             nodeType = nodeType.getOrElse(NodeType.DEVICE.toString),
             orgid = orgid,
             owner = UUID.randomUUID(),
-            pattern = pattern,
+            pattern = pattern.getOrElse(""),
             publicKey = publicKey.getOrElse(""),
             regServices = write(rsvc2),
             softwareVersions = write(softwareVersions),
@@ -103,7 +103,7 @@ final case class PutNodesRequest(token: String,
             nodeType = nodeType.getOrElse(NodeType.DEVICE.toString),
             orgid = orgid,
             owner = UUID.randomUUID(),
-            pattern = pattern,
+            pattern = pattern.getOrElse(""),
             publicKey = publicKey.getOrElse(""),
             regServices = write(rsvc2),
             softwareVersions = write(softwareVersions),

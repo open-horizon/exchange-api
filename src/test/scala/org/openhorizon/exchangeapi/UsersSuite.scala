@@ -310,7 +310,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
         assert(response.code === HttpCode.POST_OK.intValue)
 
         // Only for ibm public cloud: ensure we can add a node to check acls to other objects
-        val inputNode = PutNodesRequest("abc", "my node", None, "", None, None, None, None, Option("ABC"), None, None)
+        val inputNode = PutNodesRequest(Option("abc"), "my node", None, Option(""), None, None, None, None, Option("ABC"), None, None)
         response = Http(CLOUDURL + "/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: " + response.code + ", response.body: " + response.body)
         assert(response.code === HttpCode.PUT_OK.intValue)

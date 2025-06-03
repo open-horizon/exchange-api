@@ -129,7 +129,7 @@ class CatalogSuite extends AnyFunSuite {
       assert(userResponse.code === HttpCode.POST_OK.intValue)
     }
 
-    val devInput = PutNodesRequest(nodeToken, "", None, "", None, None, None, None, Option(""), None, None)
+    val devInput = PutNodesRequest(Option(nodeToken), "", None, Option(""), None, None, None, None, Option(""), None, None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)

@@ -144,7 +144,7 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
         val resource_type: String = "node"
         val cacheCallback: Future[(UUID, Boolean)] =
           cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
           }
         
         def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =

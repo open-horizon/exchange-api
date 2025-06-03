@@ -58,7 +58,7 @@ trait Confirm extends JacksonSupport with AuthenticationSupport  {
         val resource_type = "user"
         val cacheCallback: Future[(UUID, Boolean)] =
           cacheResourceOwnership.cachingF(organization, username, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
           }
         
         def routeMethods(resource_identity: Option[UUID]): Route =

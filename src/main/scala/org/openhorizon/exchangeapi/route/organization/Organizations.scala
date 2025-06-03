@@ -5,54 +5,22 @@ import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
-import io.swagger.v3.oas.annotations.parameters.RequestBody
-import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
+import jakarta.ws.rs.{GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
-import org.checkerframework.checker.units.qual.t
-import org.json4s._
-import org.json4s.jackson.Serialization.write
-import org.openhorizon.exchangeapi
-import org.openhorizon.exchangeapi.auth.cloud.{IamAccountInfo, IbmCloudAuth}
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IAgbot, INode, IUser, Identity, Identity2, OrgAndId, TAction, TAgbot, TNode, TOrg}
-import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmRequest
-import org.openhorizon.exchangeapi.route.node.{PostNodeErrorResponse, PostServiceSearchRequest, PostServiceSearchResponse}
+import org.json4s.{DefaultFormats, Formats, JValue}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TOrg}
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
-import org.openhorizon.exchangeapi.table._
-import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
-import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ
-import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
-import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodesTQ}
-import org.openhorizon.exchangeapi.table.node.error.NodeErrorTQ
-import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
-import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
-import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgsTQ}
-import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.table.schema.SchemaTQ
-import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, RouteUtils}
-import org.openhorizon.exchangeapi.{ExchangeApi, table}
+import org.openhorizon.exchangeapi.table.organization.{Org, OrgRow, Orgs, OrgsTQ}
+import org.openhorizon.exchangeapi.utility.ExchMsg
+import slick.lifted.CompiledStreamingExecutable
 
-import java.lang.IllegalCallerException
-import java.time.ZonedDateTime
-import java.time.format.DateTimeParseException
 import scala.collection.immutable._
-import scala.collection.mutable.ListBuffer
-import scala.concurrent.ExecutionContext
-import scala.math.Ordered.orderingToOrdered
-import scala.util._
+import scala.concurrent.{ExecutionContext, Future}
 
-/*someday: when we start using actors:
-import akka.actor.{ ActorRef, ActorSystem }
-import scala.concurrent.duration._
-import org.openhorizon.exchangeapi.OrgsActor._
-import akka.pattern.ask
-import akka.util.Timeout
-import scala.concurrent.ExecutionContext
-*/
 
 
 /** Routes for /orgs */
@@ -99,11 +67,13 @@ trait Organizations extends JacksonSupport with AuthenticationSupport {
   // Swagger annotation reference: https://github.com/swagger-api/swagger-core/wiki/Swagger-2.X---Annotations
   // Note: i think these annotations can't have any comments between them and the method def
   @GET
-  @Operation(summary = "Returns all orgs", description = "Returns some or all org definitions. Can be run by any user if filter orgType=IBM is used, otherwise can only be run by the root user or a hub admin.",
+  @Operation(summary = "Returns all organizations", description = "Returns some or all organization definitions. Can be run by any resource archetype (Agreement Bot, Node, User). Will at minimum always return the organization of the caller.",
     parameters = Array(
-      new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this org type. Currently the only supported org type for this route is 'IBM'.",
+      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Filter results to only include organizations with this description (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "organization", in = ParameterIn.QUERY, required = false, description = "Filter results to only include organizations are this, or are like this (can include % for wildcard - the URL encoding for % is %25)"),
+      new Parameter(name = "orgtype", in = ParameterIn.QUERY, required = false, description = "Filter results to only include organizations with this org type. Currently the only supported org type for this route is 'IBM'.",
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[String], allowableValues = Array("IBM"))))),
-      new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include orgs with this label (can include % for wildcard - the URL encoding for % is %25)")),
+      new Parameter(name = "label", in = ParameterIn.QUERY, required = false, description = "Filter results to only include organizations with this label (can include % for wildcard - the URL encoding for % is %25)")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(
@@ -141,47 +111,69 @@ trait Organizations extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getOrganizations(@Parameter(hidden = true) identity: Identity2,
+  def getOrganizations(@Parameter(hidden = true) description: Option[String],
+                       @Parameter(hidden = true) identity: Identity2,
                        @Parameter(hidden = true) label: Option[String],
+                       @Parameter(hidden = true) organization: Option[String],
                        @Parameter(hidden = true) orgType: Option[String]): Route =
     {
-      logger.debug(s"GET /orgs?label=${label.getOrElse("None")},orgtype=${orgType.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+      logger.debug(s"GET /orgs?label=${label.getOrElse("None")},organization=${organization.getOrElse("None")},orgtype=${orgType.getOrElse("None")} - By ${identity.resource}:${identity.role}")
       
       validate(orgType.isEmpty || orgType.get == "IBM", ExchMsg.translate("org.get.orgtype")) {
-        complete({ // this is an anonymous function that returns Future[(StatusCode, GetOrgsResponse)]
-          logger.debug(s"GET /orgs identity: ${identity.resource}") // can't display the whole ident object, because that contains the pw/token
-          var q = OrgsTQ.subquery
-          // If multiple filters are specified they are ANDed together by adding the next filter to the previous filter by using q.filter
-          orgType match {
-            case Some(oType) => if (oType.contains("%")) q = q.filter(_.orgType like oType) else q = q.filter(_.orgType === oType);
-            case _ => ;
+        val getOrgsAll: CompiledStreamingExecutable[Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Option[JValue]]), Rep[String]), ((String, String, String, String, String, String, Option[JValue]), String), Seq], Seq[((String, String, String, String, String, String, Option[JValue]), String)], ((String, String, String, String, String, String, Option[JValue]), String)] =
+          for {
+            organizations <-
+              Compiled(OrgsTQ.filterIf(identity.isOrgAdmin || identity.isStandardUser)(organizations => organizations.orgid === identity.organization || organizations.orgid === "IBM")
+                             .filterIf(identity.isAgbot || identity.isNode)(organizations => organizations.orgid === identity.organization)
+                             .filterOpt(description)((organizations, description) => (if (description.contains("%")) organizations.description like description else organizations.description === description))
+                             .filterOpt(label)((organizations, label) => (if (label.contains("%")) organizations.label like label else organizations.label === label))
+                             .filterOpt(organization)((organizations, org) => (if (org.contains("%")) organizations.orgid like org else organizations.orgid === org))
+                             .filterOpt(orgType)((organizations, orgType) => organizations.orgid === orgType)
+                             .map(organizations =>
+                                    ((organizations.description,
+                                      organizations.heartbeatIntervals,
+                                      organizations.label,
+                                      organizations.lastUpdated,
+                                      organizations.limits,
+                                      // organizations.orgid,
+                                      organizations.orgType,
+                                      organizations.tags),
+                                     organizations.orgid))
+                             .sortBy(_._2.asc))
+          } yield organizations
+        
+        complete {
+          db.run(getOrgsAll.result.transactionally).map {
+            result =>
+              Future { logger.debug(s"GET /orgs?label=${label.getOrElse("None")},organization=${organization.getOrElse("None")},orgtype=${orgType.getOrElse("None")} - ${result.size}") }
+              implicit val formats: Formats = DefaultFormats
+              
+              if (result.nonEmpty)
+                (StatusCodes.OK, GetOrgsResponse(result.map(organizations => organizations._2 -> new Org(organizations._1)).toMap))
+              else
+                (StatusCodes.NotFound, GetOrgsResponse())
           }
-          label match {
-            case Some(lab) => if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab);
-            case _ => ;
-          }
-
-          db.run(q.result).map({ list =>
-            logger.debug("GET /orgs result size: " + list.size)
-            val orgs: Map[String, Org] = list.map(a => a.orgId -> a.toOrg).toMap
-            val code: StatusCode = if (orgs.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-            (code, GetOrgsResponse(orgs, 0))
-          })
-        })
+        }
       }
     }
   
   def organizations(identity: Identity2): Route =
     path("orgs") {
       get {
-        parameter("orgtype".?, "label".?) {
-          (orgType, label) =>
+        parameter("description".?,
+                  "label".?,
+                  "organization".?,
+                  "orgtype".?) {
+          (description,
+           label,
+           organization,
+           orgType) =>
             // If filter is orgType=IBM then it is a different access required than reading all orgs
-            val access: Access.Value = if (orgType.getOrElse("").contains("IBM")) Access.READ_IBM_ORGS else Access.READ_OTHER_ORGS
+            // val access: Access.Value = if (orgType.getOrElse("").contains("IBM")) Access.READ_IBM_ORGS else Access.READ_OTHER_ORGS
             
-            exchAuth(TOrg("*"), access, validIdentity = identity) {
+            exchAuth(TOrg(identity.organization), Access.READ, validIdentity = identity) {
               _ =>
-                getOrganizations(identity, label, orgType)
+                getOrganizations(description, identity, label, organization, orgType)
             }
         }
       }

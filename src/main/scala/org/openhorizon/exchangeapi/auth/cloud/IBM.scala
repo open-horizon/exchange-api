@@ -1,9 +1,6 @@
 package org.openhorizon.exchangeapi.auth.cloud
 
-import com.github.benmanes.caffeine
-import com.github.benmanes.caffeine.cache.Caffeine
-import com.google.common.cache
-import com.google.common.cache.CacheBuilder
+
 import org.apache.pekko.event.LoggingAdapter
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
@@ -13,9 +10,6 @@ import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.user
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, ExchMsg, HttpCode}
-import scalacache._
-import scalacache.caffeine.CaffeineCache
-import scalacache.modes.try_._
 import scalaj.http._
 
 import java.io.{BufferedInputStream, File, FileInputStream}
@@ -60,7 +54,7 @@ final case class IamAccountInfo(id: String, name: String, description: String, c
 
 //case class TokenAccountResponse(id: String, name: String, description: String)
 //s"ICP IAM authentication succeeded, but the org specified in the request ($requestOrg) does not match the org associated with the ICP credentials ($userCredsOrg)"
-
+/*
 /**
  * JAAS module to authenticate to the IBM cloud. Called from AuthenticationSupport:authenticate() because JAAS.config references this module.
  */
@@ -414,4 +408,4 @@ object IbmCloudAuth {
       case _ => ("", compositeId)
     }
   }
-}
+}*/

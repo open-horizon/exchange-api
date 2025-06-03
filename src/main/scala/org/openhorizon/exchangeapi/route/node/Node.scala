@@ -25,7 +25,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, 
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
 import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgsTQ}
-import org.openhorizon.exchangeapi.table.resourcechange
+import org.openhorizon.exchangeapi.table.{node, resourcechange}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service.{SearchServiceKey, SearchServiceTQ, ServicesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, StrConstants, VersionRange}
@@ -879,16 +879,24 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                               Option(ExchMsg.translate("bad.input"))
                             else if (!NodeType.containsString(reqBody.nodeType.getOrElse(NodeType.DEVICE.toString)))
                               Option(ExchMsg.translate("invalid.node.type", NodeType.valuesAsString))
-                            else if (reqBody.pattern.nonEmpty &&
-                                     """.*/.*""".r.findFirstIn(reqBody.pattern).isEmpty)
+                            else if (reqBody.pattern.getOrElse("").nonEmpty &&
+                                     """.*/.*""".r.findFirstIn(reqBody.pattern.getOrElse("")).isEmpty)
                               Option(ExchMsg.translate("pattern.must.have.orgid.prepended"))
-                            else if (!identity.isSuperUser &&
+                            else if ((!identity.isNode ||
+                                      !identity.isSuperUser) &&
+                                    (reqBody.pattern.isEmpty ||
+                                     reqBody.publicKey.isEmpty ||
+                                     reqBody.token.isEmpty) &&
+                                   !(reqBody.pattern.isEmpty &&
+                                     reqBody.publicKey.isEmpty &&
+                                     reqBody.token.isEmpty) &&
+                                   !(reqBody.pattern.isDefined &&
                                      reqBody.publicKey.isDefined &&
-                                     reqBody.publicKey.getOrElse("").nonEmpty &&
-                                     reqBody.token.nonEmpty)
+                                     reqBody.token.isDefined))
                               Option(ExchMsg.translate("node.public.key.not.token", resource))
                             else if (!identity.isSuperUser &&
-                                     reqBody.token.isEmpty)
+                                     reqBody.token.isDefined &&
+                                     reqBody.token.get.isEmpty)
                               Option(ExchMsg.translate("token.cannot.be.empty.string"))
                             else if (node == "iamapikey" || node == "iamtoken")
                               Option(ExchMsg.translate("node.id.not.iamapikey.or.iamtoken"))
@@ -947,8 +955,6 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       }
                   })
               }))
-              
-              logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - Cleared input validation validation")
               
               implicit val defaultFormats: DefaultFormats = DefaultFormats
               val modified_at: Timestamp = ApiTime.nowUTCTimestamp
@@ -1034,9 +1040,14 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       services.url,
                       services.version))
               
-              logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - Prior to db stuff")
+              def baseNodeQuery =
+                NodesTQ.filter(nodes => nodes.id === resource &&
+                                        nodes.orgid === organization)
+                        .filterIf(identity.isStandardUser)(nodes => nodes.owner === identity.identifier)
+                        .filterIf(identity.isOrgAdmin)(nodes => nodes.orgid === identity.organization)
               
-              val x =
+              
+              val createOrUpdateNode: DBIOAction[(Int, Int, Int, Int, Int, Int), NoStream, Effect with Effect.Read with Effect.Write] =
                 for {
                   _ <-
                     if (identity.isHubAdmin)
@@ -1046,7 +1057,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   
                   // ---------- pattern --------------
                   matchedPatterns <-
-                    if (reqBody.pattern.nonEmpty)
+                    if (reqBody.pattern.getOrElse("").nonEmpty)
                       matchingPatterns.result
                     else
                       DBIO.successful(1)
@@ -1059,76 +1070,38 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     else
                       DBIO.successful(())
                   
-                  // ---------- publicKey ------------
                   
-                  /**
-                   * - A public key and token may not exist at the same time.
-                   * - A public key may be added:
-                   *   - If a token is not already set, and a public key is not already set.
-                   *   - If a token is being removed in this request, and a public key is not already set.
-                   *     - A public key can be removed.
-                   */
+                  // ------- Public Key & Token ------
                   
-                  /**
-                   * The existence of a set pattern (deployment pattern) or a set public key (deployment policy)
-                   * determines whether a Node is "registered" or not. The presence of one of these is a registered
-                   * state, and the lack of both is a unregistered state. A Node's registration is not modelled
-                   * well, currently.
-                   */
+                  registeredNode <-
+                      Compiled(NodesTQ.filter(nodes => nodes.id === resource &&
+                                                       nodes.orgid === organization)
+                                      //.filter(_.publicKey === "")
+                                      //.filterIf(reqBody.token.getOrElse("").nonEmpty)(nodes => nodes.pattern === "")
+                                      //.filterIf(reqBody.pattern.getOrElse("").nonEmpty)(nodes => nodes.pattern === "")
+                                      .take(1)
+                                      .map(nodes =>
+                                             (nodes.pattern,
+                                              nodes.publicKey,
+                                              nodes.token)))
+                        .result
+                        .headOption
                   
-                  validPublicKey <-
-                    if (identity.isSuperUser ||
-                        (reqBody.token.isEmpty && reqBody.publicKey.isEmpty) ||
-                        (reqBody.token.nonEmpty && reqBody.publicKey.getOrElse("").isEmpty))
-                      DBIO.successful(-1)
-                    else if ((reqBody.token.isEmpty && reqBody.publicKey.isDefined && reqBody.publicKey.getOrElse("").nonEmpty))
-                      Compiled(NodesTQ.getNode(resource)
-                        .filter(_.publicKey === "")
-                        .map(_.id)
-                        .length).result
-                    else
-                      DBIO.failed(BadInputException(summary = ExchMsg.translate("bad.input")))
-                  
-                  
+                  // The node is registered, these changes cannot be made, unless Node or Root.
                   _ <-
-                    if (validPublicKey == 0)
-                      DBIO.failed(BadInputException(summary = ExchMsg.translate("public.key.no.replace")))
-                    else
+                    if (registeredNode.isEmpty ||
+                        identity.isNode ||
+                        identity.isSuperUser)
                       DBIO.successful(())
-                  
-                  // ---------- token ----------------
-                  
-                  /**
-                   * - A token and a public key may not exist at the same time.
-                   * - A token may be added:
-                   *   - If a public key is not already set.
-                   *   - If a public key is being removed in this request.
-                   *     - A token can be removed.
-                   */
-                  
-                  /**
-                   * The existence of a set pattern (deployment pattern) or a set public key (deployment policy)
-                   * determines whether a Node is "registered" or not. The presence of one of these is a registered
-                   * state, and the lack of both is a unregistered state. A Node's registration is not modelled
-                   * well, currently.
-                   */
-                  
-                  unsetPublicKeys <-
-                    if (identity.isSuperUser ||
-                        (reqBody.token.isEmpty && reqBody.publicKey.isEmpty) ||
-                        (reqBody.token.nonEmpty && reqBody.publicKey.getOrElse("").isEmpty))
-                      DBIO.successful(-1)
-                    else if (reqBody.token.nonEmpty && reqBody.publicKey.isEmpty)
-                      Compiled(NodesTQ.getNode(resource)
-                        .filter(_.publicKey === "")
-                        .map(_.id).length).result
-                    else
-                      DBIO.successful(-1)
-                  
-                  // Do not allow setting the Node's Token if its Public Key is already set.
-                  _ <-
-                    if (unsetPublicKeys == 0)
-                      DBIO.failed(BadInputException(summary = ExchMsg.translate("node.public.key.not.token", resource)))
+                    else if ((reqBody.pattern.isDefined ||
+                              reqBody.publicKey.isDefined ||
+                              reqBody.token.isDefined))
+                      if (registeredNode.get._2.nonEmpty)
+                        DBIO.failed(BadInputException(summary = ExchMsg.translate("node.public.key.not.token", resource)))
+                      else if ((reqBody.pattern.isDefined || reqBody.token.isDefined) && registeredNode.get._1.nonEmpty)
+                        DBIO.failed(BadInputException(summary = ExchMsg.translate("node.public.key.not.token", resource)))
+                      else
+                        DBIO.successful(())
                     else
                       DBIO.successful(())
                   
@@ -1183,150 +1156,70 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   
                   // ----- Modify a Node that already exists. -----
                   numNodesModified <-
-                    if (noheartbeat.getOrElse(false)) {
-                      if (reqBody.publicKey.isEmpty || reqBody.publicKey.getOrElse("").isEmpty) {
-                        NodesTQ.filter(nodes => nodes.id === resource &&
-                            nodes.orgid === organization)
-                          .filterIf(identity.isStandardUser)(nodes => nodes.owner === identity.identifier)
-                          .filterIf(identity.isOrgAdmin)(nodes => nodes.orgid === identity.organization)
-                          .map(nodes =>
-                            (nodes.arch,
-                              nodes.clusterNamespace,
-                              nodes.heartbeatIntervals,
-                              nodes.isNamespaceScoped,
-                              nodes.lastUpdated,
-                              nodes.msgEndPoint,
-                              nodes.name,
-                              nodes.nodeType,
-                              nodes.pattern,
-                              nodes.regServices,
-                              nodes.softwareVersions,
-                              nodes.token,
-                              nodes.userInput))
-                          .update(reqBody.arch.getOrElse(""),
-                            reqBody.clusterNamespace,
-                            write(reqBody.heartbeatIntervals.getOrElse(NodeHeartbeatIntervals(0, 0, 0))),
-                            reqBody.isNamespaceScoped.getOrElse(false),
-                            modified_at_str,
-                            reqBody.msgEndPoint.getOrElse(""),
-                            reqBody.name,
-                            reqBody.nodeType.getOrElse(NodeType.DEVICE.toString),
-                            reqBody.pattern,
-                            write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
-                            write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
-                            Password.hash(reqBody.token),
-                            write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
-                      }
-                      else {
-                        NodesTQ.filter(nodes => nodes.id === resource &&
-                            nodes.orgid === organization)
-                          .filterIf(identity.isStandardUser)(nodes => nodes.owner === identity.identifier)
-                          .filterIf(identity.isOrgAdmin)(nodes => nodes.orgid === identity.organization)
-                          .map(nodes =>
-                            (nodes.arch,
-                              nodes.clusterNamespace,
-                              nodes.heartbeatIntervals,
-                              nodes.isNamespaceScoped,
-                              nodes.lastUpdated,
-                              nodes.msgEndPoint,
-                              nodes.name,
-                              nodes.nodeType,
-                              nodes.pattern,
-                              nodes.publicKey,
-                              nodes.regServices,
-                              nodes.softwareVersions,
-                              nodes.token,
-                              nodes.userInput))
-                          .update(reqBody.arch.getOrElse(""),
-                            reqBody.clusterNamespace,
-                            write(reqBody.heartbeatIntervals.getOrElse(NodeHeartbeatIntervals(0, 0, 0))),
-                            reqBody.isNamespaceScoped.getOrElse(false),
-                            modified_at_str,
-                            reqBody.msgEndPoint.getOrElse(""),
-                            reqBody.name,
-                            reqBody.nodeType.getOrElse(NodeType.DEVICE.toString),
-                            reqBody.pattern,
-                            reqBody.publicKey.getOrElse(""),
-                            write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
-                            write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
-                            Password.hash(reqBody.token),
-                            write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
-                      }
-                    }
-                    else {
-                      if (reqBody.publicKey.isEmpty || reqBody.publicKey.getOrElse("").isEmpty) {
-                        NodesTQ.filter(nodes => nodes.id === resource &&
-                            nodes.orgid === organization)
-                          .filterIf(identity.isStandardUser)(nodes => nodes.owner === identity.identifier)
-                          .filterIf(identity.isOrgAdmin)(nodes => nodes.orgid === identity.organization)
-                          .map(nodes =>
-                            (nodes.arch,
-                              nodes.clusterNamespace,
-                              nodes.heartbeatIntervals,
-                              nodes.isNamespaceScoped,
-                              nodes.lastHeartbeat,
-                              nodes.lastUpdated,
-                              nodes.msgEndPoint,
-                              nodes.name,
-                              nodes.nodeType,
-                              nodes.pattern,
-                              nodes.regServices,
-                              nodes.softwareVersions,
-                              nodes.token,
-                              nodes.userInput))
-                          .update(reqBody.arch.getOrElse(""),
-                            reqBody.clusterNamespace,
-                            write(reqBody.heartbeatIntervals.getOrElse(NodeHeartbeatIntervals(0, 0, 0))),
-                            reqBody.isNamespaceScoped.getOrElse(false),
-                            Option(modified_at_str),
-                            modified_at_str,
-                            reqBody.msgEndPoint.getOrElse(""),
-                            reqBody.name,
-                            reqBody.nodeType.getOrElse(NodeType.DEVICE.toString),
-                            reqBody.pattern,
-                            write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
-                            write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
-                            Password.hash(reqBody.token),
-                            write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
-                      }
-                      else {
-                        NodesTQ.filter(nodes => nodes.id === resource &&
-                            nodes.orgid === organization)
-                          .filterIf(identity.isStandardUser)(nodes => nodes.owner === identity.identifier)
-                          .filterIf(identity.isOrgAdmin)(nodes => nodes.orgid === identity.organization)
-                          .map(nodes =>
-                            (nodes.arch,
-                              nodes.clusterNamespace,
-                              nodes.heartbeatIntervals,
-                              nodes.isNamespaceScoped,
-                              nodes.lastHeartbeat,
-                              nodes.lastUpdated,
-                              nodes.msgEndPoint,
-                              nodes.name,
-                              nodes.nodeType,
-                              nodes.pattern,
-                              nodes.publicKey,
-                              nodes.regServices,
-                              nodes.softwareVersions,
-                              nodes.token,
-                              nodes.userInput))
-                          .update(reqBody.arch.getOrElse(""),
-                            reqBody.clusterNamespace,
-                            write(reqBody.heartbeatIntervals.getOrElse(NodeHeartbeatIntervals(0, 0, 0))),
-                            reqBody.isNamespaceScoped.getOrElse(false),
-                            Option(modified_at_str),
-                            modified_at_str,
-                            reqBody.msgEndPoint.getOrElse(""),
-                            reqBody.name,
-                            reqBody.nodeType.getOrElse(NodeType.DEVICE.toString),
-                            reqBody.pattern,
-                            reqBody.publicKey.getOrElse(""),
-                            write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
-                            write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
-                            Password.hash(reqBody.token),
-                            write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
-                      }
-                    }
+                      if (noheartbeat.getOrElse(false))
+                        Compiled(baseNodeQuery.map(nodes =>
+                                                     (nodes.arch,
+                                                      nodes.clusterNamespace,
+                                                      nodes.heartbeatIntervals,
+                                                      nodes.isNamespaceScoped,
+                                                      nodes.lastUpdated,
+                                                      nodes.msgEndPoint,
+                                                      nodes.name,
+                                                      nodes.nodeType,
+                                                      nodes.pattern,
+                                                      nodes.publicKey,
+                                                      nodes.regServices,
+                                                      nodes.softwareVersions,
+                                                      nodes.token,
+                                                      nodes.userInput)))
+                                              .update(reqBody.arch.getOrElse(""),
+                                                reqBody.clusterNamespace,
+                                                write(reqBody.heartbeatIntervals.getOrElse(NodeHeartbeatIntervals(0, 0, 0))),
+                                                reqBody.isNamespaceScoped.getOrElse(false),
+                                                modified_at_str,
+                                                reqBody.msgEndPoint.getOrElse(""),
+                                                reqBody.name,
+                                                reqBody.nodeType.getOrElse(NodeType.DEVICE.toString),
+                                                reqBody.pattern.getOrElse(registeredNode.get._1),
+                                                reqBody.publicKey.getOrElse(registeredNode.get._2),
+                                                write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
+                                                write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
+                                                (if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else registeredNode.get._3),
+                                                write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
+                      else
+                        Compiled(baseNodeQuery.map(nodes =>
+                                                     (nodes.arch,
+                                                      nodes.clusterNamespace,
+                                                      nodes.heartbeatIntervals,
+                                                      nodes.isNamespaceScoped,
+                                                      nodes.lastHeartbeat,
+                                                      nodes.lastUpdated,
+                                                      nodes.msgEndPoint,
+                                                      nodes.name,
+                                                      nodes.nodeType,
+                                                      nodes.pattern,
+                                                      nodes.publicKey,
+                                                      nodes.regServices,
+                                                      nodes.softwareVersions,
+                                                      nodes.token,
+                                                      nodes.userInput)))
+                                              .update(reqBody.arch.getOrElse(""),
+                                                reqBody.clusterNamespace,
+                                                write(reqBody.heartbeatIntervals.getOrElse(NodeHeartbeatIntervals(0, 0, 0))),
+                                                reqBody.isNamespaceScoped.getOrElse(false),
+                                                Option(modified_at_str),
+                                                modified_at_str,
+                                                reqBody.msgEndPoint.getOrElse(""),
+                                                reqBody.name,
+                                                reqBody.nodeType.getOrElse(NodeType.DEVICE.toString),
+                                                reqBody.pattern.getOrElse(registeredNode.get._1),
+                                                reqBody.publicKey.getOrElse(registeredNode.get._2),
+                                                write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
+                                                write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
+                                                (if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else registeredNode.get._3),
+                                                write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
+                        
+                      
                   
                   // ----- Node resource limits -----
                   
@@ -1425,9 +1318,9 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                          orgNodeLimit)
               
               complete({
-                db.run(x.transactionally.asTry).map({
+                db.run(createOrUpdateNode.transactionally.asTry).map({
                   case Success(v) => // Check creation/update of node, and other errors
-                    logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " updating resource status table: " + v)
+                    Future { logger.debug(s"PUT /orgs/$organization/nodes/$node - result: numNodesCreated: ${v._1}, numNodesInOrg: ${v._2}, numNodesModified: ${v._3}, numNodesOwnedByUser: ${v._4}, numResourceChanges: ${v._5}, orgNodeLimit: ${v._6}") }
                     
                     val nodeQuotaWarningOrg: Option[Boolean] =
                       if (v._1 == 1 && v._6 != -1)
@@ -1482,7 +1375,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
         val resource_type: String = "node"
         val cacheCallback: Future[(UUID, Boolean)] =
           cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
           }
         
         def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =

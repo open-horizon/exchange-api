@@ -1,15 +1,14 @@
 package org.openhorizon.exchangeapi.auth
 
-import org.openhorizon.exchangeapi._
 import org.openhorizon.exchangeapi.utility.ExchMsg
 import org.openhorizon.exchangeapi.ExchangeApi
-import org.openhorizon.exchangeapi.auth.cloud.IbmCloudAuth
 
 import javax.security.auth._
 import javax.security.auth.callback._
 import javax.security.auth.login.FailedLoginException
 import javax.security.auth.spi.LoginModule
 import scala.util._
+import scala.util.matching.Regex
 
 /**
  * JAAS module to authenticate local user/pw, nodeid/token, and agbotid/token in the exchange.
@@ -55,9 +54,21 @@ class Module extends LoginModule with AuthorizationSupport {
         val reqInfo: RequestInfo = reqCallback.request.get   // reqInfo is of type RequestInfo
         /*** // ***/ logger.debug(s"auth/Module.login(): reqInfo: $reqInfo") // TODO: comment
         //val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
-  
+        
+        // Split an id in the form org/id and return both parts. If there is no / we assume it is an id without the org.
+        def compositeIdSplit(compositeId: String): (String, String) = {
+          val reg: Regex = """^(\S*?)/(\S*)$""".r
+          compositeId match {
+            case reg(org, id) => (org, id)
+            // These 2 lines never get run, and aren't needed. If we really want to handle a special, put something like this as the 1st case above: case reg(org, "") => return (org, "")
+            //case reg(org, _) => return (org, "")
+            //case reg(_, id) => return ("", id)
+            case _ => ("", compositeId)
+          }
+        }
+        
         // Get the creds from the request
-        val (org, id) = IbmCloudAuth.compositeIdSplit(reqInfo.creds.id)
+        val (org, id) = compositeIdSplit(reqInfo.creds.id)
         
         if (org == "")
           throw new OrgNotSpecifiedException

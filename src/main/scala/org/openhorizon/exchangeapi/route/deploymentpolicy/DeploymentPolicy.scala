@@ -756,7 +756,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
         val resource_type: String = "deployment_policy"
         val cacheCallback: Future[(UUID, Boolean)] =
           cacheResourceOwnership.cachingF(organization, deploymentPolicy, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
-            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = resource_type)
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
           }
         
         def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =

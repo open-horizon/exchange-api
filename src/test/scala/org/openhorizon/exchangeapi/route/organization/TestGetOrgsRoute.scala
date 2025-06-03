@@ -4,7 +4,8 @@ import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.auth.{Password, Role}
-import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
@@ -29,7 +30,9 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
   
   val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
+  private val AGBOTPASSWORD = "agbotpassword"
   private val HUBADMINPASSWORD = "adminpassword"
+  private val NODEPASSWORD = "nodepassword"
   private val USERPASSWORD = "userpassword"
 
   private val TESTORGS: Seq[OrgRow] =
@@ -83,8 +86,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
             |}
             |""".stripMargin
         ))))
-
-  private val TESTUSERS: Seq[UserRow] = {
+  private val TESTUSERS: Seq[UserRow] =
     Seq(UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = true,
                 isOrgAdmin   = false,
@@ -99,24 +101,61 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
                 organization = TESTORGS(0).orgId,
                 password     = Option(Password.hash(USERPASSWORD)),
                 username     = "TestGetOrgsRouteUser"))
-  }
+  private val TESTAGBOTS: Seq[AgbotRow] =
+    Seq(AgbotRow(id            = TESTORGS(1).orgId + "/a1",
+                 lastHeartbeat = ApiTime.nowUTC,
+                 msgEndPoint   = "",
+                 name          = "",
+                 orgid         = TESTORGS(1).orgId,
+                 owner         = TESTUSERS(1).user,
+                 publicKey     = "",
+                 token         = Password.hash(AGBOTPASSWORD)),
+        AgbotRow(id            = "IBM/TestGetOrgsRoute-a1",    // Multi-tenant Agbot
+                 lastHeartbeat = ApiTime.nowUTC,
+                 msgEndPoint   = "",
+                 name          = "",
+                 orgid         = "IBM",
+                 owner         = TESTUSERS(1).user,
+                 publicKey     = "",
+                 token         = Password.hash(AGBOTPASSWORD)))
+  private val TESTNODES: Seq[NodeRow] =
+    Seq(NodeRow(arch               = "",
+                id                 = TESTORGS(0).orgId + "/node1",
+                heartbeatIntervals = "",
+                lastHeartbeat      = None,
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "",
+                nodeType           = "",
+                orgid              = TESTORGS(0).orgId,
+                owner              = TESTUSERS(1).user, //org 1 user
+                pattern            = "",
+                publicKey          = "",
+                regServices        = "",
+                softwareVersions   = "",
+                token              = Password.hash(NODEPASSWORD),
+                userInput          = ""))
   
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
+  private val AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTPASSWORD))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val MULTITENANTAGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(1).id + ":" + AGBOTPASSWORD))
+  private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODEPASSWORD))
   private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + USERPASSWORD))
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.run(
-      (OrgsTQ ++= TESTORGS) andThen
-        (UsersTQ ++= TESTUSERS)), AWAITDURATION
-    )
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
+                                 (UsersTQ ++= TESTUSERS) andThen
+                                 (AgbotsTQ ++= TESTAGBOTS) andThen
+                                 (NodesTQ ++= TESTNODES)), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetOrgsRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testGetOrgsRoute").delete andThen
       UsersTQ.filter(_.organization === "root")
-             .filter(_.username startsWith "TestGetOrgsRouteHubAdmin").delete), AWAITDURATION)
+             .filter(_.username startsWith "TestGetOrgsRouteHubAdmin").delete andThen
+      AgbotsTQ.filter(agbots => agbots.orgid === TESTAGBOTS(1).orgid && agbots.id === TESTAGBOTS(1).id).delete), AWAITDURATION)
   }
 
   def assertOrgsEqual(org1: Org, org2: OrgRow): Unit = {
@@ -159,11 +198,60 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     }
   }
 
-  test("GET /orgs -- as regular user -- should fail (403 access denied)") {
+  test("GET /orgs -- as regular user -- should see my org and the IBM org.") {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === HttpCode.OK.intValue)
+    val orgsList = parse(response.body).extract[GetOrgsResponse]
+    assert(orgsList.orgs.size >= 2) //AT LEAST the orgs created by this test suite, but may also be orgs created by other test suite
+    assert(!orgsList.orgs.contains("root"))
+    assert(orgsList.orgs.contains("IBM"))
+    assert(orgsList.orgs.contains(TESTORGS(0).orgId))
+    assertOrgsEqual(orgsList.orgs(TESTORGS(0).orgId), TESTORGS(0))
+    assert(!orgsList.orgs.contains(TESTORGS(1).orgId))
+  }
+  
+  test("GET /orgs -- as an agbot -- should only see my org.") {
+    val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val orgsList = parse(response.body).extract[GetOrgsResponse]
+    assert(orgsList.orgs.nonEmpty) //AT LEAST the orgs created by this test suite, but may also be orgs created by other test suite
+    assert(!orgsList.orgs.contains("root"))
+    assert(!orgsList.orgs.contains("IBM"))
+    assert(!orgsList.orgs.contains(TESTORGS(0).orgId))
+    assert(orgsList.orgs.contains(TESTORGS(1).orgId))
+    assertOrgsEqual(orgsList.orgs(TESTORGS(1).orgId), TESTORGS(1))
+  }
+  
+  test("GET /orgs -- as multitenant agbot -- should only see my org (IBM).") {
+    val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(MULTITENANTAGBOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val orgsList = parse(response.body).extract[GetOrgsResponse]
+    assert(orgsList.orgs.nonEmpty) //AT LEAST the orgs created by this test suite, but may also be orgs created by other test suite
+    assert(!orgsList.orgs.contains("root"))
+    assert(orgsList.orgs.contains("IBM"))
+    for (testOrg <- TESTORGS) {
+      assert(!orgsList.orgs.contains(testOrg.orgId))
+    }
+  }
+  
+  test("GET /orgs -- as node -- should only see my org.") {
+    val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(NODEAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val orgsList = parse(response.body).extract[GetOrgsResponse]
+    assert(orgsList.orgs.nonEmpty) //AT LEAST the orgs created by this test suite, but may also be orgs created by other test suite
+    assert(!orgsList.orgs.contains("root"))
+    assert(!orgsList.orgs.contains("IBM"))
+    assert(orgsList.orgs.contains(TESTORGS(0).orgId))
+    assertOrgsEqual(orgsList.orgs(TESTORGS(0).orgId), TESTORGS(0))
+    assert(!orgsList.orgs.contains(TESTORGS(1).orgId))
   }
 
   test("GET /orgs -- orgType = IBM as root -- returns IBM org") {

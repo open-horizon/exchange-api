@@ -193,6 +193,6 @@ def isTokenValid(token: String, username: String): Boolean = {
   }
 
   def isMyOrg(target: Target): Boolean = {
-    target.getOrg == getOrg
+    target.getOrg == identity2.organization
   }
 }

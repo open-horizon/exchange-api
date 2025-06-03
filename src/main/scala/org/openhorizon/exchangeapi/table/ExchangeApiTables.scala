@@ -199,7 +199,7 @@ object ExchangeApiTables {
                                            modifiedAt = changeTimestamp,
                                            modified_by = None,
                                            organization = organization,
-                                           password = Option(hubAdminConfigObject.toConfig.getString("password")),
+                                           password = Option(Password.hash(hubAdminConfigObject.toConfig.getString("password"))),
                                            user = UUID.randomUUID(),
                                            username = user))
                    
@@ -219,8 +219,7 @@ object ExchangeApiTables {
     val configRootPasswdHashed: Option[String] = {
       try {
         if(Configuration.getConfig.getBoolean("api.root.enabled"))
-           Option(BCrypt.hashpw(Configuration.getConfig.getString("api.root.password"), BCrypt.gensalt(10)))
-          // Option(Password.fastHash(Configuration.getConfig.getString("api.root.password")))
+           Option(Password.hash(Configuration.getConfig.getString("api.root.password")))
         else
           None
       }
@@ -241,7 +240,7 @@ object ExchangeApiTables {
               user = UUID.randomUUID(),
               username = "root")
     
-    val something =
+    val createOrUpdateInitialOrgsAndUsers: DBIOAction[Unit, NoStream, Effect.Write with Effect.Read] =
       for {
         numOrgsUpdated <-
           Compiled(OrgsTQ.filter(_.orgid === "root")
@@ -320,7 +319,7 @@ object ExchangeApiTables {
         
       } yield()
     
-    db.run(something.transactionally.asTry).map({
+    db.run(createOrUpdateInitialOrgsAndUsers.transactionally.asTry).map({
       case Success(_) =>
         logger.info("Successfully updated/inserted root org, root user, IBM org, and hub admins from config")
         

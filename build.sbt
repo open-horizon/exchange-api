@@ -37,7 +37,7 @@ lazy val root = (project in file("."))
     name                          := "amd64_exchange-api",
     organization                  := "org.openhorizon",
     pekkoHttpVersion              := "[1.2.0]",
-    pekkoVersion                  := "[1.0.2]",
+    pekkoVersion                  := "[1.1.3]",
     release                       := sys.env.getOrElse("GIT_SHORT_SHA", versionFunc()),
     resolvers                     += Classpaths.typesafeReleases,
     scalaVersion                  := "2.13.16",
@@ -50,17 +50,20 @@ lazy val root = (project in file("."))
     
     // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
     libraryDependencies ++= Seq(
-      "com.github.pjfanning" %% "pekko-http-jackson" % "[3.0.0,)",
+      "com.github.pjfanning" %% "pekko-http-jackson" % "[3.2.0,)",
       "org.apache.pekko"     %% "pekko-http"         % pekkoHttpVersion.value,
       "org.apache.pekko"     %% "pekko-http-xml"     % pekkoHttpVersion.value,
       // "org.apache.pekko"     %% "pekko-http-caching" % pekkoHttpVersion.value,
       "org.apache.pekko"     %% "pekko-http-cors"    % pekkoHttpVersion.value,
-      "org.apache.pekko"     %% "pekko-slf4j"        % "[1.1.1]",
-      "org.springframework.security" % "spring-security-core" % "6.5.0",
-      "org.bouncycastle" % "bcprov-jdk18on" % "1.80",
+      "org.apache.pekko"     %% "pekko-slf4j"        % pekkoVersion.value,
+      "org.apache.pekko"     %% "pekko-protobuf-v3"  % pekkoVersion.value,
+      "org.apache.pekko"     %% "pekko-stream"       % pekkoVersion.value,
+
+      "org.springframework.security" % "spring-security-core" % "[6.5.0,)",
+      "org.bouncycastle" % "bcprov-jdk18on" % "[1.80,)",
       
-      "org.pac4j" % "pac4j-oauth" % "6.1.2",
-      "org.pac4j" % "pac4j-oidc"  % "6.1.2",
+      //"org.pac4j" % "pac4j-oauth" % "6.1.2",
+      //"org.pac4j" % "pac4j-oidc"  % "6.1.2",
 
       "org.json4s" %% "json4s-native"  % "4.0.6",
       "org.json4s" %% "json4s-jackson" % "4.0.6",
@@ -74,8 +77,8 @@ lazy val root = (project in file("."))
       "org.postgresql" % "postgresql" % "[42.7.1,)",
       "org.scalaj" %% "scalaj-http" % "[2.4.2]",                  // Deprecated as of April 2022, in v2.4.2
       "com.typesafe" % "config" % "[1.4.3,)",
-      "org.mindrot" % "jbcrypt" % "[0.4,)",                       // Last version (v0.4) release February 13, 2017
-      "com.pauldijou" %% "jwt-core" % "[5.0.0,)",
+      //"org.mindrot" % "jbcrypt" % "[0.4,)",                       // Last version (v0.4) release February 13, 2017
+      //"com.pauldijou" %% "jwt-core" % "[5.0.0,)",
       "com.github.cb372" %% "scalacache-caffeine" % "[0.28.0]",
       "com.osinka.i18n" %% "scala-i18n" % "[1.0.3,)",
       
@@ -83,10 +86,10 @@ lazy val root = (project in file("."))
       "org.apache.pekko" %% "pekko-testkit"         % pekkoVersion.value      % Test,
       "org.apache.pekko" %% "pekko-stream-testkit"  % pekkoVersion.value      % Test,
       
-      "org.scalatest" %% "scalatest" % "[3.3.0-SNAP2,)" % "test",
-      "org.scalatestplus" %% "junit-4-12" % "[3.3.0.0-SNAP2,)" % "test",
-      "org.scalacheck" %% "scalacheck" % "[1.17.0,)" % "test",
-      "junit" % "junit" % "[4.13.2,)" % "test"
+      "org.scalatest" %% "scalatest" % "[3.3.0-SNAP4,)" % Test,
+      "org.scalatestplus" %% "junit-4-12" % "[3.3.0.0-SNAP2,)" % Test,
+      "org.scalacheck" %% "scalacheck" % "[1.18.1,)" % Test,
+      "junit" % "junit" % "[4.13.2,)" % Test
     ),
     scalacOptions ++= Seq("-unchecked", "-deprecation", "-feature"),
     javacOptions ++= Seq("-source", "21", "-target", "21", "-Xlint"),

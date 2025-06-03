@@ -91,6 +91,6 @@
 
   <root level="DEBUG">
     <appender-ref ref="ASYNC"/>
-    <appender-ref ref="ASYNC2"/>
+    <!-- <appender-ref ref="ASYNC2"/> -->
   </root>
 </configuration>

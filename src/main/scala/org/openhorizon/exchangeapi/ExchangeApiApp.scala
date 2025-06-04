@@ -434,8 +434,10 @@ object ExchangeApiApp extends App
                                            Password.check(requestPassword, storedSecret)
                                          })) {
                  // Root level permissions are used in test environments, any other user should not have root level access in a production environment.
-                 if ((resourceIdentityAndCred._1.resource != "root/root"))
+                 if (resourceIdentityAndCred._1.role == AuthRoles.SuperUser &&
+                     resourceIdentityAndCred._1.resource != "root/root")
                    Future { logger.warning(s"User resource ${resourceIdentityAndCred._1.resource}(resource: ${resourceIdentityAndCred._1.identifier.getOrElse("")}) has Root level access permissions") }
+                 
                  Option(resourceIdentityAndCred._1) // Return the successfully authenticated Identity
                }
                else

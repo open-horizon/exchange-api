@@ -83,9 +83,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
-            logger.debug("DELETE /orgs/" + organization + "/patterns/" + deploymentPattern + " updated in changes table: " + v)
+            Future { logger.debug("DELETE /orgs/" + organization + "/patterns/" + deploymentPattern + " updated in changes table: " + v) }
             
-            cacheResourceOwnership.remove(organization, deploymentPattern, "deployment_pattern")
+            Future { cacheResourceOwnership.remove(organization, deploymentPattern, "deployment_pattern") }
             
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.deleted")))
           case Failure(t: DBProcessingError) =>

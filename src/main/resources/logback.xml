@@ -23,11 +23,11 @@
     <appender-ref ref="STDOUT" />
   </appender>
 
-  <appender name="ASYNC2" class="ch.qos.logback.classic.AsyncAppender">
+  <!-- <appender name="ASYNC2" class="ch.qos.logback.classic.AsyncAppender">
     <queueSize>8192</queueSize>
     <neverBlock>true</neverBlock>
     <appender-ref ref="FILE"/>
-  </appender>
+  </appender> -->
 
 
   <logger name="ch.qos.logback.classic.model.processor.LoggerModelHandler"    level="${log.logback.loggermodelhandler:-off}" />

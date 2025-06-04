@@ -17,7 +17,7 @@ import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import org.openhorizon.exchangeapi.{ExchangeApiApp, table}
-import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
+import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile
@@ -224,9 +224,9 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                                      owner.isEmpty) { // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
                                    val action =
                                      if (owner.isEmpty)
-                                       reqBody.getDbUpdate(resource, organization, identity.identifier.getOrElse(identity.owner.get), hashedTok)
+                                       reqBody.getDbUpdate(resource, organization, hashedTok)
                                      else
-                                       reqBody.getDbUpsert(resource, organization, identity.identifier.getOrElse(identity.owner.get), hashedTok)
+                                       reqBody.getDbUpsert(resource, organization, identity.identifier.get, hashedTok)
                                    action.asTry}
                                  else
                                    DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.agbots", maxAgbots))).asTry})
@@ -239,6 +239,8 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                   case Success(v) =>
                     logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot updated in changes table: $v")
                     //TODO: AuthCache.putAgbotAndOwner(resource, hashedTok, reqBody.token, owner.get)
+                    
+                    Future { cacheResourceIdentity.remove(resource) }
                     
                     (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.added.updated")))
                   case Failure(t: DBProcessingError) =>
@@ -322,7 +324,10 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                                    DBIO.failed(t).asTry}))
                     .map({
                       case Success(v) =>
-                        logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot updated in changes table: $v")
+                        Future { logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot updated in changes table: $v") }
+                        
+                        Future { cacheResourceIdentity.remove(resource) }
+                        
                         (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.attribute.updated", attrName, resource)))
                       case Failure(t: DBProcessingError) =>
                         t.toComplete
@@ -381,6 +386,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               Future { logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot updated in changes table: $v") }
               
+              Future { cacheResourceIdentity.remove(resource) }
               Future { cacheResourceOwnership.remove(organization, agreementBot, "agreement_bot") }
               
               (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.deleted")))

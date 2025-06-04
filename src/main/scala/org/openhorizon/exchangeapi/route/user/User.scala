@@ -244,8 +244,6 @@ trait User extends JacksonSupport with AuthenticationSupport {
                           else if (organization != "root" &&
                                    reqBody.hubAdmin.getOrElse(false))
                             Option(ExchMsg.translate("hub.admins.in.root.org"))
-                          else if (reqBody.email.isEmpty)
-                            Option(ExchMsg.translate("bad input"))
                           else if (identity.isHubAdmin &&
                                    !reqBody.admin &&
                                    !reqBody.hubAdmin.getOrElse(false))
@@ -283,20 +281,23 @@ trait User extends JacksonSupport with AuthenticationSupport {
                 case Success(result) =>
                   logger.debug("POST /orgs/" + organization + "/users/" + username + " created: " + result)
                   
-                  cacheResourceIdentity.put(resource)(value =
-                                                        (Identity2(identifier   = Option(uuid),
-                                                                   organization = organization,
-                                                                   owner        = None,
-                                                                   role         =
-                                                                     ((reqBody.admin, reqBody.hubAdmin.getOrElse(false)) match {
-                                                                       case (true, true) => AuthRoles.SuperUser
-                                                                       case (true, false) => AuthRoles.AdminUser
-                                                                       case (false, true) => AuthRoles.HubAdmin
-                                                                       case (false, false) => AuthRoles.User
-                                                                     }),
-                                                                   username     = username),
-                                                        Password.hash(reqBody.password)),
-                                                      ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                  Future {
+                    cacheResourceIdentity.put(resource)(value =
+                                                          (Identity2(identifier   = Option(uuid),
+                                                                     organization = organization,
+                                                                     owner        = None,
+                                                                     role         =
+                                                                       ((reqBody.admin, reqBody.hubAdmin.getOrElse(false)) match {
+                                                                         case (true, true) => AuthRoles.SuperUser
+                                                                         case (true, false) => AuthRoles.AdminUser
+                                                                         case (false, true) => AuthRoles.HubAdmin
+                                                                         case (false, false) => AuthRoles.User
+                                                                       }),
+                                                                     username     = username),
+                                                           Password.hash(reqBody.password)),
+                                                        ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                    
+                  }
                   
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", s"${resource}(Resource:${uuid})")))
                 case Failure(t: org.postgresql.util.PSQLException) =>
@@ -353,7 +354,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PostPutUsersRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
+          Future { logger.debug(s"PUT /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}") }
           
           validateWithMsg(if(Option(reqBody.password).isEmpty || Option(reqBody.email).isEmpty || reqBody.password == null || reqBody.email == null)
                             Option(ExchMsg.translate("password.must.be.non.blank.when.creating.user"))  // Tha lack of password disables the account, currently. We do not allow the creation of User accounts in a disabled state to begin with.
@@ -382,7 +383,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                                    reqBody.hubAdmin.getOrElse(false))
                             Option(ExchMsg.translate("hub.admins.in.root.org"))
                           else if (reqBody.email.isEmpty)
-                            Option(ExchMsg.translate("bad input"))
+                            Option(ExchMsg.translate("bad.input"))
                           else if (identity.isHubAdmin &&
                                    !reqBody.admin &&
                                    !reqBody.hubAdmin.getOrElse(false))
@@ -446,22 +447,28 @@ trait User extends JacksonSupport with AuthenticationSupport {
             complete({
               db.run(createOrModifyUser.transactionally.asTry).map {
                 case Success(result) =>
-                  logger.debug("PUT /orgs/" + organization + "/users/" + username + " - created: " + result._1 + " modified: " + result._2)
+                 Future { logger.debug("PUT /orgs/" + organization + "/users/" + username + " - created: " + result._1 + " modified: " + result._2) }
                   
-                  cacheResourceIdentity.put(resource)(value =
-                                                        (Identity2(identifier   = Option(uuid),
-                                                                   organization = organization,
-                                                                   owner        = None,
-                                                                   role         =
-                                                                     ((reqBody.admin, reqBody.hubAdmin.getOrElse(false)) match {
-                                                                       case (true, true) => AuthRoles.SuperUser
-                                                                       case (true, false) => AuthRoles.AdminUser
-                                                                       case (false, true) => AuthRoles.HubAdmin
-                                                                       case (false, false) => AuthRoles.User
-                                                                     }),
-                                                                   username     = username),
-                                                        Password.hash(reqBody.password)),
-                                                      ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                  Future {
+                           if (result._1 == 1)
+                             cacheResourceIdentity.put(resource)(value =
+                                                                  (Identity2(identifier   = Option(uuid),
+                                                                             organization = organization,
+                                                                             owner        = None,
+                                                                             role         =
+                                                                               ((reqBody.admin, reqBody.hubAdmin.getOrElse(false)) match {
+                                                                                 case (true, true) => AuthRoles.SuperUser
+                                                                                 case (true, false) => AuthRoles.AdminUser
+                                                                                 case (false, true) => AuthRoles.HubAdmin
+                                                                                 case (false, false) => AuthRoles.User
+                                                                               }),
+                                                                             username     = username),
+                                                                  Password.hash(reqBody.password)),
+                                                                ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                           else
+                             cacheResourceIdentity.remove(resource)
+                  }
+                  
                   
                   if (result._1 == 1)
                     (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", s"${resource}(Resource:${uuid})")))
@@ -479,27 +486,6 @@ trait User extends JacksonSupport with AuthenticationSupport {
                 case Failure(t) =>
                   (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
               }
-              
-              
-              /*val updatedBy: String = identity match {
-                case IUser(identCreds) => identCreds.id;
-                case _ => ""
-              }
-              val hashedPw: String = Password.fastHash(reqBody.password)
-              db.run((UsersTQ += UserRow(resource, organization, hashedPw, reqBody.admin, reqBody.hubAdmin.getOrElse(false), reqBody.email, ApiTime.nowUTC, updatedBy)).asTry).map({
-                case Success(n) =>
-                  logger.debug("PUT /orgs/" + organization + "/users/" + username + " result: " + n)
-                  if (n.asInstanceOf[Int] > 0) {
-                    AuthCache.putUserAndIsAdmin(resource, hashedPw, reqBody.password, reqBody.admin)
-                    (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.updated.successfully")))
-                  } else {
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", resource)))
-                  }
-                case Failure(t: org.postgresql.util.PSQLException) =>
-                  ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.updated", t.toString))
-                case Failure(t) =>
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
-              }) */
             })
           }
       }
@@ -568,7 +554,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                             // ----- email -----
                             else if (validAttribute == "email" &&
                                      (reqBody.email.get.isEmpty || reqBody.email.get == null))
-                              Option(ExchMsg.translate("bad input"))
+                              Option(ExchMsg.translate("bad.input"))
                             // ----- hubadmin -----
                             else if ((identity.isOrgAdmin || identity.isStandardUser) &&
                                      reqBody.hubAdmin.getOrElse(false))
@@ -578,9 +564,9 @@ trait User extends JacksonSupport with AuthenticationSupport {
                               Option(ExchMsg.translate("hub.admins.in.root.org"))
                             // ----- Users -----
                             else if (identity.isStandardUser && resource != identity.resource)
-                              Option(ExchMsg.translate("bad input"))
+                              Option(ExchMsg.translate("bad.input"))
                             else if (identity.isOrgAdmin && organization != identity.organization)
-                              Option(ExchMsg.translate("bad input"))
+                              Option(ExchMsg.translate("bad.input"))
                             else
                               None) {
               
@@ -655,13 +641,16 @@ trait User extends JacksonSupport with AuthenticationSupport {
               complete({
                 db.run(modifyUserAttribute.transactionally.asTry).map {
                   case Success(result) =>
-                    logger.debug("PATCH /orgs/" + organization + "/users/" + username + " - result: " + result)
+                    Future { logger.debug("PATCH /orgs/" + organization + "/users/" + username + " - result: " + result) }
                     
-                    if (validAttribute == "password")
-                      cacheResourceIdentity.put(resource)(value = (identity, Password.hash(reqBody.password.getOrElse(""))),
-                                                          ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
-                    else
-                      cacheResourceIdentity.remove(resource)
+                    Future {
+                      if (validAttribute == "password" &&
+                        resource == identity.resource)
+                        cacheResourceIdentity.put(resource)(value = (identity, Password.hash(reqBody.password.getOrElse(""))),
+                          ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                      else
+                        cacheResourceIdentity.remove(resource)
+                    }
                     
                     (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.attr.updated", validAttribute, resource)))
                   case Failure(t: org.postgresql.util.PSQLException) =>
@@ -675,31 +664,6 @@ trait User extends JacksonSupport with AuthenticationSupport {
               })
             }
           }
-          
-          
-          
-                
-              
-                /*
-              // hash the pw if that is what is being updated
-              
-              val (action, attrName) = reqBody.getDbUpdate(resource, organization, updatedBy, hashedPw)
-              
-              
-              db.run(action.transactionally.asTry).map({
-                case Success(n) =>
-                  logger.debug("PATCH /orgs/" + organization + "/users/" + username + " result: " + n)
-                  if (n.asInstanceOf[Int] > 0) {
-                    if (reqBody.password.isDefined) AuthCache.putUser(resource, hashedPw, reqBody.password.get)
-                    if (reqBody.admin.isDefined) AuthCache.putUserIsAdmin(resource, reqBody.admin.get)
-                    (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.attr.updated", attrName, resource)))
-                  } else {
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", resource)))
-                  }
-                case Failure(t: org.postgresql.util.PSQLException) =>
-                  ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.updated", t.toString))
-                case Failure(t) =>
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString))) */
       }
     }
   

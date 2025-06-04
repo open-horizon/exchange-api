@@ -118,9 +118,10 @@ trait Node extends JacksonSupport with AuthenticationSupport {
         complete({
           db.run(deleteNode.transactionally.asTry).map {
             case Success(result) =>
-              logger.debug(s"DELETE /orgs/$organization/nodes/$node - Deleted:${result._2}, Resource Changes:${result._1}")
+              Future { logger.debug(s"DELETE /orgs/$organization/nodes/$node - Deleted:${result._2}, Resource Changes:${result._1}") }
               
-              cacheResourceOwnership.remove(organization, node, "node")
+              Future { cacheResourceIdentity.remove(resource) }
+              Future { cacheResourceOwnership.remove(organization, node, "node") }
               
               (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.deleted")))
             case Failure(exception: AccessDeniedException) =>
@@ -732,6 +733,20 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 db.run(patchNode.transactionally.asTry)
                   .map({
                     case Success(_) =>
+                      
+                      Future {
+                        if (validAttribute == "token") {
+                          if (identity.isUser)
+                            cacheResourceIdentity.remove(resource)
+                            
+                          else if (identity.isNode)
+                            cacheResourceIdentity.put(resource)(value = (identity, if (reqBody.token.getOrElse("") != "") Password.hash(reqBody.token.get) else ""),
+                                                                ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                          
+                        }
+                    }
+                      
+                      
                       (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", validAttribute, resource)))
                     case Failure(t: org.postgresql.util.PSQLException) =>
                       ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.not.inserted.or.updated", resource, t.getMessage))
@@ -1333,7 +1348,21 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       else
                         None
                     
-                    Future { cacheResourceOwnership.put(organization, node, "node")(value = (identity.identifier.getOrElse(identity.owner.get), false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) }
+                    Future {
+                        if (v._1 == 1) {
+                          cacheResourceIdentity.put(resource)(value =
+                                                               (Identity2(identifier   = None,
+                                                                          organization = organization,
+                                                                          owner        = identity.identifier,
+                                                                          role         = AuthRoles.Node,
+                                                                          username     = node),
+                                                                if (reqBody.token.getOrElse("") != "") Password.hash(reqBody.token.get) else ""),
+                                                             ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                          cacheResourceOwnership.put(organization, node, "node")(value = (identity.identifier.get, false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
+                        }
+                        else
+                          cacheResourceIdentity.remove(resource)
+                    }
                     
                     if (v._3 == 1)
                       (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))

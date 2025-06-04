@@ -24,5 +24,5 @@ final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Opti
   def getDbUpsert(id: String, orgid: String, owner: UUID, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).upsert
 
   /** Get the db queries to update the agbot */
-  def getDbUpdate(id: String, orgid: String, owner: UUID, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).update
+  def getDbUpdate(id: String, orgid: String, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner = UUID.randomUUID(), msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).update
 }

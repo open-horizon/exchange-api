@@ -312,7 +312,10 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
     try {
       Await.result(DBCONNECTION.run(NodesTQ ++= testData), AWAITDURATION)
       testCode(testData)
-    } finally Await.result(DBCONNECTION.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
+    } finally {
+      Http(sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      Await.result(DBCONNECTION.run(NodesTQ.filter(_.id inSet testData.map(_.id)).delete), AWAITDURATION)
+    }
   }
   
   
@@ -2498,7 +2501,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
                   publicKey          = "",
                   regServices        = "",
                   softwareVersions   = "",
-                  token              = Password.hash("n2pw"),
+                  token              = Password.hash("n2tok"),
                   userInput          = ""))
     
     fixtureNodes(

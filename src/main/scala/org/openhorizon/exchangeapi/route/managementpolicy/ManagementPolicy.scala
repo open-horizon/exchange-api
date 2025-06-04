@@ -472,9 +472,9 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
-            logger.debug("DELETE /orgs/" + organization + "/managementpolicies/" + managementPolicy + " updated in changes table: " + v)
+            Future { logger.debug("DELETE /orgs/" + organization + "/managementpolicies/" + managementPolicy + " updated in changes table: " + v) }
             
-            cacheResourceOwnership.remove(organization, managementPolicy, "management_policy")
+            Future { cacheResourceOwnership.remove(organization, managementPolicy, "management_policy") }
             
             (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("management.policy.deleted")))
           case Failure(t: DBProcessingError) =>

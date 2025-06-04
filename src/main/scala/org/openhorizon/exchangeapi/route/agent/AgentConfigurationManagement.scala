@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, TOrg}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, TOrg}
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.table.agent.certificate.AgentCertificateVersionsTQ
 import org.openhorizon.exchangeapi.table.agent.configuration.AgentConfigurationVersionsTQ
@@ -49,9 +49,10 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                                new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                                new responses.ApiResponse(responseCode = "403", description = "access denied"),
                                new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteAgentConfigMgmt(@Parameter(hidden = true) organization: String): Route =
+  def deleteAgentConfigMgmt(@Parameter(hidden = true) identity: Identity2,
+                            @Parameter(hidden = true) organization: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/AgentFileVersion")
+      logger.debug(s"DELETE /orgs/$organization/AgentFileVersion - By ${identity.resource}:${identity.role}")
       complete({
         organization match {
           case "IBM" =>
@@ -141,9 +142,10 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                                new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                                new responses.ApiResponse(responseCode = "403", description = "access denied"),
                                new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getAgentConfigMgmt(@Parameter(hidden = true) orgId: String): Route =
+  def getAgentConfigMgmt(@Parameter(hidden = true) identity: Identity2,
+                         @Parameter(hidden = true) orgId: String): Route =
     {
-      logger.debug(s"GET /orgs/$orgId/AgentFileVersion")
+      logger.debug(s"GET /orgs/$orgId/AgentFileVersion - By ${identity.resource}:${identity.role}")
       complete({
         orgId match {
           case "IBM" =>
@@ -215,10 +217,12 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                  new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                  new responses.ApiResponse(responseCode = "403", description = "access denied"),
                  new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putAgentConfigMgmt(@Parameter(hidden = true) organization: String): Route =
+  def putAgentConfigMgmt(@Parameter(hidden = true) identity: Identity2,
+                         @Parameter(hidden = true) organization: String): Route =
     put {
       entity(as[AgentVersionsRequest]) {
         reqBody =>
+          logger.debug(s"PUT /orgs/$organization/AgentFileVersion - By ${identity.resource}:${identity.role}")
           complete({
             organization match {
              case "IBM" =>
@@ -260,20 +264,20 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
       }
     }
   
-  val agentConfigurationManagement: Route =
+  def agentConfigurationManagement(identity: Identity2): Route =
     path("orgs" / Segment / "AgentFileVersion") {
       organization =>
         (delete | put) {
-          exchAuth(TOrg("IBM"), Access.WRITE_AGENT_CONFIG_MGMT) {
+          exchAuth(TOrg("IBM"), Access.WRITE_AGENT_CONFIG_MGMT, validIdentity = identity) {
             _ =>
-              deleteAgentConfigMgmt(organization) ~
-              putAgentConfigMgmt(organization)
+              deleteAgentConfigMgmt(identity, organization) ~
+              putAgentConfigMgmt(identity, organization)
           }
         } ~
         get {
-          exchAuth(TOrg("IBM"), Access.READ_AGENT_CONFIG_MGMT) {
+          exchAuth(TOrg("IBM"), Access.READ_AGENT_CONFIG_MGMT, validIdentity = identity) {
             _ =>
-              getAgentConfigMgmt(organization)
+              getAgentConfigMgmt(identity, organization)
           }
         }
     }

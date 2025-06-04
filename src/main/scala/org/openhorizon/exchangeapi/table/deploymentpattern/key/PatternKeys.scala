@@ -14,4 +14,5 @@ class PatternKeys(tag: Tag) extends Table[PatternKeyRow](tag, "patternkeys") {
   
   def primKey = primaryKey("pk_ptk", (keyId, patternId))
   def pattern = foreignKey("pattern_fk", patternId, PatternsTQ)(_.pattern, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def idx_deploy_pattern_keys_fk_patterns = index(name = "idx_deploy_pattern_keys_fk_patterns", on = patternId, unique = false)
 }

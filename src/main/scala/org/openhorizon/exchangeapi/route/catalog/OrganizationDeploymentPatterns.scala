@@ -8,11 +8,11 @@ import jakarta.ws.rs.{GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, parameter, validate, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, validate, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, OrgAndId, TPattern, TService}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TPattern, TService}
 import org.openhorizon.exchangeapi.route.deploymentpattern.GetPatternsResponse
-import org.openhorizon.exchangeapi.route.service.{GetServicesResponse, GetServicesUtils}
+import org.openhorizon.exchangeapi.route.service.GetServicesResponse
 import org.openhorizon.exchangeapi.table.deploymentpattern.{Pattern, PatternsTQ}
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.service.{Service, ServicesTQ}
@@ -22,7 +22,7 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.ExecutionContext
 
 
-
+/*
 @Path("/v1/catalog/{organization}/patterns")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "catalog")
 trait OrganizationDeploymentPatterns extends JacksonSupport with AuthenticationSupport {
@@ -118,7 +118,7 @@ trait OrganizationDeploymentPatterns extends JacksonSupport with AuthenticationS
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getOrganizationDeploymentPatterns(@Parameter(hidden = true) identity: Identity,
+  def getOrganizationDeploymentPatterns(@Parameter(hidden = true) identity: Identity2,
                                         @Parameter(hidden = true) organization: String): Route =
     parameter("idfilter".?,
               "owner".?,
@@ -130,6 +130,7 @@ trait OrganizationDeploymentPatterns extends JacksonSupport with AuthenticationS
        public,
        label,
        description) =>
+        logger.debug(s"GET /catalog/${organization}/patterns?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")},public=${public.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
           complete({
             logger.debug("ORGID: "+ organization)
@@ -137,7 +138,7 @@ trait OrganizationDeploymentPatterns extends JacksonSupport with AuthenticationS
             var q = PatternsTQ.getAllPatterns(organization)
             // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
             idfilter.foreach(id => { if (id.contains("%")) q = q.filter(_.pattern like id) else q = q.filter(_.pattern === id) })
-            owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
+            // TODO: owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner === owner) else q = q.filter(_.owner === owner) })
             public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
             label.foreach(lab => { if (lab.contains("%")) q = q.filter(_.label like lab) else q = q.filter(_.label === lab) })
             description.foreach(desc => { if (desc.contains("%")) q = q.filter(_.description like desc) else q = q.filter(_.description === desc) })
@@ -151,7 +152,7 @@ trait OrganizationDeploymentPatterns extends JacksonSupport with AuthenticationS
             var allPatterns : Map[String, Pattern] = null
             db.run(q.result.flatMap({ list =>
               logger.debug("GET /catalog/"+organization+"/patterns org result size: "+list.size)
-              val patterns: Map[String, Pattern] = list.filter(e => identity.getOrg == e.orgid || e.public || identity.isSuperUser || identity.isMultiTenantAgbot).map(e => e.pattern -> e.toPattern).toMap
+              val patterns: Map[String, Pattern] = list.filter(e => identity.organization == e.orgid || e.public || identity.isSuperUser || identity.isMultiTenantAgbot).map(e => e.pattern -> e.toPattern).toMap
               allPatterns = patterns
               svcQuery.result
             })).map({ list =>
@@ -165,14 +166,14 @@ trait OrganizationDeploymentPatterns extends JacksonSupport with AuthenticationS
         }
     }
   
-  val organizationDeploymentPatterns: Route =
+  def organizationDeploymentPatterns(identity: Identity2): Route =
     path("catalog" / Segment / "patterns") {
       organization =>
         get {
-          exchAuth(TPattern(OrgAndId(organization, "*").toString), Access.READ) {
-            identity =>
+          exchAuth(TPattern(OrgAndId(organization, "*").toString), Access.READ, validIdentity = identity) {
+            _ =>
               getOrganizationDeploymentPatterns(identity, organization)
           }
         }
     }
-}
+}*/

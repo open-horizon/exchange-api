@@ -11,16 +11,21 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.{GetNodeAgreementsResponse, PutNodeAgreementRequest}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreement, NodeAgreementsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/nodes/{node}/agreements/{agid}")
@@ -74,9 +79,11 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def getAgreementNode(@Parameter(hidden = true) agreement: String,
+                       @Parameter(hidden = true) identity: Identity2,
                        @Parameter(hidden = true) node: String,
                        @Parameter(hidden = true) organization: String,
-                       @Parameter(hidden = true) resource: String): Route =
+                       @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/nodes/${node}/agreements/${agreement} - By ${identity.resource}:${identity.role}")
     complete({
       db.run(NodeAgreementsTQ.getAgreement(resource, agreement).result).map({ list =>
         logger.debug(s"GET /orgs/$organization/nodes/$node/agreements/$agreement result size: ${list.size}")
@@ -85,7 +92,8 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
         (code, GetNodeAgreementsResponse(agreements, 0))
       })
     })
-
+  }
+  
   // =========== PUT /orgs/{organization}/nodes/{node}/agreements/{agid} ===============================
   @PUT
   @Operation(
@@ -161,6 +169,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
     )
   )
   def putAgreementNode(@Parameter(hidden = true) agreement: String,
+                       @Parameter(hidden = true) identity: Identity2,
                        @Parameter(hidden = true) node: String,
                        @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String): Route =
@@ -169,6 +178,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
         noheartbeat =>
           entity(as[PutNodeAgreementRequest]) {
             reqBody =>
+              logger.debug(s"PUT /orgs/${organization}/nodes/${node}/agreements/${agreement}?noheartbeat=${noheartbeat.getOrElse("None")} - By ${identity.resource}:${identity.role}")
               validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
                 complete({
                   val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
@@ -236,10 +246,12 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def deleteAgreementNode(@Parameter(hidden = true) agreement: String,
+                          @Parameter(hidden = true) identity: Identity2,
                           @Parameter(hidden = true) node: String,
                           @Parameter(hidden = true) organization: String,
                           @Parameter(hidden = true) resource: String): Route =
     delete {
+      logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/agreements/${agreement} - By ${identity.resource}:${identity.role}")
       complete({
         db.run(NodeAgreementsTQ.getAgreement(resource,agreement).delete.asTry.flatMap({
           case Success(v) =>
@@ -270,25 +282,36 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val agreementNode: Route =
+  def agreementNode(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "agreements" / Segment) {
       (organization,
        node,
        agreement) =>
         val resource: String = OrgAndId(organization, node).toString
+        val resource_type: String = "node"
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
+          }
         
-        (delete | put) {
-          exchAuth(TNode(resource), Access.WRITE) {
-            _ =>
-              deleteAgreementNode(agreement, node, organization, resource) ~
-              putAgreementNode(agreement, node, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          (delete | put) {
+            exchAuth(TNode(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteAgreementNode(agreement, identity, node, organization, resource) ~
+                putAgreementNode(agreement, identity, node, organization, resource)
+            }
+          } ~
+          get {
+            exchAuth(TNode(resource, owningResourceIdentity),Access.READ, validIdentity = identity) {
+              _ =>
+                getAgreementNode(agreement, identity, node, organization, resource)
+            }
           }
-        } ~
-        get {
-          exchAuth(TNode(resource),Access.READ) {
-            _ =>
-              getAgreementNode(agreement, node, organization, resource)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

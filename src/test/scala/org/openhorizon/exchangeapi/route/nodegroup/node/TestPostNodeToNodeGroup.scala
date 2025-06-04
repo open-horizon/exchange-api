@@ -1,22 +1,19 @@
-package org.openhorizon.exchangeapi.route.nodegroup
+package org.openhorizon.exchangeapi.route.nodegroup.node
 
-import org.checkerframework.checker.units.qual.A
 import org.json4s.DefaultFormats
-import org.json4s.native.Serialization.write
-import org.openhorizon.exchangeapi.auth.Role
-import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
-import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ}
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ}
+import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api.{anyToShapedValue, columnExtensionMethods, columnToOrdered, longColumnType, queryDeleteActionExtensionMethods, queryInsertActionExtensionMethods, streamableQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType}
+import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -30,6 +27,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
   private val INITIALTIMESTAMP: String = ApiTime.nowUTC
   
   private val TESTORGS: Seq[OrgRow] =
@@ -41,23 +39,22 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
                orgId              = "TestPostNodeToNodeGroup",
                orgType            = "",
                tags               = None))
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = false,
-                email       = "",
-                hashedPw    = "",
-                hubAdmin    = false,
-                lastUpdated = INITIALTIMESTAMP,
-                orgid       = TESTORGS.head.orgId,
-                updatedBy   = "",
-                username    = TESTORGS.head.orgId + "/u0"),
-        UserRow(admin = false,
-                email = "",
-                hashedPw = "$2a$10$MdbvbIDPkB0Ygas/JZTABeBAv1v0D3Vn2TjRrnMd3jlftI98WqZEa",  // TestPostNodeToNodeGroup/u1:u1pw
-                hubAdmin = false,
-                lastUpdated = INITIALTIMESTAMP,
-                orgid = TESTORGS.head.orgId,
-                updatedBy = "",
-                username = TESTORGS.head.orgId + "/u1"))
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS.head.orgId,
+                password     = None,
+                username     = "u0"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS.head.orgId,
+                password     = Option(Password.hash("u1pw")),
+                username     = "u1"))
+  }
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch               = "",
                 id                 = TESTORGS.head.orgId + "/n0",
@@ -68,7 +65,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
                 name               = "n0",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS.head.username,
+                owner              = TESTUSERS.head.user,
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -84,7 +81,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
                 name               = "n1",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS.head.username,
+                owner              = TESTUSERS.head.user,
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -189,7 +186,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
   }
   
   test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng0/n1 -- 403 access denied - Assigning a node owned by another user - u1") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.head.name + "/nodes/" + TESTNODES.last.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.username + ":u1pw"))).asString
+    val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.head.name + "/nodes/" + TESTNODES.last.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.organization + "/" + TESTUSERS.last.username + ":u1pw"))).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     
@@ -207,7 +204,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
                   name = "n2",
                   nodeType = "",
                   orgid = TESTORGS.head.orgId,
-                  owner = TESTUSERS.last.username,
+                  owner = TESTUSERS.last.user,
                   pattern = "",
                   publicKey = "",
                   regServices = "",
@@ -217,7 +214,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     
     fixtureNodes(
       _ => {
-        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.last.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.username + ":u1pw"))).asString
+        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.last.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.organization + "/" + TESTUSERS.last.username + ":u1pw"))).asString
         info("Code: " + response.code)
         info("Body: " + response.body)
         
@@ -236,7 +233,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
                   name = "n3",
                   nodeType = "",
                   orgid = TESTORGS.head.orgId,
-                  owner = TESTUSERS.last.username,
+                  owner = TESTUSERS.last.user,
                   pattern = "",
                   publicKey = "",
                   regServices = "",
@@ -246,7 +243,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     
     fixtureNodes(
       _ => {
-        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.head.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.username + ":u1pw"))).asString
+        val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + "/hagroups/" + TESTNODEGROUPS.head.name + "/nodes/" + TESTNODES.head.name).method("post").headers(CONTENT).headers(ACCEPT).headers(("Authorization", "Basic " + ApiUtils.encode(TESTUSERS.last.organization + "/" + TESTUSERS.last.username + ":u1pw"))).asString
         info("Code: " + response.code)
         info("Body: " + response.body)
         
@@ -301,7 +298,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
                   name = "n2",
                   nodeType = "",
                   orgid = TESTORGS.head.orgId,
-                  owner = TESTUSERS.last.username,
+                  owner = TESTUSERS.last.user,
                   pattern = "",
                   publicKey = "",
                   regServices = "",

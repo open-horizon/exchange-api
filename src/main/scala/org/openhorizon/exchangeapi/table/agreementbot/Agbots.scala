@@ -12,13 +12,15 @@ class Agbots(tag: Tag) extends Table[AgbotRow](tag, "agbots") {
   def orgid = column[String]("orgid")
   def token = column[String]("token")
   def name = column[String]("name")
-  def owner = column[String]("owner", O.Default(Role.superUser))  // root is the default because during upserts by root, we do not want root to take over the agbot if it already exists
+  def owner = column[java.util.UUID]("owner")  // root is the default because during upserts by root, we do not want root to take over the agbot if it already exists
   //def patterns = column[String]("patterns")
   def msgEndPoint = column[String]("msgendpoint")
   def lastHeartbeat = column[String]("lastheartbeat")
   def publicKey = column[String]("publickey")
   // this describes what you get back when you return rows from a query
-  def * = (id, orgid, token, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey).<>(AgbotRow.tupled, AgbotRow.unapply)
-  def user = foreignKey("user_fk", owner, UsersTQ)(_.username, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def * = (id, orgid, token, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey).mapTo[AgbotRow]
+  def user = foreignKey("user_fk", owner, UsersTQ)(_.user, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def orgidKey = foreignKey("orgid_fk", orgid, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def idx_agbot_fk_orgs = index(name = "idx_agbot_fk_orgs", on = orgid, unique = false)
+  def idx_agbot_fk_users = index(name = "idx_agbot_fk_users", on = owner, unique = false)
 }

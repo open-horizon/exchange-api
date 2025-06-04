@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import jakarta.ws.rs.{GET, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, TAction}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TAction}
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api.actionBasedSQLInterpolation
 import slick.jdbc.PostgresProfile.api._
 
@@ -34,7 +34,7 @@ trait MaxChangeId extends JacksonSupport with AuthenticationSupport{
         content = Array(new Content(mediaType = "application/json", schema = new Schema(implementation = classOf[MaxChangeIdResponse])))),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def getMaxChangeId: Route =
+  def getMaxChangeId(@Parameter(hidden = true) identity: Identity2): Route = {
     complete({
       // Shortcut to grabbing the last allocated ChangeId.
       db.run(sql"SELECT last_value FROM public.resourcechanges_changeid_seq;".as[(Long)].headOption)
@@ -44,14 +44,15 @@ trait MaxChangeId extends JacksonSupport with AuthenticationSupport{
             (StatusCodes.OK, MaxChangeIdResponse(currentChange.getOrElse(0)))
         })
     })
+  }
   
-  def maxChangeId: Route =
+  def maxChangeId(identity: Identity2): Route =
     path("changes" / "maxchangeid") {
       get {
         logger.debug("Doing GET /changes/maxchangeid")
-        exchAuth(TAction(), Access.MAXCHANGEID) {
+        exchAuth(TAction(), Access.MAXCHANGEID, validIdentity = identity) {
           _ =>
-            getMaxChangeId
+            getMaxChangeId(identity)
         }
       }
     }

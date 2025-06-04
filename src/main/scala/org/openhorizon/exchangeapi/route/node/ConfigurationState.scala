@@ -13,15 +13,20 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{Await, ExecutionContext, Future}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.util._
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
 
@@ -95,10 +100,13 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postConfigurationState(@Parameter(hidden = true) node: String,
+  def postConfigurationState(@Parameter(hidden = true) identity: Identity2,
+                             @Parameter(hidden = true) node: String,
                              @Parameter(hidden = true) organization: String,
                              @Parameter(hidden = true) resource: String): Route =
-    entity(as[PostNodeConfigStateRequest]) { reqBody =>
+    entity(as[PostNodeConfigStateRequest]) {
+      reqBody =>
+        logger.debug(s"POST /orgs/${organization}/nodes/${node}/services_configstate - By ${identity.resource}:${identity.role}")
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(NodesTQ.getRegisteredServices(resource).result.asTry.flatMap({
@@ -128,17 +136,28 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val configurationState: Route =
+  def configurationState(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "services_configstate") {
       (organization,
        node) =>
         val resource: String = OrgAndId(organization, node).toString
-        
-        post {
-          exchAuth(TNode(resource),Access.WRITE) {
-            _ =>
-              postConfigurationState(node, organization, resource)
+        val resource_type: String = "node"
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
           }
+        
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          post {
+            exchAuth(TNode(resource, owningResourceIdentity),Access.WRITE, validIdentity = identity) {
+              _ =>
+                postConfigurationState(identity, node, organization, resource)
+            }
+          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

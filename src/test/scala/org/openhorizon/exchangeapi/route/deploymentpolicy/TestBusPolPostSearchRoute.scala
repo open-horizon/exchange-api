@@ -4,7 +4,7 @@ import org.json4s.jackson.JsonMethods.parse
 import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable}
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{BusinessPolicyNodeResponse, PostBusinessPolicySearchRequest, PostBusinessPolicySearchResponse}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.search.{SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ}
@@ -39,16 +39,26 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   
   private val AWAITDURATION: Duration = 15.seconds
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
   // Resources we minimally and statically need for all test cases.
+  private val TESTUSER: UserRow =
+    UserRow(createdAt    = TIMESTAMP,
+            isHubAdmin   = false,
+            isOrgAdmin   = false,
+            modifiedAt   = TIMESTAMP,
+            organization = "TestPolicySearchPost",
+            password     = None,
+            username     = "u1")
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestPolicySearchPost/a1",
              lastHeartbeat = ApiTime.nowUTC,
              msgEndPoint   = "",
              name          = "",
              orgid         = "TestPolicySearchPost",
-             owner         = "TestPolicySearchPost/u1",
+             owner         = TESTUSER.user,
              publicKey     = "",
-             token         = "$2a$10$2ElhDrDUXcFzvU63Gl3dWeGYsWYTqgaBxkthhhdwwWc2YTP1yB4Ky") // "TestPolicySearchPost/a1:a1tok"
+             token         = Password.hash("a1tok")) // "TestPolicySearchPost/a1:a1tok"
   private val TESTORGANIZATION: OrgRow =
     OrgRow(heartbeatIntervals = "",
            description        = "",
@@ -66,7 +76,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                           label          = "pol1",
                           lastUpdated    = ApiTime.nowUTC,
                           orgid          = "TestPolicySearchPost",
-                          owner          = "TestPolicySearchPost/u1",
+                          owner          = TESTUSER.user,
                           properties     = """[{"name":"purpose","value":"location"}]""",
                           service        = """{"name":"svc1","org":"TestPolicySearchPost","arch":"arm","serviceVersions":[{"version":"1.0.0"}],"nodeHealth":{"missing_heartbeat_interval":1800,"check_agreement_status":1800},"clusterNamespace": null}""",
                           userInput      = "",
@@ -84,7 +94,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                    lastUpdated                = ApiTime.nowUTC,
                    matchHardware              = "",
                    orgid                      = "TestPolicySearchPost",
-                   owner                      = "TestPolicySearchPost/u1",
+                   owner                      = TESTUSER.user,
                    public                     = false,
                    requiredServices           = "",
                    service                    = "TestPolicySearchPost/svc1_1.0.0_arm",
@@ -92,15 +102,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                    url                        = "svc1",
                    userInput                  = "",
                    version                    = "1.0.0"))
-  private val TESTUSER: UserRow =
-    UserRow(admin       = false,
-            hubAdmin    = false,
-            email       = "",
-            hashedPw    = "",
-            lastUpdated = ApiTime.nowUTC,
-            orgid       = "TestPolicySearchPost",
-            updatedBy   = "",
-            username    = "TestPolicySearchPost/u1")
+  
   
   implicit private val formats: Formats = DefaultFormats.withLong
   
@@ -243,7 +245,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -280,7 +282,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -311,7 +313,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -331,7 +333,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                             label          = "pol1",
                             lastUpdated    = ApiTime.nowUTC,
                             orgid          = "TestPolicySearchPost",
-                            owner          = "TestPolicySearchPost/u1",
+                            owner          = TESTUSER.user,
                             properties     = """[{"name":"purpose","value":"location"}]""",
                             service        = """{"name":"svc1","org":"TestPolicySearchPost","arch":"*","serviceVersions":[{"version":"1.0.0"}],"nodeHealth":{"missing_heartbeat_interval":1800,"check_agreement_status":1800},"clusterNamespace": null}""",
                             userInput      = "",
@@ -361,7 +363,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -381,7 +383,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                             label          = "pol1",
                             lastUpdated    = ApiTime.nowUTC,
                             orgid          = "TestPolicySearchPost",
-                            owner          = "TestPolicySearchPost/u1",
+                            owner          = TESTUSER.user,
                             properties     = """[{"name":"purpose","value":"location"}]""",
                             service        = """{"name":"svc1","org":"TestPolicySearchPost","arch":"","serviceVersions":[{"version":"1.0.0"}],"nodeHealth":{"missing_heartbeat_interval":1800,"check_agreement_status":1800},"clusterNamespace": null}""",
                             userInput      = "",
@@ -411,7 +413,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "",
                   pattern = "",
                   regServices = "[]",
@@ -447,7 +449,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -478,7 +480,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "pattern",
                   regServices = "[]",
@@ -509,7 +511,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "",
@@ -542,7 +544,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost2",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -585,7 +587,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost2",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -633,7 +635,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -676,7 +678,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -692,7 +694,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 orgid = "TestPolicySearchPost",
                 token = "",
                 name = "",
-                owner = "TestPolicySearchPost/u1",
+                owner = TESTUSER.user,
                 nodeType = "device",
                 pattern = "",
                 regServices = "[]",
@@ -742,7 +744,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -790,7 +792,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -838,7 +840,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -886,7 +888,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -902,7 +904,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 orgid = "TestPolicySearchPost",
                 token = "",
                 name = "",
-                owner = "TestPolicySearchPost/u1",
+                owner = TESTUSER.user,
                 nodeType = "device",
                 pattern = "",
                 regServices = "[]",
@@ -951,7 +953,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",
@@ -967,7 +969,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   orgid = "TestPolicySearchPost",
                   token = "",
                   name = "",
-                  owner = "TestPolicySearchPost/u1",
+                  owner = TESTUSER.user,
                   nodeType = "device",
                   pattern = "",
                   regServices = "[]",

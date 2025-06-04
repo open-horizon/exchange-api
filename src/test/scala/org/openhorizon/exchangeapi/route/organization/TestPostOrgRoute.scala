@@ -27,6 +27,8 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val USER1PASSWORD = "user1password"
@@ -43,33 +45,26 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         orgType            = "",
         tags               = None))
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestPostOrgRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestPostOrgRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/TestPostOrgRouteUser1",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(USER1PASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "TestPostOrgRouteUser1@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      )
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestPostOrgRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(USER1PASSWORD)),
+                username     = "TestPostOrgRouteUser1"))
+  }
+  
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USER1PASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + USER1PASSWORD))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run(
@@ -81,7 +76,8 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     Await.ready(DBCONNECTION.run(
       ResourceChangesTQ.filter(_.orgId startsWith "TEMPtestPostOrgRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "TEMPtestPostOrgRoute").delete andThen
-      UsersTQ.filter(_.username startsWith "root/TestPostOrgRouteHubAdmin").delete //this guy doesn't get deleted on cascade
+      UsersTQ.filter(_.organization === "root")
+             .filter(_.username startsWith "TestPostOrgRouteHubAdmin").delete //this guy doesn't get deleted on cascade
     ), AWAITDURATION)
   }
 

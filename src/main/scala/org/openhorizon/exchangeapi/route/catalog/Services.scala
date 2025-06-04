@@ -8,15 +8,19 @@ import jakarta.ws.rs.{GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, parameter, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TService}
+import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TService}
 import org.openhorizon.exchangeapi.route.service.GetServicesResponse
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.service.{Service, ServicesTQ}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
+import scala.util.{Failure, Success}
 
 
 @Path("/v1/catalog/services")
@@ -129,31 +133,96 @@ trait Services extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getServicesCatalog: Route =
-    parameter("orgtype".?) {
-      orgType =>
-        complete({
-          val svcQuery =
-            for {
-              (_, svc) <-
-                OrgsTQ.getOrgidsOfType(orgType.getOrElse("IBM")) join ServicesTQ on ((o, s) => {o === s.orgid && s.public})
-            } yield svc
+  def getServicesCatalog(@Parameter(hidden = true) identity: Identity2): Route =
+    parameter("organization".?, "owner".?, "public".as[Boolean].optional, "url".?, "version".?, "arch".?, "nodetype".?, "requiredurl".?) {
+      (organization,
+       owner,
+       public,
+       url,
+       version,
+       arch,
+       nodetype,
+       requiredurl) =>
+        logger.debug(s"GET /catalog/services?arch=${arch.getOrElse("None")},nodetype=${nodetype.getOrElse("None")},organization=${organization.getOrElse("None")},owner=${owner.getOrElse("None")},public=${"None"},requiredurl=${requiredurl.getOrElse("None")},url=${url.getOrElse("None")},version=${version.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        implicit val jsonFormats: Formats = DefaultFormats
+        
+        val device: Option[Boolean] =
+          if (nodetype.isEmpty)
+            None
+          else if (nodetype.getOrElse("") == "device")
+            Option(true)
+          else
+            None
+        
+        val cluster: Option[Boolean] =
+          if (nodetype.isEmpty)
+            None
+          else if (nodetype.getOrElse("") == "cluster")
+            Option(true)
+          else
+            None
+        
+        val getServices =
+          for {
+            services <-
+              ServicesTQ.filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(services => services.orgid === identity.organization || services.orgid === "IBM" || services.public)
+                        .filterOpt(arch)((services, arch) => if (arch.contains('%')) services.arch like arch else services.arch === arch)
+                        .filterOpt(cluster)((services, _) => services.clusterDeployment =!= "")
+                        .filterOpt(device)((services, _) => services.deployment =!= "")
+                        .filterOpt(organization)((services, organization) => if (organization.contains('%')) services.orgid like organization else services.orgid === organization)
+                        .filterOpt(public)((services, public) => services.public === public)
+                        .filterOpt(requiredurl)((services, requiredurl) => services.requiredServices like "%\"url\":\"" + requiredurl + "\"%")
+                        .filterOpt(url)((services, url) => if (url.contains('%')) services.url like url else services.url === url)
+                        .filterOpt(version)((services, version) => if (version.contains('%')) services.version like version else services.version === version)
+                        .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                        .on(_.owner === _._2)
+                        .filterOpt(owner)((services, owner) => if (owner.contains('%')) (services._2._1 ++ "/" ++ services._2._3) like owner else (services._2._1 ++ "/" ++ services._2._3) === owner) // This comes after the join
+                        .sortBy(services => (services._1.orgid.asc, services._1.service.asc))
+                        .map(services =>
+                              ((services._1.arch,
+                                services._1.clusterDeployment,
+                                services._1.clusterDeploymentSignature,
+                                services._1.deployment,
+                                services._1.deploymentSignature,
+                                services._1.description,
+                                services._1.documentation,
+                                services._1.imageStore,
+                                services._1.label,
+                                services._1.lastUpdated,
+                                services._1.matchHardware,
+                                services._1.orgid,
+                                (services._2._1 ++ "/" ++ services._2._3),  // owner
+                                services._1.public,
+                                services._1.requiredServices,
+                                services._1.sharable,
+                                services._1.url,
+                                services._1.userInput,
+                                services._1.version),
+                               services._1.service))
+          } yield services
           
-          db.run(svcQuery.result).map({ list =>
-            logger.debug("GET /catalog/services result size: "+list.size)
-            val services: Map[String, Service] = list.map(a => a.service -> a.toService).toMap
-            val code: StatusCode = if (services.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-            (code, GetServicesResponse(services, 0))
-          })
-        })
+        complete {
+          db.run(Compiled(getServices).result.transactionally.asTry).map {
+            case Success(serviceRecords) =>
+              logger.debug(s"GET /catalog/services - result size: ${serviceRecords.size}, parameters[arch:${arch}, nodetype:${nodetype}, organization:${organization}, owner:${owner}, public:${public}, requiredurl:${requiredurl}, url:${url}, version:${version}")
+              
+              if (serviceRecords.nonEmpty)
+                (StatusCodes.OK, GetServicesResponse(serviceRecords.map(services => services._2 -> new Service(services._1)).toMap))
+              else
+                (StatusCodes.NotFound, GetServicesResponse())
+            case Failure(exception) =>
+              logger.error(cause = exception, message = s"GET /catalog/services - parameters[arch:${arch}, nodetype:${nodetype}, organization:${organization}, owner:${owner}, public:${public}, requiredurl:${requiredurl}, url:${url}, version:${version}")
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+          }
+        }
     }
   
-  val servicesCatalog: Route =
-    path("catalog" / "services") {
+  def servicesCatalog(identity: Identity2): Route =
+    path(("catalog" / "services") | "services") {
       get {
-        exchAuth(TService(OrgAndId("*","*").toString),Access.READ_ALL_SERVICES) {
+        exchAuth(TService(OrgAndId("*","*").toString),Access.READ_ALL_SERVICES, validIdentity = identity) {
           _ =>
-            getServicesCatalog
+            getServicesCatalog(identity)
         }
       }
     }

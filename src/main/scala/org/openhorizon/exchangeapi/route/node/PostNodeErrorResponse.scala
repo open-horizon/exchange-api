@@ -1,3 +1,3 @@
 package org.openhorizon.exchangeapi.route.node
 
-final case class PostNodeErrorResponse(nodes: scala.Seq[String])
+final case class PostNodeErrorResponse(nodes: Seq[String])

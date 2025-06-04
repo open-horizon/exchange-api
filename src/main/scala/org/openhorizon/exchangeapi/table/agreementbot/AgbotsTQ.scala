@@ -3,14 +3,16 @@ package org.openhorizon.exchangeapi.table.agreementbot
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 
+import java.util.UUID
+
 // Instance to access the agbots table
 object AgbotsTQ extends TableQuery(new Agbots(_)) {
   def getAllAgbots(orgid: String): Query[Agbots, AgbotRow, Seq] = this.filter(_.orgid === orgid)
   def getAllAgbotsId(orgid: String): Query[Rep[String], String, Seq] = this.filter(_.orgid === orgid).map(_.id)
   def getAgbot(id: String): Query[Agbots, AgbotRow, Seq] = this.filter(_.id === id)
   def getToken(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.token)
-  def getOwner(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.owner)
-  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
+  def getOwner(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.owner.toString())
+  def getNumOwned(owner: UUID): Rep[Int] = this.filter(_.owner === owner).length
   def getLastHeartbeat(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.lastHeartbeat)
   def getPublicKey(id: String): Query[Rep[String], String, Seq] = this.filter(_.id === id).map(_.publicKey)
   

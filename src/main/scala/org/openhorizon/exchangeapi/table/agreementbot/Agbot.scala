@@ -1,12 +1,20 @@
 package org.openhorizon.exchangeapi.table.agreementbot
 
 // This is the agbot table minus the key - used as the data structure to return to the REST clients
-class Agbot(var token: String,
-            var name: String,
-            var owner: String,
-            /*var patterns: List[APattern],*/
-            var msgEndPoint: String,
-            var lastHeartbeat: String,
-            var publicKey: String) {
-  def copy = new Agbot(token, name, owner, /*patterns,*/ msgEndPoint, lastHeartbeat, publicKey)
+case class Agbot(id: String,
+                 lastHeartbeat: String,
+                 msgEndPoint: String,
+                 name: String,
+                 orgid: String,
+                 owner: String,
+                 publicKey: String,
+                 token: String = "***************") {
+  def this(tuple: (String, String, String, String, String, String, String)) =
+    this(id = tuple._1,
+         lastHeartbeat = tuple._2,
+         msgEndPoint = tuple._3,
+         name = tuple._4,
+         orgid = tuple._5,
+         owner = tuple._6,
+         publicKey = tuple._7)
 }

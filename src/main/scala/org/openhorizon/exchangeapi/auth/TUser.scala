@@ -1,10 +1,10 @@
 package org.openhorizon.exchangeapi.auth
 
-case class TUser(id: String) extends Target {
-  override def isOwner(user: IUser): Boolean = id == user.creds.id
-  override def isThere: Boolean = all || mine || AuthCache.getUserIsAdmin(id).nonEmpty
-  //override def isAdmin: Boolean = AuthCache.getUserIsAdmin(id).getOrElse(false) // <- these 2 are reliable on every exchange instance
-  //override def isHubAdmin: Boolean = AuthCache.getUserIsHubAdmin(id).getOrElse(false)
+import java.util.UUID
+
+case class TUser(id: String, owner: Option[UUID] = None) extends Target {
+  override def isOwner(user: IUser): Boolean = owner == user.identity.identifier
+  override def isThere: Boolean = all || mine || owner.isDefined
   override def isSuperUser: Boolean = Role.isSuperUser(id)
   override def label = "user"
 }

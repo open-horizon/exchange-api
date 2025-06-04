@@ -11,15 +11,20 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.PutNodeMgmtPolStatusRequest
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{GetNMPStatusResponse, NodeMgmtPolStatusRow, NodeMgmtPolStatuses}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 
@@ -56,12 +61,13 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteStatusMangementPolicy(@Parameter(hidden = true) managementPolicy: String,
+  def deleteStatusMangementPolicy(@Parameter(hidden = true) identity: Identity2,
+                                  @Parameter(hidden = true) managementPolicy: String,
                                   @Parameter(hidden = true) node: String,
                                   @Parameter(hidden = true) organization: String,
                                   @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"Doing DELETE /orgs/$organization/nodes/$node/managementStatus/$managementPolicy")
+      logger.debug(s"DELETE /orgs/$organization/nodes/$node/managementStatus/$managementPolicy - By ${identity.resource}:${identity.role}")
       complete({
         // remove does *not* throw an exception if the key does not exist
         db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(resource, organization + "/" + managementPolicy).delete.transactionally.asTry.flatMap({
@@ -137,12 +143,13 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getStatusMangementPolicy(@Parameter(hidden = true) managementPolicy: String,
+  def getStatusMangementPolicy(@Parameter(hidden = true) identity: Identity2,
+                               @Parameter(hidden = true) managementPolicy: String,
                                @Parameter(hidden = true) node: String,
                                @Parameter(hidden = true) organization: String,
                                @Parameter(hidden = true) resource: String): Route =
     {
-      logger.debug(s"Doing GET /orgs/$organization/nodes/$node/managementStatus/$managementPolicy")
+      logger.debug(s"GET /orgs/$organization/nodes/$node/managementStatus/$managementPolicy - By ${identity.resource}:${identity.role}")
       complete({
         db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(resource, organization + "/" + managementPolicy).result).map({ list =>
           logger.debug(s"GET /orgs/$organization/nodes/$node/managementStatus/$managementPolicy status result size: ${list.size}")
@@ -228,13 +235,15 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def putStatusManagementPolicy(@Parameter(hidden = true) managementPolicy: String,
+  def putStatusManagementPolicy(@Parameter(hidden = true) identity: Identity2,
+                                @Parameter(hidden = true) managementPolicy: String,
                                 @Parameter(hidden = true) node: String,
                                 @Parameter(hidden = true) organization: String,
                                 @Parameter(hidden = true) resource: String): Route =
     put {
       entity(as[PutNodeMgmtPolStatusRequest]) {
         reqBody =>
+          logger.debug(s"PUT /orgs/${organization}/nodes/${node}/managementStatus/${managementPolicy} - By ${identity.resource}:${identity.role}")
           complete({
             db.run(
               NodeMgmtPolStatuses
@@ -294,25 +303,36 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val statusManagementPolicy: Route =
+  def statusManagementPolicy(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "managementStatus" / Segment) {
       (organization,
        node,
        managementPolicy) =>
         val resource: String = OrgAndId(organization, node).toString
+        val resource_type: String = "node"
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
+          }
         
-        (delete | put) {
-          exchAuth(TNode(resource), Access.WRITE) {
-            _ =>
-              deleteStatusMangementPolicy(managementPolicy, node, organization, resource) ~
-              putStatusManagementPolicy(managementPolicy, node, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          (delete | put) {
+            exchAuth(TNode(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteStatusMangementPolicy(identity, managementPolicy, node, organization, resource) ~
+                putStatusManagementPolicy(identity, managementPolicy, node, organization, resource)
+            }
+          } ~
+          get {
+            exchAuth(TNode(resource, owningResourceIdentity),Access.READ, validIdentity = identity) {
+              _ =>
+                getStatusMangementPolicy(identity, managementPolicy, node, organization, resource)
+            }
           }
-        } ~
-        get {
-          exchAuth(TNode(resource),Access.READ) {
-            _ =>
-              getStatusMangementPolicy(managementPolicy, node, organization, resource)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

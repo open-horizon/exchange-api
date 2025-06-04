@@ -11,15 +11,20 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TPattern}
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TPattern}
 import org.openhorizon.exchangeapi.route.deploymentpattern.PutPatternKeyRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/patterns/{pattern}/keys/{keyid}")
@@ -44,6 +49,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def deleteKeyDeploymentPattern(@Parameter(hidden = true) pattern: String,
+                                 @Parameter(hidden = true) identity: Identity2,
                                  @Parameter(hidden = true) keyId: String,
                                  @Parameter(hidden = true) orgid: String,
                                  @Parameter(hidden = true) compositeId: String): Route =
@@ -98,6 +104,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def getKeyDeploymentPattern(@Parameter(hidden = true) pattern: String,
+                              @Parameter(hidden = true) identity: Identity2,
                               @Parameter(hidden = true) keyId: String,
                               @Parameter(hidden = true) orgid: String,
                               @Parameter(hidden = true) compositeId: String): Route =
@@ -145,6 +152,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def putKeyDeploymentPattern(@Parameter(hidden = true) pattern: String,
+                              @Parameter(hidden = true) identity: Identity2,
                               @Parameter(hidden = true) keyId: String,
                               @Parameter(hidden = true) orgid: String,
                               @Parameter(hidden = true) compositeId: String): Route =
@@ -185,25 +193,36 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val keyDeploymentPattern: Route =
+  def keyDeploymentPattern(identity: Identity2): Route =
     path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns") / Segment / "keys" / Segment) {
       (organization,
        deploymentPattern,
        key) =>
         val resource: String = OrgAndId(organization, deploymentPattern).toString
+        val resource_type: String = "deployment_pattern"
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, deploymentPattern, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
+          }
         
-        (delete | put) {
-          exchAuth(TPattern(resource), Access.WRITE) {
-            _ =>
-              deleteKeyDeploymentPattern(deploymentPattern, key, organization, resource) ~
-              putKeyDeploymentPattern(deploymentPattern, key, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None, public: Boolean = false): Route =
+          (delete | put) {
+            exchAuth(TPattern(resource, owningResourceIdentity, public), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteKeyDeploymentPattern(deploymentPattern, identity, key, organization, resource) ~
+                putKeyDeploymentPattern(deploymentPattern, identity, key, organization, resource)
+            }
+          } ~
+          get {
+            exchAuth(TPattern(resource, owningResourceIdentity, public),Access.READ, validIdentity = identity) {
+              _ =>
+                getKeyDeploymentPattern(deploymentPattern, identity, key, organization, resource)
+            }
           }
-        } ~
-        get {
-          exchAuth(TPattern(resource),Access.READ) {
-            _ =>
-              getKeyDeploymentPattern(deploymentPattern, key, organization, resource)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, public)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity), public = public)
         }
     }
 }

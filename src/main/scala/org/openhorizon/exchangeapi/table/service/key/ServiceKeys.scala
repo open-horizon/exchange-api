@@ -14,4 +14,5 @@ class ServiceKeys(tag: Tag) extends Table[ServiceKeyRow](tag, "servicekeys") {
   
   def primKey = primaryKey("pk_svck", (keyId, serviceId))
   def service = foreignKey("service_fk", serviceId, ServicesTQ)(_.service, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def idx_serv_key_fk_services = index(name = "idx_serv_key_fk_services", on = serviceId, unique = false)
 }

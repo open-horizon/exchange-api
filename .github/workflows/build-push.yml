@@ -90,7 +90,7 @@ jobs:
         uses: coursier/setup-action@v1
         with:
           apps: sbt
-          jvm: adoptium:1.17
+          jvm: temurin:1.21
 
       # Authenticate Dockerhub to allow pushing to our image repo
       - name: Login to Dockerhub

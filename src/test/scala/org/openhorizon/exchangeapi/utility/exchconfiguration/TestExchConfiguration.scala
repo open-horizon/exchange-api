@@ -34,7 +34,7 @@ class TestConfiguration extends AnyFunSuite with BeforeAndAfterEach {
       "log.hikari.datasource" -> config.getString("logback.hikari.HikariDataSource"),
       "log.hikari.pool" -> config.getString("logback.hikari.pool.HikariPool"),
       "log.hikari.pool.base" -> config.getString("logback.hikari.pool.PoolBase"),
-      "log.guavacache" -> config.getString("logback.scalacache.guava.GuavaCache"),
+      "log.caffeinecache" -> config.getString("logback.scalacache.caffeine.CaffeineCache"),
       "log.action" -> config.getString("logback.slick.basic.BasicBackend.action"),
       "log.stream" -> config.getString("logback.slick.basic.BasicBackend.stream"),
       "log.qcomp" -> config.getString("logback.slick.compiler-log"),

@@ -10,17 +10,19 @@ import jakarta.ws.rs.{DELETE, GET, POST, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
+import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.jackson.Serialization.write
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.ExchangeApiApp.exchAuth
-import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthCache, AuthenticationSupport, DBProcessingError, IUser, OrgAndId, TManagementPolicy}
+import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity2, OrgAndId, TManagementPolicy}
 import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicy}
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
+import slick.lifted.CompiledStreamingExecutable
 
 import java.nio.file.AccessDeniedException
 import scala.collection.immutable._
@@ -94,7 +96,8 @@ trait ManagementPolicies extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getManagementPolicies(@Parameter(hidden = true) organization: String): Route =
+  def getManagementPolicies(@Parameter(hidden = true) identity: Identity2,
+                            @Parameter(hidden = true) organization: String): Route =
     parameter("idfilter".?,
               "owner".?,
               "label".?,
@@ -105,65 +108,78 @@ trait ManagementPolicies extends JacksonSupport with AuthenticationSupport {
        label,
        description,
        manifest) =>
-        complete({
-          val getAllManagementPolicies =
-            for {
-              managementPolicies <-
-                Compiled(ManagementPoliciesTQ.getAllManagementPolicies(organization)
-                                             .filterOpt(description)(
-                                               (managementPolicy, description) =>
+        logger.debug(s"GET /orgs/${organization}/managementpolicies?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},manifest=${manifest.getOrElse("None")},owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        
+        val getAllManagementPolicies: CompiledStreamingExecutable[Query[((Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Long]), Rep[String]), ((Boolean, String, String, String, Boolean, String, String, String, String, String, String, String, Long), String), Seq], Seq[((Boolean, String, String, String, Boolean, String, String, String, String, String, String, String, Long), String)], ((Boolean, String, String, String, Boolean, String, String, String, String, String, String, String, Long), String)] =
+          for {
+            managementPolicies <-
+              Compiled(ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
+                                             .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
+                                             .filterOpt(description)((managementPolicy, description) =>
                                                  if (description.contains("%"))
                                                    managementPolicy.description like description
                                                  else
                                                    managementPolicy.description === description)
-                                             .filterOpt(idfilter)(
-                                               (managementPolicy, id) =>
+                                             .filterOpt(idfilter)((managementPolicy, id) =>
                                                  if (id.contains("%"))
                                                    managementPolicy.managementPolicy like id
                                                  else
                                                    managementPolicy.managementPolicy === id)
-                                             .filterOpt(label)(
-                                               (managementPolicy, label) =>
+                                             .filterOpt(label)((managementPolicy, label) =>
                                                  if (label.contains("%"))
                                                    managementPolicy.label like label
                                                  else
                                                    managementPolicy.label === label)
-                                             .filterOpt(manifest)(
-                                               (managementPolicy, manifest) =>
+                                             .filterOpt(manifest)((managementPolicy, manifest) =>
                                                  if (manifest.contains("%"))
                                                    managementPolicy.manifest like manifest
                                                  else
                                                    managementPolicy.manifest === manifest)
-                                             .filterOpt(owner)(
-                                               (managementPolicy, owner) =>
-                                                 if (owner.contains("%"))
-                                                   managementPolicy.owner like owner
-                                                 else
-                                                   managementPolicy.owner === owner)
-                                             .sortBy(_.managementPolicy.asc.nullsLast))
-            } yield(managementPolicies)
+                                            .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                            .on(_.owner === _._2)
+                                            .filterOpt(owner)((management_policies, owner) => if (owner.contains("%")) (management_policies._2._1 ++ "/" ++ management_policies._2._3) like owner else (management_policies._2._1 ++ "/" ++ management_policies._2._3) === owner)
+                                            .map(management_policies =>
+                                                  ((management_policies._1.allowDowngrade,
+                                                    management_policies._1.constraints,
+                                                    management_policies._1.created,
+                                                    management_policies._1.description,
+                                                    management_policies._1.enabled,
+                                                    management_policies._1.label,
+                                                    management_policies._1.lastUpdated,
+                                                    management_policies._1.manifest,
+                                                    //management_policies._1.orgid,
+                                                    (management_policies._2._1 ++ "/" ++ management_policies._2._3),
+                                                    management_policies._1.patterns,
+                                                    management_policies._1.properties,
+                                                    management_policies._1.start,
+                                                    management_policies._1.startWindow),
+                                                   management_policies._1.managementPolicy))
+                                            .sortBy(_._2.asc.nullsLast))
+          } yield managementPolicies
           
-          db.run(getAllManagementPolicies.result.transactionally).map({
-            managementPolicies =>
+        complete {
+          db.run(getAllManagementPolicies.result.transactionally.asTry).map {
+            case Success(managementPolicies) =>
               logger.debug("GET /orgs/" + organization + "/managementpolicies result size: " + managementPolicies.size)
-              val code: StatusCode =
-                if (managementPolicies.nonEmpty)
-                  StatusCodes.OK
-                else
-                  StatusCodes.NotFound
+              implicit val defaultFormats: Formats = DefaultFormats.withLong
               
-              (code, GetManagementPoliciesResponse(managementPolicies.map(managementPolicy => managementPolicy.managementPolicy -> managementPolicy.toManagementPolicy).toMap, 0))
-          })
-        })
+              if (managementPolicies.nonEmpty)
+                (StatusCodes.OK, GetManagementPoliciesResponse(managementPolicies.map(managementPolicy => managementPolicy._2 -> (new ManagementPolicy(managementPolicy._1)(defaultFormats))).toMap))
+              else
+                (StatusCodes.NotFound, GetManagementPoliciesResponse())
+            case Failure(exception) =>
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, exception.getMessage))
+          }
+        }
     }
   
-  val managementPolicies: Route =
+  def managementPolicies(identity: Identity2): Route =
     path("orgs" / Segment / "managementpolicies") {
       organization =>
         get {
-          exchAuth(TManagementPolicy(OrgAndId(organization, "*").toString), Access.READ) {
+          exchAuth(TManagementPolicy(OrgAndId(organization, "*").toString), Access.READ, validIdentity = identity) {
             _ =>
-              getManagementPolicies(organization)
+              getManagementPolicies(identity, organization)
           }
         }
     }

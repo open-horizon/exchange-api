@@ -9,7 +9,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, Nodes, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroup, NodeGroupRow, NodeGroupTQ}
@@ -74,19 +74,20 @@ trait NodeGroups extends JacksonSupport with AuthenticationSupport {
                                new responses.ApiResponse(description = "not found",
                                                          responseCode = "404")),
              summary = "Lists all members of all Node Groups (HA Groups)")
-  def getNodeGroups(@Parameter(hidden = true) identity: Identity,
+  def getNodeGroups(@Parameter(hidden = true) identity: Identity2,
                     @Parameter(hidden = true) organization: String): Route =
     {
-      logger.debug(s"doing GET /orgs/$organization/hagroups")
+      logger.debug(s"GET /orgs/$organization/hagroups - By ${identity.resource}:${identity.role}")
       complete({
         val nodeGroupsQuery: Query[NodeGroup, NodeGroupRow, Seq] =
           NodeGroupTQ.getAllNodeGroups(organization).sortBy(_.name)
         val nodesQuery: Query[Nodes, NodeRow, Seq] =
-          if (identity.isAdmin ||
-              identity.role.equals(AuthRoles.Agbot))
+          if (identity.isOrgAdmin ||
+              identity.isSuperUser ||
+              identity.isAgbot)
             NodesTQ.getAllNodes(organization)
           else
-            NodesTQ.getAllNodes(organization).filter(_.owner === identity.identityString)
+            NodesTQ.getAllNodes(organization).filter(_.owner === identity.identifier.getOrElse(identity.owner.get))
         
         val queries: DBIOAction[(Seq[NodeGroupRow], Seq[NodeGroupAssignmentRow]), NoStream, Effect.Read] =
           for {
@@ -107,7 +108,7 @@ trait NodeGroups extends JacksonSupport with AuthenticationSupport {
                 if (assignmentMap.contains(nodeGroup.group))
                   response += NodeGroupResp(admin = nodeGroup.admin,
                                             description =
-                                              if (!identity.isAdmin && nodeGroup.admin)
+                                              if (!identity.isOrgAdmin && !identity.isSuperUser && nodeGroup.admin)
                                                 ""
                                               else
                                                 nodeGroup.description.getOrElse(""),
@@ -117,7 +118,7 @@ trait NodeGroups extends JacksonSupport with AuthenticationSupport {
                 else
                   response += NodeGroupResp(admin = nodeGroup.admin,
                                             description =
-                                              if (!identity.isAdmin && nodeGroup.admin)
+                                              if (!identity.isOrgAdmin && !identity.isSuperUser && nodeGroup.admin)
                                                 ""
                                               else
                                                 nodeGroup.description.getOrElse(""),
@@ -135,12 +136,12 @@ trait NodeGroups extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val nodeGroups: Route =
+  def nodeGroups(identity: Identity2): Route =
     path("orgs" / Segment / "hagroups") {
       organization =>
         get {
-          exchAuth(TNode(OrgAndId(organization, "#").toString), Access.READ) {
-            identity =>
+          exchAuth(TNode(OrgAndId(organization, "#").toString), Access.READ, validIdentity = identity) {
+            _ =>
               getNodeGroups(identity, organization)
           }
         }

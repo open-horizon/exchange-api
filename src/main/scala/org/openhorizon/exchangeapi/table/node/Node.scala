@@ -4,6 +4,8 @@ import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization.read
 import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 
+import java.util.UUID
+
 // This is the node table minus the key - used as the data structure to return to the REST clients
 // Default Constructor
 case class Node(var token: String,
@@ -45,7 +47,7 @@ case class Node(var token: String,
                   NodeType.DEVICE.toString
               else
                   nodeRow.nodeType,
-          owner = nodeRow.owner,
+          owner = nodeRow.owner.toString,
           pattern = nodeRow.pattern,
           publicKey = nodeRow.publicKey,
           registeredServices =

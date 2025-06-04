@@ -1,6 +1,7 @@
 name: exchange-unit-testing
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - master
@@ -40,7 +41,7 @@ jobs:
         uses: coursier/setup-action@v1
         with:
           apps: sbt
-          jvm: adoptium:1.17
+          jvm: temurin:1.21
 
       - name: Create Docker Env
         run: |

@@ -1,8 +1,8 @@
-package org.openhorizon.exchangeapi.route.node
+package org.openhorizon.exchangeapi.route.node.managementpolicy
 
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicyRow}
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{GetNMPStatusResponse, NMPStatus, NodeMgmtPolStatusRow, NodeMgmtPolStatuses, PolicyStatus}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
@@ -29,7 +29,16 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
   
+  private val TESTUSER: UserRow =
+    UserRow(createdAt    = TIMESTAMP,
+            isHubAdmin   = false,
+            isOrgAdmin   = false,
+            modifiedAt   = TIMESTAMP,
+            organization = "TestNodeGetAllMgmtPolStatus",
+            password     = Option(Password.hash("u1pw")),
+            username     = "u1")
   private val TESTMANAGEMENTPOLICY: Seq[ManagementPolicyRow] =
     Seq(ManagementPolicyRow(allowDowngrade   = false,
                             constraints      = "",
@@ -41,7 +50,7 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
                             manifest         = "",
                             managementPolicy = "TestNodeGetAllMgmtPolStatus/pol1",
                             orgid            = "TestNodeGetAllMgmtPolStatus",
-                            owner            = "TestNodeGetAllMgmtPolStatus/u1",
+                            owner            = TESTUSER.user,
                             patterns         = "",
                             properties       = "",
                             start            = ""),
@@ -55,7 +64,7 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
                             manifest         = "",
                             managementPolicy = "TestNodeGetAllMgmtPolStatus/pol2",
                             orgid            = "TestNodeGetAllMgmtPolStatus",
-                            owner            = "TestNodeGetAllMgmtPolStatus/u1",
+                            owner            = TESTUSER.user,
                             patterns         = "",
                             properties       = "",
                             start            = ""))
@@ -69,7 +78,7 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
             name               = "",
             nodeType           = "",
             orgid              = "TestNodeGetAllMgmtPolStatus",
-            owner              = "TestNodeGetAllMgmtPolStatus/u1",
+            owner              = TESTUSER.user,
             pattern            = "",
             publicKey          = "",
             regServices        = "",
@@ -108,15 +117,6 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
            orgType            = "",
            tags               = None,
            limits             = "")
-  private val TESTUSER: UserRow =
-    UserRow(admin       = false,
-            hubAdmin    = false,
-            email       = "",
-            hashedPw    = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i", // TestNodeGetAllMgmtPolStatus/u1:u1pw
-            lastUpdated = ApiTime.nowUTC,
-            orgid       = "TestNodeGetAllMgmtPolStatus",
-            updatedBy   = "",
-            username    = "TestNodeGetAllMgmtPolStatus/u1")
   
   
   // Build test harness.

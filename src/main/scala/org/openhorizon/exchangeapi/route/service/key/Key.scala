@@ -11,15 +11,20 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TService}
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TService}
 import org.openhorizon.exchangeapi.route.service.PutServiceKeyRequest
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/services/{service}/keys/{keyid}")
@@ -30,7 +35,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  /* ====== GET /orgs/{organization}/services/{service}/keys/{keyid} ================================ */
+  /* ====== GET /orgs/{organization}/services/{service}/keys/{key} ================================ */
   @GET
   @Operation(summary = "Returns a key/cert for this service", description = "Returns the signing public key/cert with the specified keyid for this service. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the service.",
     parameters = Array(
@@ -44,14 +49,16 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getKeyService(@Parameter(hidden = true) keyId: String,
-                    @Parameter(hidden = true) orgid: String,
-                    @Parameter(hidden = true) compositeId: String,
+  def getKeyService(@Parameter(hidden = true) identity: Identity2,
+                    @Parameter(hidden = true) key: String,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String,
                     @Parameter(hidden = true) service: String): Route =
     get {
+      logger.debug(s"GET /orgs/${organization}/services/${service}/keys/${key} - By ${identity.resource}:${identity.role}")
       complete({
-        db.run(ServiceKeysTQ.getKey(compositeId, keyId).result).map({ list =>
-          logger.debug("GET /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" result: "+list.size)
+        db.run(ServiceKeysTQ.getKey(resource, key).result).map({ list =>
+          logger.debug("GET /orgs/"+organization+"/services/"+service+"/keys/"+key+" result: "+list.size)
           // Note: both responses must be the same content type or that doesn't get set correctly
           if (list.nonEmpty) HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, list.head.key))
           else HttpResponse(status = HttpCode.NOT_FOUND, entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, ""))
@@ -59,7 +66,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       })
     }
 
-  // =========== PUT /orgs/{organization}/services/{service}/keys/{keyid} ===============================
+  // =========== PUT /orgs/{organization}/services/{service}/keys/{key} ===============================
   @PUT
   @Operation(summary = "Adds/updates a key/cert for the service", description = "Adds a new signing public key/cert, or updates an existing key/cert, for this service. This can only be run by the service owning user.",
     parameters = Array(
@@ -86,48 +93,50 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def putKeyService(@Parameter(hidden = true) keyId: String,
-                    @Parameter(hidden = true) orgid: String,
-                    @Parameter(hidden = true) compositeId: String,
+  def putKeyService(@Parameter(hidden = true) identity: Identity2,
+                    @Parameter(hidden = true) key: String,
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) resource: String,
                     @Parameter(hidden = true) service: String): Route =
     put {
+      logger.debug(s"PUT /orgs/${organization}/services/${service}/keys/${key} - By ${identity.resource}:${identity.role}")
       extractRawBodyAsStr {
         reqBodyAsStr =>
           val reqBody: PutServiceKeyRequest = PutServiceKeyRequest(reqBodyAsStr)
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
-              db.run(reqBody.toServiceKeyRow(compositeId, keyId).upsert.asTry.flatMap({
+              db.run(reqBody.toServiceKeyRow(resource, key).upsert.asTry.flatMap({
                 case Success(v) =>
                   // Get the value of the public field
-                  logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/keys/" + keyId + " result: " + v)
-                  ServicesTQ.getPublic(compositeId).result.asTry
+                  logger.debug("PUT /orgs/" + organization + "/services/" + service + "/keys/" + key + " result: " + v)
+                  ServicesTQ.getPublic(resource).result.asTry
                 case Failure(t) => DBIO.failed(t).asTry
               }).flatMap({
                 case Success(public) =>
                   // Add the resource to the resourcechanges table
-                  logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/keys/" + keyId + " public field: " + public)
+                  logger.debug("PUT /orgs/" + organization + "/services/" + service + "/keys/" + key + " public field: " + public)
                   if (public.nonEmpty) {
                     val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-                    ResourceChange(0L, orgid, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEKEYS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
-                  } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", compositeId))).asTry
+                    ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEKEYS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                  } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(v) =>
-                  logger.debug("PUT /orgs/" + orgid + "/services/" + service + "/keys/" + keyId + " updated in changes table: " + v)
+                  logger.debug("PUT /orgs/" + organization + "/services/" + service + "/keys/" + key + " updated in changes table: " + v)
                   (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated")))
                 case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
-                  else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
+                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage)))
+                  else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage))
                 case Failure(t) =>
-                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
-                  else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
+                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage)))
+                  else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage)))
               })
             })
           }
       }
     }
 
-  // =========== DELETE /orgs/{organization}/services/{service}/keys/{keyid} ===============================
+  // =========== DELETE /orgs/{organization}/services/{service}/keys/{key} ===============================
   @DELETE
   @Operation(summary = "Deletes a key of a service", description = "Deletes a key/cert for this service. This can only be run by the service owning user.",
     parameters = Array(
@@ -139,11 +148,13 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def deleteKeyService(@Parameter(hidden = true) key: String,
+  def deleteKeyService(@Parameter(hidden = true) identity: Identity2,
+                       @Parameter(hidden = true) key: String,
                        @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String,
                        @Parameter(hidden = true) service: String): Route =
     delete {
+      logger.debug(s"DELETE /orgs/${organization}/services/${service}/keys/${key} - By ${identity.resource}:${identity.role}")
       complete({
         var storedPublicField = false
         db.run(ServicesTQ.getPublic(resource).result.asTry.flatMap({
@@ -180,23 +191,34 @@ trait Key extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  val keyService: Route =
+  def keyService(identity: Identity2): Route =
     path("orgs" / Segment / "services" / Segment / "keys" / Segment) {
       (organization, service, key) =>
         val resource: String = OrgAndId(organization, service).toString
+        val resource_type: String = "service"
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, service, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
+          }
         
-        (delete | put) {
-          exchAuth(TService(resource), Access.WRITE) {
-            _ =>
-              deleteKeyService(key, organization, resource, service) ~
-              putKeyService(key, organization, resource, service)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None, public: Boolean = false): Route =
+          (delete | put) {
+            exchAuth(TService(resource, owningResourceIdentity, public), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteKeyService(identity, key, organization, resource, service) ~
+                putKeyService(identity, key, organization, resource, service)
+            }
+          } ~
+          get {
+            exchAuth(TService(resource, owningResourceIdentity, public),Access.READ, validIdentity = identity) {
+              _ =>
+                getKeyService(identity, key, organization, resource, service)
+            }
           }
-        } ~
-        get {
-          exchAuth(TService(resource),Access.READ) {
-            _ =>
-              getKeyService(key, organization, resource, service)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, public)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity), public = public)
         }
     }
 }

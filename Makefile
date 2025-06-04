@@ -73,7 +73,7 @@ POSTGRES_DB_USER ?= admin
 EXCHANGE_DB_USER ?= $(POSTGRES_DB_USER)
 PROJECT_DIRECTORY ?= $(shell pwd)
 # Try to sync this version with the version of scala you have installed on your dev machine, and with what is specified in build.sbt
-SCALA_VERSION ?= 2.13.14
+SCALA_VERSION ?= 2.13.16
 SCALA_VERSION_SHORT ?= 2.13
 
 
@@ -114,14 +114,14 @@ sync-swagger-ui:
 # Package ---------------------------------------------------------------------
 ## Package - Docker -------------------
 target/docker/stage/Dockerfile:
-	sbt docker:publishLocal
+	@sbt docker:publishLocal
 
 .PHONY: package-dockerfile
 package-dockerfile: target/docker/stage/Dockerfile
 
 ## Package - Jar ----------------------
 target/scala-$(SCALA_VERSION_SHORT)/amd64_exchange-api_$(SCALA_VERSION_SHORT)-$(VERSION).jar: $(wildcard *.scala) $(wildcard *.java)
-	sbt stage
+	@sbt stage
 
 .PHONY: package-jar
 package-jar: target/scala-$(SCALA_VERSION_SHORT)/amd64_exchange-api_$(SCALA_VERSION_SHORT)-$(VERSION).jar

@@ -27,6 +27,8 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ROUTE2 = "/confirm"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORGADMINPASSWORD = "orgadminpassword"
@@ -58,60 +60,44 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
       )
     )
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestPostConfirmUserRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestPostConfirmUserRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgAdmin",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORGADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "orgAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgUser",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORGUSERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "orgUser@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/orgUser",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = Password.hash(ORGUSERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "orgUser@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgUser2",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORGUSERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "orgUser2@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      )
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestPostConfirmUserRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORGADMINPASSWORD)),
+                username     = "orgAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORGUSERPASSWORD)),
+                username     = "orgUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = Option(Password.hash(ORGUSERPASSWORD)),
+                username     = "orgUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORGUSERPASSWORD)),
+                username     = "orgUser2"))
+  }
+  
   private val TESTAGBOTS: Seq[AgbotRow] =
     Seq(
       AgbotRow(
@@ -119,7 +105,7 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgid = TESTORGS(0).orgId,
         token = Password.hash(AGBOTTOKEN),
         name = "",
-        owner = TESTUSERS(2).username, //org 1 user
+        owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey = ""
@@ -138,7 +124,7 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(2).username, //org 1 user
+        owner              = TESTUSERS(2).user, //org 1 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -148,31 +134,32 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
       )
     )
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORGADMINPASSWORD))
-  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORGUSERPASSWORD))
-  private val AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
-  private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
+  private val ROOTAUTH      = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
+  private val HUBADMINAUTH  = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORGADMINPASSWORD))
+  private val ORG1USERAUTH  = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ORGUSERPASSWORD))
+  private val AGBOTAUTH     = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
+  private val NODEAUTH      = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run(
-      (OrgsTQ ++= TESTORGS) andThen
-      (UsersTQ ++= TESTUSERS) andThen
-      (AgbotsTQ ++= TESTAGBOTS) andThen
-      (NodesTQ ++= TESTNODES)
+      ((OrgsTQ ++= TESTORGS) andThen
+       (UsersTQ ++= TESTUSERS) andThen
+       (AgbotsTQ ++= TESTAGBOTS) andThen
+       (NodesTQ ++= TESTNODES)).transactionally
     ), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(
-      ResourceChangesTQ.filter(_.orgId startsWith "testPostConfirmUserRoute").delete andThen
-      OrgsTQ.filter(_.orgid startsWith "testPostConfirmUserRoute").delete andThen
-      UsersTQ.filter(_.username startsWith "root/TestPostConfirmUserRouteHubAdmin").delete
+      (ResourceChangesTQ.filter(_.orgId startsWith "testPostConfirmUserRoute").delete andThen
+       OrgsTQ.filter(_.orgid startsWith "testPostConfirmUserRoute").delete andThen
+       UsersTQ.filter(_.organization === "root")
+              .filter(_.username startsWith "TestPostConfirmUserRouteHubAdmin").delete).transactionally
     ), AWAITDURATION)
   }
 
-  private val defaultUsername = TESTUSERS(2).username.split("/")(1)
+  private val defaultUsername = TESTUSERS(2).username
 
   test("POST /orgs/doesNotExist" + ROUTE1 + defaultUsername + ROUTE2 + " -- as org admin -- 404 NOT FOUND") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(ORG1USERAUTH).asString
@@ -182,11 +169,11 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   //this should fail
-  ignore("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + "doesNotExist" + ROUTE2 + " -- as org admin -- 404 NOT FOUND") {
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + "doesNotExist" + ROUTE2 + " -- as org admin -- 403 ACCESS DENIED") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "doesNotExist" + ROUTE2).postForm.headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
   test("POST /orgs/" + "doesNotExist" + ROUTE1 + "doesNotExist" + ROUTE2 + " -- as org admin -- 404 NOT FOUND") {
@@ -253,11 +240,10 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2 + " -- bad auth -- 401 INVALID CREDENTIALS") {
-    val auth = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":incorrectPassword"))
+    val auth = ("Authorization", "Basic " + ApiUtils.encode((TESTUSERS(2).organization + "/" + TESTUSERS(2).username) + ":incorrectPassword"))
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(auth).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.BADCREDS.intValue)
   }
-
 }

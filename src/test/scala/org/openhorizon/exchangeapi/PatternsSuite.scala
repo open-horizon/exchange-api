@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi
 
-import java.time._
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi._
 import org.openhorizon.exchangeapi.route.administration.{DeleteIBMChangesRequest, DeleteOrgChangesRequest}
@@ -9,22 +8,33 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
-import org.openhorizon.exchangeapi.route.deploymentpattern.{GetPatternAttributeResponse, GetPatternsResponse, PostPatternSearchRequest, PostPutPatternRequest}
+import org.openhorizon.exchangeapi.route.deploymentpattern.{GetPatternAttributeResponse, PostPatternSearchRequest, PostPutPatternRequest, TestGetPatternsResponse}
 import org.openhorizon.exchangeapi.route.node.{PostPatternSearchResponse, PutNodesRequest}
 import org.openhorizon.exchangeapi.route.organization.{PostPutOrgRequest, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.service.PostPutServiceRequest
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService, OneUserInputValue, PServiceVersions, PServices}
-import org.openhorizon.exchangeapi.table.node.{Prop, RegService}
-import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, HttpCode}
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ, Prop, RegService}
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeOperation, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 
 import scala.collection.immutable._
 import scalaj.http._
+import slick.jdbc
+import slick.jdbc.PostgresProfile.api._
+
+import java.time.ZonedDateTime
+import java.util.UUID
+import scala.concurrent.Await
+import scala.concurrent.duration.{Duration, DurationInt}
 
 /**
  * Tests for the /patterns routes. To run
@@ -35,7 +45,7 @@ import scalaj.http._
  * clear and detailed tutorial of FunSuite: http://doc.scalatest.org/1.9.1/index.html#org.scalatest.FunSuite
  */
 @RunWith(classOf[JUnitRunner])
-class PatternsSuite extends AnyFunSuite {
+class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   val localUrlRoot = "http://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
@@ -150,9 +160,270 @@ class PatternsSuite extends AnyFunSuite {
   val maxRecords = 10000
   val secondsAgo = 120
   val orgsList = List(orgid, orgid2, orgid3)
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
 
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
-
+  
+  private val AWAITDURATION: Duration = 15.seconds
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
+  val rootUser: UUID = Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === "root" && users.username === "root").map(_.user).result.head), AWAITDURATION)
+  
+  
+  private val TESTORGANIZATIONS: Seq[OrgRow] =
+    Seq(OrgRow(heartbeatIntervals = "",
+               description        = "",
+               label              = "",
+               lastUpdated        = ApiTime.nowUTC,
+               orgId              = orgid,
+               orgType            = "IBM",
+               tags               = None,
+               limits             = ""),
+        OrgRow(heartbeatIntervals = "",
+               description        = "",
+               label              = "",
+               lastUpdated        = ApiTime.nowUTC,
+               orgId              = orgid2,
+               orgType            = "",
+               tags               = None,
+               limits             = ""),
+        OrgRow(heartbeatIntervals = "",
+               description        = "",
+               label              = "",
+               lastUpdated        = ApiTime.nowUTC,
+               orgId              = orgid3,
+               orgType            = "IBM",
+               tags               = None,
+               limits             = ""))
+  private val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = orgid,
+                password     = Option(Password.hash(pw)),
+                username     = user),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = orgid,
+                password     = Option(Password.hash(pw2)),
+                username     = user2),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = orgid2,
+                password     = Option(Password.hash(pw3)),
+                username     = user3),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = orgid3,
+                password     = Option(Password.hash(pw4)),
+                username     = user4))
+  private val TESTAGREEMENTBOTS: Seq[AgbotRow] =
+    Seq(AgbotRow(id            = orgid + "/" + agbotId,
+                 lastHeartbeat = ApiTime.nowUTC,
+                 msgEndPoint   = "",
+                 name          = "agbot" + agbotId + "-norm",
+                 orgid         = orgid,
+                 owner         = TESTUSERS(0).user,
+                 publicKey     = "ABC",
+                 token         = Password.hash(agbotToken)))
+  private val TESTNODES: Seq[NodeRow] =
+    Seq(NodeRow(arch               = "",
+                id                 = orgid + "/" + nodeId,
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "bc dev test",
+                nodeType           = "",
+                orgid              = orgid,
+                owner              = TESTUSERS(0).user,
+                pattern            = "",
+                publicKey          = "NODEABC",
+                regServices        = write(List(RegService("foo", 1, None, "{}",
+                                                           List(Prop("arch", "arm", "string", "in"),
+                                                                Prop("version", "2.0.0", "version", "in"),
+                                                                Prop("blockchainProtocols", "agProto", "list", "in")),
+                                                           Some("")))),
+                softwareVersions   = "",
+                token              = Password.hash(nodeToken),
+                userInput          = ""),
+        NodeRow(arch               = "",
+                id                 = orgid + "/" + nodeIdSearchTest1,
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "rpi"+nodeIdSearchTest1+"-norm",
+                nodeType           = "",
+                orgid              = orgid,
+                owner              = TESTUSERS(0).user,
+                pattern            = compositePatid,
+                publicKey          = "NODEABC",
+                regServices        =
+                  write(List(
+                RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeIdSearchTest1+" pws}",List(
+                  Prop("arch","arm","string","in"),
+                  Prop("version","1.0.0","version","in"),
+                  Prop("agreementProtocols",agProto,"list","in"),
+                  Prop("dataVerification","true","boolean","=")), Some("")),
+                RegService(NETSPEEDSPEC,1,Some("active"),"{json policy for "+nodeIdSearchTest1+" netspeed}",List(
+                  Prop("arch","arm","string","in"),
+                  Prop("cpus","2","int",">="),
+                  Prop("version","1.0.0","version","in")), Some("")))),
+                softwareVersions   = write(Map("horizon"->"3.2.3")),
+                token              = Password.hash(nodeTokenSearchTest1),
+                userInput          = write(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) ))),
+        /*NodeRow(arch               = "amd64",
+                id                 = orgid + "/" + nodeId2SearchTest2,
+                heartbeatIntervals = "",
+                lastHeartbeat      = None,
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "rpi"+nodeId2SearchTest2+"-mem-400-vers-2",
+                nodeType           = "",
+                orgid              = orgid,
+                owner              = TESTUSERS(0).user,
+                pattern            = compositePatid,
+                publicKey          = "NODE2ABC",
+                regServices        =
+                  write(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",
+                                        List(Prop("arch","arm","string","in"),
+                                             Prop("memory","400","int",">="),
+                                             Prop("version","2.0.0","version","in"),
+                                             Prop("agreementProtocols",agProto,"list","in"),
+                                             Prop("dataVerification","true","boolean","=")),
+                                        Some("")))),
+                softwareVersions   = "",
+                token              = Password.fastHash(nodeToken2SearchTest2),
+                userInput          = ""), */
+        NodeRow(arch               = "amd64",
+                id                 = orgid + "/" + nodeId2SearchTest2,
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "rpi"+nodeId2SearchTest2+"-mem-400-vers-2",
+                nodeType           = "",
+                orgid              = orgid,
+                owner              = TESTUSERS(0).user,
+                pattern            = compositePatid,
+                publicKey          = "NODE2ABC",
+                regServices        =
+                  write(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
+                    Prop("arch","arm","string","in"),
+                    Prop("memory","400","int",">="),
+                    Prop("version","2.0.0","version","in"),
+                    Prop("agreementProtocols",agProto,"list","in"),
+                    Prop("dataVerification","true","boolean","=")), Some("")))),
+                softwareVersions   = "",
+                token              = Password.hash(nodeToken2SearchTest2),
+                userInput          = ""),
+        NodeRow(arch               = "",
+                id                 = orgid + "/" + nodeId3SearchTest3,
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "rpi"+nodeId3SearchTest3+"-mem-400-vers-2",
+                nodeType           = "",
+                orgid              = orgid,
+                owner              = TESTUSERS(0).user,
+                pattern            = compositePatid,
+                publicKey          = "NODE3ABC",
+                regServices        = write(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId3SearchTest3+" sdr}",List(
+                  Prop("arch","arm","string","in"),
+                  Prop("memory","400","int",">="),
+                  Prop("version","2.0.0","version","in"),
+                  Prop("agreementProtocols",agProto,"list","in"),
+                  Prop("dataVerification","true","boolean","=")), Some("")))),
+                softwareVersions   = "",
+                token              = Password.hash(nodeToken3SearchTest3),
+                userInput          = ""),
+        NodeRow(arch               = "",
+                id                 = orgid + "/" + nodeId4SearchTest4,
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "rpi"+nodeId4SearchTest4+"-mem-400-vers-2",
+                nodeType           = "",
+                orgid              = orgid,
+                owner              = TESTUSERS(0).user,
+                pattern            = compositePatid2,
+                publicKey          = "NODE4ABC",
+                regServices        = write(List(RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId4SearchTest4+" sdr}",List(
+                  Prop("arch","arm","string","in"),
+                  Prop("memory","400","int",">="),
+                  Prop("version","1.0.0","version","in"),
+                  Prop("agreementProtocols",agProto,"list","in"),
+                  Prop("dataVerification","true","boolean","=")), Some("")))),
+                softwareVersions   = "",
+                token              = Password.hash(nodeToken4SearchTest4),
+                userInput          = ""),
+        NodeRow(arch               = "arm32",
+                id                 = orgid + "/" + nodeId5SearchTest5,
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "rpi"+nodeId5SearchTest5+"-mem-400-vers-2",
+                nodeType           = "",
+                orgid              = orgid,
+                owner              = TESTUSERS(0).user,
+                pattern            = compositePatid3,
+                publicKey          = "NODE5ABC",
+                regServices        = write(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId5SearchTest5+" sdr}",List(
+                  Prop("arch","arm32","string","in"),
+                  Prop("memory","400","int",">="),
+                  Prop("version","1.0.0","version","in"),
+                  Prop("agreementProtocols",agProto,"list","in"),
+                  Prop("dataVerification","true","boolean","=")), Some("")))),
+                softwareVersions   = "",
+                token              = Password.hash(nodeToken5SearchTest5),
+                userInput          = ""),
+        NodeRow(arch               = "amd64",
+                id                 = orgid + "/" + nodeId6SearchTest6,
+                heartbeatIntervals = "",
+                lastHeartbeat      = Option(ApiTime.nowUTC),
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "rpi"+nodeId6SearchTest6+"-mem-400-vers-2",
+                nodeType           = "",
+                orgid              = orgid,
+                owner              = TESTUSERS(0).user,
+                pattern            = compositePatid3,
+                publicKey          = "NODE6ABC",
+                regServices        = write(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId6SearchTest6+" sdr}",List(
+                  Prop("arch","amd64","string","in"),
+                  Prop("memory","400","int",">="),
+                  Prop("version","1.0.0","version","in"),
+                  Prop("agreementProtocols",agProto,"list","in"),
+                  Prop("dataVerification","true","boolean","=")), Some("")))),
+                softwareVersions   = "",
+                token              = Password.hash(nodeToken6SearchTest6),
+                userInput          = ""))
+  
+  
+  override def beforeAll(): Unit = {
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
+                                 (UsersTQ ++= TESTUSERS) andThen
+                                 (NodesTQ ++= TESTNODES) andThen
+                                 (AgbotsTQ ++= TESTAGREEMENTBOTS)), AWAITDURATION)
+  }
+  
+  override def afterAll(): Unit = {
+    Await.ready(DBCONNECTION.run((OrgsTQ.filter(organizations => organizations.orgid inSet TESTORGANIZATIONS.map(_.orgId).toSet).delete) andThen
+                                 (ResourceChangesTQ.filter(log => log.orgId inSet TESTORGANIZATIONS.map(_.orgId).toSet).delete)), AWAITDURATION)
+  }
+  
   /** Delete all the test users */
   def deleteAllUsers() = {
     for (i <- List(user,user2)) {
@@ -169,7 +440,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   /** Create an org to use for this test */
-  test("POST /orgs/"+orgid+" - create org") {
+  ignore("POST /orgs/"+orgid+" - create org") {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -182,7 +453,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   /** Create an non IBM org to use for this test */
-  test("POST /orgs/"+orgid2+" - create org") {
+  ignore("POST /orgs/"+orgid2+" - create org") {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -195,7 +466,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   /** Create a second IBM org to use for this test */
-  test("POST /orgs/"+orgid3+" - create org") {
+  ignore("POST /orgs/"+orgid3+" - create org") {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -208,13 +479,13 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the patterns, because they are deleted when the user is deleted. */
-  test("Begin - DELETE all test users") {
+  ignore("Begin - DELETE all test users") {
     if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
     deleteAllUsers()
   }
 
   /** Add users, node, agbot for future tests */
-  test("Add users, node, agbot for future tests") {
+  ignore("Add users, node, agbot for future tests") {
     var userInput = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
     var userResponse = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
@@ -225,10 +496,10 @@ class PatternsSuite extends AnyFunSuite {
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
 
-    val devInput = PutNodesRequest(nodeToken, "bc dev test", None, "", Some(List(RegService("foo", 1, None, "{}", List(
+    val devInput = PutNodesRequest(Option(nodeToken), "bc dev test", None, Option(""), Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
       Prop("version", "2.0.0", "version", "in"),
-      Prop("blockchainProtocols", "agProto", "list", "in")), Some("")))), None, None, None, "NODEABC", None, None)
+      Prop("blockchainProtocols", "agProto", "list", "in")), Some("")))), None, None, None, Option("NODEABC"), None, None)
     val devResponse = Http(URL + "/nodes/" + nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + devResponse.code)
     assert(devResponse.code === HttpCode.PUT_OK.intValue)
@@ -239,14 +510,14 @@ class PatternsSuite extends AnyFunSuite {
     assert(agbotResponse.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("Add users, node, agbot for future tests in non-IBM org") {
+  ignore("Add users, node, agbot for future tests in non-IBM org") {
     val userInput = PostPutUsersRequest(pw3, admin = false, Some(false), user3 + "@hotmail.com")
     val userResponse = Http(URL2 + "/users/" + user3).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
     assert(userResponse.code === HttpCode.POST_OK.intValue)
   }
 
-  test("Add users, node, agbot for future tests in second IBM org") {
+  ignore("Add users, node, agbot for future tests in second IBM org") {
     val userInput = PostPutUsersRequest(pw4, admin = false, Some(false), user4 + "@hotmail.com")
     val userResponse = Http(URL3 + "/users/" + user4).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
@@ -354,14 +625,14 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" as user") {
+  test(s"POST /orgs/$orgid/patterns/"+pattern+" - add "+pattern+" as user") {
     val input = PostPutPatternRequest(pattern, Some("desc"), Some(true),
       List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, Some("{\"services\":{}}"), Some("a"), Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("enabled"->false, "URL"->"", "user"->"", "password"->"", "interval"->0, "check_rate"->0, "metering"->Map[String,Any]())), Some(Map("check_agreement_status" -> 120)) )),
       Some(List( OneUserInputService(orgid, svcurl, Some(svcarch), Some(svcversion), List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
       Some(List( OneSecretBindingService(orgid,svcurl, Some(svcarch), Some(svcversion), List(Map("servicesecret1"->"vaultsecret1")), Option(true)))),
       Some(List(Map("name" -> "Basic")))
     )
-    val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    val response = Http(URL + "/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.POST_OK.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
@@ -681,7 +952,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
   
-    test("PATCH /orgs/"+orgid+"/patterns/" +pattern+ "- secretBinding field") {
+  test("PATCH /orgs/"+orgid+"/patterns/" +pattern+ "- secretBinding field") {
     var jsonInput = """{"secretBinding": [{ "serviceOrgid":"PatternuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}]}"""
     val response = Http(URL+"/patterns/"+ pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -760,19 +1031,19 @@ class PatternsSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 2)
 
     assert(respObj.patterns.contains(orgpattern))
     var pt = respObj.patterns(orgpattern)
     assert(pt.label === pattern+" amd64")
-    assert(pt.owner === orguser)
+    assert(pt.owner === (TESTUSERS(0).organization + "/" + TESTUSERS(0).username))
     assert(pt.services.head.agreementLess.get === true)
 
     assert(respObj.patterns.contains(orgpattern2))
     pt = respObj.patterns(orgpattern2)
     assert(pt.label === pattern2+" amd64")
-    assert(pt.owner === orguser2)
+    assert(pt.owner === (TESTUSERS(1).organization + "/" + TESTUSERS(1).username))
   }
 
   test("GET /orgs/"+orgid+"/patterns - filter owner and patternUrl") {
@@ -780,7 +1051,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
     assert(respObj.patterns.contains(orgpattern))
   }
@@ -790,7 +1061,7 @@ class PatternsSuite extends AnyFunSuite {
     var response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).param("public","true").asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
-    var respObj = parse(response.body).extract[GetPatternsResponse]
+    var respObj: TestGetPatternsResponse = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
     assert(respObj.patterns.contains(orgpattern2))
 
@@ -798,7 +1069,7 @@ class PatternsSuite extends AnyFunSuite {
     response = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).param("public","false").asString
     info("code: "+response.code)
     assert(response.code === HttpCode.OK.intValue)
-    respObj = parse(response.body).extract[GetPatternsResponse]
+    respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
     assert(respObj.patterns.contains(orgpattern))
   }
@@ -808,7 +1079,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: " + response.code)
     info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 2)
   }
 
@@ -817,7 +1088,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: " + response.code)
     info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 2)
   }
 
@@ -826,7 +1097,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: " + response.code)
     info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
 
     assert(respObj.patterns.contains(orgpattern))
@@ -967,7 +1238,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //val getPatternResp = parse(response.body).extract[GetPatternsResponse]
+    //val getPatternResp = parse(response.body).extract[TestGetPatternsResponse]
     //assert(getPatternResp.patterns.size === 0)
   }
 
@@ -1068,7 +1339,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: " + response.code)
     info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    val respObj = parse(response.body).extract[TestGetPatternsResponse]
     //assert(respObj.patterns.size === 2)  // cant test this because there could be other patterns in the IBM org
 
     assert(respObj.patterns.contains(ibmOrgPattern))
@@ -1081,7 +1352,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: " + response.code)
     info("response.body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val respObj = parse(response.body).extract[GetPatternsResponse]
+    val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
 
     assert(respObj.patterns.contains(ibmOrgPattern))
@@ -1164,8 +1435,8 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
   }
 
-  test("PUT /orgs/" + orgid + "/nodes/" + nodeIdSearchTest1 + " - add normal node as user") {
-    val input = PutNodesRequest(nodeTokenSearchTest1, "rpi"+nodeIdSearchTest1+"-norm", None, compositePatid,
+  ignore("PUT /orgs/" + orgid + "/nodes/" + nodeIdSearchTest1 + " - add normal node as user") {
+    val input = PutNodesRequest(Option(nodeTokenSearchTest1), "rpi"+nodeIdSearchTest1+"-norm", None, Option(compositePatid),
       Some(List(
         RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeIdSearchTest1+" pws}",List(
           Prop("arch","arm","string","in"),
@@ -1178,7 +1449,7 @@ class PatternsSuite extends AnyFunSuite {
           Prop("version","1.0.0","version","in")), Some(""))
       )),
       Some(List( OneUserInputService(orgid, SDRSPEC_URL, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-      None, Some(Map("horizon"->"3.2.3")), "NODEABC", None, None)
+      None, Some(Map("horizon"->"3.2.3")), Option("NODEABC"), None, None)
     val response = Http(URL + "/nodes/" + nodeIdSearchTest1).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeIdSearchTest1 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1186,13 +1457,13 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("PUT /orgs/" + orgid + "/nodes/" + nodeId2SearchTest2 + " - node with higher memory 400, and version 2.0.0") {
-    val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", None, compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
+  ignore("PUT /orgs/" + orgid + "/nodes/" + nodeId2SearchTest2 + " - node with higher memory 400, and version 2.0.0") {
+    val input = PutNodesRequest(Option(nodeToken2SearchTest2), "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", None, Option(compositePatid), Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE2ABC", Some("amd64"), None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, Option("NODE2ABC"), Some("amd64"), None)
     val response = Http(URL + "/nodes/" + nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     //info("Heartbeat: " + Http(URL + "/nodes/" + nodeId2SearchTest2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1200,13 +1471,13 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("PUT /orgs/" + orgid + "/nodes/" + nodeId2SearchTest2 + " - node with no arch") {
-    val input = PutNodesRequest(nodeToken2SearchTest2, "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", None, compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
+  ignore("PUT /orgs/" + orgid + "/nodes/" + nodeId2SearchTest2 + " - node with no arch") {
+    val input = PutNodesRequest(Option(nodeToken2SearchTest2), "rpi"+nodeId2SearchTest2+"-mem-400-vers-2", None, Option(compositePatid), Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId2SearchTest2+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE2ABC", Some("amd64"), None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, Option("NODE2ABC"), Some("amd64"), None)
     val response = Http(URL + "/nodes/" + nodeId2SearchTest2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId2SearchTest2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1224,7 +1495,7 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.POST_OK.intValue)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
-    assert(nodes.length === 2)
+    assert(nodes.length === 3)
     info(nodes.count(d => d.id == orgnodeIdSearchTest1 || d.id == orgnodeId2SearchTest2).toString)
     assert(nodes.count(d => d.id==orgnodeIdSearchTest1 || d.id==orgnodeId2SearchTest2) === 2)
     val dev = nodes.find(d => d.id == orgnodeIdSearchTest1).get // the 2nd get turns the Some(val) into val
@@ -1233,21 +1504,20 @@ class PatternsSuite extends AnyFunSuite {
     assert(dev2.publicKey === "NODE2ABC")
   }
 
-  test("PUT /orgs/" + orgid + "/nodes/" + nodeId3SearchTest3 + " - node with no arch") {
-    val input = PutNodesRequest(nodeToken3SearchTest3, "rpi"+nodeId3SearchTest3+"-mem-400-vers-2", None, compositePatid, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId3SearchTest3+" sdr}",List(
+  ignore("PUT /orgs/" + orgid + "/nodes/" + nodeId3SearchTest3 + " - node with no arch") {
+    val input = PutNodesRequest(Option(nodeToken3SearchTest3), "rpi"+nodeId3SearchTest3+"-mem-400-vers-2", None, Option(compositePatid), Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId3SearchTest3+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","2.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE3ABC", None, None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, Option("NODE3ABC"), None, None)
     val response = Http(URL + "/nodes/" + nodeId3SearchTest3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId3SearchTest3 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
     info("body: " + response.body)
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
-
-
+  
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - agbot should find node with no arch") {
     val input = PostPatternSearchRequest(arch = None,
                                          nodeOrgids = Some(List(orgid, orgid2)),
@@ -1268,13 +1538,13 @@ class PatternsSuite extends AnyFunSuite {
     assert(dev3.publicKey === "NODE3ABC")
   }
 
-  test("PUT /orgs/" + orgid + "/nodes/" + nodeId4SearchTest4 + " - node with " + PWSSPEC + " Service") {
-    val input = PutNodesRequest(nodeToken4SearchTest4, "rpi"+nodeId4SearchTest4+"-mem-400-vers-2", None, compositePatid2, Some(List(RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId4SearchTest4+" sdr}",List(
+  ignore("PUT /orgs/" + orgid + "/nodes/" + nodeId4SearchTest4 + " - node with " + PWSSPEC + " Service") {
+    val input = PutNodesRequest(Option(nodeToken4SearchTest4), "rpi"+nodeId4SearchTest4+"-mem-400-vers-2", None, Option(compositePatid2), Some(List(RegService(PWSSPEC,1,Some("active"),"{json policy for "+nodeId4SearchTest4+" sdr}",List(
       Prop("arch","arm","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE4ABC", None, None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, Option("NODE4ABC"), None, None)
     val response = Http(URL + "/nodes/" + nodeId4SearchTest4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId4SearchTest4 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1310,13 +1580,13 @@ class PatternsSuite extends AnyFunSuite {
     assert(dev.publicKey === "NODE4ABC")
   }
 
-  test("PUT /orgs/" + orgid + "/nodes/" + nodeId5SearchTest5 + " - node with " + SDRSPEC + " Service arm32") {
-    val input = PutNodesRequest(nodeToken5SearchTest5, "rpi"+nodeId5SearchTest5+"-mem-400-vers-2", None, compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId5SearchTest5+" sdr}",List(
+  ignore("PUT /orgs/" + orgid + "/nodes/" + nodeId5SearchTest5 + " - node with " + SDRSPEC + " Service arm32") {
+    val input = PutNodesRequest(Option(nodeToken5SearchTest5), "rpi"+nodeId5SearchTest5+"-mem-400-vers-2", None, Option(compositePatid3), Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId5SearchTest5+" sdr}",List(
       Prop("arch","arm32","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE5ABC", Some("arm32"), None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, Option("NODE5ABC"), Some("arm32"), None)
     val response = Http(URL + "/nodes/" + nodeId5SearchTest5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Hearbeat: " + Http(URL + "/nodes/" + nodeId5SearchTest5 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1324,13 +1594,13 @@ class PatternsSuite extends AnyFunSuite {
     assert(response.code === HttpCode.PUT_OK.intValue)
   }
 
-  test("PUT /orgs/" + orgid + "/nodes/" + nodeId6SearchTest6 + " - node with " + SDRSPEC + " Service the first one arm32") {
-    val input = PutNodesRequest(nodeToken6SearchTest6, "rpi"+nodeId6SearchTest6+"-mem-400-vers-2", None, compositePatid3, Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId6SearchTest6+" sdr}",List(
+  ignore("PUT /orgs/" + orgid + "/nodes/" + nodeId6SearchTest6 + " - node with " + SDRSPEC + " Service the first one arm32") {
+    val input = PutNodesRequest(Option(nodeToken6SearchTest6), "rpi"+nodeId6SearchTest6+"-mem-400-vers-2", None, Option(compositePatid3), Some(List(RegService(SDRSPEC,1,Some("active"),"{json policy for "+nodeId6SearchTest6+" sdr}",List(
       Prop("arch","amd64","string","in"),
       Prop("memory","400","int",">="),
       Prop("version","1.0.0","version","in"),
       Prop("agreementProtocols",agProto,"list","in"),
-      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, "NODE6ABC", Some("amd64"), None)
+      Prop("dataVerification","true","boolean","=")), Some("")))), None, None, None, Option("NODE6ABC"), Some("amd64"), None)
     val response = Http(URL + "/nodes/" + nodeId6SearchTest6).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId6SearchTest6 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
@@ -1541,7 +1811,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //val getPatternResp = parse(response.body).extract[GetPatternsResponse]
+    //val getPatternResp = parse(response.body).extract[TestGetPatternsResponse]
     //assert(getPatternResp.patterns.size === 0)
   }
 
@@ -1562,7 +1832,7 @@ class PatternsSuite extends AnyFunSuite {
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //val getPatternResp = parse(response.body).extract[GetPatternsResponse]
+    //val getPatternResp = parse(response.body).extract[TestGetPatternsResponse]
     //assert(getPatternResp.patterns.size === 0)
   }
 
@@ -1596,12 +1866,12 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   /** Clean up, delete all the test patterns */
-  test("Cleanup - DELETE all test patterns") {
+  ignore("Cleanup - DELETE all test patterns") {
     deleteAllUsers()
   }
 
   /** Delete the org we used for this test */
-  test("POST /orgs/"+orgid+" - delete org") {
+  ignore("POST /orgs/"+orgid+" - delete org") {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1609,7 +1879,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   /** Delete the non IBM org we used for this test */
-  test("POST /orgs/"+orgid2+" - delete org") {
+  ignore("POST /orgs/"+orgid2+" - delete org") {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
@@ -1617,7 +1887,7 @@ class PatternsSuite extends AnyFunSuite {
   }
 
   /** Delete the second IBM org we used for this test */
-  test("POST /orgs/"+orgid3+" - delete org") {
+  ignore("POST /orgs/"+orgid3+" - delete org") {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)

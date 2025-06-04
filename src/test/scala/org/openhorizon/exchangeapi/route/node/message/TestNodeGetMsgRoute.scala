@@ -1,12 +1,12 @@
-package org.openhorizon.exchangeapi.route.node
+package org.openhorizon.exchangeapi.route.node.message
 
-import org.openhorizon.exchangeapi.table
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.route.node.GetNodeMsgsResponse
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
-import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.message.{NodeMsgRow, NodeMsgsTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
@@ -30,13 +30,23 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
+  private val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestNodeGetMsgRoute",
+                password     = None,
+                username     = "u1"))
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestNodeGetMsgRoute/a1",
              lastHeartbeat = ApiTime.nowUTC,
              msgEndPoint   = "",
              name          = "",
              orgid         = "TestNodeGetMsgRoute",
-             owner         = "TestNodeGetMsgRoute/u1",
+             owner         = TESTUSERS(0).user,
              publicKey     = "",
              token         = "")
   private val TESTNODEMESSAGES: Seq[NodeMsgRow] =
@@ -57,7 +67,7 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "",
                 nodeType           = "",
                 orgid              = "TestNodeGetMsgRoute",
-                owner              = "TestNodeGetMsgRoute/u1",
+                owner              = TESTUSERS(0).user,
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -73,15 +83,6 @@ class TestNodeGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
                orgId              = "TestNodeGetMsgRoute",
                orgType            = "",
                tags               = None))
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = false,
-                email       = "",
-                hashedPw    = "",
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestNodeGetMsgRoute",
-                updatedBy   = "",
-                username    = "TestNodeGetMsgRoute/u1"))
   
   
   override def beforeAll(): Unit = {

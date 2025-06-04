@@ -10,17 +10,18 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, IAgbot, INode, Identity, TOrg}
+import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, IAgbot, INode, Identity, Identity2, TOrg}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeOperation, ResourceChangeRow, ResourceChanges, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import org.openhorizon.exchangeapi.ExchangeApi
+import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled
 
-import java.time.ZonedDateTime
+import java.time.{ZoneId, ZonedDateTime}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
@@ -49,7 +50,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
     val changesMap: scala.collection.mutable.Map[String, ChangeEntry] = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
     // fill in changesMap
     for (entry <- inputList) { // looping through every single ResourceChangeRow in inputList, given that we apply `.take(maxRecords)` in the query, this should never be over maxRecords, so no more need to break
-      val resChange: ResourceChangesInnerObject = ResourceChangesInnerObject(entry.changeId, ApiTime.fixFormatting(entry.lastUpdated.toString))
+      val resChange: ResourceChangesInnerObject = ResourceChangesInnerObject(entry.changeId, ApiTime.fixFormatting(entry.lastUpdated.toInstant.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("UTC")).toString))
       changesMap.get(entry.orgId + "_" + entry.id + "_" + entry.resource) match { // using the map allows for better searching and entry
         case Some(change) =>
           // inputList is already sorted by changeId from the query so we know this change happened later
@@ -125,11 +126,10 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
       )
     )
   )
-  def postChanges(@Parameter(hidden = true) identity: Identity,
+  def postChanges(@Parameter(hidden = true) identity: Identity2,
                   @Parameter(hidden = true) organization: String,
-                  @Parameter(hidden = true) reqBody: ResourceChangesRequest): Route =
+                  @Parameter(hidden = true) reqBody: ResourceChangesRequest): Route = {
     complete({
-      logger.debug(s"Doing POST /orgs/$organization/changes - identity:                 ${identity.identityString}")
       // make sure callers obey maxRecords cap set in config, defaults is 10,000
       val maxRecordsCap: Int = Configuration.getConfig.getInt("api.resourceChanges.maxRecordsCap")
       logger.debug(s"Doing POST /orgs/$organization/changes - maxRecordsCap:            $maxRecordsCap")
@@ -184,11 +184,11 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
                          .filterOpt(reqLastUpdate)((change, timestamp) => change.lastUpdated >= timestamp)
       
       val changesWithAuth: PostgresProfile.api.Query[ResourceChanges, ResourceChangeRow, Seq] =
-        identity match {
-          case _: INode =>
+        identity.role match {
+          case AuthRoles.Node =>
             logger.debug(s"Doing POST /orgs/$organization/changes - User Arch:                Node")
-            allChanges.filter(u => (u.category === "mgmtpolicy") || (u.category === "node" && u.id === identity.getIdentity) || (u.category === "service" || u.category === "org"))
-          case _: IAgbot =>
+            allChanges.filter(u => (u.category === "mgmtpolicy") || (u.category === "node" && u.id === identity.username) || (u.category === "service" || u.category === "org"))
+          case AuthRoles.Agbot =>
             logger.debug(s"Doing POST /orgs/$organization/changes - User Arch:                Agbot: " + identity.isMultiTenantAgbot)
             allChanges.filterIf(identity.isMultiTenantAgbot && !(orgSet.contains("*") || orgSet.contains("")))(u => (u.orgId inSet orgSet) || ((u.resource === "org") && (u.operation === ResChangeOperation.CREATED.toString)))
                       .filterNot(_.resource === "nodemsgs")
@@ -203,14 +203,12 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
       val changes: DBIOAction[(Seq[ResourceChangeRow], Option[Long]), NoStream, Effect.Write with Effect with Effect.Read] =
         for {
           resourceUpdated <-
-            identity match {
-              case _: INode =>
-                Compiled(NodesTQ.getLastHeartbeat(identity.identityString)).update(Option(ApiTime.nowUTC))
-              case _: IAgbot =>
-                Compiled(AgbotsTQ.getLastHeartbeat(identity.identityString)).update(ApiTime.nowUTC)
-              case _ =>
-                DBIO.successful((1))
-            }
+            if (identity.isNode)
+              Compiled(NodesTQ.getLastHeartbeat(identity.resource)).update(Option(ApiTime.nowUTC))
+            else if (identity.isAgbot)
+              Compiled(AgbotsTQ.getLastHeartbeat(identity.resource)).update(ApiTime.nowUTC)
+            else
+              DBIO.successful((1))
           
           _ <-
             if (resourceUpdated == 1)
@@ -245,21 +243,22 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
               exchangeVersion = ExchangeApi.adminVersion()))
           }
         case Failure(t: IllegalCallerException) =>
-          (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", identity.getIdentity)))
+          (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", identity.resource)))
         case Failure(t: org.postgresql.util.PSQLException) =>
           ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("invalid.input.message", t.getMessage))
         case Failure(t) =>
           (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
       })
     })
+  }
   
-  def changes: Route =
+  def changes(identity: Identity2): Route =
     path("orgs" / Segment / "changes") {
       organization =>
         post {
-          exchAuth(TOrg(organization), Access.READ) {
-            identity =>
-              logger.debug(s"Doing POST /orgs/$organization/changes")
+          exchAuth(TOrg(organization), Access.READ, validIdentity = identity) {
+            _ =>
+              logger.debug(s"POST /orgs/$organization/changes - By ${identity.resource}:${identity.role}")
               entity(as[ResourceChangesRequest]) {
                 reqBody =>
                   validateWithMsg(reqBody.getAnyProblem) {

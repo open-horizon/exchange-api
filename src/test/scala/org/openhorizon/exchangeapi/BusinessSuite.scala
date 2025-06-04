@@ -8,25 +8,35 @@ import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.json4s.native.Serialization.write
 import org.junit.runner.RunWith
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{GetBusinessPoliciesResponse, GetBusinessPolicyAttributeResponse, PostPutBusinessPolicyRequest}
 import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.route.organization.{PostPutOrgRequest, ResourceChangesRequest, ResourceChangesRespObject}
 import org.openhorizon.exchangeapi.route.service.PostPutServiceRequest
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
+import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService, OneUserInputValue}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BServiceVersions}
-import org.openhorizon.exchangeapi.table.node.{Prop, RegService}
-import org.openhorizon.exchangeapi.table.resourcechange.ResChangeOperation
+import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, NodeType, NodesTQ, Prop, RegService}
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeOperation, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.service.OneProperty
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, HttpCode}
+import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http._
+import slick.jdbc
+import slick.jdbc.PostgresProfile.api._
+import slick.lifted.MappedToBase.mappedToIsomorphism
 
+import java.sql.Timestamp
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
+import scala.concurrent.Await
+import scala.concurrent.duration.{Duration, DurationInt}
 
 /**
  * Tests for the /business/policies routes. To run
@@ -37,7 +47,7 @@ import scala.collection.mutable.ListBuffer
  * clear and detailed tutorial of FunSuite: http://doc.scalatest.org/1.9.1/index.html#org.scalatest.FunSuite
  */
 @RunWith(classOf[JUnitRunner])
-class BusinessSuite extends AnyFunSuite {
+class BusinessSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   val localUrlRoot = "http://localhost:8080"
   val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
@@ -91,6 +101,9 @@ class BusinessSuite extends AnyFunSuite {
   val maxRecords = 10000
   val secondsAgo = 120
   val orgsList = new ListBuffer[String]()
+  val AWAITDURATION: Duration = 15.seconds
+  val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  val timestamp: Timestamp = ApiTime.nowUTCTimestamp
 
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
@@ -102,67 +115,97 @@ class BusinessSuite extends AnyFunSuite {
       assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
     }
   }
-
-  //~~~~~ Clean up from previous run, and create orgs, users, node, agbot ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-  test("POST /orgs/"+orgid+" - create org") {
-    // Try deleting it 1st, in case it is left over from previous test
-    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
-
-    var input = PostPutOrgRequest(None, "My Org", "desc", None, None, None)
-    response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    orgsList+=orgid
-
-    // Try deleting it 1st, in case it is left over from previous test
-    response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
-
-    input = PostPutOrgRequest(None, "My Org2", "desc", None, None, None)
-    response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    orgsList+=orgid2
-    assert(response.code === HttpCode.POST_OK.intValue)
-  }
-
-  /** Delete all the test users, in case they exist from a previous run. Do not need to delete the business policies, because they are deleted when the user is deleted. */
-  test("Begin - DELETE all test users") {
-    if (rootpw == "") fail("The exchange root password must be set in EXCHANGE_ROOTPW and must also be put in config.json.")
-    deleteAllUsers()
-  }
-
-  test("Add users, node, agbot for future tests") {
-    var userInput = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
-    var userResponse = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK.intValue)
-
-    userInput = PostPutUsersRequest(pw2, admin = false, Some(false), user2 + "@hotmail.com")
-    userResponse = Http(URL + "/users/" + user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK.intValue)
-
-    userInput = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
-    userResponse = Http(URL2 + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK.intValue)
-
-    val devInput = PutNodesRequest(nodeToken, "bc dev test", None, "", Some(List(RegService("foo", 1, None, "{}", List(
-      Prop("arch", "arm", "string", "in"),
-      Prop("version", "2.0.0", "version", "in"),
-      Prop("blockchainProtocols", "agProto", "list", "in")), Some("")))), None, None, None, "NODEABC", None, None)
-    val devResponse = Http(URL + "/nodes/" + nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: " + devResponse.code)
-    assert(devResponse.code === HttpCode.PUT_OK.intValue)
-
-    val agbotInput = PutAgbotsRequest(agbotToken, "agbot" + agbotId + "-norm", None, "ABC")
-    val agbotResponse = Http(URL + "/agbots/" + agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: " + agbotResponse.code + ", agbotResponse.body: " + agbotResponse.body)
-    assert(agbotResponse.code === HttpCode.PUT_OK.intValue)
+  
+  
+  val TESTORGANIZATIONS: Seq[OrgRow] =
+    Seq(OrgRow(description        = "",
+               heartbeatIntervals = "",
+               label              = "",
+               lastUpdated        = ApiTime.nowUTC,
+               limits             = "",
+               orgId              = "BusinessSuiteTests",
+               orgType            = "",
+               tags               = None),
+        OrgRow(description        = "",
+               heartbeatIntervals = "",
+               label              = "",
+               lastUpdated        = ApiTime.nowUTC,
+               limits             = "",
+               orgId              = "BusinessSuiteTests2",
+               orgType            = "",
+               tags               = None))
+  val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(createdAt    = timestamp,
+                email        = Option(user + "@hotmail.com"),
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = timestamp,
+                modified_by  = None,
+                organization = orgid,
+                password     = Option(Password.hash(pw)),
+                username     = user),
+        UserRow(createdAt    = timestamp,
+                email        = Option(user2 + "@hotmail.com"),
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = timestamp,
+                modified_by  = None,
+                organization = orgid,
+                password     = Option(Password.hash(pw2)),
+                username     = user2),
+        UserRow(createdAt    = timestamp,
+                email        = Option(user + "@hotmail.com"),
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = timestamp,
+                modified_by  = None,
+                organization = orgid2,
+                password     = Option(Password.hash(pw)),
+                username     = user))
+  val TESTAGREEMENTBOTS: Seq[AgbotRow] =
+    Seq(AgbotRow(id = (orgid + "/" + agbotId),
+                 lastHeartbeat = ApiTime.nowUTC,
+                 msgEndPoint = "",
+                 name = "agbot" + agbotId + "-norm",
+                 orgid = orgid,
+                 owner = TESTUSERS.head.user,
+                 publicKey = "ABC",
+                 token = Password.hash(agbotToken)))
+  val TESTNODES: Seq[NodeRow] =
+    Seq(NodeRow(arch               = "",
+                clusterNamespace   = None,
+                heartbeatIntervals = "",
+                id                 = (orgid + "/" + nodeId),
+                isNamespaceScoped  = false,
+                lastHeartbeat      = None,
+                lastUpdated        = ApiTime.nowUTC,
+                msgEndPoint        = "",
+                name               = "bc dev test",
+                nodeType           = NodeType.DEVICE.toString,
+                orgid              = orgid,
+                owner              = TESTUSERS.head.user,
+                pattern            = "",
+                publicKey          = "NODEABC",
+                regServices        = write(List(RegService("foo", 1, None, "{}",
+                                                           List(Prop("arch", "arm", "string", "in"),
+                                                                Prop("version", "2.0.0", "version", "in"),
+                                                                Prop("blockchainProtocols", "agProto", "list", "in")),
+                                                           Some("")))),
+                softwareVersions   = "",
+                token              = Password.hash(nodeToken),
+                userInput          = ""))
+  
+  
+  override def beforeAll(): Unit = {
+      Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
+                                   (UsersTQ ++= TESTUSERS) andThen
+                                   (AgbotsTQ ++= TESTAGREEMENTBOTS) andThen
+                                   (NodesTQ ++= TESTNODES)), AWAITDURATION)
+    }
+  
+  override def afterAll(): Unit = {
+    Await.ready(DBCONNECTION.run(OrgsTQ.filter(organizations => (organizations.orgid inSet TESTORGANIZATIONS.map(_.orgId).toSet)).delete andThen
+                                 (ResourceChangesTQ.filter(log => (log.orgId inSet TESTORGANIZATIONS.map(_.orgId).toSet)).delete)), AWAITDURATION)
   }
 
   //~~~~~ Create and update business policies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -791,52 +834,6 @@ class BusinessSuite extends AnyFunSuite {
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
-  /*
-  someday: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
-  ExchConfig.load()
-  test("POST /orgs/"+orgid+"/business/policies/anotherOne - with low maxMessagesInMailbox") {
-    if (runningLocally) {     // changing limits via POST /admin/config does not work in multi-node mode
-      // Get the current config value so we can restore it afterward
-      // ExchConfig.load  <-- already do this earlier
-      val origMaxBusinessPolicies = Configuration.getConfig.getInt("api.limits.maxBusinessPolicies")
-      info(origMaxBusinessPolicies.toString)
-      // Change the maxMessagesInMailbox config value in the svr
-      var configInput = AdminConfigRequest("api.limits.maxBusinessPolicies", "1")
-      var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
-
-      // Now try adding another 2 buspol - expect the second one to be rejected
-      var input = PostPutBusinessPolicyRequest("anotherOne", Some("desc"),
-        BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
-        Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-        Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
-      )
-      response = Http(URL+"/business/policies/anotherOne").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
-
-      input = PostPutBusinessPolicyRequest("anotherOne2", Some("desc"),
-        BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, Some(Map("priority_value" -> 50)), Some(Map("lifecycle" -> "immediate")))), Some(Map("check_agreement_status" -> 120)) ),
-        Some(List( OneUserInputService(orgid, svcurl, None, None, List( OneUserInputValue("UI_STRING","mystr"), OneUserInputValue("UI_INT",5), OneUserInputValue("UI_BOOLEAN",true) )) )),
-        Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b"))
-      )
-      response = Http(URL+"/business/policies/anotherOne2").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-      val respObj = parse(response.body).extract[ApiResponse]
-      assert(respObj.msg.contains("Access Denied: you are over the limit of 1 business policies"))
-
-      // Restore the maxMessagesInMailbox config value in the svr
-      configInput = AdminConfigRequest("api.limits.maxBusinessPolicies", origMaxBusinessPolicies.toString)
-      response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
-    }
-  }
-
-   */
-
   //~~~~~ Clean up ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
   test("DELETE /orgs/"+orgid+"/business/policies/"+businessPolicy) {
@@ -858,12 +855,6 @@ class BusinessSuite extends AnyFunSuite {
     assert(response.code === HttpCode.DELETED.intValue)
   }
 
-  test("DELETE /orgs/"+orgid+"/users/"+user2) {
-    val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
-  }
-
   test("GET /orgs/"+orgid+"/business/policies/"+businessPolicy2+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(URL+"/business/policies/"+businessPolicy2).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -875,28 +866,5 @@ class BusinessSuite extends AnyFunSuite {
     val response = Http(URL2+"/services/"+service2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.DELETED.intValue)
-  }
-
-  test("Cleanup - DELETE all test business policies") {
-    deleteAllUsers()
-  }
-
-  /** Delete the orgs we used for this test */
-  test("DELETE orgs") {
-    var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
-    response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
-  }
-
-  test("Cleanup -- DELETE org changes") {
-    for (org <- orgsList){
-      val input = DeleteOrgChangesRequest(List())
-      val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
-    }
   }
 }

@@ -7,7 +7,8 @@ import java.time.format.DateTimeParseException
 
 final case class ResourceChangesRequest(changeId: Long,
                                         lastUpdated: Option[String],
-                                        maxRecords: Int, orgList: Option[List[String]]) {
+                                        maxRecords: Int,
+                                        orgList: Option[List[String]]) {
   def getAnyProblem: Option[String] = {
     try {
       ZonedDateTime.parse(lastUpdated.getOrElse(ApiTime.beginningUTC)) //if lastUpdated is provided, make sure we can parse it

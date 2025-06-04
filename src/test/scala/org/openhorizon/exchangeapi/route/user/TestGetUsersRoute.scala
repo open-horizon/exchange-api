@@ -27,6 +27,8 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ROUTE = "/users"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORG1ADMINPASSWORD = "org1adminpassword"
@@ -69,50 +71,44 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
       )
     )
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestGetUsersRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestGetUsersRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgAdmin",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1ADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "orgAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/orgUser",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "orgUser@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/orgAdmin",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = Password.hash(ORG2ADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "orgAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      )
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestGetUsersRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1ADMINPASSWORD)),
+                username     = "orgAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                username     = "orgUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = None,
+                username     = "orgUser2"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = Option(Password.hash(ORG2ADMINPASSWORD)),
+                username     = "orgAdmin"))
+  }
+  
   private val TESTAGBOTS: Seq[AgbotRow] =
     Seq(
       AgbotRow(
@@ -120,7 +116,7 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgid = TESTORGS(0).orgId,
         token = Password.hash(AGBOTTOKEN),
         name = "",
-        owner = TESTUSERS(2).username, //org 1 user
+        owner = TESTUSERS(2).user, //org 1 user
         msgEndPoint = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey = ""
@@ -139,7 +135,7 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(2).username, //org 1 user
+        owner              = TESTUSERS(2).user, //org 1 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -149,47 +145,48 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
       )
     )
 
-  private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1ADMINPASSWORD))
-  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG1USERPASSWORD))
-  private val ORG2ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(3).username + ":" + ORG2ADMINPASSWORD))
-  private val AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
-  private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
+  private val ROOTAUTH      = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
+  private val HUBADMINAUTH  = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORG1ADMINPASSWORD))
+  private val ORG1USERAUTH  = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ORG1USERPASSWORD))
+  private val ORG2ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(4).organization + "/" + TESTUSERS(4).username + ":" + ORG2ADMINPASSWORD))
+  private val AGBOTAUTH     = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
+  private val NODEAUTH      = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run(
-      (OrgsTQ ++= TESTORGS) andThen
-      (UsersTQ ++= TESTUSERS) andThen
-      (AgbotsTQ ++= TESTAGBOTS) andThen
-      (NodesTQ ++= TESTNODES)
+      ((OrgsTQ ++= TESTORGS) andThen
+       (UsersTQ ++= TESTUSERS) andThen
+       (AgbotsTQ ++= TESTAGBOTS) andThen
+       (NodesTQ ++= TESTNODES)).transactionally
     ), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(
-      ResourceChangesTQ.filter(_.orgId startsWith "testGetUsersRoute").delete andThen
-      OrgsTQ.filter(_.orgid startsWith "testGetUsersRoute").delete andThen
-      UsersTQ.filter(_.username startsWith "root/TestGetUsersRouteHubAdmin").delete
+      (ResourceChangesTQ.filter(_.orgId startsWith "testGetUsersRoute").delete andThen
+       OrgsTQ.filter(_.orgid startsWith "testGetUsersRoute").delete andThen
+       UsersTQ.filter(_.organization === "root")
+              .filter(_.username startsWith "TestGetUsersRouteHubAdmin").delete).transactionally
     ), AWAITDURATION)
   }
 
-  def assertUsersEqual(user1: User, user2: UserRow): Unit = {
-    assert(user1.password === user2.hashedPw)
-    assert(user1.admin === user2.admin)
-    assert(user1.hubAdmin === user2.hubAdmin)
-    assert(user1.email === user2.email)
-    assert(user1.lastUpdated === user2.lastUpdated)
-    assert(user1.updatedBy === user2.updatedBy)
+  def assertUsersEqual(user1: TestUser, user2: UserRow): Unit = {
+    assert(user1.password === StrConstants.hiddenPw)
+    assert(user1.admin === user2.isOrgAdmin)
+    assert(user1.hubAdmin === user2.isHubAdmin)
+    assert(user1.email === user2.email.getOrElse(""))
+    assert(user1.lastUpdated.nonEmpty)
+    assert(user1.updatedBy === user2.modified_by.getOrElse(""))
   }
 
-  def assertUsersEqualNoPass(user1: User, user2: UserRow): Unit = {
-    assert(user1.password === StrConstants.hiddenPw)
-    assert(user1.admin === user2.admin)
-    assert(user1.hubAdmin === user2.hubAdmin)
-    assert(user1.email === user2.email)
-    assert(user1.lastUpdated === user2.lastUpdated)
-    assert(user1.updatedBy === user2.updatedBy)
+  def assertUsersEqualNoPass(user1: TestUser, user2: UserRow): Unit = {
+    assert(user1.password === "")
+    assert(user1.admin === user2.isOrgAdmin)
+    assert(user1.hubAdmin === user2.isHubAdmin)
+    assert(user1.email === user2.email.getOrElse(""))
+    assert(user1.lastUpdated.nonEmpty)
+    assert(user1.updatedBy === user2.modified_by.getOrElse(""))
   }
 
   test("GET /orgs/doesNotExist" + ROUTE + " -- 404 not found") {
@@ -197,7 +194,7 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.isEmpty)
   }
 
@@ -206,32 +203,31 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.NOT_FOUND.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.isEmpty)
   }
 
-  test("GET /orgs/root" + ROUTE + " -- as root user -- 200 success, all users in root org returned w/ hashed passwords") {
+  test("GET /orgs/root" + ROUTE + " -- as root user -- 200 success, all users in root org returned") {
     val response: HttpResponse[String] = Http(URL + "root" + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size >= 2) //may be more due to concurrent tests
     assert(responseBody.users.contains("root/root"))
-    assert(responseBody.users.contains(TESTUSERS(0).username))
-    assertUsersEqual(responseBody.users(TESTUSERS(0).username), TESTUSERS(0))
+    assert(responseBody.users.contains((TESTUSERS(0).organization + "/" + TESTUSERS(0).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(0).organization + "/" + TESTUSERS(0).username)), TESTUSERS(0))
   }
 
-  test("GET /orgs/root" + ROUTE + " -- as hub admin -- 200 success, all admins in root org returned w/ hashed passwords") {
+  test("GET /orgs/root" + ROUTE + " -- as hub admin -- 200 success, all admins in root org returned") {
     val response: HttpResponse[String] = Http(URL + "root" + ROUTE).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
-    assert(responseBody.users.size >= 2) //may be more due to concurrent tests
-    assert(responseBody.users.contains("root/root"))
-    assert(responseBody.users.contains(TESTUSERS(0).username))
-    assertUsersEqual(responseBody.users(TESTUSERS(0).username), TESTUSERS(0))
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size >= 1) //may be more due to concurrent tests
+    assert(responseBody.users.contains((TESTUSERS(0).organization + "/" + TESTUSERS(0).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(0).organization + "/" + TESTUSERS(0).username)), TESTUSERS(0))
   }
 
   test("GET /orgs/root" + ROUTE + " -- as org admin -- 403 access denied") {
@@ -241,17 +237,19 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as root -- 200 success, all users in org returned w/ hashed passwords") {
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as root -- 200 success, all users in org returned") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
-    assert(responseBody.users.size === 2)
-    assert(responseBody.users.contains(TESTUSERS(1).username))
-    assert(responseBody.users.contains(TESTUSERS(2).username))
-    assertUsersEqual(responseBody.users(TESTUSERS(1).username), TESTUSERS(1))
-    assertUsersEqual(responseBody.users(TESTUSERS(2).username), TESTUSERS(2))
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size == 3)
+    assert(responseBody.users.contains((TESTUSERS(1).organization + "/" + TESTUSERS(1).username)))
+    assert(responseBody.users.contains((TESTUSERS(2).organization + "/" + TESTUSERS(2).username)))
+    assert(responseBody.users.contains((TESTUSERS(3).organization + "/" + TESTUSERS(3).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(1).organization + "/" + TESTUSERS(1).username)), TESTUSERS(1))
+    assertUsersEqual(responseBody.users((TESTUSERS(2).organization + "/" + TESTUSERS(2).username)), TESTUSERS(2))
+    assertUsersEqualNoPass(responseBody.users((TESTUSERS(3).organization + "/" + TESTUSERS(3).username)), TESTUSERS(3))
   }
 
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as hub admin -- 200 success, only admins in org returned w/ hashed passwords") {
@@ -259,23 +257,25 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
-    assert(responseBody.users.contains(TESTUSERS(1).username))
-    assertUsersEqual(responseBody.users(TESTUSERS(1).username), TESTUSERS(1))
+    assert(responseBody.users.contains((TESTUSERS(1).organization + "/" + TESTUSERS(1).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(1).organization + "/" + TESTUSERS(1).username)), TESTUSERS(1))
   }
 
-  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as org admin -- 200 success, all users in org returned w/o passwords") {
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as org admin -- 200 success, all users in org returned") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).headers(ACCEPT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.OK.intValue)
-    val responseBody: GetUsersResponse = JsonMethods.parse(response.body).extract[GetUsersResponse]
-    assert(responseBody.users.size === 2)
-    assert(responseBody.users.contains(TESTUSERS(1).username))
-    assert(responseBody.users.contains(TESTUSERS(2).username))
-    assertUsersEqualNoPass(responseBody.users(TESTUSERS(1).username), TESTUSERS(1))
-    assertUsersEqualNoPass(responseBody.users(TESTUSERS(2).username), TESTUSERS(2))
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size === 3)
+    assert(responseBody.users.contains((TESTUSERS(1).organization + "/" + TESTUSERS(1).username)))
+    assert(responseBody.users.contains((TESTUSERS(2).organization + "/" + TESTUSERS(2).username)))
+    assert(responseBody.users.contains((TESTUSERS(3).organization + "/" + TESTUSERS(3).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(1).organization + "/" + TESTUSERS(1).username)), TESTUSERS(1))
+    assertUsersEqual(responseBody.users((TESTUSERS(2).organization + "/" + TESTUSERS(2).username)), TESTUSERS(2))
+    assertUsersEqualNoPass(responseBody.users((TESTUSERS(3).organization + "/" + TESTUSERS(3).username)), TESTUSERS(3))
   }
 
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + " -- as user -- 403 access denied") {
@@ -305,5 +305,4 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
-
 }

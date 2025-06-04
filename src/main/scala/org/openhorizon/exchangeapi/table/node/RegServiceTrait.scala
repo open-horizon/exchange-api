@@ -9,7 +9,8 @@ trait RegServiceTrait {
   def validate: Option[String] = {
     for (p <- properties) {
       p.validate match {
-        case Some(msg) => return Option[String](url+": "+msg)     // prepend the url so they know which service was bad
+        case Some(msg) =>
+          return Option[String](url+": "+msg)     // prepend the url so they know which service was bad
         case None => ;      // continue checking
       }
     }

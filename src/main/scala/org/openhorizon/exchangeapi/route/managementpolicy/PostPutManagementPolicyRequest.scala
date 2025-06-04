@@ -7,6 +7,8 @@ import org.openhorizon.exchangeapi.table.managementpolicy.{AgentUpgradePolicy, M
 import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
 
+import java.util.UUID
+
 final case class PostPutManagementPolicyRequest(label: String,
                                                 description: Option[String],
                                                 properties: Option[List[OneProperty]],
@@ -24,7 +26,7 @@ final case class PostPutManagementPolicyRequest(label: String,
   }
 
   // Note: write() handles correctly the case where the optional fields are None.
-  def getDbInsert(managementPolicy: String, orgid: String, owner: String): DBIO[_] = {
+  def getDbInsert(managementPolicy: String, orgid: String, owner: UUID): DBIO[_] = {
     ManagementPolicyRow(allowDowngrade = if(agentUpgradePolicy.nonEmpty) agentUpgradePolicy.get.allowDowngrade else false,
                         constraints = write(constraints),
                         created = ApiTime.nowUTC,
@@ -42,7 +44,7 @@ final case class PostPutManagementPolicyRequest(label: String,
                         startWindow = if(startWindow < 0) 0 else startWindow).insert
   }
 
-  def getDbUpdate(managementPolicy: String, orgid: String, owner: String): DBIO[_] = {
+  def getDbUpdate(managementPolicy: String, orgid: String, owner: UUID): DBIO[_] = {
     ManagementPolicyRow(allowDowngrade = if(agentUpgradePolicy.nonEmpty) agentUpgradePolicy.get.allowDowngrade else false,
                         constraints = write(constraints),
                         created = ApiTime.nowUTC,

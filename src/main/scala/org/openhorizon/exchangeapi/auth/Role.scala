@@ -56,18 +56,18 @@ object Role {
   
   def loadRoles(): MutableHashMap[String, AccessList] = {
     // Read the ACLs and set them in our Role object
-    val something = new MutableHashMap[String, AccessList]
+    val RoleMap = new MutableHashMap[String, AccessList]
     for ((role, _) <- Configuration.getConfig.getObject("api.acls").asScala.toMap) {
       val accessSet: Set[String] = Configuration.getConfig.getStringList("api.acls." + role).asScala.toSet
       if (!isValidAcessValues(accessSet))
         println("Error: invalid value in ACLs in config file for role " + role)
       else
-        something.put(role, accessSet)
+        RoleMap.put(role, accessSet)
     }
     
-    println(s"Roles: ${something}")
+    println(s"Roles: ${RoleMap}")
     
-    something
+    RoleMap
   }
 
   def superUser = "root/root"

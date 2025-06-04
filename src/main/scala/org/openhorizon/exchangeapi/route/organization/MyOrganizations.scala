@@ -1,9 +1,8 @@
 package org.openhorizon.exchangeapi.route.organization
 
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
-import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
-import io.swagger.v3.oas.annotations.responses
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
 import org.apache.pekko.actor.ActorSystem
@@ -12,7 +11,7 @@ import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.cloud.IamAccountInfo
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, TOrg}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TOrg}
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgsTQ}
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
@@ -95,11 +94,11 @@ trait MyOrganizations extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def postMyOrganizations: Route =
+  def postMyOrganizations(@Parameter(hidden = true) identity: Identity2): Route =
     {
       entity(as[List[IamAccountInfo]]) {
         reqBody =>
-          logger.debug("Doing POST /myorgs")
+          logger.debug("POST /myorgs - By ${identity.resource}:${identity.role}")
           
           complete({
             // getting list of accounts in req body from UI
@@ -117,14 +116,14 @@ trait MyOrganizations extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val myOrganizations: Route =
+  def myOrganizations(identity: Identity2): Route =
     path("myorgs") {
       post {
         // set hint here to some key that states that no org is ok
         // UI should omit org at the beginning of credentials still have them put the slash in there
-        exchAuth(TOrg("#"), Access.READ_MY_ORG, hint = "exchangeNoOrgForMultLogin") {
+        exchAuth(TOrg("#"), Access.READ_MY_ORG, hint = "exchangeNoOrgForMultLogin", validIdentity = identity) {
           _ =>
-            postMyOrganizations
+            postMyOrganizations(identity)
         }
       }
     }

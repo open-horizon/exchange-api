@@ -3,8 +3,8 @@ package org.openhorizon.exchangeapi.table
 import org.apache.pekko.event.LoggingAdapter
 import org.json4s.{DefaultFormats, Formats, JObject, JString, JValue, _}
 import org.json4s.native.JsonMethods._
-import org.openhorizon.exchangeapi.ExchangeApiApp.system
-import org.openhorizon.exchangeapi.auth.{AuthCache, Password, Role}
+import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, system}
+import org.openhorizon.exchangeapi.auth.{AuthCache, AuthRoles, Identity2, Password, Role}
 import org.openhorizon.exchangeapi.table.agent.AgentVersionsChangedTQ
 import org.openhorizon.exchangeapi.table.agent.certificate.AgentCertificateVersionsTQ
 import org.openhorizon.exchangeapi.table.agent.configuration.AgentConfigurationVersionsTQ
@@ -40,6 +40,10 @@ import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg}
 import org.postgresql.util.PSQLException
+import org.springframework.security.crypto.bcrypt.BCrypt
+import scalacache.modes.scalaFuture.mode
+
+import java.util.UUID
 //import slick.jdbc.PostgresProfile.api._
 
 import java.sql.Timestamp
@@ -88,7 +92,7 @@ object ExchangeApiTables {
       ++ NodeGroupTQ.schema
       ++ NodeGroupAssignmentTQ.schema
       ++ SearchServiceTQ.schema
-    ).create,
+    ).create.transactionally,
     SchemaTQ.getSetVersionAction)
 
   // Delete all of the current tables - the tables that are depended on need to be last in this list - used in /admin/dropdb
@@ -187,20 +191,18 @@ object ExchangeApiTables {
           if(organization.nonEmpty && organization == "root") {
             if(user.nonEmpty && user != "root") {
               configHubAdmins += (resource ->
-                   UserRow(admin = false,
-                           email = "",
-                           hashedPw =
-                             try {
-                               Password.hashIfNot(hubAdminConfigObject.toConfig.getString("password"))
-                             }
-                             catch {
-                               case _: Exception => ""
-                             },
-                           hubAdmin = true,
-                           lastUpdated = timeStamp,
-                           orgid = organization,
-                           username = resource,
-                           updatedBy = ""))
+                                   UserRow(createdAt = changeTimestamp,
+                                           email = None,
+                                           identityProvider = "Open Horizon",
+                                           isHubAdmin = true,
+                                           isOrgAdmin = false,
+                                           modifiedAt = changeTimestamp,
+                                           modified_by = None,
+                                           organization = organization,
+                                           password = Option(Password.hash(hubAdminConfigObject.toConfig.getString("password"))),
+                                           user = UUID.randomUUID(),
+                                           username = user))
+                   
             }
             else
               logger.error(s"Hub Admin user cannot be root")
@@ -214,19 +216,31 @@ object ExchangeApiTables {
     })
     
     // Root is disabled on type mismatches, null values, and explicit disables in config.
-    val configRootPasswdHashed = {
+    val configRootPasswdHashed: Option[String] = {
       try {
         if(Configuration.getConfig.getBoolean("api.root.enabled"))
-            Password.hashIfNot(Configuration.getConfig.getString("api.root.password"))
+           Option(Password.hash(Configuration.getConfig.getString("api.root.password")))
         else
-          ""
+          None
       }
       catch {
-        case _: Exception => ""
+        case _: Exception => None
       }
     }
+    val rootUser: UserRow =
+      UserRow(createdAt = changeTimestamp,
+              email = None,
+              identityProvider = "Open Horizon",
+              isHubAdmin = true,
+              isOrgAdmin = true,
+              modifiedAt = changeTimestamp,
+              modified_by = None,
+              organization = "root",
+              password = configRootPasswdHashed,
+              user = UUID.randomUUID(),
+              username = "root")
     
-    val something =
+    val createOrUpdateInitialOrgsAndUsers: DBIOAction[Unit, NoStream, Effect.Write with Effect.Read] =
       for {
         numOrgsUpdated <-
           Compiled(OrgsTQ.filter(_.orgid === "root")
@@ -274,36 +288,44 @@ object ExchangeApiTables {
           ResourceChangesTQ ++= organizationsCreated
         
         numUsersUpdated <-
-          Compiled(UsersTQ.filter(_.username === "root/root")
-                          .map(user => (user.lastUpdated, user.password)))
-                    .update((timeStamp, configRootPasswdHashed))
+          Compiled(UsersTQ.filter(user => (user.organization === "root" &&
+                                           user.username === "root"))
+                          .map(user =>
+                                (user.modifiedAt,
+                                 user.password)))
+                    .update((changeTimestamp,
+                             configRootPasswdHashed))
         
         existingUsers <-
-          Compiled(UsersTQ.filter(_.orgid === "root")
-                          .map(_.username))
+          Compiled(UsersTQ.filter(_.organization === "root")
+                          .map(user => (user.organization ++ "/" ++ user.username)))
                     .result
         
         createdUsers <-
-          (UsersTQ returning UsersTQ.map(_.username)) ++= {
+          (UsersTQ returning UsersTQ.map(users => (users.organization,users.username))) ++= {
             if (numUsersUpdated == 1)
               configHubAdmins.filterNot(hubadmin => existingUsers.contains(hubadmin._1)).values.toSeq
             else
               configHubAdmins.filterNot(hubadmin => existingUsers.contains(hubadmin._1)).values.toSeq :+
-              UserRow(admin = true, email = "", hashedPw = configRootPasswdHashed, hubAdmin = true, lastUpdated = timeStamp, orgid = "root", username = "root/root", updatedBy = "")
+                rootUser
           }
         
-        _ = {
-          AuthCache.putUser(Role.superUser, configRootPasswdHashed, "")
-          for (user <- createdUsers.filterNot(_ == "root/root")) {
-            AuthCache.putUser(user, configHubAdmins(user).hashedPw, "")
-          }
-        }
+        //_ = {
+          //AuthCache.putUser(Role.superUser, configRootPasswdHashed.getOrElse(""), "")
+          //for (user <- createdUsers.filterNot(_ == ("root","root"))) {
+          //  AuthCache.putUser(user, configHubAdmins(user).password.getOrElse(""), "")
+          //}
+        //}
         
       } yield()
     
-    db.run(something.transactionally.asTry).map({
+    db.run(createOrUpdateInitialOrgsAndUsers.transactionally.asTry).map({
       case Success(_) =>
         logger.info("Successfully updated/inserted root org, root user, IBM org, and hub admins from config")
+        
+        //if (configRootPasswdHashed.isDefined)
+        //  cacheResourceIdentity.put("root/root")(value = (Identity2(identifier = Option(rootUser.user), organization = "root", owner = None, role = AuthRoles.SuperUser, username = "root"), rootUser.password.get), ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+        
       case Failure(t) =>
         logger.error(s"Failed to update/insert root org, root user, IBM org, and hub admins from config: ${t.toString}")
     })

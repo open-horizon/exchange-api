@@ -17,4 +17,5 @@ class AgbotBusinessPols(tag: Tag) extends Table[AgbotBusinessPolRow](tag, "agbot
   
   def primKey = primaryKey("pk_agbp", (busPolId, agbotId))
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def idx_agbot_deploy_pol_fk_agbots = index(name = "idx_agbot_deploy_pol_fk_agbots", on = agbotId, unique = false)
 }

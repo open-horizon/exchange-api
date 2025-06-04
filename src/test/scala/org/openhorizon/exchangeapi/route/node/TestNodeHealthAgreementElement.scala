@@ -1,6 +1,7 @@
-package org.openhorizon.exchangeapi.route.organization
+package org.openhorizon.exchangeapi.route.node
 
 import org.junit.runner.RunWith
+import org.openhorizon.exchangeapi.route.organization.NodeHealthAgreementElement
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 

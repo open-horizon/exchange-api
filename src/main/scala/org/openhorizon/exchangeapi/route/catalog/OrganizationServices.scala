@@ -8,18 +8,20 @@ import jakarta.ws.rs.{GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, parameter, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, OrgAndId, TService}
-import org.openhorizon.exchangeapi.route.service.{GetServicesResponse, GetServicesUtils}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TService}
+import org.openhorizon.exchangeapi.route.service.GetServicesResponse
+import org.openhorizon.exchangeapi.table.node.NodeType
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.service.{Service, ServicesTQ}
+import org.openhorizon.exchangeapi.utility.{ExchMsg, Version}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 
 
-@Path("/v1/catalog/{organization}/services")
+/*@Path("/v1/catalog/{organization}/services")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "catalog")
 trait OrganizationServices extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -135,10 +137,10 @@ trait OrganizationServices extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getOrganizationServices(@Parameter(hidden = true) identity: Identity,
+  def getOrganizationServices(@Parameter(hidden = true) identity: Identity2,
                               @Parameter(hidden = true) organization: String): Route =
     parameter("owner".?,
-              "public".?,
+              "public".as[Boolean].optional,
               "url".?,
               "version".?,
               "arch".?,
@@ -151,12 +153,17 @@ trait OrganizationServices extends JacksonSupport with AuthenticationSupport {
        arch,
        nodetype,
        requiredurl) =>
-        validateWithMsg(GetServicesUtils.getServicesProblem(public, version, nodetype)) {
+        validateWithMsg(if (version.isDefined && !Version(version.get).isValid)
+                          Option(ExchMsg.translate("version.not.valid.format", version.get))
+                        else if (nodetype.isDefined && !NodeType.containsString(nodetype.get.toLowerCase))
+                          Option(ExchMsg.translate("invalid.node.type2", NodeType.valuesAsString))
+                        else
+                          None) {
           complete({
             var q = ServicesTQ.getAllServices(organization)
             // If multiple filters are specified they are anded together by adding the next filter to the previous filter by using q.filter
-            owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner like owner) else q = q.filter(_.owner === owner) })
-            public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
+            // TODO: owner.foreach(owner => { if (owner.contains("%")) q = q.filter(_.owner === owner) else q = q.filter(_.owner === owner) })
+            // TODO: public.foreach(public => { if (public.toLowerCase == "true") q = q.filter(_.public === true) else q = q.filter(_.public === false) })
             url.foreach(url => { if (url.contains("%")) q = q.filter(_.url like url) else q = q.filter(_.url === url) })
             version.foreach(version => { if (version.contains("%")) q = q.filter(_.version like version) else q = q.filter(_.version === version) })
             arch.foreach(arch => { if (arch.contains("%")) q = q.filter(_.arch like arch) else q = q.filter(_.arch === arch) })
@@ -176,7 +183,7 @@ trait OrganizationServices extends JacksonSupport with AuthenticationSupport {
             var allServices : Map[String, Service] = null
             db.run(q.result.flatMap({ list =>
               logger.debug("GET /catalog/"+organization+"/services org result size: "+list.size)
-              val services: Map[String, Service] = list.filter(e => identity.getOrg == e.orgid || e.public || identity.isSuperUser || identity.isMultiTenantAgbot).map(e => e.service -> e.toService).toMap
+              val services: Map[String, Service] = list.filter(e => identity.organization == e.orgid || e.public || identity.isSuperUser || identity.isMultiTenantAgbot).map(e => e.service -> e.toService).toMap
               allServices = services
               svcQuery.result
             })).map({ list =>
@@ -188,16 +195,16 @@ trait OrganizationServices extends JacksonSupport with AuthenticationSupport {
             })
           })
         }
-    }
+    } */
   
-  val organizationServices: Route =
+  /*def organizationServices(identity: Identity2): Route =
     path("catalog" / Segment / "services") {
       organization =>
         get {
           exchAuth(TService(OrgAndId(organization, "*").toString), Access.READ) {
-            identity =>
+            _ =>
               getOrganizationServices(identity, organization)
           }
         }
     }
-}
+}*/

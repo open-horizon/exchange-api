@@ -4,6 +4,8 @@ import org.json4s.{DefaultFormats, Formats}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.TableQuery
 
+import java.util.UUID
+
 // Instance to access the managementpolicies table
 object ManagementPoliciesTQ extends TableQuery(new ManagementPolicies(_)) {
   protected implicit val jsonFormats: Formats = DefaultFormats
@@ -16,8 +18,8 @@ object ManagementPoliciesTQ extends TableQuery(new ManagementPolicies(_)) {
   def getLastUpdated(managementPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.managementPolicy === managementPolicy).map(_.lastUpdated)
   def getManifest(managementPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.managementPolicy === managementPolicy).map(_.manifest)
   def getManagementPolicy(managementPolicy: String): Query[ManagementPolicies, ManagementPolicyRow, Seq] = if (managementPolicy.contains("%")) this.filter(_.managementPolicy like managementPolicy) else this.filter(_.managementPolicy === managementPolicy)
-  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
-  def getOwner(managementPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.managementPolicy === managementPolicy).map(_.owner)
+  def getNumOwned(owner: UUID): Rep[Int] = this.filter(_.owner === owner).length
+  def getOwner(managementPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.managementPolicy === managementPolicy).map(_.owner.toString())
   def getPatterns(managementPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.managementPolicy === managementPolicy).map(_.patterns)
   def getStart(managementPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.managementPolicy === managementPolicy).map(_.start)
   def getStartWindow(managementPolicy: String): Query[Rep[Long], Long, Seq] = this.filter(_.managementPolicy === managementPolicy).map(_.startWindow)

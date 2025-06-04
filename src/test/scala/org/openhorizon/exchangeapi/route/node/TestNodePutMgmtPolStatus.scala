@@ -4,7 +4,7 @@ import org.openhorizon.exchangeapi
 import org.checkerframework.checker.units.qual.s
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization.write
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, BusinessPolicyRow}
 import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPolicies, ManagementPoliciesTQ, ManagementPolicyRow}
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{NodeMgmtPolStatusRow, NodeMgmtPolStatuses}
@@ -36,6 +36,16 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
+  private val TESTUSER: UserRow =
+    UserRow(createdAt    = TIMESTAMP,
+            isHubAdmin   = false,
+            isOrgAdmin   = false,
+            modifiedAt   = TIMESTAMP,
+            organization = "TestNodePutMgmtPolStatus",
+            password     = Option(Password.hash("u1pw")),
+            username     = "u1")
   private val TESTNODE: NodeRow =
     NodeRow(arch               = "amd64",
             id                 = "TestNodePutMgmtPolStatus/n1",
@@ -46,7 +56,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
             name               = "",
             nodeType           = "device",
             orgid              = "TestNodePutMgmtPolStatus",
-            owner              = "TestNodePutMgmtPolStatus/u1",
+            owner              = TESTUSER.user,
             pattern            = "",
             publicKey          = "",
             regServices        = "",
@@ -64,7 +74,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
                         manifest         = "",
                         managementPolicy = "TestNodePutMgmtPolStatus/pol1",
                         orgid            = "TestNodePutMgmtPolStatus",
-                        owner            = "TestNodePutMgmtPolStatus/u1",
+                        owner            = TESTUSER.user,
                         patterns         = "",
                         properties       = "",
                         start            = "",
@@ -78,15 +88,6 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
            orgType            = "",
            tags               = None,
            limits             = "")
-  private val TESTUSER: UserRow =
-    UserRow(admin       = false,
-            hubAdmin    = false,
-            email       = "",
-            hashedPw    = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i", // TestNodePutMgmtPolStatus/u1:u1pw
-            lastUpdated = ApiTime.nowUTC,
-            orgid       = "TestNodePutMgmtPolStatus",
-            updatedBy   = "",
-            username    = "TestNodePutMgmtPolStatus/u1")
   
   
   // Build test harness.

@@ -7,11 +7,11 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, parameter, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.jackson.Serialization.read
 import org.json4s.{DefaultFormats, Formats}
-import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodesTQ, OneService, RegService}
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy.NodePolicyTQ
@@ -20,6 +20,7 @@ import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
 import org.openhorizon.exchangeapi.table.service.OneProperty
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode, StrConstants}
 import slick.jdbc.PostgresProfile.api._
 
@@ -188,7 +189,7 @@ trait Details extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(description = "access denied", responseCode = "403"),
       new responses.ApiResponse(description = "not found", responseCode = "404")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def getDetails(@Parameter(hidden = true) identity: Identity,
+  def getDetails(@Parameter(hidden = true) identity: Identity2,
                  @Parameter(hidden = true) organization: String): Route =
     parameter("arch".?,
               "id".?,
@@ -200,20 +201,18 @@ trait Details extends JacksonSupport with AuthenticationSupport {
        name: Option[String],
        nodeType: Option[String],
        owner: Option[String]) =>
+        logger.debug(s"GET /orgs/{organization}/node-details?arch=${arch.getOrElse("None")},id=${id.getOrElse("None")},name=${name.getOrElse("None")},type=${nodeType.getOrElse("None")},owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         validateWithMsg(GetNodesUtils.getNodesProblem(nodeType)) {
           complete({
             implicit val jsonFormats: Formats = DefaultFormats
-            val ownerFilter: Option[String] =
-              if(identity.isAdmin ||
-                 identity.isSuperUser ||
-                 identity.role.equals(AuthRoles.Agbot))
-                owner
-              else
-                Some(identity.identityString)
             
-            val getNodes =
+            val getNodes: DBIOAction[List[NodeDetails], NoStream, Effect.Read] =
               for {
-                nodes <- NodesTQ
+                nodes <- NodesTQ.filter(_.orgid === organization)
+                                .filterIf(identity.isHubAdmin)(nodes => 0.asColumnOf[Int] === 1)
+                                .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot))(nodes => nodes.orgid === identity.organization)
+                                .filterIf(identity.isStandardUser)(nodes => nodes.owner === identity.identifier.get)
+                                .filterIf(identity.isNode)(nodes => nodes.id === identity.resource)
                                 .filterOpt(arch)((node, arch) => node.arch like arch)
                                 .filterOpt(id)((node, id) => node.id like id)
                                 .filterOpt(name)((node, name) => node.name like name)
@@ -222,43 +221,40 @@ trait Details extends JacksonSupport with AuthenticationSupport {
                                     node.nodeType === nodeType.toLowerCase ||
                                       node.nodeType === nodeType.toLowerCase.replace("device", "")
                                   }) // "" === ""
-                                .filter(_.orgid === organization)
-                                .filterOpt(ownerFilter)((node, ownerFilter) => node.owner like ownerFilter)
+                                .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                .on(_.owner === _._2)
+                                .filterOpt(owner)((node, ownerFilter) => if (ownerFilter.contains("%")) (node._2._1 ++ "/" ++ node._2._3) like ownerFilter else (node._2._1 ++ "/" ++ node._2._3) === ownerFilter)
                                 .joinLeft(NodeErrorTQ.filterOpt(id)((nodeErrors, id) => nodeErrors.nodeId like id)) // (Node, NodeError)
-                                  .on(_.id === _.nodeId)
-                                .joinLeft(NodePolicyTQ.filterOpt(id)((nodePolicy, id) => nodePolicy.nodeId like id)) // ((Node, NodeError), NodePolicy)
                                   .on(_._1.id === _.nodeId)
+                                .joinLeft(NodePolicyTQ.filterOpt(id)((nodePolicy, id) => nodePolicy.nodeId like id)) // ((Node, NodeError), NodePolicy)
+                                  .on(_._1._1.id === _.nodeId)
                                 .joinLeft(NodeStatusTQ.filterOpt(id)((nodeStatuses, id) => nodeStatuses.nodeId like id)) // (((Nodes, Node Errors), Node Policy), Node Statuses)
-                                  .on(_._1._1.id === _.nodeId) // node.id === nodeStatus.nodeid
+                                  .on(_._1._1._1.id === _.nodeId) // node.id === nodeStatus.nodeid
                                 .joinLeft(NodeGroupTQ.join(NodeGroupAssignmentTQ.filterOpt(id)((assignment, id) => assignment.node like id)).on(_.group === _.group)) // ((((Nodes, Node Errors), Node Policy), Node Statuses), (Node Group, Node Group Assignment)))
-                                  .on(_._1._1._1.id === _._2.node) // node.id === nodeGroupAssignment.node
-                                .sortBy(_._1._1._1._1.id.asc)     // node.id ASC
+                                  .on(_._1._1._1._1.id === _._2.node) // node.id === nodeGroupAssignment.node
+                                .sortBy(_._1._1._1._1._1.id.asc)     // node.id ASC
                                 // ((((Nodes, Node Errors), Node Policy), Node Statuses), (Node Group, Node Group Assignment)))
                                 // Flatten the tupled structure, lexically sort columns.
                                 .map(
                                   node =>
-                                    (node._1._1._1._1.arch,
-                                      node._1._1._1._1.id,
-                                      node._1._1._1._1.heartbeatIntervals,
-                                      node._1._1._1._1.lastHeartbeat,
-                                      node._1._1._1._1.lastUpdated,
-                                      node._1._1._1._1.msgEndPoint,
-                                      node._1._1._1._1.name,
-                                      node._1._1._1._1.nodeType,
-                                      node._1._1._1._1.orgid,
-                                      node._1._1._1._1.owner,
-                                      node._1._1._1._1.pattern,
-                                      node._1._1._1._1.publicKey,
-                                      node._1._1._1._1.regServices,
-                                      node._1._1._1._1.softwareVersions,
-                                      (if(identity.isAdmin ||
-                                        identity.isSuperUser) // Do not pull nor query the Node's token if (Super)Admin.
-                                        node._1._1._1._1.id.substring(0,0) // node.id -> ""
-                                      else
-                                        node._1._1._1._1.token),
-                                      node._1._1._1._1.userInput,
-                                      node._1._1._1._1.clusterNamespace,
-                                      node._1._1._1._1.isNamespaceScoped,
+                                    (node._1._1._1._1._1.arch,
+                                      node._1._1._1._1._1.id,
+                                      node._1._1._1._1._1.heartbeatIntervals,
+                                      node._1._1._1._1._1.lastHeartbeat,
+                                      node._1._1._1._1._1.lastUpdated,
+                                      node._1._1._1._1._1.msgEndPoint,
+                                      node._1._1._1._1._1.name,
+                                      node._1._1._1._1._1.nodeType,
+                                      node._1._1._1._1._1.orgid,
+                                      (node._1._1._1._1._2._1 ++ "/" ++ node._1._1._1._1._2._3),
+                                      node._1._1._1._1._1.pattern,
+                                      node._1._1._1._1._1.publicKey,
+                                      node._1._1._1._1._1.regServices,
+                                      node._1._1._1._1._1.softwareVersions,
+                                      "***************",
+                                      node._1._1._1._1._1.userInput,
+                                      node._1._1._1._1._1.clusterNamespace,
+                                      node._1._1._1._1._1.isNamespaceScoped,
                                       node._1._1._1._2,           // Node Errors (errors, lastUpdated)
                                       node._1._1._2,              // Node Policy (constraints, lastUpdated, properties)
                                       node._1._2,                 // Node Statuses (connectivity, lastUpdated, runningServices, services)
@@ -398,12 +394,12 @@ trait Details extends JacksonSupport with AuthenticationSupport {
         }
     }
     
-  val details: Route =
+  def details(identity: Identity2): Route =
     path("orgs" / Segment / "node-details") {
       organization =>
         get {
-          exchAuth(TNode(OrgAndId(organization,"#").toString), Access.READ) {
-            identity =>
+          exchAuth(TNode(OrgAndId(organization,"#").toString), Access.READ, validIdentity = identity) {
+            _ =>
               getDetails(identity, organization)
           }
         }

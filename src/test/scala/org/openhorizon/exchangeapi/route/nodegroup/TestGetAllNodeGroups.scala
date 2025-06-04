@@ -29,7 +29,9 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
   private val ROUTE = "/hagroups"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
-
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORGADMINPASSWORD = "orgadminpassword"
   private val USERPASSWORD = "userpassword"
@@ -69,48 +71,44 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
       )
     )
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = false,
-                email       = "TestGetAllNodeGroupsRouteHubAdmin@ibm.com",
-                hashedPw    = Password.hash(HUBADMINPASSWORD),
-                hubAdmin    = true,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "root",
-                updatedBy   = "root/root",
-                username    = "root/TestGetAllNodeGroupsRouteHubAdmin"),
-        UserRow(admin       = true,
-                email       = "orgAdmin@ibm.com",
-                hashedPw    = Password.hash(ORGADMINPASSWORD),
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = TESTORGS.head.orgId,
-                updatedBy   = "root/root",
-                username    = TESTORGS.head.orgId + "/orgAdmin"),
-        UserRow(admin       = false,
-                email       = "orgUser@ibm.com",
-                hashedPw    = Password.hash(USERPASSWORD),
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = TESTORGS.head.orgId,
-                updatedBy   = "root/root",
-                username    = TESTORGS.head.orgId + "/orgUser"),
-        UserRow(admin       = false,
-                email       = "orgUser@ibm.com",
-                hashedPw    = "",
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = TESTORGS(1).orgId,
-                updatedBy   = "root/root",
-                username    = TESTORGS(1).orgId + "/orgUser"),
-        UserRow(admin       = false,
-                email       = "orgUser@ibm.com",
-                hashedPw    = Password.hash(USERPASSWORD),
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = TESTORGS(2).orgId,
-                updatedBy   = "root/root",
-                username    = TESTORGS(2).orgId + "/orgUser"))
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestGetAllNodeGroupsRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS.head.orgId,
+                password     = Option(Password.hash(ORGADMINPASSWORD)),
+                username     = "orgAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS.head.orgId,
+                password     = Option(Password.hash(USERPASSWORD)),
+                username     = "orgUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = None,
+                username     = "orgUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(2).orgId,
+                password     = Option(Password.hash(USERPASSWORD)),
+                username     = "orgUser"))
+  }
+  
   private val TESTAGBOTS: Seq[AgbotRow] =
     Seq(
       AgbotRow(
@@ -118,7 +116,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
         orgid         = TESTORGS(0).orgId,
         token         = Password.hash(AGBOTTOKEN),
         name          = "",
-        owner         = TESTUSERS(2).username, //org 1 user
+        owner         = TESTUSERS(2).user, //org 1 user
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
@@ -135,7 +133,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS(0).orgId,
-                owner              = TESTUSERS(1).username, //org admin
+                owner              = TESTUSERS(1).user, //org admin
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -151,7 +149,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS(0).orgId,
-                owner              = TESTUSERS(2).username, //org user
+                owner              = TESTUSERS(2).user, //org user
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -167,7 +165,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS(1).orgId,
-                owner              = TESTUSERS(3).username, //org user
+                owner              = TESTUSERS(3).user, //org user
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -183,7 +181,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(2).username, //org user
+                owner              = TESTUSERS(2).user, //org user
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -199,7 +197,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
                 name = "",
                 nodeType = "",
                 orgid = TESTORGS.head.orgId,
-                owner = TESTUSERS(1).username, //org admin
+                owner = TESTUSERS(1).user, //org admin
                 pattern = "",
                 publicKey = "",
                 regServices = "",
@@ -236,9 +234,9 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
   //since 'group' is dynamically set when Node Groups are added to the DB, we must define NodeGroupAssignments after Node Groups are added (dynamically in beforeAll())
 
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORGADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORGADMINPASSWORD))
-  private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + USERPASSWORD))
+  private val HUBADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORGADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORGADMINPASSWORD))
+  private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + USERPASSWORD))
   private val NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODETOKEN))
   private val AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOTTOKEN))
 
@@ -252,6 +250,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
     ), AWAITDURATION)
     val mainGroup: Long = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS(1).name).result), AWAITDURATION).head.group
     val nodeGroupAdmin: Long = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.last.name).result), AWAITDURATION).head.group
+    info(s"$mainGroup    $nodeGroupAdmin")
     val TESTNODEGROUPASSIGNMENTS: Seq[NodeGroupAssignmentRow] =
       Seq(NodeGroupAssignmentRow(group = mainGroup,
                                  node = TESTNODES.head.id),
@@ -271,7 +270,7 @@ class TestGetAllNodeGroups extends AnyFunSuite with BeforeAndAfterAll {
     Await.ready(DBCONNECTION.run(
       ResourceChangesTQ.filter(_.orgId startsWith "testGetAllNodeGroupsRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testGetAllNodeGroupsRoute").delete andThen
-      UsersTQ.filter(_.username startsWith TESTUSERS(0).username).delete
+      UsersTQ.filter(_.user === TESTUSERS(0).user).delete
     ), AWAITDURATION)
   }
 

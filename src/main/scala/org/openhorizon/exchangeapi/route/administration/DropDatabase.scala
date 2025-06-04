@@ -5,10 +5,10 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
-import io.swagger.v3.oas.annotations.{Operation, responses}
+import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import jakarta.ws.rs.{POST, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, TAction}
+import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Identity2, TAction}
 import org.openhorizon.exchangeapi.table.ExchangeApiTables
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
@@ -40,14 +40,14 @@ trait DropDatabase extends JacksonSupport with AuthenticationSupport {
                                                           schema = new Schema(implementation = classOf[ApiResponse])))),
             new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
             new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def postDropDB: Route = {
-    logger.debug("Doing POST /admin/dropdb")
+  def postDropDB(@Parameter(hidden = true) identity: Identity2): Route = {
+    logger.debug(s"POST /admin/dropdb - By ${identity.resource}:${identity.role}")
     complete({
       db.run(ExchangeApiTables.dropDB.transactionally.asTry)
         .map({
           case Success(v) =>
             logger.debug(s"POST /admin/dropdb result: $v")
-            AuthCache.clearAllCaches(includingIbmAuth = true)
+            // TODO: AuthCache.clearAllCaches(includingIbmAuth = true)
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("db.deleted")))
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("db.not.deleted", t.toString))
@@ -58,12 +58,12 @@ trait DropDatabase extends JacksonSupport with AuthenticationSupport {
   }
   
   
-  val dropDB: Route =
+  def dropDB(identity: Identity2): Route =
     path("admin" / "dropdb") {
       post {
-        exchAuth(TAction(), Access.ADMIN, hint = "token") {
+        exchAuth(TAction(), Access.ADMIN, hint = "token", validIdentity = identity) {
           _ =>
-            postDropDB
+            postDropDB(identity)
         }
       }
     }

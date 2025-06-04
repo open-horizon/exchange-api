@@ -9,6 +9,8 @@ import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
+
 final case class PostPutBusinessPolicyRequest(label: String,
                                               description: Option[String],
                                               service: BService,
@@ -47,7 +49,7 @@ final case class PostPutBusinessPolicyRequest(label: String,
   // Note: write() handles correctly the case where the optional fields are None.
   def getDbInsert(businessPolicy: String,
                   orgid: String,
-                  owner: String): DBIO[_] = {
+                  owner: UUID): DBIO[_] = {
     BusinessPolicyRow(businessPolicy = businessPolicy,
                       constraints = write(constraints),
                       created = ApiTime.nowUTC,
@@ -62,7 +64,7 @@ final case class PostPutBusinessPolicyRequest(label: String,
                       userInput = write(userInput)).insert
   }
 
-  def getDbUpdate(businessPolicy: String, orgid: String, owner: String): DBIO[_] = {
+  def getDbUpdate(businessPolicy: String, orgid: String, owner: UUID): DBIO[_] = {
     (for {
        deploymentPolicy <-
          BusinessPoliciesTQ.filter(_.businessPolicy === businessPolicy)

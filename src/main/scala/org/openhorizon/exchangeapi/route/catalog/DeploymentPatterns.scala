@@ -8,12 +8,14 @@ import jakarta.ws.rs.{GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, parameter, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TPattern}
+import org.json4s.{DefaultFormats, Formats}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TPattern}
 import org.openhorizon.exchangeapi.route.deploymentpattern.GetPatternsResponse
 import org.openhorizon.exchangeapi.table.deploymentpattern.{Pattern, PatternsTQ}
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -111,31 +113,74 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
-  def getDeploymentPatterns: Route =
-    parameter("orgtype".?) {
-      orgType =>
-        complete({
-          val svcQuery =
-            for {
-              (_, svc) <-
-                OrgsTQ.getOrgidsOfType(orgType.getOrElse("IBM")) join PatternsTQ on ((o, s) => {o === s.orgid && s.public})
-            } yield svc
-  
-          db.run(svcQuery.result).map({ list =>
-            logger.debug("GET /catalog/patterns result size: "+list.size)
-            val patterns: Map[String, Pattern] = list.map(a => a.pattern -> a.toPattern).toMap
-            val code: StatusCode = if (patterns.nonEmpty) StatusCodes.OK else StatusCodes.NotFound
-            (code, GetPatternsResponse(patterns, 0))
-          })
-        })
+  def getDeploymentPatterns(@Parameter(hidden = true) identity: Identity2): Route =
+    parameter("clusternamespace".?,
+              "description".?,
+              "idfilter".?,
+              "label".?,
+              "organization".?,
+              "owner".?,
+              "public".as[Boolean].optional) {
+      (clusterNamespace,
+       description,
+       idfilter,
+       label,
+       organization,
+       owner,
+       public) =>
+        logger.debug(s"GET /catalog/${if (organization.isDefined) organization.get + "/" else ""}patterns?clusterNamespace=${clusterNamespace.getOrElse("None")},description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")},public=${public.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        
+        val getDeploymentPatternsAll: Query[((Rep[String], Rep[Option[String]], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, Option[String], String, String, String, String, Boolean, String, String, String), String), Seq] =
+          for {
+            patterns: ((Rep[String], Rep[Option[String]], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String]), Rep[String]) <-
+              PatternsTQ.filterOpt(organization)((deployment_patterns, organization) => if (organization.contains("%")) deployment_patterns.orgid like organization else deployment_patterns.orgid === organization)
+                        .filterIf(identity.isOrgAdmin || identity.isStandardUser)(deployment_patterns => deployment_patterns.orgid === identity.organization || deployment_patterns.orgid === "IBM" || deployment_patterns.public)
+                        .filterOpt(clusterNamespace)((deployment_patterns, clusterNamespace) => if (clusterNamespace.contains("%")) deployment_patterns.clusterNamespace like clusterNamespace else deployment_patterns.clusterNamespace === clusterNamespace)
+                        .filterOpt(description)((deployment_patterns, description) => if (description.contains("%")) deployment_patterns.description like description else deployment_patterns.description === description)
+                        .filterOpt(idfilter)((deployment_patterns, resource) => if (resource.contains("%")) deployment_patterns.pattern like resource else deployment_patterns.pattern === resource)
+                        .filterOpt(label)((deployment_patterns, label) => if (label.contains("%")) deployment_patterns.label like label else deployment_patterns.label === label)
+                        .filterOpt(public)((deployment_patterns, public) => deployment_patterns.public === public)
+                        .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                        .on(_.owner === _._2)
+                        .filterOpt(owner)((deployment_patterns, owner) => if (owner.contains("%")) (deployment_patterns._2._1 ++ "/" ++ deployment_patterns._2._3) like owner else (deployment_patterns._2._1 ++ "/" ++ deployment_patterns._2._3) === owner)
+                .map(deployment_patterns =>
+                       ((deployment_patterns._1.agreementProtocols,
+                         deployment_patterns._1.clusterNamespace,
+                         deployment_patterns._1.description,
+                         deployment_patterns._1.label,
+                         deployment_patterns._1.lastUpdated,
+                         (deployment_patterns._2._1 ++ "/" ++ deployment_patterns._2._3),
+                         // deployment_patterns._1.orgid,
+                         deployment_patterns._1.public,
+                         deployment_patterns._1.secretBinding,
+                         deployment_patterns._1.services,
+                         deployment_patterns._1.userInput),
+                        deployment_patterns._1.pattern))
+          } yield patterns
+        
+        
+        complete {
+          db.run(Compiled(getDeploymentPatternsAll).result.transactionally).map {
+            result =>
+              logger.debug("GET /catalog/patterns - result size: " + result.size)
+              implicit val formats: Formats = DefaultFormats
+              
+              if (result.nonEmpty)
+                (StatusCodes.OK, GetPatternsResponse(result.map(deployment_patterns => (deployment_patterns._2 -> new Pattern(deployment_patterns._1))).toMap))
+              else
+                (StatusCodes.NotFound, GetPatternsResponse())
+          }
+        }
     }
   
-  val deploymentPatternsCatalog: Route =
-    path("catalog" / "patterns") {
+  def deploymentPatternsCatalog(identity: Identity2): Route =
+    // old: ../v1/catalog/patterns
+    // new: ../v1/deployment/patterns
+    path(("catalog" | "deployment") / "patterns") {
       get {
-        exchAuth(TPattern(OrgAndId("*","*").toString),Access.READ_ALL_PATTERNS) {
+        exchAuth(TPattern(OrgAndId("*","*").toString), Access.READ_ALL_PATTERNS, validIdentity = identity) {
           _ =>
-            getDeploymentPatterns
+            getDeploymentPatterns(identity)
         }
       }
     }

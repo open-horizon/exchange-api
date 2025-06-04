@@ -18,6 +18,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -33,6 +34,8 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   private val EXCHANGEVERSION: String = ExchangeApi.adminVersion()
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORG1USERPASSWORD = "org1userpassword"
@@ -42,7 +45,9 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   private val ORG1AGBOTTOKEN = "org1agbottoken"
   private val ORG2AGBOTTOKEN = "org2agbottoken"
   private val IBMAGBOTTOKEN = "ibmagbottoken"
-
+  
+  val rootUser: UUID = Await.result(DBCONNECTION.run(Compiled(UsersTQ.filter(users => users.organization === "root" && users.username === "root").map(_.user)).result.head), AWAITDURATION)
+  
   private val TESTORGS: Seq[OrgRow] =
     Seq(
       OrgRow(
@@ -66,40 +71,30 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
       )
     )
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/testPostOrgChangesRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "testPostOrgChangesRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/org1user",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org1user@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/org2user",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = Password.hash(ORG2USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org2user@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      )
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "testPostOrgChangesRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                username     = "org1user"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = Option(Password.hash(ORG2USERPASSWORD)),
+                username     = "org2user"))
+  }
+  
   private val TESTNODES: Seq[NodeRow] =
     Seq(
       NodeRow(
@@ -112,7 +107,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username, //org 1 user
+        owner              = TESTUSERS(1).user, //org 1 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -130,7 +125,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(1).orgId,
-        owner              = TESTUSERS(2).username, //org 2 user
+        owner              = TESTUSERS(2).user, //org 2 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -146,7 +141,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
       orgid         = TESTORGS(0).orgId,
       token         = Password.hash(ORG1AGBOTTOKEN),
       name          = "",
-      owner         = TESTUSERS(1).username, //org 1 user
+      owner         = TESTUSERS(1).user, //org 1 user
       msgEndPoint   = "",
       lastHeartbeat = ApiTime.nowUTC,
       publicKey     = ""
@@ -156,7 +151,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         orgid         = TESTORGS(1).orgId,
         token         = Password.hash(ORG2AGBOTTOKEN),
         name          = "",
-        owner         = TESTUSERS(2).username, //org 2 user
+        owner         = TESTUSERS(2).user, //org 2 user
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
@@ -166,7 +161,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         orgid         = "IBM",
         token         = Password.hash(IBMAGBOTTOKEN),
         name          = "",
-        owner         = "root/root",
+        owner         = rootUser,
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
@@ -174,9 +169,9 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     )
 
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORG1USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
-  private val ORG2USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG2USERPASSWORD))
+  private val HUBADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORG1USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
+  private val ORG2USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ORG2USERPASSWORD))
   private val ORG1NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + ORG1NODETOKEN))
   private val ORG2NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(1).id + ":" + ORG2NODETOKEN))
   private val ORG1AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + ORG1AGBOTTOKEN))
@@ -288,25 +283,26 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   var lastChangeId: Long = 0L //will be set in beforeAll()
 
   override def beforeAll(): Unit = {
-    Await.ready(DBCONNECTION.run(
-      (OrgsTQ ++= TESTORGS) andThen
-        (UsersTQ ++= TESTUSERS) andThen
-      (ResourceChangesTQ ++= TESTRESOURCECHANGES) andThen
-        (AgbotsTQ ++= TESTAGBOTS) andThen
-        (NodesTQ ++= TESTNODES)
-        ), AWAITDURATION
+    Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
+                                 (UsersTQ ++= TESTUSERS) andThen
+                                 (ResourceChangesTQ ++= TESTRESOURCECHANGES) andThen
+                                 (AgbotsTQ ++= TESTAGBOTS) andThen
+                                 (NodesTQ ++= TESTNODES)), AWAITDURATION
     )
-    lastChangeId = Await.result(DBCONNECTION.run(ResourceChangesTQ //get changeId of last RC added to DB
-      .filter(_.orgId startsWith "testPostOrgChangesRoute")
-      .sortBy(_.changeId.desc)
-      .take(1)
-      .result), AWAITDURATION).head.changeId
+    lastChangeId =
+      Await.result(DBCONNECTION.run(ResourceChangesTQ //get changeId of last RC added to DB
+                                      .filter(_.orgId startsWith "testPostOrgChangesRoute")
+                                      .map(_.changeId)
+                                      .sortBy(_.desc)
+                                      .take(1)
+                                      .result), AWAITDURATION).head
   }
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testPostOrgChangesRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testPostOrgChangesRoute").delete andThen
-      UsersTQ.filter(_.username startsWith "root/testPostOrgChangesRouteHubAdmin").delete andThen
+      UsersTQ.filter(_.organization === "root")
+             .filter(_.username startsWith "testPostOrgChangesRouteHubAdmin").delete andThen
       AgbotsTQ.filter(_.id startsWith "IBM/testPostOrgChangesRouteIBMAgbot").delete), AWAITDURATION)
   }
 
@@ -328,7 +324,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
       Await.result(DBCONNECTION.run(ResourceChangesTQ += testData), AWAITDURATION)
       testCode(testData)
     }
-    //finally Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(x => x.orgId === testData.orgId && x.resource === testData.resource && x.id === testData.id).delete), AWAITDURATION)
+    finally Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(x => x.orgId === testData.orgId && x.resource === testData.resource && x.id === testData.id).delete), AWAITDURATION)
   }
 
   def assertResourceChangeExists(rc: ResourceChangeRow, body: ResourceChangesRespObject): Unit = {
@@ -338,7 +334,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   private val defaultIdRequest: ResourceChangesRequest = ResourceChangesRequest(
     changeId = lastChangeId, //will ensure that at least the final RC added will be returned
     lastUpdated = None,
-    maxRecords = 100,
+    maxRecords = 300,
     orgList = None
   )
 
@@ -405,7 +401,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(response.code === HttpCode.POST_OK.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.nonEmpty)
-    assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId === lastChangeId))) //check if RC with lastChangeId is in response
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId.equals(lastChangeId)))) //check if RC with lastChangeId is in response
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
   }
   

@@ -1,8 +1,8 @@
-package org.openhorizon.exchangeapi.route.node
+package org.openhorizon.exchangeapi.route.node.managementpolicy
 
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicyRow}
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{GetNMPStatusResponse, NMPStatus, NodeMgmtPolStatusRow, NodeMgmtPolStatuses, PolicyStatus}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
@@ -31,7 +31,16 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
   val managementPolicy1: String = "pol1"
   val managementPolicy2: String = "pol2"
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
   
+  private val TESTUSER: UserRow =
+    UserRow(createdAt    = TIMESTAMP,
+            isHubAdmin   = false,
+            isOrgAdmin   = false,
+            modifiedAt   = TIMESTAMP,
+            organization = "TestNodeGetMgmtPolStatus",
+            password     = Option(Password.hash("u1pw")),
+            username     = "u1")
   private val TESTMANAGEMENTPOLICY: Seq[ManagementPolicyRow] =
     Seq(ManagementPolicyRow(allowDowngrade   = false,
                             constraints      = "",
@@ -43,7 +52,7 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
                             manifest         = "",
                             managementPolicy = "TestNodeGetMgmtPolStatus/pol1",
                             orgid            = "TestNodeGetMgmtPolStatus",
-                            owner            = "TestNodeGetMgmtPolStatus/u1",
+                            owner            = TESTUSER.user,
                             patterns         = "",
                             properties       = "",
                             start            = ""),
@@ -57,7 +66,7 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
                             manifest         = "",
                             managementPolicy = "TestNodeGetMgmtPolStatus/pol2",
                             orgid            = "TestNodeGetMgmtPolStatus",
-                            owner            = "TestNodeGetMgmtPolStatus/u1",
+                            owner            = TESTUSER.user,
                             patterns         = "",
                             properties       = "",
                             start            = ""))
@@ -71,7 +80,7 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
             name               = "",
             nodeType           = "",
             orgid              = "TestNodeGetMgmtPolStatus",
-            owner              = "TestNodeGetMgmtPolStatus/u1",
+            owner              = TESTUSER.user,
             pattern            = "",
             publicKey          = "",
             regServices        = "",
@@ -110,15 +119,6 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
            orgType            = "",
            tags               = None,
            limits             = "")
-  private val TESTUSER: UserRow =
-    UserRow(admin       = false,
-            hubAdmin    = false,
-            email       = "",
-            hashedPw    = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i", // TestNodeGetMgmtPolStatus/u1:u1pw
-            lastUpdated = ApiTime.nowUTC,
-            orgid       = "TestNodeGetMgmtPolStatus",
-            updatedBy   = "",
-            username    = "TestNodeGetMgmtPolStatus/u1")
   
   
   // Build test harness.
@@ -133,7 +133,7 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
   // Teardown testing harness and cleanup.
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestNodeGetMgmtPolStatus").delete andThen
-                                       OrgsTQ.filter(_.orgid startsWith "TestNodeGetMgmtPolStatus").delete), AWAITDURATION)
+                                 OrgsTQ.filter(_.orgid startsWith "TestNodeGetMgmtPolStatus").delete), AWAITDURATION)
   }
 
   // Management Policies that are dynamically needed, specific to the test case.

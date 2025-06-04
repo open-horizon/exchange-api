@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.organization
+package org.openhorizon.exchangeapi.route.agreement
 
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
@@ -18,6 +18,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -31,6 +32,8 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ROUTE = "/agreements/confirm"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val ORG1USERPASSWORD = "org1userpassword"
@@ -39,6 +42,8 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val AGBOT1TOKEN = "agbot1token"
   private val AGBOT2TOKEN = "agbot2token"
 
+  val rootUser: UUID = Await.result(DBCONNECTION.run(Compiled(UsersTQ.filter(users => users.organization === "root" && users.username === "root").map(_.user)).result.head), AWAITDURATION)
+  
   private val TESTORGS: Seq[OrgRow] =
     Seq(
       OrgRow(
@@ -61,40 +66,30 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
         heartbeatIntervals = ""
       ))
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestPostAgreementConfirmRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestPostAgreementConfirmRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/org1user",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org1user@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/org2user",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = Password.hash(ORG2USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org2user@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestPostAgreementConfirmRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                username     = "org1user"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = Option(Password.hash(ORG2USERPASSWORD)),
+                username     = "org2user"))
+  }
+  
   private val TESTNODES: Seq[NodeRow] =
     Seq(
       NodeRow(
@@ -107,7 +102,7 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username, //org 1 user
+        owner              = TESTUSERS(1).user, //org 1 user
         pattern            = "hasPattern",
         publicKey          = "",
         regServices        = "",
@@ -123,7 +118,7 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgid         = TESTORGS(0).orgId,
         token         = Password.hash(AGBOT1TOKEN),
         name          = "",
-        owner         = TESTUSERS(1).username, //org 1 user
+        owner         = TESTUSERS(1).user, //org 1 user
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
@@ -133,7 +128,7 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgid         = TESTORGS(1).orgId,
         token         = Password.hash(AGBOT2TOKEN),
         name          = "",
-        owner         = TESTUSERS(2).username, //org 2 user
+        owner         = TESTUSERS(2).user, //org 2 user
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
@@ -143,7 +138,7 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgid         = TESTORGS(0).orgId,
         token         = "",
         name          = "",
-        owner         = TESTUSERS(1).username, //org 1 user
+        owner         = TESTUSERS(1).user, //org 1 user
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
@@ -153,7 +148,7 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgid         = TESTORGS(0).orgId,
         token         = "",
         name          = "",
-        owner         = "root/root",
+        owner         = rootUser,
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
@@ -163,7 +158,7 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgid         = TESTORGS(0).orgId,
         token         = "",
         name          = "",
-        owner         = TESTUSERS(0).username, //hub admin
+        owner         = TESTUSERS(0).user, //hub admin
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
@@ -234,9 +229,9 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
   )
 
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
-  private val ORG2USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG2USERPASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
+  private val ORG2USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ORG2USERPASSWORD))
   private val NODE1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODE1TOKEN))
   private val AGBOT1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOT1TOKEN))
   private val AGBOT2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(1).id + ":" + AGBOT2TOKEN))
@@ -254,7 +249,8 @@ class TestPostAgreementConfirmRoute extends AnyFunSuite with BeforeAndAfterAll {
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostAgreementConfirmRouteOrg").delete andThen
       OrgsTQ.filter(_.orgid startsWith "TestPostAgreementConfirmRouteOrg").delete andThen
-      UsersTQ.filter(_.username startsWith "root/TestPostAgreementConfirmRouteHubAdmin").delete
+      UsersTQ.filter(_.organization === "root")
+             .filter(_.username startsWith "TestPostAgreementConfirmRouteHubAdmin").delete
     ), AWAITDURATION)
   }
 

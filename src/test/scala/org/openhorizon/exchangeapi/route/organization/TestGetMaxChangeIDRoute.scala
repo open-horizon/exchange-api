@@ -26,6 +26,8 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/changes/maxchangeid"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val NODETOKEN = "nodetoken"
   private val AGBOTTOKEN = "agbottoken"
@@ -47,40 +49,30 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
       )
     )
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/testGetMaxChangeIDRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "testGetMaxChangeIDRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS.head.orgId + "/user1",
-        orgid       = TESTORGS.head.orgId,
-        hashedPw    = Password.hash(USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "user@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS.head.orgId + "/orgadminadmin1",
-        orgid       = TESTORGS.head.orgId,
-        hashedPw    = Password.hash(ADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "admin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      )
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "testGetMaxChangeIDRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS.head.orgId,
+                password     = Option(Password.hash(USERPASSWORD)),
+                username     = "user1"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS.head.orgId,
+                password     = Option(Password.hash(ADMINPASSWORD)),
+                username     = "orgadminadmin1"))
+  }
+  
   private val TESTNODES: Seq[NodeRow] =
     Seq(
       NodeRow(
@@ -93,7 +85,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS.head.orgId,
-        owner              = TESTUSERS(1).username,
+        owner              = TESTUSERS(1).user,
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -110,7 +102,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgid         = TESTORGS.head.orgId,
         token         = Password.hash(AGBOTTOKEN),
         name          = "",
-        owner         = TESTUSERS(1).username,
+        owner         = TESTUSERS(1).user,
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
@@ -118,9 +110,9 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
     )
 
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USERPASSWORD))
-  private val ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ADMINPASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + USERPASSWORD))
+  private val ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ADMINPASSWORD))
   private val NODEAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES.head.id + ":" + NODETOKEN))
   private val AGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS.head.id + ":" + AGBOTTOKEN))
 
@@ -152,7 +144,8 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
       DBCONNECTION.run(
         ResourceChangesTQ.filter(_.orgId startsWith "testGetMaxChangeIDRoute").delete andThen
         OrgsTQ.filter(_.orgid startsWith "testGetMaxChangeIDRoute").delete andThen
-        UsersTQ.filter(_.username startsWith "root/testGetMaxChangeIDRoute").delete
+        UsersTQ.filter(_.organization === "root")
+               .filter(_.username startsWith "testGetMaxChangeIDRoute").delete
       ), AWAITDURATION)
   }
 

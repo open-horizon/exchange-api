@@ -22,7 +22,7 @@ object HttpCode {
   // gateway timeout, which for us means db timeout
   val OK: StatusCodes.Success = StatusCodes.OK
   val PUT_OK: StatusCodes.Success = StatusCodes.Created
-  val POST_OK: StatusCodes.Success = StatusCodes.Created
+  val POST_OK: StatusCodes.Success = PUT_OK
   val DELETED: StatusCodes.Success = StatusCodes.NoContent // technically means no content, but usually used for DELETE
   val BAD_INPUT: StatusCodes.ClientError = StatusCodes.BadRequest // invalid user input, usually in the params or json body
   val BADCREDS: StatusCodes.ClientError = StatusCodes.Unauthorized // user/pw or id/token is wrong (they call it unauthorized, but it is really unauthenticated)

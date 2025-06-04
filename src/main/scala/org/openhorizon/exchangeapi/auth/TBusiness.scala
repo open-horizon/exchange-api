@@ -1,13 +1,19 @@
 package org.openhorizon.exchangeapi.auth
 
-case class TBusiness(id: String) extends Target {      // for business policies only the user that created it can update/delete it
+import org.openhorizon.exchangeapi.ExchangeApiApp.getOwnerOfResource
+
+import java.util.UUID
+import scala.concurrent.Await
+import scala.concurrent.duration.DurationInt
+
+case class TBusiness(id: String, owner: Option[UUID] = None) extends Target {      // for business policies only the user that created it can update/delete it
   override def isOwner(user: IUser): Boolean = {
-    AuthCache.getBusinessOwner(id) match {
-      case Some(owner) => if (owner == user.creds.id) true else false
-      case None => true    // if we did not find it, we consider that as owning it because we will create it
-    }
+    if (owner.isEmpty || owner.get == user.identity.identifier.get)
+      true
+    else
+      false
   }
   // business policies can never be public, so no need to override isPublic
-  override def isThere: Boolean = all || mine || AuthCache.getBusinessOwner(id).nonEmpty
+  override def isThere: Boolean = all || mine || owner.isDefined
   override def label = "business policy"
 }

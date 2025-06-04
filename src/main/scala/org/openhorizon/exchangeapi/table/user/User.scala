@@ -1,12 +1,32 @@
 package org.openhorizon.exchangeapi.table.user
 
+import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.utility.StrConstants
 
-final case class User(password: String,
-                      admin: Boolean,
-                      hubAdmin: Boolean,
-                      email: String,
+import java.time.ZoneId
+import java.util.UUID
+
+final case class User(admin: Boolean = false,
+                      email: String = "",
+                      hubAdmin: Boolean = false,
                       lastUpdated: String,
-                      updatedBy: String) {
-  def hidePassword: User = User(StrConstants.hiddenPw, admin, hubAdmin, email, lastUpdated, updatedBy)
+                      password: String = "",
+                      updatedBy: String = "") {
+  def this(tuple: (UserRow, Option[(String, UUID, String)])) =
+    this(admin = tuple._1.isOrgAdmin,
+         hubAdmin = tuple._1.isHubAdmin,
+         email = tuple._1.email.getOrElse(""),
+         lastUpdated =
+           fixFormatting(tuple._1.modifiedAt.toInstant
+                                            .atZone(ZoneId.of("UTC"))
+                                            .withZoneSameInstant(ZoneId.of("UTC"))
+                                            .toString),
+         password = tuple._1.password.getOrElse(""),
+         updatedBy =
+           tuple._2 match {
+             case Some(user) =>
+               s"${user._1}/${user._3}"
+             case _ =>
+               ""
+           })
 }

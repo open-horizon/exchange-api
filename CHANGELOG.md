@@ -52,11 +52,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - The Exchange will auto-magically*TM convert all hashes for all resources on authentication.
 - Updated GitHub workflows to use JDK 21.
 - Dependency Updates:
+  - ch.epfl.scala.sbt-scalafix                             0.14.3 -> 0.11.1
   - ch.qos.logback.logback-classic                          1.5.6 -> 1.5.18
   - com.github.cb372.scalacache-guava                      0.28.0 ->        [Removed]
   - com.github.cb372.scalacache-caffeine                          -> 0.28.0 [Added]
   - com.github.pjfanning.pekko-http-jackson                 3.0.0 -> 3.2.0
+  - com.github.sbt.sbt-native-packager                     1.9.13 -> 1.11.1
   - com.osinka.i18n.scala-i18n                              1.0.3 -> 1.1.0
+  - io.spray.sbt-revolver                                   0.9.1 -> 0.10.0
   - org.apache.pekko.pekko-http                             1.1.0 -> 1.2.0
   - org.apache.pekko.pekko-http-xml                         1.1.0 -> 1.2.0
   - org.apache.pekko.pekko-http-cors                        1.1.0 -> 1.2.0
@@ -67,6 +70,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
   - org.postgresql.postgresql                              42.7.1 -> 42.7.6
   - org.scalacheck.scalacheck                              1.17.0 -> 1.18.1
   - org.scalatest.scalatest                           3.3.0-SNAP2 -> 3.3.0-SNAP4
+  - org.scoverage.sbt-scoverage                             2.0.6 -> 2.3.1
   - org.springframework.security.spring-security-core             -> 6.5.0 [Added]
   - JDK                                                        17 -> 21
   - SBT                                                    1.10.5 -> 1.11.0

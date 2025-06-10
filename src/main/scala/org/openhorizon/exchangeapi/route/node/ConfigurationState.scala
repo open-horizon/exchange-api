@@ -111,21 +111,25 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
         complete({
           db.run(NodesTQ.getRegisteredServices(resource).result.asTry.flatMap({
             case Success(v) =>
-              logger.debug("POST /orgs/" + organization + "/nodes/" + node + "/configstate result: " + v)
-              if (v.nonEmpty) reqBody.getDbUpdate(v.head, resource).asTry // pass the update action to the next step
-              else DBIO.failed(new Throwable("Invalid Input: node " + resource + " not found")).asTry // it seems this returns success even when the node is not found
+              logger.debug("POST /orgs/" + organization + "/nodes/" + node + "/configstate - result: " + v)
+              if (v.nonEmpty)
+                reqBody.getDbUpdate(v.head, resource).asTry // pass the update action to the next step
+              else
+                DBIO.failed(new Throwable("Invalid Input: node " + resource + " not found")).asTry // it seems this returns success even when the node is not found
             case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step. Is this necessary, or will flatMap do that automatically?
           }).flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
-              logger.debug("POST /orgs/" + organization + "/nodes/" + node + "/configstate write row result: " + v)
+              logger.debug("POST /orgs/" + organization + "/nodes/" + node + "/configstate - write row result: " + v)
               ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODESERVICES_CONFIGSTATE, ResChangeOperation.CREATED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>
-              logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " updating resource status table: " + n)
-              if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", resource))) // there were no db errors, but determine if it actually found it or not
-              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource)))
+              logger.debug("PUT /orgs/" + organization + "/nodes/" + node + "/configstate - updating resource status table: " + n)
+              if (n.asInstanceOf[Int] > 0)
+                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", resource))) // there were no db errors, but determine if it actually found it or not
+              else
+                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource)))
             case Failure(t: AuthException) => t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.not.inserted.or.updated", resource, t.getMessage))

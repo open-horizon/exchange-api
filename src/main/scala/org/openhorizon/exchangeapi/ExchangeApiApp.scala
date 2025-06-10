@@ -243,6 +243,10 @@ object ExchangeApiApp extends App
     RejectionHandler.newBuilder()
                     // this handles all of our rejections
                     .handle {
+                      case rejection: AuthenticationFailedRejection =>
+                        complete{ (StatusCodes.Unauthorized, ApiResponse(ApiRespType.BADCREDS, "invalid.credentials")) }
+                    }
+                    .handle {
                       case r: ExchangeRejection =>
                         complete((r.httpCode, r.toApiResp))
                     }

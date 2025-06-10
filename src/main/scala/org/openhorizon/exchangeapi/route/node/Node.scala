@@ -18,7 +18,7 @@ import org.json4s.jackson.Serialization.read
 import org.json4s.{DefaultFormats, Formats, MappingException}
 import org.json4s.native.Serialization.write
 import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
-import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, exchAuth, getResourceIdentityAndPassword, validateWithMsg}
+import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership, complete, exchAuth, getResourceIdentityAndPassword, logger, validateWithMsg}
 import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthCache, AuthRoles, AuthenticationSupport, BadInputException, DBProcessingError, IIdentity, IUser, Identity, Identity2, OrgAndId, Password, ResourceNotFoundException, TNode}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneUserInputService, PatternRow, Patterns, PatternsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, NodeType, NodesTQ, Op, PropType, RegService, Node => NodeTable}
@@ -30,7 +30,6 @@ import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResC
 import org.openhorizon.exchangeapi.table.service.{SearchServiceKey, SearchServiceTQ, ServicesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, StrConstants, VersionRange}
 import org.openhorizon.exchangeapi.{ExchangeApiApp, table}
-import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
@@ -245,11 +244,11 @@ trait Node extends JacksonSupport with AuthenticationSupport {
     get {
       parameter ("attribute".?) {
         attribute =>
-          logger.debug(s"GET /orgs/$organization/nodes/$node - By ${identity.resource}:${identity.role}")
+          Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - By ${identity.resource}:${identity.role}") }
           
               val nodes =
                 NodesTQ.filter(nodes => nodes.id === resource &&
-                               nodes.orgid === organization)
+                                        nodes.orgid === organization)
                        .filterIf(identity.isStandardUser)(nodes => nodes.owner === identity.identifier)
                        .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot))(nodes => nodes.orgid === identity.organization)
                        .filterIf(identity.isNode)(_.id === identity.resource)
@@ -277,24 +276,24 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                               nodes._1.userInput))
               
               def validAttributes(attribute: String): Boolean =
-                attribute match {
+                attribute.toLowerCase match {
                   case "arch" |
-                       "clusterNamespace" |
+                       "clusternamespace" |
                        "ha_group" |
-                       "heartbeatIntervals" |
+                       "heartbeatintervals" |
                        "id" |
-                       "lastHeartbeat" |
-                       "lastUpdated" |
-                       "msgEndPoint" |
+                       "lastheartbeat" |
+                       "lastupdated" |
+                       "msgendpoint" |
                        "name" |
-                       "nodeType" |
+                       "nodetype" |
                        "owner" |
                        "pattern" |
-                       "publicKey" |
-                       "registeredServices" |
-                       "softwareVersions" |
+                       "publickey" |
+                       "registeredservices" |
+                       "softwareversions" |
                        "token" |
-                       "userInput" => true
+                       "userinput" => true
                   case _ => false
                 }
                 
@@ -307,32 +306,33 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                           (nodes joinLeft NodeGroupAssignmentTQ on ((someNode, assignment) => someNode._4 === assignment.node))
                             .joinLeft(NodeGroupTQ).on(_._2.map(_.group) === _.group)    // ((A left Join B) Left Join C)
                             .map(record => record._2.map(_.name).getOrElse(""))
-                        else if (attribute == "isNamespaceScoped")
+                        else if (attribute.toLowerCase == "isnamespacescoped")
                           nodes.map(record => record._5.toString())
                         else
                           nodes.map(record =>
-                            attribute match {
+                            attribute.toLowerCase match {
                               case "arch" => record._1
-                              case "clusterNamespace" => record._2.getOrElse("")
-                              case "heartbeatIntervals" => record._3
+                              case "clusternamespace" => record._2.getOrElse("")
+                              case "heartbeatintervals" => record._3
                               case "id" => record._4
-                              case "lastHeartbeat" => record._6.getOrElse("")
-                              case "lastUpdated" => record._7
-                              case "msgEndPoint" => record._8
+                              case "lastheartbeat" => record._6.getOrElse("")
+                              case "lastupdated" => record._7
+                              case "msgendpoint" => record._8
                               case "name" => record._9
-                              case "nodeType" => record._10
+                              case "nodetype" => record._10
                               case "owner" => record._11
                               case "pattern" => record._12
-                              case "publicKey" => record._13
-                              case "registeredServices" => record._14
-                              case "softwareVersions" => record._15
+                              case "publickey" => record._13
+                              case "registeredservices" => record._14
+                              case "softwareversions" => record._15
                               case "token" => record._16
-                              case "userInput" => record._17})
+                              case "userinput" => record._17})
                     } yield((attribute, value))
                   
                   complete {
                     db.run(Compiled(filteredNodeAttribute).result.transactionally).map {
                       result =>
+                        Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - ${result.toString()}") }
                         if (result.length == 1)
                           (HttpCode.OK, GetNodeAttributeResponse(result.head._1, result.head._2))
                         else
@@ -341,6 +341,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   }
                 
                 case _ => // Return the whole node
+                  Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - $attribute did not match any valid attribute") }
                   val filteredNode =
                     for {
                       node <-
@@ -371,6 +372,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   complete {
                     db.run(Compiled(filteredNode).result.transactionally).map{
                       result =>
+                        Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - ${result.toString()}") }
                         if (result.length == 1)
                           (HttpCode.OK, GetNodesResponse((result.map(node => node._1 -> new NodeTable(node._2)).toMap), 0))
                         else
@@ -484,17 +486,18 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                               Option(ExchMsg.translate("token.cannot.be.empty.string"))
                             else
                               None) {
-              complete({
-                logger.debug(s"Doing PATCH /orgs/$organization/nodes/$node")
+              // Have a single attribute to update, retrieve its name.
+              val validAttribute: String =
+                attributeExistence.filter(attribute => attribute._2).head._1
+                
+              logger.debug(s"PATCH /orgs/$organization/nodes/$node - attribute=$validAttribute    request-body: ${reqBody.toString}")
                 // Synchronize the timestamps of the records we are changing. This helps debugging/troubleshooting from the records and logs.
                 val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
                 implicit val formats: DefaultFormats.type = DefaultFormats
                 // Multi-threaded rest requests. Need to break records into blocks based on request.
                 val session: String = Password.hash(password = s"patch$organization$node${identity.resource}${changeTimestamp.getTime.toString}")
 
-                // Have a single attribute to update, retrieve its name.
-                val validAttribute: String =
-                  attributeExistence.filter(attribute => attribute._2).head._1
+                
 
                 val getPatternBase: Query[Patterns, PatternRow, Seq] =
                   PatternsTQ.filter(_.pattern === reqBody.pattern)
@@ -538,7 +541,12 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                    service.orgid,
                                    service.url,
                                    service.version))
-
+              val hashedPW =
+                if (validAttribute == "token" && reqBody.token.get.nonEmpty)
+                  Password.hash(reqBody.token.get)
+                else
+                  ""
+              
                 val patchNode =
                   for {
                     // ---------- pattern --------------
@@ -592,12 +600,6 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                         DBIO.failed(new IllegalStateException(ExchMsg.translate("node.public.key.not.token", resource)))
                       else
                         DBIO.successful(())
-
-                    hashedPW =
-                      if (validAttribute == "token")
-                        Password.hash(reqBody.token.get)
-                      else
-                        ""
 
                     // ---------- userInput ------------
                     // Has to have valid matches with defined services. Must be authorized to use service.
@@ -719,33 +721,23 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                         orgId = organization,
                                         public = "false",
                                         resource = ResChangeResource.NODE.toString)
-
-                    // ---------- Update Auth Cache ----
-                    _ <-
-                      if (validAttribute == "token") {
-                        // TODO: AuthCache.putNode(resource, hashedPW, reqBody.token.get)
-                        DBIO.successful(())
-                      }
-                      else
-                        DBIO.successful(())
-                  } yield ()
-
+                  } yield nodesUpdated
+                
+              complete {
                 db.run(patchNode.transactionally.asTry)
-                  .map({
+                  .map {
                     case Success(_) =>
                       
                       Future {
                         if (validAttribute == "token") {
-                          if (identity.isUser)
+                    //      if (identity.isNode &&
+                    //          resource == identity.resource)
+                    //        cacheResourceIdentity.put(resource)(value = (identity, hashedPW),
+                    //                                            ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                    //      else
                             cacheResourceIdentity.remove(resource)
-                            
-                          else if (identity.isNode)
-                            cacheResourceIdentity.put(resource)(value = (identity, if (reqBody.token.getOrElse("") != "") Password.hash(reqBody.token.get) else ""),
-                                                                ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
-                          
                         }
-                    }
-                      
+                      }
                       
                       (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", validAttribute, resource)))
                     case Failure(t: org.postgresql.util.PSQLException) =>
@@ -756,8 +748,8 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, t.getMessage))
                     case Failure(t) =>
                       (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", resource, t.getMessage)))
-                  })
-              })
+                  }
+              }
             }
           }
       }
@@ -882,7 +874,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
         noheartbeat =>
         entity (as[PutNodesRequest]) {
           reqBody =>
-            logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - By ${identity.resource}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}):${identity.role}")
+            Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - By ${identity.resource}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}):${identity.role}") }
             
             /**
               * The Node will update itself to remove its set token(password) and set a public key it self-initializes.
@@ -971,43 +963,55 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   })
               }))
               
+              Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - Completed request body input validation") }
+              
               implicit val defaultFormats: DefaultFormats = DefaultFormats
               val modified_at: Timestamp = ApiTime.nowUTCTimestamp
               val modified_at_str: String =
                 fixFormatting(modified_at.toInstant
-                  .atZone(ZoneId.of("UTC"))
-                  .withZoneSameInstant(ZoneId.of("UTC"))
-                  .toString)
+                                         .atZone(ZoneId.of("UTC"))
+                                         .withZoneSameInstant(ZoneId.of("UTC"))
+                                         .toString)
+              
+              val hashedToken: Option[String] =
+                if (reqBody.token.isDefined)
+                  if (reqBody.token.getOrElse("") != "")
+                    Option(Password.hash(reqBody.token.get))
+                  else
+                    None
+                else
+                  None
               
               val NodeToCreate: NodeRow =
                 new NodeRow(heartbeat =
-                  if (noheartbeat.getOrElse(false))
-                    None
-                  else
-                    Option(modified_at_str),
-                  modified_at = modified_at,
-                  node = resource,
-                  organization = organization,
-                  owner = identity.identifier.getOrElse(identity.owner.getOrElse(UUID.randomUUID())),
-                  request = reqBody)(defaultFormats)
+                            if (noheartbeat.getOrElse(false))
+                              None
+                            else
+                              Option(modified_at_str),
+                            modified_at = modified_at,
+                            node = resource,
+                            organization = organization,
+                            owner = identity.identifier.getOrElse(identity.owner.getOrElse(UUID.randomUUID())),
+                            request = reqBody,
+                            token = if (hashedToken.isDefined) hashedToken.get else "")(defaultFormats)
               
               val maximumNumOwnedNodesPerUser: Int = Configuration.getConfig.getInt("api.limits.maxNodes")
               
               val resourceChange: Seq[ResourceChangeRow] =
                 Seq(ResourceChangeRow(category = ResChangeCategory.NODE.toString,
-                  id = node,
-                  lastUpdated = modified_at,
-                  operation = ResChangeOperation.MODIFIED.toString,
-                  orgId = organization,
-                  public = false.toString,
-                  resource = ResChangeResource.NODE.toString),
+                                      id = node,
+                                      lastUpdated = modified_at,
+                                      operation = ResChangeOperation.MODIFIED.toString,
+                                      orgId = organization,
+                                      public = false.toString,
+                                      resource = ResChangeResource.NODE.toString),
                   ResourceChangeRow(category = ResChangeCategory.NODE.toString,
-                    id = node,
-                    lastUpdated = modified_at,
-                    operation = ResChangeOperation.CREATED.toString,
-                    orgId = organization,
-                    public = false.toString,
-                    resource = ResChangeResource.NODE.toString))
+                                    id = node,
+                                    lastUpdated = modified_at,
+                                    operation = ResChangeOperation.CREATED.toString,
+                                    orgId = organization,
+                                    public = false.toString,
+                                    resource = ResChangeResource.NODE.toString))
               
               val session: String = Password.hash(password = s"put$organization$node${identity.resource}${identity.identifier.getOrElse(identity.owner.getOrElse(""))}${modified_at}")
               
@@ -1060,7 +1064,6 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                         nodes.orgid === organization)
                         .filterIf(identity.isStandardUser)(nodes => nodes.owner === identity.identifier)
                         .filterIf(identity.isOrgAdmin)(nodes => nodes.orgid === identity.organization)
-              
               
               val createOrUpdateNode: DBIOAction[(Int, Int, Int, Int, Int, Int), NoStream, Effect with Effect.Read with Effect.Write] =
                 for {
@@ -1199,7 +1202,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                                 reqBody.publicKey.getOrElse(registeredNode.get._2),
                                                 write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
                                                 write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
-                                                (if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else registeredNode.get._3),
+                                                (if (hashedToken.isDefined) hashedToken.get else registeredNode.get._3),
                                                 write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
                       else
                         Compiled(baseNodeQuery.map(nodes =>
@@ -1231,7 +1234,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                                 reqBody.publicKey.getOrElse(registeredNode.get._2),
                                                 write(reqBody.registeredServices.getOrElse(List.empty[RegService]).map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
                                                 write(reqBody.softwareVersions.getOrElse(Map.empty[String, String])),
-                                                (if (reqBody.token.isDefined) Password.hash(reqBody.token.get) else registeredNode.get._3),
+                                                (if (hashedToken.isDefined) hashedToken.get else registeredNode.get._3),
                                                 write(reqBody.userInput.getOrElse(List.empty[OneUserInputService])))
                         
                       
@@ -1337,17 +1340,6 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   case Success(v) => // Check creation/update of node, and other errors
                     Future { logger.debug(s"PUT /orgs/$organization/nodes/$node - result: numNodesCreated: ${v._1}, numNodesInOrg: ${v._2}, numNodesModified: ${v._3}, numNodesOwnedByUser: ${v._4}, numResourceChanges: ${v._5}, orgNodeLimit: ${v._6}") }
                     
-                    val nodeQuotaWarningOrg: Option[Boolean] =
-                      if (v._1 == 1 && v._6 != -1)
-                        Option((v._6 - v._4) <= (v._6 * 0.05))
-                      else
-                        None
-                    val nodeQuotaWarningUser: Option[Boolean] =
-                      if (v._1 == 1 && maximumNumOwnedNodesPerUser != -1)
-                        Option((maximumNumOwnedNodesPerUser - v._4) <= (maximumNumOwnedNodesPerUser * 0.05))
-                      else
-                        None
-                    
                     Future {
                         if (v._1 == 1) {
                           cacheResourceIdentity.put(resource)(value =
@@ -1356,13 +1348,24 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                                                           owner        = identity.identifier,
                                                                           role         = AuthRoles.Node,
                                                                           username     = node),
-                                                                if (reqBody.token.getOrElse("") != "") Password.hash(reqBody.token.get) else ""),
+                                                                if (hashedToken.isDefined) hashedToken.get else ""),
                                                              ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
                           cacheResourceOwnership.put(organization, node, "node")(value = (identity.identifier.get, false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
                         }
                         else
                           cacheResourceIdentity.remove(resource)
                     }
+                    
+                    val nodeQuotaWarningOrg: Option[Boolean] =
+                      if (v._1 == 1 && v._6 != 0)
+                        Option((v._6 - v._4) <= (v._6 * 0.05))
+                      else
+                        None
+                    val nodeQuotaWarningUser: Option[Boolean] =
+                      if (v._1 == 1 && maximumNumOwnedNodesPerUser != 0)
+                        Option((maximumNumOwnedNodesPerUser - v._4) <= (maximumNumOwnedNodesPerUser * 0.05))
+                      else
+                        None
                     
                     if (v._3 == 1)
                       (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))

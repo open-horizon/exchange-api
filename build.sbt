@@ -108,6 +108,7 @@ lazy val root = (project in file("."))
     Docker / version        := sys.env.getOrElse("IMAGE_VERSION", versionFunc()), // overwrite this setting to build a test version of the exchange with a custom tag in docker, defaults to exchange version
     Docker / packageName    := "openhorizon/" ++ name.value,
     Docker / daemonUser     := "exchangeuser",
+    Docker / daemonUserUid  := Some("1001"),
     Docker / daemonGroup    := "exchangegroup",
     Docker / daemonGroupGid := some("1001"),
     dockerExposedPorts     ++= Seq(8080),
@@ -136,7 +137,7 @@ lazy val root = (project in file("."))
                                     Cmd("LABEL", "summary=" ++ summary.value),
                                     Cmd("LABEL", "vendor=" ++ vendor.value),
                                     Cmd("LABEL", "version=" ++ version.value),
-                                    Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs --refresh 1>/dev/null 2>&1 && microdnf install -y --nodocs shadow-utils gettext java-21-openjdk openssl 1>/dev/null 2>&1 && microdnf clean all"),
+                                    Cmd("RUN", "mkdir -p /run/user/" ++ (Docker / daemonUserUid).value.get ++ " && microdnf update -y --nodocs --refresh && microdnf install -y --nodocs shadow-utils gettext java-21-openjdk openssl && microdnf clean all"),
                                     Cmd("USER", "root"),
                                     Cmd("RUN", "id -u " ++ (Docker / daemonUser).value ++ " 1>/dev/null 2>&1 || ((getent group 1001 1>/dev/null 2>&1 || (type groupadd 1>/dev/null 2>&1 && groupadd -g 1001 " ++ (Docker / daemonGroup).value ++ " || addgroup -g 1001 -S " ++ (Docker / daemonGroup).value ++ ")) && (type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 1001 " ++ (Docker / daemonUser).value ++ " || adduser -S -u 1001 -G " ++ (Docker / daemonGroup).value ++ " " ++ (Docker / daemonUser).value ++ "))"),
                                     Cmd("WORKDIR", "/etc/horizon/exchange"),

@@ -120,7 +120,7 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
       db.run(AgbotBusinessPolsTQ.getBusinessPols(resource).result)
         .map({
           list =>
-            logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/businesspols result size: ${list.size}")
+            logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/businesspols - result size: ${list.size}")
             val businessPols: Map[String, AgbotBusinessPol] = list.map(e => e.busPolId -> e.toAgbotBusinessPol).toMap
             val code: StatusCode =
               if (businessPols.nonEmpty)

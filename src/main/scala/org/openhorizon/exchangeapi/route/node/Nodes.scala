@@ -143,7 +143,7 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
                 "clusternamespace".?,
                 "isNamespaceScoped".as[Boolean].?) {
         (idfilter, name, owner, arch, nodetype, clusterNamespace, isNamespaceScoped) =>
-          logger.debug(s"Doing GET /orgs/$organization/nodes - By ${identity.resource}:${identity.role}")
+          logger.debug(s"GET /orgs/$organization/nodes - By ${identity.resource}:${identity.role}")
           
               validateWithMsg(if (nodetype.isDefined && !NodeType.containsString(nodetype.get.toLowerCase))
                                 Option(ExchMsg.translate("invalid.node.type2", NodeType.valuesAsString))

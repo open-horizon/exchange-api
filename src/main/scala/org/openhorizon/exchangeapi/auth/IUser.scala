@@ -27,7 +27,7 @@ case class IUser(creds: Creds,
       if (isMyOrg(target) || target.isPublic) {
         target match {
           case TUser(id, _) => access match { // a user accessing a user
-            case Access.READ => logger.debug(s"authorizeTo(): target id=$id, identity creds.id=${creds.id}")
+            case Access.READ =>
               if (id == creds.id) Access.READ_MYSELF
               // since we are in the section in which identity and target are in the same org, if identity is a hub admin we are viewing the users in the root org. Note: the root user is also an hub admin and org admin.
               else if (isHubAdmin || target.mine) Access.READ_MY_USERS // the routes's getAnyProblem() methods will catch the rest of the hubAdmin cases
@@ -91,7 +91,7 @@ case class IUser(creds: Creds,
         // since we are in the cross-org section, the target will never be itself or root
         target match {
           case TUser(id, _) => access match { // a hub admin accessing a user
-              case Access.READ => logger.debug(s"authorizeTo(): target id=$id, identity creds.id=${creds.id}")
+              case Access.READ =>
                 Access.READ_MY_USERS // the get routes filter out regular users
               case Access.WRITE => Access.WRITE_MY_USERS // we don't know the content of the request body here, routes's getAnyProblem() methods will prevent updating regular users
               case Access.CREATE => Access.CREATE_USER // we don't know the content of the request body here, routes's getAnyProblem() methods will prevent updating regular users

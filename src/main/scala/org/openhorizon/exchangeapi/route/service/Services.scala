@@ -33,7 +33,7 @@ import java.net.{MalformedURLException, URL}
 import java.util.UUID
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration.DurationInt
 import scala.util._
 import scala.util.control.Breaks._
@@ -158,7 +158,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                   @Parameter(hidden = true) organization: String): Route =
     parameter("owner".?, "public".as[Boolean].optional, "url".?, "version".?, "arch".?, "nodetype".?, "requiredurl".?) {
       (owner, public, url, version, arch, nodetype, requiredurl) =>
-        logger.debug(s"GET /orgs/{organization}/services?arch=${arch.getOrElse("None")},nodetype=${nodetype.getOrElse("None")},owner=${owner.getOrElse("None")},public=${"None"},requiredurl=${requiredurl.getOrElse("None")},url=${url.getOrElse("None")},version=${version.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /orgs/${organization}/services?arch=${arch.getOrElse("None")}, nodetype=${nodetype.getOrElse("None")}, owner=${owner.getOrElse("None")}, public=${"None"}, requiredurl=${requiredurl.getOrElse("None")}, url=${url.getOrElse("None")}, version=${version.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         
         validateWithMsg(if (version.isDefined && !Version(version.get).isValid)
                           Option(ExchMsg.translate("version.not.valid.format", version.get))
@@ -326,7 +326,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                    @Parameter(hidden = true) organization: String): Route =
     entity(as[PostPutServiceRequest]) {
       reqBody =>
-        logger.debug(s"POST /orgs/$organization /services - By ${identity.resource}:${identity.role}")
+        Future { logger.debug(s"POST /orgs/$organization/services - By ${identity.resource}(${identity.identifier.getOrElse(identity.owner.getOrElse("None"))}):${identity.role}") }
         validateWithMsg(reqBody.getAnyProblem(organization, null)) {
           complete({
             val service: String = reqBody.formId(organization)
@@ -343,7 +343,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
             
             db.run(svcAction.asTry.flatMap({
               case Success(rows) =>
-                logger.debug("POST /orgs/" + organization + "/services requiredServices validation: " + rows)
+                Future { logger.debug(s"POST /orgs/$organization/services - requiredServices validation: $rows") }
                 var invalidIndex: Int = -1
                 var invalidSvcRef: ServiceRef = ServiceRef("", "", Some(""), Some(""), "")
                 // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
@@ -363,7 +363,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                   }
                 }
                 //logger.error(s"POST /orgs/$organization /services - L380 owner: ${owner.isDefined},    ${owner.getOrElse("None")}")
-                if (invalidIndex < 0) ServicesTQ.getNumOwned(owner.get).result.asTry // we are good, move on to the next step
+                if (invalidIndex < 0) ServicesTQ.getNumOwned(identity.identifier.getOrElse(identity.owner.get)).result.asTry // we are good, move on to the next step
                 else {
                   //else DBIO.failed(new Throwable("the "+Nth(invalidIndex+1)+" referenced service in requiredServices does not exist in the exchange")).asTry
                   val errStr: String = ExchMsg.translate("req.service.not.in.exchange", invalidSvcRef.org, invalidSvcRef.url, invalidSvcRef.version, invalidSvcRef.arch)
@@ -372,7 +372,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
               case Failure(t) => DBIO.failed(t).asTry
             }).flatMap({
               case Success(num) =>
-                logger.debug("POST /orgs/" + organization + "/services num owned by " + owner + ": " + num)
+                Future { logger.debug(s"POST /orgs/$organization/services - number of services owned by $owner: $num") }
                 val numOwned: Int = num
                 val maxServices: Int = Configuration.getConfig.getInt("api.limits.maxServices")
                 if (maxServices == 0 || maxServices >= numOwned) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
@@ -384,16 +384,15 @@ trait Services extends JacksonSupport with AuthenticationSupport {
             }).flatMap({
               case Success(v) =>
                 // Add the resource to the resourcechanges table
-                logger.debug("POST /orgs/" + organization + "/services result: " + v)
+                Future { logger.debug(s"POST /orgs/$organization/services - result: $v") }
                 val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
                 ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, reqBody.public, ResChangeResource.SERVICE, ResChangeOperation.CREATED).insert.asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
               case Success(v) =>
-                logger.debug("POST /orgs/" + organization + "/services added to changes table: " + v)
-                // TODO: if (owner.isEmpty) AuthCache.putServiceOwner(service, owner) // currently only users are allowed to update service resources, so owner should never be blank
-                // TODO: AuthCache.putServiceIsPublic(service, reqBody.public)
-                cacheResourceOwnership.put(organization, service, "service")((identity.identifier.getOrElse(identity.owner.get), reqBody.public), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
+                Future { logger.debug(s"POST /orgs/$organization/services - added to changes table: $v") }
+                
+                Future { cacheResourceOwnership.put(organization, service, "service")((identity.identifier.getOrElse(identity.owner.get), reqBody.public), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) }
                 
                 (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.created", service)))
               case Failure(t: DBProcessingError) =>

@@ -104,7 +104,7 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
        owner,
        label,
        description) =>
-        logger.debug(s"GET /orgs/${organization}/business/policies?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /orgs/${organization}/business/policies?description=${description.getOrElse("None")}, idfilter=${idfilter.getOrElse("None")}, label=${label.getOrElse("None")}, owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         
         val getAllDeployPolicies: Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, String, String, String, String, String, String, String, String, String), String), Seq] =
           for {

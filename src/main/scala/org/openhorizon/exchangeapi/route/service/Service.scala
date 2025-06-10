@@ -227,7 +227,6 @@ trait Service extends JacksonSupport with AuthenticationSupport {
             })
             
             case _ =>
-              logger.debug("I AM RUNNING DOWN HERE!")
               val getService: Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String],
                                       Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String],
                                       Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String],

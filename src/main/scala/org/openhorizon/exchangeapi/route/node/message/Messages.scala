@@ -61,7 +61,7 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
                       @Parameter(hidden = true) resource: String): Route =
     parameter("maxmsgs".?) {
       maxmsgsStrOpt =>
-        logger.debug(s"GET /orgs/{organization}/nodes/{node}/msgs?maxmsgs=${maxmsgsStrOpt.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs?maxmsgs=${maxmsgsStrOpt.getOrElse("None")} - By ${identity.resource}:${identity.role}")
         
         validate(Try(maxmsgsStrOpt.map(_.toInt)).isSuccess, ExchMsg.translate("invalid.int.for.name", maxmsgsStrOpt.getOrElse(""), "maxmsgs")) {
           complete({

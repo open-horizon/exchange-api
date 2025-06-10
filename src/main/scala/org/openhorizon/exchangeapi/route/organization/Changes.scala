@@ -132,14 +132,14 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
     complete({
       // make sure callers obey maxRecords cap set in config, defaults is 10,000
       val maxRecordsCap: Int = Configuration.getConfig.getInt("api.resourceChanges.maxRecordsCap")
-      logger.debug(s"Doing POST /orgs/$organization/changes - maxRecordsCap:            $maxRecordsCap")
+      logger.debug(s"POST /orgs/$organization/changes - maxRecordsCap:            $maxRecordsCap")
       
       val maxRecords: Int =
         if (maxRecordsCap < reqBody.maxRecords)
           maxRecordsCap
         else
           reqBody.maxRecords
-      logger.debug(s"Doing POST /orgs/$organization/changes - maxRecords:               $maxRecords")
+      logger.debug(s"POST /orgs/$organization/changes - maxRecords:               $maxRecords")
       
       val orgList : List[String] =
         if (reqBody.orgList.isDefined)
@@ -150,7 +150,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
             reqBody.orgList.get ++ List(organization)
         else
           List(organization)
-      logger.debug(s"Doing POST /orgs/$organization/changes - organizations to search:  ${orgList.toString()}")
+      logger.debug(s"POST /orgs/$organization/changes - organizations to search:  ${orgList.toString()}")
       
       val orgSet : Set[String] = orgList.toSet
       
@@ -159,7 +159,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
           None
         else
           Option(reqBody.changeId)
-      logger.debug(s"Doing POST /orgs/$organization/changes - changeId to search:       $reqChangeId")
+      logger.debug(s"POST /orgs/$organization/changes - changeId to search:       $reqChangeId")
       
       // Convert strigified timestamp into a Timestamp
       val reqLastUpdate: Option[java.sql.Timestamp] =
@@ -169,7 +169,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
           case (_, Some(_)) => None   // Some(ChangeId), take over timestamp
           case (_, None) => Option(java.sql.Timestamp.from(ZonedDateTime.parse(reqBody.lastUpdated.get).toInstant))  // Some(timestamp)
         }
-      logger.debug(s"Doing POST /orgs/$organization/changes - timestamp to search:      $reqLastUpdate")
+      logger.debug(s"POST /orgs/$organization/changes - timestamp to search:      $reqLastUpdate")
       
       val organizationRestriction: Option[Boolean] =
         if (!(identity.isMultiTenantAgbot ||
@@ -186,17 +186,17 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
       val changesWithAuth: PostgresProfile.api.Query[ResourceChanges, ResourceChangeRow, Seq] =
         identity.role match {
           case AuthRoles.Node =>
-            logger.debug(s"Doing POST /orgs/$organization/changes - User Arch:                Node")
+            logger.debug(s"POST /orgs/$organization/changes - User Arch:                Node")
             allChanges.filter(u => (u.category === "mgmtpolicy") || (u.category === "node" && u.id === identity.username) || (u.category === "service" || u.category === "org"))
           case AuthRoles.Agbot =>
-            logger.debug(s"Doing POST /orgs/$organization/changes - User Arch:                Agbot: " + identity.isMultiTenantAgbot)
+            logger.debug(s"POST /orgs/$organization/changes - User Arch:                Agbot: " + identity.isMultiTenantAgbot)
             allChanges.filterIf(identity.isMultiTenantAgbot && !(orgSet.contains("*") || orgSet.contains("")))(u => (u.orgId inSet orgSet) || ((u.resource === "org") && (u.operation === ResChangeOperation.CREATED.toString)))
                       .filterNot(_.resource === "nodemsgs")
                       .filterNot(_.resource === "nodestatus")
                       .filterNot(u => u.resource === "nodeagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString)
                       .filterNot(u => u.resource === "agbotagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString)
           case _ =>
-            logger.debug(s"Doing POST /orgs/$organization/changes - User Arch:                User")
+            logger.debug(s"POST /orgs/$organization/changes - User Arch:                User")
             allChanges
         }
       
@@ -227,16 +227,16 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
       db.run(changes.transactionally.asTry).map({
         case Success(result) =>
           if (result._1.nonEmpty) {
-            logger.debug(s"Doing POST /orgs/$organization/changes - changes:                  ${result._1.length}")
-            logger.debug(s"Doing POST /orgs/$organization/changes - currentChange:            ${result._2}")
+            logger.debug(s"POST /orgs/$organization/changes - changes:                  ${result._1.length}")
+            logger.debug(s"POST /orgs/$organization/changes - currentChange:            ${result._2}")
             (HttpCode.POST_OK, buildResourceChangesResponse(inputList = result._1,
               hitMaxRecords = (result._1.sizeIs == maxRecords),
               inputChangeId = reqBody.changeId,
               maxChangeIdOfTable = result._2.getOrElse(0)))
           }
           else {
-            logger.debug(s"Doing POST /orgs/$organization/changes - changes:                  0")
-            logger.debug(s"Doing POST /orgs/$organization/changes - currentChange:            ${result._2}")
+            logger.debug(s"POST /orgs/$organization/changes - changes:                  0")
+            logger.debug(s"POST /orgs/$organization/changes - currentChange:            ${result._2}")
             (HttpCode.POST_OK, ResourceChangesRespObject(changes = List[ChangeEntry](),
               mostRecentChangeId = result._2.getOrElse(0),
               hitMaxRecords = false,

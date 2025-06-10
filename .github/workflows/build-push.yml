@@ -121,7 +121,7 @@ jobs:
       ## When creating docker image sbt will ~for some reason~ mark the logs as [error] when it should be [info]
       - name: Docker Build and Publish Local
         run: |
-          sbt docker:publishLocal
+          sbt Docker/publishLocal
 
       # Push Docker images to Dockerhub
       - name: Publish Image to Dockerhub

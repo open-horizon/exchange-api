@@ -21,7 +21,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, E
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/business/policies/{policy}/search")
@@ -105,7 +105,8 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
                                  @Parameter(hidden = true) organization: String,
                                  @Parameter(hidden = true) resource: String,
                                  @Parameter(hidden = true) reqBody: PostBusinessPolicySearchRequest): Route = {
-    logger.debug(s"POST /org/${organization}/business/policies/${deploymentPolicy}/search - By ${identity.resource}:${identity.role}")
+    Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - By ${identity.resource}:${identity.role}") }
+    Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - request-body: ${reqBody.toString}") }
     
     implicit val formats: DefaultFormats.type = DefaultFormats
     val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(organization)).toSet
@@ -292,6 +293,7 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
     complete({
       db.run(pagination.transactionally.asTry).map({
         case Success(results) =>
+          Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - result: ${results._1}") }
           if(results._1.nonEmpty) { // results.nodesWoAgreements.nonEmpty.
             (HttpCode.POST_OK,
               PostBusinessPolicySearchResponse(

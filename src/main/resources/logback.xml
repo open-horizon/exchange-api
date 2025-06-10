@@ -41,7 +41,7 @@
   <!-- <logger name="org.apache.pekko.actor.CoordinatedShutdown"                   level="${log.pekko.actor.coordinatedshutdown:-debug}" />
   <logger name="org.apache.pekko.event.EventStream"                           level="${log.pekko.event.eventstream:-debug}" />
   <logger name="org.apache.pekko.io.TcpListener"                              level="${log.pekko.io.tcplistner:-debug}" /> -->
-  <logger name="scalacache.caffeine.CaffeineCache"                            level="${log.caffeinecache:-debug}"/>
+  <logger name="scalacache.caffeine.CaffeineCache"                            level="${log.caffeinecache:-info}"/>
   <logger name="slick.basic.BasicBackend.action"                              level="${log.action:-info}" />
   <logger name="slick.basic.BasicBackend.stream"                              level="${log.stream:-info}" />
   <logger name="slick.compiler"                                               level="${log.qcomp:-info}" />

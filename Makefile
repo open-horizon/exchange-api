@@ -114,14 +114,14 @@ sync-swagger-ui:
 # Package ---------------------------------------------------------------------
 ## Package - Docker -------------------
 target/docker/stage/Dockerfile:
-	@sbt docker:publishLocal
+	sbt Docker/publishLocal
 
 .PHONY: package-dockerfile
 package-dockerfile: target/docker/stage/Dockerfile
 
 ## Package - Jar ----------------------
 target/scala-$(SCALA_VERSION_SHORT)/amd64_exchange-api_$(SCALA_VERSION_SHORT)-$(VERSION).jar: $(wildcard *.scala) $(wildcard *.java)
-	@sbt stage
+	sbt stage
 
 .PHONY: package-jar
 package-jar: target/scala-$(SCALA_VERSION_SHORT)/amd64_exchange-api_$(SCALA_VERSION_SHORT)-$(VERSION).jar

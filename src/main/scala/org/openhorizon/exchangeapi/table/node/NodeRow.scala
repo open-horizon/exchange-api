@@ -37,7 +37,8 @@ final case class NodeRow(id: String,
            node: String,
            organization: String,
            owner: UUID,
-           request: PutNodesRequest)(implicit defaultFormats: DefaultFormats) =
+           request: PutNodesRequest,
+           token: String)(implicit defaultFormats: DefaultFormats) =
     this(arch = request.arch.get,
          clusterNamespace = request.clusterNamespace,
          heartbeatIntervals = write(request.heartbeatIntervals.get),
@@ -58,7 +59,7 @@ final case class NodeRow(id: String,
          publicKey = request.publicKey.getOrElse(""),
          regServices = write(request.registeredServices.get.map(rs => RegService(rs.url, rs.numAgreements, rs.configState.orElse(Option("active")), rs.policy, rs.properties, rs.version))),
          softwareVersions = write(request.softwareVersions.get),
-         token = Password.hash(request.token.getOrElse("")),
+         token = token,
          userInput = write(request.userInput.get))
 
   def upsert: DBIO[_] = {

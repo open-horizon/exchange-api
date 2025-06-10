@@ -20,7 +20,7 @@ import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.Breaks.{break, breakable}
 import scala.util.{Failure, Success}
 
@@ -97,9 +97,10 @@ trait Search extends JacksonSupport with AuthenticationSupport {
                      @Parameter(hidden = true) resource: String): Route =
     entity(as[PostPatternSearchRequest]) {
       reqBody =>
-        logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/search - By ${identity.resource}:${identity.role}")
+        Future { logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/search - By ${identity.resource}:${identity.role}") }
+        Future { logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/search - request-body: ${reqBody.toString}") }
         
-        validateWithMsg(if(!(reqBody.secondsStale.isEmpty || !(reqBody.secondsStale.get < 0)) && !reqBody.serviceUrl.isEmpty) Some(ExchMsg.translate("bad.input")) else None) {
+        validateWithMsg(if(!(reqBody.secondsStale.isEmpty || !(reqBody.secondsStale.get < 0)) && reqBody.serviceUrl.nonEmpty) Some(ExchMsg.translate("bad.input")) else None) {
           complete({
             val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(organization)).toSet
   //          logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+reqBody.toString)
@@ -191,7 +192,7 @@ trait Search extends JacksonSupport with AuthenticationSupport {
               else DBIO.failed(new Throwable(ExchMsg.translate("pattern.id.not.found", resource))).asTry
             })).map({
               case Success(list) =>
-  //              logger.debug("POST /orgs/" + orgid + "/patterns/" + pattern + "/search result size: " + list.size)
+                Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern/search - result size: " + list.size) }
                 if (list.nonEmpty) {
                   (HttpCode.POST_OK,
                    PostPatternSearchResponse(list

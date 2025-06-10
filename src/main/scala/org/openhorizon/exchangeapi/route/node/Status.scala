@@ -86,7 +86,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
     complete({
       db.run(Compiled(NodeStatusTQ.getNodeStatus(resource)).result).map({
         list =>
-          logger.debug("GET /orgs/"+organization+"/nodes/"+node+"/status result size: "+list.size)
+          logger.debug("GET /orgs/"+organization+"/nodes/"+node+"/status - result size: "+list.size)
           
           if(list.nonEmpty)
             (HttpCode.OK, list.head.toNodeStatus) //response body
@@ -186,12 +186,12 @@ trait Status extends JacksonSupport with AuthenticationSupport {
               db.run(reqBody.toNodeStatusRow(resource).upsert.asTry.flatMap({
                 case Success(v) =>
                   // Add the resource to the resourcechanges table
-                  logger.debug("PUT /orgs/" + organization + "/nodes/" + node + "/status result: " + v)
+                  logger.debug("PUT /orgs/" + organization + "/nodes/" + node + "/status - result: " + v)
                   ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODESTATUS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(v) =>
-                  logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " updating resource status table: " + v)
+                  logger.debug("PUT /orgs/" + organization + "/nodes/" + node + "/status - updating resource status table: " + v)
                   (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("status.added.or.updated")))
                 case Failure(t: org.postgresql.util.PSQLException) =>
                   if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.status.not.inserted.or.updated", resource, t.getMessage)))

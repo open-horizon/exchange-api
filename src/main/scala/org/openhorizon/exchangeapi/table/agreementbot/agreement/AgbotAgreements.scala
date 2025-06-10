@@ -17,4 +17,5 @@ class AgbotAgreements(tag: Tag) extends Table[AgbotAgreementRow](tag, "agbotagre
   def * = (agrId, agbotId, serviceOrgid, servicePattern, serviceUrl, state, lastUpdated, dataLastReceived).<>(AgbotAgreementRow.tupled, AgbotAgreementRow.unapply)
   
   def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def idx_agbot_agree_fk_agbots = index(name = "idx_agbot_agree_fk_agbots", on = agbotId, unique = false)
 }

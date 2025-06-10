@@ -1,9 +1,10 @@
-package org.openhorizon.exchangeapi.route.organization
+package org.openhorizon.exchangeapi.route.search
 
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
 import org.openhorizon.exchangeapi.auth.{Password, Role}
+import org.openhorizon.exchangeapi.route.organization.{PostNodeHealthRequest, PostNodeHealthResponse}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreementRow, NodeAgreementsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
@@ -30,6 +31,8 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ROUTE = "/search/nodehealth"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val ORG1USERPASSWORD = "org1userpassword"
@@ -62,50 +65,37 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
         heartbeatIntervals = ""
     ))
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestPostNodeHealthRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestPostNodeHealthRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/org1user",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org1user@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/org2user",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = Password.hash(ORG2USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org2user@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/org1admin",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1ADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "org1admin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      )
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestPostNodeHealthRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                username     = "org1user"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = Option(Password.hash(ORG2USERPASSWORD)),
+                username     = "org2user"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1ADMINPASSWORD)),
+                username     = "org1admin"))
+  }
+  
   private val TESTNODES: Seq[NodeRow] =
     Seq(
       NodeRow(
@@ -118,7 +108,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username, //org 1 user
+        owner              = TESTUSERS(1).user, //org 1 user
         pattern            = "hasPattern",
         publicKey          = "",
         regServices        = "",
@@ -135,7 +125,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(1).orgId,
-        owner              = TESTUSERS(2).username, //org 2 user
+        owner              = TESTUSERS(2).user, //org 2 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -152,7 +142,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username, //org 1 user
+        owner              = TESTUSERS(1).user, //org 1 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -169,7 +159,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username, //org 1 user
+        owner              = TESTUSERS(1).user, //org 1 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -186,7 +176,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(3).username, //org 1 admin
+        owner              = TESTUSERS(3).user, //org 1 admin
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -203,7 +193,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username, //org 1 user
+        owner              = TESTUSERS(1).user, //org 1 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -218,7 +208,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
       orgid         = TESTORGS(0).orgId,
       token         = Password.hash(AGBOT1TOKEN),
       name          = "",
-      owner         = TESTUSERS(1).username, //org 1 user
+      owner         = TESTUSERS(1).user, //org 1 user
       msgEndPoint   = "",
       lastHeartbeat = ApiTime.nowUTC,
       publicKey     = ""
@@ -228,7 +218,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgid         = TESTORGS(1).orgId,
         token         = Password.hash(AGBOT2TOKEN),
         name          = "",
-        owner         = TESTUSERS(2).username, //org 2 user
+        owner         = TESTUSERS(2).user, //org 2 user
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
@@ -256,14 +246,14 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
   )
 
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
-  private val ORG2USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG2USERPASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
+  private val ORG2USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ORG2USERPASSWORD))
   private val NODE1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODE1TOKEN))
   private val NODE2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(1).id + ":" + NODE2TOKEN))
   private val AGBOT1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOT1TOKEN))
   private val AGBOT2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(1).id + ":" + AGBOT2TOKEN))
-  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(3).username + ":" + ORG1ADMINPASSWORD))
+  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(3).organization + "/" + TESTUSERS(3).username + ":" + ORG1ADMINPASSWORD))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run(
@@ -278,7 +268,8 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testPostNodeHealthRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testPostNodeHealthRoute").delete andThen
-      UsersTQ.filter(_.username startsWith "root/TestPostNodeHealthRouteHubAdmin").delete), AWAITDURATION)
+      UsersTQ.filter(_.organization === "root")
+             .filter(_.username startsWith "TestPostNodeHealthRouteHubAdmin").delete), AWAITDURATION)
   }
 
   private val oneMinuteAgo: PostNodeHealthRequest = PostNodeHealthRequest(ApiTime.pastUTC(60), None) //not sure what nodeOrgIds is for... it is never referenced in the Route

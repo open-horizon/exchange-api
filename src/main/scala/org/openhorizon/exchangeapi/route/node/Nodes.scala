@@ -13,10 +13,12 @@ import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import jakarta.ws.rs.{GET, Path}
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization.read
-import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
 import org.openhorizon.exchangeapi.table.node.{Node, NodeHeartbeatIntervals, NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
+import org.openhorizon.exchangeapi.table.user.UsersTQ
+import org.openhorizon.exchangeapi.utility.{ExchMsg, StrConstants}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Rep
 
@@ -130,7 +132,8 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "node")
-  def getNodes(@Parameter(hidden = true) organization: String): Route =
+  def getNodes(@Parameter(hidden = true) identity: Identity2,
+               @Parameter(hidden = true) organization: String): Route =
     get {
       parameter("idfilter".?,
                 "name".?,
@@ -140,12 +143,14 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
                 "clusternamespace".?,
                 "isNamespaceScoped".as[Boolean].?) {
         (idfilter, name, owner, arch, nodetype, clusterNamespace, isNamespaceScoped) =>
-          logger.debug(s"Doing GET /orgs/$organization/nodes")
-          exchAuth(TNode(OrgAndId(organization, "#").toString), Access.READ) {
-            ident =>
-              validateWithMsg(GetNodesUtils.getNodesProblem(nodetype)) {
+          logger.debug(s"GET /orgs/$organization/nodes - By ${identity.resource}:${identity.role}")
+          
+              validateWithMsg(if (nodetype.isDefined && !NodeType.containsString(nodetype.get.toLowerCase))
+                                Option(ExchMsg.translate("invalid.node.type2", NodeType.valuesAsString))
+                              else
+                                None) {
                 complete({
-                  logger.debug(s"GET /orgs/$organization/nodes identity: ${ident.creds.id}") // can't display the whole ident object, because that contains the pw/token
+                  logger.debug(s"GET /orgs/$organization/nodes - By ${identity.resource}:${identity.role}") // can't display the whole ident object, because that contains the pw/token
                   implicit val jsonFormats: Formats = DefaultFormats
                   
                   val nodes =
@@ -157,34 +162,31 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
                       .filterOpt(name)((node, name) => node.name like name)
                       .filterIf(nodetype.isDefined && "cluster" == nodetype.get.toLowerCase())(_.nodeType === "cluster")
                       .filterIf(nodetype.isDefined && "device|".r.matches(nodetype.get.toLowerCase()))(_.nodeType inSet Set("", "device"))
-                      .filterIf(owner.isDefined && (ident.isAdmin || ident.role.equals(AuthRoles.Agbot)))(_.owner like owner.get)
-                      .filterIf(!ident.isAdmin && !ident.role.equals(AuthRoles.Agbot))(_.owner === ident.identityString)
-                      .filterIf(ident.role.equals(AuthRoles.Node))(_.id === ident.identityString)
-                      .map(node =>
-                            (node.arch,
-                             node.clusterNamespace,
-                             node.heartbeatIntervals,
-                             node.id,
-                             node.isNamespaceScoped,
-                             node.lastHeartbeat,
-                             node.lastUpdated,
-                             node.msgEndPoint,
-                             node.name,
-                             node.nodeType,
-                             node.owner,
-                             node.pattern,
-                             node.publicKey,
-                             node.regServices,
-                             node.softwareVersions,
-                             node.owner.toString() != ident.identityString match {
-                               case true => node.id.substring(0, 0) ++ "***************"  // Do NOT query the Token
-                               case _ => node.token
-                             },
-                             // (if (node.owner != ident.identityString)
-                             //  node.id.substring(0, 0) ++ "***************"  // Do NOT query the Token
-                             // else
-                             //  node.token),
-                             node.userInput))
+                      
+                      .filterIf(identity.isStandardUser)(_.owner === identity.identifier)
+                      .filterIf(identity.isOrgAdmin || (identity.isAgbot && !identity.isMultiTenantAgbot))(_.orgid === identity.organization)
+                      .filterIf(identity.isNode)(_.id === identity.resource)
+                      .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                      .on(_.owner === _._2)
+                      .filterIf(owner.isDefined && (identity.isOrgAdmin || identity.isAgbot))(nodes => ((nodes._2._1 ++ "/" ++ nodes._2._3) like owner.getOrElse("")))
+                      .map(nodes =>
+                            (nodes._1.arch,
+                             nodes._1.clusterNamespace,
+                             nodes._1.heartbeatIntervals,
+                             nodes._1.id,
+                             nodes._1.isNamespaceScoped,
+                             nodes._1.lastHeartbeat,
+                             nodes._1.lastUpdated,
+                             nodes._1.msgEndPoint,
+                             nodes._1.name,
+                             nodes._1.nodeType,
+                             (nodes._2._1 ++ "/" ++ nodes._2._3),
+                             nodes._1.pattern,
+                             nodes._1.publicKey,
+                             nodes._1.regServices,
+                             nodes._1.softwareVersions,
+                             StrConstants.hiddenPw,
+                             nodes._1.userInput))
                   
                   val filteredNodes =
                     for {
@@ -214,7 +216,7 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
                   
                   db.run(Compiled(filteredNodes).result.transactionally).map({
                     result =>
-                      logger.debug(s"GET /orgs/$organization/nodes result size: ${result.size}")
+                      logger.debug(s"GET /orgs/$organization/nodes - result size: ${result.size}")
                       val nodes: Map[String, Node] =
                         result.map(result =>
                           result._1 -> new Node(node = result._2)).toMap
@@ -225,12 +227,14 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
                 }) // end of complete
               }
           } // end of exchAuth
-      }
     }
   
-  def nodes: Route =
+  def nodes(identity: Identity2): Route =
     path("orgs" / Segment / "nodes") {
       organization =>
-        getNodes(organization)
+        exchAuth(TNode(OrgAndId(organization, "#").toString, None), Access.READ, validIdentity = identity) {
+          _ =>
+            getNodes(identity, organization)
+        }
     }
 }

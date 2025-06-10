@@ -5,6 +5,8 @@ import org.openhorizon.exchangeapi.table.agreementbot.AgbotRow
 import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
+
 /** Input format for PUT /orgs/{organization}/agbots/<agbot-id> */
 final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Option[String], publicKey: String) {
   require(token!=null && name!=null && publicKey!=null)
@@ -19,8 +21,8 @@ final case class PutAgbotsRequest(token: String, name: String, msgEndPoint: Opti
   }
 
   /** Get the db queries to insert or update the agbot */
-  def getDbUpsert(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).upsert
+  def getDbUpsert(id: String, orgid: String, owner: UUID, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).upsert
 
   /** Get the db queries to update the agbot */
-  def getDbUpdate(id: String, orgid: String, owner: String, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner, msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).update
+  def getDbUpdate(id: String, orgid: String, hashedTok: String): DBIO[_] = AgbotRow(id, orgid, hashedTok, name, owner = UUID.randomUUID(), msgEndPoint.getOrElse(""), ApiTime.nowUTC, publicKey).update
 }

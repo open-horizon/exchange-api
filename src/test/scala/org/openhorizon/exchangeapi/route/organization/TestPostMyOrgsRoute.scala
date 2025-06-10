@@ -28,6 +28,8 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/myorgs"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val USERPASSWORD = "userpassword"
@@ -85,44 +87,34 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
       )
     )
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestPostMyOrgsRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestPostMyOrgsRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/TestPostMyOrgsRouteUser",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "TestPostMyOrgsRouteUser@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/TestPostMyOrgsRouteAdmin",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "TestPostMyOrgsRouteAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      )
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestPostMyOrgsRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(USERPASSWORD)),
+                username     = "TestPostMyOrgsRouteUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ADMINPASSWORD)),
+                username     = "TestPostMyOrgsRouteAdmin"))
+  }
+  
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USERPASSWORD))
-  private val ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ADMINPASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + USERPASSWORD))
+  private val ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ADMINPASSWORD))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run(
@@ -134,7 +126,8 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostMyOrgsRouteOrg").delete andThen
       OrgsTQ.filter(_.orgid startsWith "TestPostMyOrgsRouteOrg").delete andThen
-      UsersTQ.filter(_.username startsWith "root/TestPostMyOrgsRouteHubAdmin").delete), AWAITDURATION)
+      UsersTQ.filter(_.organization === "root")
+             .filter(_.username startsWith "TestPostMyOrgsRouteHubAdmin").delete), AWAITDURATION)
   }
 
   def assertOrgsEqual(org1: Org, org2: OrgRow): Unit = {

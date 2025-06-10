@@ -1,18 +1,19 @@
 package org.openhorizon.exchangeapi
 
-import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
+import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configuration, DropDatabase, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import org.apache.pekko.event.Logging.Info
 import org.apache.pekko.http.scaladsl.model.headers.LinkParams.title
 import org.apache.pekko.http.scaladsl.server.{Directives, Route}
 import com.github.swagger.pekko.SwaggerHttpService
 import com.github.swagger.pekko.model.{Info, License}
-import org.openhorizon.exchangeapi.route.administration.{DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
+import org.openhorizon.exchangeapi.route.administration.{DropDatabase, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
 import io.swagger.v3.oas.models.ExternalDocumentation
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
-import org.openhorizon.exchangeapi.route.agreement.Confirm
-import org.openhorizon.exchangeapi.route.agreementbot.{Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
-import org.openhorizon.exchangeapi.route.catalog.{OrganizationDeploymentPatterns, OrganizationServices}
+import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements, Confirm}
+import org.openhorizon.exchangeapi.route.agreementbot.message.{Message, Messages}
+import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat}
+//import org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns
 import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
 import org.openhorizon.exchangeapi.route.managementpolicy.{ManagementPolicies, ManagementPolicy}
@@ -42,28 +43,27 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[org.openhorizon.exchangeapi.route.administration.Configuration],
         classOf[org.openhorizon.exchangeapi.route.administration.DropDatabase],
         classOf[org.openhorizon.exchangeapi.route.administration.dropdatabase.Token],
-        classOf[org.openhorizon.exchangeapi.route.administration.HashPassword],
         classOf[org.openhorizon.exchangeapi.route.administration.InitializeDatabase],
         classOf[org.openhorizon.exchangeapi.route.administration.OrganizationStatus],
         classOf[org.openhorizon.exchangeapi.route.administration.Reload],
         classOf[org.openhorizon.exchangeapi.route.administration.Status],
         classOf[org.openhorizon.exchangeapi.route.administration.Version],
         classOf[org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement],
-        classOf[org.openhorizon.exchangeapi.route.agreement.Confirm],
-        classOf[org.openhorizon.exchangeapi.route.agreementbot.Agreement],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.agreement.Confirm],
+        classOf[Agreement],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.AgreementBot],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.AgreementBots],
-        classOf[org.openhorizon.exchangeapi.route.agreementbot.Agreements],
+        classOf[Agreements],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPattern],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPatterns],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPolicies],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPolicy],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.Heartbeat],
-        classOf[org.openhorizon.exchangeapi.route.agreementbot.Message],
-        classOf[org.openhorizon.exchangeapi.route.agreementbot.Messages],
+        classOf[Message],
+        classOf[Messages],
         classOf[org.openhorizon.exchangeapi.route.catalog.DeploymentPatterns],
-        classOf[org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns],
-        classOf[org.openhorizon.exchangeapi.route.catalog.OrganizationServices],
+        //classOf[org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns],
+        // classOf[org.openhorizon.exchangeapi.route.catalog.OrganizationServices],
         classOf[org.openhorizon.exchangeapi.route.catalog.Services],
         classOf[org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPattern],
         classOf[org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPatterns],

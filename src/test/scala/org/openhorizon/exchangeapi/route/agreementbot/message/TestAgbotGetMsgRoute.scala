@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.agreementbot
+package org.openhorizon.exchangeapi.route.agreementbot.message
 
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
@@ -30,13 +30,23 @@ class TestAgbotGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
+  private val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestAgbotGetMsgRoute",
+                password     = None,
+                username     = "u1"))
   private val TESTAGBOT: AgbotRow =
     AgbotRow(id            = "TestAgbotGetMsgRoute/a1",
              lastHeartbeat = ApiTime.nowUTC,
              msgEndPoint   = "",
              name          = "",
              orgid         = "TestAgbotGetMsgRoute",
-             owner         = "TestAgbotGetMsgRoute/u1",
+             owner         = TESTUSERS(0).user,
              publicKey     = "",
              token         = "")
   private val TESTAGBOTMESSAGES: Seq[AgbotMsgRow] =
@@ -57,7 +67,7 @@ class TestAgbotGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "",
                 nodeType           = "",
                 orgid              = "TestAgbotGetMsgRoute",
-                owner              = "TestAgbotGetMsgRoute/u1",
+                owner              = TESTUSERS(0).user,
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -73,15 +83,6 @@ class TestAgbotGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
                orgId              = "TestAgbotGetMsgRoute",
                orgType            = "",
                tags               = None))
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = false,
-                email       = "",
-                hashedPw    = "",
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestAgbotGetMsgRoute",
-                updatedBy   = "",
-                username    = "TestAgbotGetMsgRoute/u1"))
   
   
   override def beforeAll(): Unit = {

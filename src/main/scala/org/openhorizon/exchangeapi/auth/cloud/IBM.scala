@@ -1,23 +1,21 @@
 package org.openhorizon.exchangeapi.auth.cloud
 
-import com.google.common.cache
-import com.google.common.cache.CacheBuilder
+
 import org.apache.pekko.event.LoggingAdapter
 import org.json4s._
 import org.json4s.jackson.JsonMethods._
 import org.openhorizon.exchangeapi.ExchangeApi
 import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.user
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, ExchMsg, HttpCode}
-import scalacache._
-import scalacache.guava.GuavaCache
-import scalacache.modes.try_._
 import scalaj.http._
 
 import java.io.{BufferedInputStream, File, FileInputStream}
 import java.security.KeyStore
 import java.security.cert.{Certificate, CertificateFactory}
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 import javax.net.ssl.{SSLContext, SSLSocketFactory, TrustManagerFactory}
 import javax.security.auth._
@@ -56,7 +54,7 @@ final case class IamAccountInfo(id: String, name: String, description: String, c
 
 //case class TokenAccountResponse(id: String, name: String, description: String)
 //s"ICP IAM authentication succeeded, but the org specified in the request ($requestOrg) does not match the org associated with the ICP credentials ($userCredsOrg)"
-
+/*
 /**
  * JAAS module to authenticate to the IBM cloud. Called from AuthenticationSupport:authenticate() because JAAS.config references this module.
  */
@@ -105,7 +103,7 @@ class IbmCloudModule extends LoginModule with AuthorizationSupport {
           key <- extractApiKey(reqInfo, Option(reqInfo.hint)) // this will bail out of the outer for loop if the user isn't iamapikey or iamapitoken
           username <- IbmCloudAuth.authenticateUser(key, Option(reqInfo.hint))
         } yield {
-          val user: IUser = IUser(Creds(username, ""))
+          val user: IUser = IUser(Creds(username, ""), Identity2(identifier = None, organization = "", owner = None, role = AuthRoles.User, username = username))
           //logger.info("IBM User " + user.creds.id + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
           if (reqInfo.isDbMigration && !Role.isSuperUser(user.creds.id)) throw new IsDbMigrationException()
           identity = user // so when the user is authenticating via apikey, we can know the associated username
@@ -162,11 +160,11 @@ object IbmCloudAuth {
 
   def logger: LoggingAdapter = ExchangeApi.defaultLogger
 
-  private val guavaCache: cache.Cache[String, Entry[String]] = CacheBuilder.newBuilder()
+  private val guavaCache: caffeine.cache.Cache[String, Entry[String]] = Caffeine.newBuilder()
                                                                            .maximumSize(Configuration.getConfig.getInt("api.cache.IAMusersMaxSize"))
                                                                            .expireAfterWrite(Configuration.getConfig.getInt("api.cache.IAMusersTtlSeconds"), TimeUnit.SECONDS)
                                                                            .build[String, Entry[String]] // the cache key is <org>/<keytype>:<apikey> (where keytype is iamapikey or iamtoken), and the value is <org>/<username>
-  implicit val userCache: GuavaCache[String] = GuavaCache(guavaCache) // the effect of this is that these methods don't need to be qualified
+  implicit val userCache: CaffeineCache[String] = CaffeineCache(guavaCache) // the effect of this is that these methods don't need to be qualified
 
   // Called by ExchangeApiApp after db is established and upgraded
   def init(db: Database): Unit = {
@@ -279,7 +277,7 @@ object IbmCloudAuth {
         userAction <- {
           logger.debug(s"userRow: $userRow")
           if (userRow.isEmpty) createUser(orgId, userInfo)
-          else if(userRow.get.orgid == "root" && !userRow.get.hubAdmin) DBIO.failed(new InvalidCredentialsException(ExchMsg.translate("user.cannot.be.in.root.org"))) // only need to check hubadmin field because the root user is by default a hubadmin and org admins are not in the root org
+          else if(userRow.get.organization == "root" && !userRow.get.isHubAdmin) DBIO.failed(new InvalidCredentialsException(ExchMsg.translate("user.cannot.be.in.root.org"))) // only need to check hubadmin field because the root user is by default a hubadmin and org admins are not in the root org
           else DBIO.successful(Success(userRow.get)) // to produce error case below, instead use: createUser(orgId, userInfo)
         }
         // This is to just handle errors from createUser
@@ -287,10 +285,21 @@ object IbmCloudAuth {
           case Success(v) => DBIO.successful(Success(v))
           case Failure(t) =>
             if (t.getMessage.contains("duplicate key")) {
+              val timestamp = ApiTime.nowUTCTimestamp
               // This is the case in which between the call to fetchUser and createUser another client created the user, so this is a duplicate that is not needed.
               // Instead of returning an error just create an artificial response in which the username is correct (that's the only field used from this).
               // (We don't want to do an upsert in createUser in case the user has changed it since it was created, e.g. set admin true)
-              DBIO.successful(Success(UserRow(authInfo.org + "/" + userInfo.user, "", "", admin = false, hubAdmin = false, "", "", "")))
+              DBIO.successful(Success(
+                UserRow(createdAt = timestamp,
+                        email = None,
+                        identityProvider = "IBM Cloud",
+                        modifiedAt = timestamp,
+                        modified_by = None,
+                        organization = authInfo.org,
+                        password = None,
+                        user = UUID.randomUUID(),
+                        username = userInfo.user)
+              ))
             } else {
               DBIO.failed(new UserCreateException(ExchMsg.translate("error.creating.user", authInfo.org, userInfo.user, t.getMessage)))
 
@@ -302,7 +311,18 @@ object IbmCloudAuth {
       try {
         //logger.debug("awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+"...")
         if (hint.getOrElse("") == "exchangeNoOrgForMultLogin") {
-          Success(UserRow(userInfo.user, "", "", admin = false, hubAdmin = false, "", "", ""))
+          val timestamp = ApiTime.nowUTCTimestamp
+          Success(
+            UserRow(createdAt = timestamp,
+                    email = None,
+                    identityProvider = "IBM Cloud",
+                    modifiedAt = timestamp,
+                    modified_by = None,
+                    organization = authInfo.org,
+                    password = None,
+                    user = UUID.randomUUID(),
+                    username = userInfo.user))
+            //UserRow(userInfo.user, "", "", admin = false, hubAdmin = false, "", "", ""))
         } else Await.result(db.run(userQuery.transactionally), Duration(Configuration.getConfig.getInt("api.cache.authDbTimeoutSeconds"), SECONDS))
         //logger.debug("...back from awaiting for DB query of ibm cloud creds for "+authInfo.org+"/"+userInfo.user+".")
       } catch {
@@ -349,7 +369,8 @@ object IbmCloudAuth {
   private def fetchUser(org: String, userInfo: IamUserInfo) = {
     logger.debug("Fetching user: org=" + org + ", " + userInfo)
     UsersTQ
-      .filter(u => u.orgid === org && u.username === s"$org/${userInfo.user}")
+      .filter(u => u.organization === org &&
+                   u.username === userInfo.user)
       //.take(1)  // not sure what the purpose of this was
       .result
       .headOption
@@ -358,15 +379,17 @@ object IbmCloudAuth {
   private def createUser(org: String, userInfo: IamUserInfo) = {
     if(org != null) {
       logger.debug("Creating user: org=" + org + ", " + userInfo)
+      val timestamp = ApiTime.nowUTCTimestamp
       val user: UserRow =
-        UserRow(username = s"$org/${userInfo.user}",
-                orgid = org,
-                hashedPw = "",
-                admin = false,
-                hubAdmin = false,
-                email = userInfo.user,
-                lastUpdated = ApiTime.nowUTC,
-                updatedBy = s"$org/${userInfo.user}")
+        UserRow(createdAt = timestamp,
+                email = None,
+                identityProvider = "IBM Cloud",
+                modifiedAt = timestamp,
+                modified_by = None,
+                organization = org,
+                password = None,
+                user = UUID.randomUUID(),
+                username = userInfo.user)
       (UsersTQ += user).asTry.map(count => count.map(_ => user))
     } else {
       logger.debug("ibmcloudmodule not creating user")
@@ -385,4 +408,4 @@ object IbmCloudAuth {
       case _ => ("", compositeId)
     }
   }
-}
+}*/

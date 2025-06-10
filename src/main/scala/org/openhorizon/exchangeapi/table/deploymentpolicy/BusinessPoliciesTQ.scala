@@ -9,6 +9,7 @@ import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 
+import java.util.UUID
 import scala.collection.mutable.ListBuffer
 
 // Instance to access the businesspolicies table
@@ -48,8 +49,8 @@ object BusinessPoliciesTQ extends TableQuery(new BusinessPolicies(_)) {
   def getDescription(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.description)
   def getLabel(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.label)
   def getLastUpdated(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.lastUpdated)
-  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
-  def getOwner(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.owner)
+  def getNumOwned(owner: UUID): Rep[Int] = this.filter(_.owner === owner).length
+  def getOwner(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.owner.toString())
   def getSecretBindings(businessPolicy: String): Query[Rep[String],String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.secretBinding)
   def getService(businessPolicy: String): Query[Rep[String], String, Seq] = this.filter(_.businessPolicy === businessPolicy).map(_.service)
   def getServiceFromString(service: String): BService = read[BService](service)

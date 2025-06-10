@@ -26,6 +26,8 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val USERPASSWORD = "userpassword"
@@ -61,46 +63,37 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
             |""".stripMargin
         ))))
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestDeleteOrgRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestDeleteOrgRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/TestDeleteOrgRouteUser",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "TestDeleteOrgRouteUser@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/TestDeleteOrgRouteOrgAdmin",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORGADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "TestDeleteOrgRouteOrgAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ))
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestDeleteOrgRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(USERPASSWORD)),
+                username     = "TestDeleteOrgRouteUser"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORGADMINPASSWORD)),
+                username     = "TestDeleteOrgRouteOrgAdmin"))
+  }
+  
   private val TESTAGBOTS: Seq[AgbotRow] =
     Seq(AgbotRow(
       id            = TESTORGS(0).orgId + "/a1",
       orgid         = TESTORGS(0).orgId,
       token         = "",
       name          = "testAgbot",
-      owner         = TESTUSERS(1).username,
+      owner         = TESTUSERS(1).user,
       msgEndPoint   = "",
       lastHeartbeat = ApiTime.nowUTC,
       publicKey     = ""
@@ -118,7 +111,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username,
+        owner              = TESTUSERS(1).user,
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -127,9 +120,9 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
         userInput          = ""))
 
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + USERPASSWORD))
-  private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORGADMINPASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode((TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD)))
+  private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode((TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + USERPASSWORD)))
+  private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode((TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ORGADMINPASSWORD)))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run(UsersTQ += TESTUSERS(0)), AWAITDURATION) //add hub admin
@@ -141,7 +134,8 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
       ResourceChangesTQ.filter(_.orgId startsWith "testDeleteOrgRoute").delete andThen
       OrgsTQ.insertOrUpdate(TESTORGS(0)) andThen //can't do "insertOrUpdateAll", so do them individually
       UsersTQ.insertOrUpdate(TESTUSERS(1)) andThen
-      UsersTQ.insertOrUpdate(TESTUSERS(2)) andThen
+      UsersTQ.filter(_.user === TESTUSERS(2).user).update(TESTUSERS(2)) andThen
+      (UsersTQ += TESTUSERS(2)) andFinally
       AgbotsTQ.insertOrUpdate(TESTAGBOTS(0)) andThen
       NodesTQ.insertOrUpdate(TESTNODES(0))
       ), AWAITDURATION
@@ -151,12 +145,13 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testDeleteOrgRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testDeleteOrgRoute").delete andThen
-      UsersTQ.filter(_.username startsWith "root/TestDeleteOrgRouteHubAdmin").delete), AWAITDURATION)
+      UsersTQ.filter(_.organization === "root")
+             .filter(_.username startsWith "TestDeleteOrgRouteHubAdmin").delete), AWAITDURATION)
   }
 
   def assertDbClear(orgId: String): Unit = {
     assert(Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure org is gone
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure users are gone
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.organization === orgId).result), AWAITDURATION).isEmpty) //insure users are gone
     assert(Await.result(DBCONNECTION.run(NodesTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure nodes are gone
     assert(Await.result(DBCONNECTION.run(AgbotsTQ.filter(_.orgid === orgId).result), AWAITDURATION).isEmpty) //insure agbots are gone
   }

@@ -12,16 +12,20 @@ import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, POST, Path}
 import org.checkerframework.checker.units.qual.t
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.{AgbotPattern, AgbotPatternsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
-import org.openhorizon.exchangeapi.table
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.{ExchangeApiApp, table}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/agbots/{agreementbot}/patterns/{deploymentpattern}")
@@ -49,8 +53,10 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
   private def deleteDeploymentPattern(@Parameter(hidden = true) agreementBot: String,
                                       @Parameter(hidden = true) deploymentPattern: String,
+                                      @Parameter(hidden = true) identity: Identity2,
                                       @Parameter(hidden = true) organization: String,
                                       @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - By ${identity.resource}:${identity.role}")
     complete({
       db.run(AgbotPatternsTQ.getPattern(resource, deploymentPattern)
                             .delete
@@ -109,8 +115,10 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
   private def getDeploymentPattern(@Parameter(hidden = true) agreementBot: String,
                                    @Parameter(hidden = true) deploymentPattern: String,
+                                   @Parameter(hidden = true) identity: Identity2,
                                    @Parameter(hidden = true) organization: String,
                                    @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - By ${identity.resource}:${identity.role}")
     complete({
       db.run(AgbotPatternsTQ.getPattern(resource, deploymentPattern).result).map({
         list =>
@@ -127,24 +135,35 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   }
   
   
-  val deploymentPatternAgreementBot: Route =
+  def deploymentPatternAgreementBot(identity: Identity2): Route =
     path("orgs" / Segment / "agbots" / Segment / "patterns" / Segment) {
       (organization,
        agreementBot,
        deploymentPattern) =>
         val resource: String = OrgAndId(organization, agreementBot).toString
+        val resource_type = "agreement_bot"
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, agreementBot, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
+          }
         
-        get {
-          exchAuth(TAgbot(resource), Access.READ) {
-            _ =>
-              getDeploymentPattern(agreementBot, deploymentPattern, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          get {
+            exchAuth(TAgbot(resource, owningResourceIdentity), Access.READ, validIdentity = identity) {
+              _ =>
+                getDeploymentPattern(agreementBot, deploymentPattern, identity, organization, resource)
+            }
+          } ~
+          delete {
+            exchAuth(TAgbot(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteDeploymentPattern(agreementBot, deploymentPattern, identity, organization, resource)
+            }
           }
-        } ~
-        delete {
-          exchAuth(TAgbot(resource), Access.WRITE) {
-            _ =>
-              deleteDeploymentPattern(agreementBot, deploymentPattern, organization, resource)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

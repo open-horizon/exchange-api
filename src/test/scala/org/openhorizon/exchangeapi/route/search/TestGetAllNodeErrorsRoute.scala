@@ -1,11 +1,12 @@
-package org.openhorizon.exchangeapi.route.organization
+package org.openhorizon.exchangeapi.route.search
 
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
+import org.openhorizon.exchangeapi.route.organization.{AllNodeErrorsInOrgResp, NodeErrorsResp}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
-import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.error.{NodeErrorRow, NodeErrorTQ}
+import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
@@ -14,10 +15,10 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
+import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
-import slick.jdbc.PostgresProfile.api._
 
 class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
 
@@ -28,6 +29,8 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ROUTE = "/search/nodes/error/all"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val ORG1USERPASSWORD = "org1userpassword"
@@ -61,59 +64,44 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
         tags               = None
       ))
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestGetAllNodeErrorsRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestGetAllNodeErrorsRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/org1user",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org1user@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/org1admin",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORG1ADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "org1admin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/org2user",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = Password.hash(ORG2USERPASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "org2user@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/org2admin",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = Password.hash(ORG2ADMINPASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "org2uadmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root"
-      ))
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestGetAllNodeErrorsRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1USERPASSWORD)),
+                username     = "org1user"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORG1ADMINPASSWORD)),
+                username     = "org1admin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = Option(Password.hash(ORG2USERPASSWORD)),
+                username     = "org2user"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = Option(Password.hash(ORG2ADMINPASSWORD)),
+                username     = "org2admin"))
+  }
+  
   private val TESTNODES: Seq[NodeRow] =
     Seq(
       NodeRow(
@@ -126,7 +114,7 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username, //org 1 user
+        owner              = TESTUSERS(1).user, //org 1 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -143,7 +131,7 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(1).orgId,
-        owner              = TESTUSERS(3).username, //org 2 user
+        owner              = TESTUSERS(3).user, //org 2 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -160,7 +148,7 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(1).username, //org 1 user
+        owner              = TESTUSERS(1).user, //org 1 user
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -177,7 +165,7 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(2).username, //org 1 admin
+        owner              = TESTUSERS(2).user, //org 1 admin
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -194,7 +182,7 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
         name               = "",
         nodeType           = "",
         orgid              = TESTORGS(0).orgId,
-        owner              = TESTUSERS(2).username, //org 1 admin
+        owner              = TESTUSERS(2).user, //org 1 admin
         pattern            = "",
         publicKey          = "",
         regServices        = "",
@@ -208,7 +196,7 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
       orgid         = TESTORGS(0).orgId,
       token         = Password.hash(AGBOT1TOKEN),
       name          = "",
-      owner         = TESTUSERS(1).username, //org 1 user
+      owner         = TESTUSERS(1).user, //org 1 user
       msgEndPoint   = "",
       lastHeartbeat = ApiTime.nowUTC,
       publicKey     = ""
@@ -218,18 +206,18 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
         orgid         = TESTORGS(1).orgId,
         token         = Password.hash(AGBOT2TOKEN),
         name          = "",
-        owner         = TESTUSERS(3).username, //org 2 user
+        owner         = TESTUSERS(3).user, //org 2 user
         msgEndPoint   = "",
         lastHeartbeat = ApiTime.nowUTC,
         publicKey     = ""
       ))
 
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
-  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORG1ADMINPASSWORD))
-  private val ORG2USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(3).username + ":" + ORG2USERPASSWORD))
-  private val ORG2ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(4).username + ":" + ORG2ADMINPASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORG1USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORG1USERPASSWORD))
+  private val ORG1ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ORG1ADMINPASSWORD))
+  private val ORG2USERAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(3).organization + "/" + TESTUSERS(3).username + ":" + ORG2USERPASSWORD))
+  private val ORG2ADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(4).organization + "/" + TESTUSERS(4).username + ":" + ORG2ADMINPASSWORD))
   private val NODE1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(0).id + ":" + NODE1TOKEN))
   private val NODE2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTNODES(1).id + ":" + NODE2TOKEN))
   private val AGBOT1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTAGBOTS(0).id + ":" + AGBOT1TOKEN))
@@ -261,7 +249,8 @@ class TestGetAllNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "testGetAllNodeErrorsRoute").delete andThen
       OrgsTQ.filter(_.orgid startsWith "testGetAllNodeErrorsRoute").delete andThen
-      UsersTQ.filter(_.username startsWith "root/TestGetAllNodeErrorsRouteHubAdmin").delete), AWAITDURATION)
+      UsersTQ.filter(_.organization === "root")
+             .filter(_.username startsWith "TestGetAllNodeErrorsRouteHubAdmin").delete), AWAITDURATION)
   }
 
   def assertErrorsEqual(error1: NodeErrorsResp, error2: NodeErrorRow): Unit = {

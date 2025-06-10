@@ -6,13 +6,13 @@
 
 package org.openhorizon.exchangeapi
 
+import com.github.benmanes.caffeine.cache
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
-import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configuration, DropDatabase, HashPassword, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
-import org.openhorizon.exchangeapi.route.agreement.Confirm
-import org.openhorizon.exchangeapi.route.agreementbot.{Agreement, AgreementBot, AgreementBots, Agreements, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat, Message, Messages}
+import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configuration, DropDatabase, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
+import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat}
 import org.openhorizon.exchangeapi.table
 import org.openhorizon.exchangeapi.table.{ExchangeApiTables, ExchangePostgresProfile}
 import com.typesafe.config.{ConfigFactory, ConfigParseOptions, ConfigSyntax, ConfigValue}
@@ -21,21 +21,26 @@ import org.apache.pekko.Done
 import org.apache.pekko.actor.{Actor, ActorRef, ActorSystem, CoordinatedShutdown, Props, Timers}
 import org.apache.pekko.event.{Logging, LoggingAdapter}
 import org.apache.pekko.http.cors.scaladsl.CorsDirectives._
+import org.apache.pekko.http.cors.scaladsl.CorsRejection
 import org.apache.pekko.http.javadsl.model.HttpHeader
+import org.apache.pekko.http.javadsl.server.CustomRejection
 import org.apache.pekko.http.scaladsl.{ConnectionContext, Http}
 import org.apache.pekko.http.scaladsl.model.{HttpRequest, StatusCodes}
 import org.apache.pekko.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `must-revalidate`, `no-cache`, `no-store`}
 import org.apache.pekko.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
-import org.apache.pekko.http.scaladsl.server.{AuthorizationFailedRejection, ExceptionHandler, MalformedQueryParamRejection, MalformedRequestContentRejection, MethodRejection, Rejection, RejectionHandler, Route, RouteResult, TransformationRejection, ValidationRejection}
+import org.apache.pekko.http.scaladsl.server.{AuthenticationFailedRejection, AuthorizationFailedRejection, CircuitBreakerOpenRejection, ExceptionHandler, ExpectedWebSocketRequestRejection, InvalidOriginRejection, MalformedQueryParamRejection, MalformedRequestContentRejection, MethodRejection, MissingAttributeRejection, MissingCookieRejection, MissingFormFieldRejection, MissingHeaderRejection, MissingQueryParamRejection, Rejection, RejectionHandler, RejectionWithOptionalCause, RequestEntityExpectedRejection, Route, RouteResult, SchemeRejection, TooManyRangesRejection, TransformationRejection, ValidationRejection}
 import org.apache.pekko.http.scaladsl.server.RouteResult.Rejected
 import org.apache.pekko.http.scaladsl.server.directives.{Credentials, DebuggingDirectives, LogEntry}
 import org.apache.pekko.http.scaladsl.server.Directives._
+import org.apache.pekko.pattern.{BackoffOpts, FutureRef}
 import org.json4s._
 import org.openhorizon.exchangeapi.SwaggerDocService.complete
-import org.openhorizon.exchangeapi.auth.{AuthCache, AuthenticationSupport, InvalidCredentialsException, Password, Token}
+import org.openhorizon.exchangeapi.auth.AuthCache.logger
+import org.openhorizon.exchangeapi.auth.{AuthCache, AuthRoles, AuthenticationSupport, DbConnectionException, IAgbot, INode, IUser, IdNotFoundForAuthorizationException, Identity, Identity2, InvalidCredentialsException, Password}
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
-import org.openhorizon.exchangeapi.route.catalog.{OrganizationDeploymentPatterns, OrganizationServices}
+import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements, Confirm}
+import org.openhorizon.exchangeapi.route.agreementbot.message.{Message, Messages}
 import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
 import org.openhorizon.exchangeapi.route.managementpolicy.{ManagementPolicies, ManagementPolicy}
@@ -48,19 +53,34 @@ import org.openhorizon.exchangeapi.route.service.dockerauth.{DockerAuth, DockerA
 import org.openhorizon.exchangeapi.route.service.key.{Key, Keys}
 import org.openhorizon.exchangeapi.route.service.{Policy, Service, Services}
 import org.openhorizon.exchangeapi.route.user.{ChangePassword, Confirm, User, Users}
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
+import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
+import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
+import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
+import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
+import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, ExchangeRejection, NotFoundRejection}
+import scalacache.Entry
+import scalacache._
+import scalacache.caffeine._
+import scalacache.modes.scalaFuture._
+import com.github.benmanes.caffeine.cache.Caffeine
+import org.apache.pekko.pattern.BackoffOpts.onFailure
+import org.apache.pekko.routing.NoRouter
+import org.springframework.security.crypto.bcrypt.BCrypt
 import slick.jdbc.TransactionIsolation.Serializable
 
 import java.io.{File, FileInputStream, InputStream}
 import java.security.{KeyStore, SecureRandom}
 import java.sql.Timestamp
 import java.util
-import java.util.{Map, Optional}
+import java.util.concurrent.TimeUnit
+import java.util.{Map, Optional, UUID}
 import javax.net.ssl.{KeyManagerFactory, SSLContext, SSLEngine, TrustManagerFactory}
 import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -68,7 +88,6 @@ import scala.io.{BufferedSource, Source}
 import scala.jdk.CollectionConverters.CollectionHasAsScala
 import scala.util.matching.Regex
 import scala.util.Properties
-import scala.util.{Failure, Success}
 
 // Global vals and methods
 object ExchangeApi {
@@ -90,17 +109,17 @@ object ExchangeApi {
  */
 object ExchangeApiApp extends App
   with AgentConfigurationManagement
-  with org.openhorizon.exchangeapi.route.agreementbot.Agreement
+  with Agreement
   with org.openhorizon.exchangeapi.route.node.agreement.Agreement
   with AgreementBot
   with AgreementBots
-  with org.openhorizon.exchangeapi.route.agreementbot.Agreements
+  with Agreements
   with org.openhorizon.exchangeapi.route.node.agreement.Agreements
   with ChangePassword
   with Changes
   with Cleanup
   with ClearAuthCache
-  with org.openhorizon.exchangeapi.route.agreement.Confirm
+  with org.openhorizon.exchangeapi.route.agreementbot.agreement.Confirm
   with org.openhorizon.exchangeapi.route.user.Confirm
   with Configuration
   with ConfigurationState
@@ -121,7 +140,6 @@ object ExchangeApiApp extends App
   with Errors
   with org.openhorizon.exchangeapi.route.agreementbot.Heartbeat
   with org.openhorizon.exchangeapi.route.node.Heartbeat
-  with HashPassword
   with InitializeDatabase
   with org.openhorizon.exchangeapi.route.deploymentpattern.key.Key
   with org.openhorizon.exchangeapi.route.service.key.Key
@@ -130,9 +148,9 @@ object ExchangeApiApp extends App
   with ManagementPolicies
   with ManagementPolicy
   with MaxChangeId
-  with org.openhorizon.exchangeapi.route.agreementbot.Message
+  with Message
   with org.openhorizon.exchangeapi.route.node.message.Message
-  with org.openhorizon.exchangeapi.route.agreementbot.Messages
+  with Messages
   with org.openhorizon.exchangeapi.route.node.message.Messages
   with MyOrganizations
   with Node
@@ -146,9 +164,8 @@ object ExchangeApiApp extends App
   with NodeGroup
   with NodeGroups
   with Organization
-  with OrganizationDeploymentPatterns
   with Organizations
-  with OrganizationServices
+  // with OrganizationServices
   with OrganizationStatus
   with org.openhorizon.exchangeapi.route.node.Policy
   with org.openhorizon.exchangeapi.route.service.Policy
@@ -195,17 +212,21 @@ object ExchangeApiApp extends App
   implicit val logger: LoggingAdapter = Logging(system, "Exchange")
   ExchangeApi.defaultLogger = logger // need this set in an object that doesn't use DelayedInit
   
-  AuthCache.createRootInCache()
+  //AuthCache.createRootInCache()
   
   // Check common overwritten pekko configuration parameters
-  logger.debug("pekko.corrdinated-shutdown:  " + system.settings.config.getConfig("pekko.coordinated-shutdown").toString)
-  logger.debug("pekko.loglevel: " + system.settings.config.getString("pekko.loglevel"))
-  logger.debug("pekko.http.parsing: " + system.settings.config.getConfig("pekko.http.parsing").toString)
-  logger.debug("pekko.http.server: " + system.settings.config.getConfig("pekko.http.server").toString)
+  Future { logger.debug("pekko.corrdinated-shutdown:  " + system.settings.config.getConfig("pekko.coordinated-shutdown").toString) }
+  Future { logger.debug("pekko.loglevel: " + system.settings.config.getString("pekko.loglevel")) }
+  Future { logger.debug("pekko.http.parsing: " + system.settings.config.getConfig("pekko.http.parsing").toString) }
+  Future { logger.debug("pekko.http.server: " + system.settings.config.getConfig("pekko.http.server").toString) }
   
   // Set a custom exception handler. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/exception-handling.html#exception-handling
   implicit def myExceptionHandler: ExceptionHandler =
     ExceptionHandler {
+      case exception: UnsupportedOperationException =>
+        complete(StatusCodes.Unauthorized, ApiResponse(ApiRespType.BADCREDS, "unauthorized"))
+      case exception: MappingException =>
+        complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, exception.getMessage)))
       case e: java.util.concurrent.RejectedExecutionException => // this is the exception if any of the routes have trouble reaching the db during a db.run()
         //extractUri { uri =>   // in case we need the url for some reason
         //}
@@ -216,24 +237,35 @@ object ExchangeApiApp extends App
         // for now we return bad gw for any unknown exception, since that is what most of them have been
         complete((StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, msg)))
     }
-
+  
   // Set a custom rejection handler. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/rejections.html#customizing-rejection-handling
   implicit def myRejectionHandler: RejectionHandler =
     RejectionHandler.newBuilder()
                     // this handles all of our rejections
                     .handle {
+                      case rejection: AuthenticationFailedRejection =>
+                        complete{ (StatusCodes.Unauthorized, ApiResponse(ApiRespType.BADCREDS, "invalid.credentials")) }
+                    }
+                    .handle {
                       case r: ExchangeRejection =>
                         complete((r.httpCode, r.toApiResp))
-                      // we never use this one, because our AuthRejection extends ExchangeRejection above
-                      case AuthorizationFailedRejection =>
-                        complete((StatusCodes.Forbidden, "forbidden"))
+                    }
+                    .handle {
                       case ValidationRejection(msg, _) =>
                         complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
+                    }
+                    .handle {
                       // this comes from the entity() directive when parsing the request body failed
                       case MalformedRequestContentRejection(msg, _) =>
                         complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, msg)))
+                    }
+                    .handle {
                       case MalformedQueryParamRejection(parameterName, errorMsg, _) =>
                         complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.int.for.name", parameterName))))
+                    }
+                    .handle {
+                      case MissingQueryParamRejection(parameterName) =>
+                        complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, parameterName)))
                     }
                     // do not know when this is run
                     // .handleAll[MethodRejection] { methodRejections =>
@@ -246,6 +278,8 @@ object ExchangeApiApp extends App
 
   // Set a custom logging of requests and responses. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/directives/debugging-directives/logRequestResult.html
   val basicAuthRegex = new Regex("^Basic ?(.*)$")
+  
+  
   def requestResponseLogging(req: HttpRequest): RouteResult => Option[LogEntry] = {
     case RouteResult.Complete(res) =>
       // First decode the auth and get the org/id
@@ -258,7 +292,7 @@ object ExchangeApiApp extends App
         case _ => "<invalid-auth-format>"
       }
       // Now log all the info
-      Option(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.InfoLevel))
+      Option(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.DebugLevel))
     //case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with: $rejections", Logging.InfoLevel)) // <- left here for when you temporarily want to see the full list of rejections that pekko produces
     case Rejected(rejections) =>
       // Sometimes pekko produces a bunch of MethodRejection objects (for http methods in the routes that didn't match) and then
@@ -273,7 +307,7 @@ object ExchangeApiApp extends App
     case _ => scala.None
   }
 
-  // Create all of the routes and concat together
+ 
   final case class testResp(result: String = "OK")
   
   def testRoute = {
@@ -284,37 +318,155 @@ object ExchangeApiApp extends App
     }
   }
   
+  val identityCacheSettings: cache.Cache[String, Entry[(Identity2, String)]] =
+    Caffeine.newBuilder()
+                .maximumSize(Configuration.getConfig.getInt("api.cache.idsMaxSize"))
+                .expireAfterWrite(Configuration.getConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
+                .build[String, Entry[(Identity2, String)]]
+  implicit val cacheResourceIdentity: CaffeineCache[(Identity2, String)] = CaffeineCache(identityCacheSettings)
   
-// TODO: Basic authentication idea
-/*  def myUserPassAuthenticator(credentials: Credentials): Future[Option[String]] = {
+  // This should only be used for Authorization: Basic challenges using organization/username:password
+  // This does not support other authentication types (OAuth, Api Keys), nor using a UUID as provided user.
+  // Without unified identity, we have to protect against privilege escalation attacks by defaulting to the user archetype of least permissions.
+  /*
+   * Had a really elegant solution for grabbing/creating everything needed, doing a union between the table types,
+   * and then yielding the identity object and the credential in a tuple. There seems to be a technical limitation
+   * present in Slick which frustratingly prevents you from doing a union with an Option[UUID] present in the query.
+   * We concatenate the yielded Sequences to together as the next best thing. Certainly not as performant, but it works.
+   */
+  def getResourceIdentityAndPassword(organization: String,
+                                     username: String): Future[((Boolean, Option[UUID], Boolean, Option[UUID], Int), String)] = {
+    val getIdentityQuery =
+      for {
+        nodeIdentities <-
+          NodesTQ.filter(nodes => nodes.orgid === organization &&
+                                            nodes.id === (organization ++ "/" ++ username))
+            .map(nodes => ((false, Rep.None[UUID], false, nodes.owner.?, 0), nodes.token))
+            .take(1)
+            .result
+            
+        agbotIdentities <-
+          AgbotsTQ.filter(agbots => agbots.orgid === organization && agbots.id === (organization ++ "/" ++ username))
+             .map(agbots => ((false, Rep.None[UUID], false, agbots.owner.?, 1), agbots.token))
+            .take(1)
+            .result
+        
+        useridentities <-
+          UsersTQ.filter(users => users.organization === organization && users.username === username)
+             .map(users => ((users.isHubAdmin, users.user.?, users.isOrgAdmin, Rep.None[UUID], 2), users.password.getOrElse("")))
+            .take(1)
+            .result
+      } yield ((nodeIdentities ++ agbotIdentities ++ useridentities)).minBy(_._1._5)
+    
+    db.run(getIdentityQuery.transactionally)
+  }
+  
+  val reg: Regex = """^(\S*?)/(\S*)$""".r
+  
+  
+  
+  def myUserPassAuthenticator(credentials: Credentials): Future[Option[Identity2]] = {
     credentials match {
-      case p @ Credentials.Provided(username) =>
+      case p@Credentials.Provided(resource) =>
         Future {
-          AuthCache.getUser(username) match {
-            case Some(userHashedTok) =>
-              if(p.verify(secret = userHashedTok,
-                          hasher =
-                            {
-                              unhashedCred =>
-                                if (Password.check(unhashedCred, userHashedTok))
-                                  userHashedTok
-                                else
-                                  ""
-                            }))  // Need to use verify to prevent timing attacks. Need to use BCrypt's builtin comparator to evaluate equality of hashes.
-                Some(username)
-              else
-                None
-            case None => None
+          val (organization: String,
+               username: String) = {
+            resource match {
+              case reg(organization: String, username) =>
+                (organization, username)
+              case _ =>
+                ("", "")
+            }
           }
-        }
+          
+          if (organization.isEmpty &&
+              username.isEmpty)
+            return Future.successful(None)
+          
+          
+          def identityCacheGet (resource: String): Future[(Identity2, String)] = {
+            cacheResourceIdentity.cachingF(resource)(ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds)) {
+              // On cache miss execute this block to try and find what the value should be.
+              // If found add to the cache for next time.
+              getResourceIdentityAndPassword(organization, username).map {
+                // Yield this Resource's identity metadata and construct a future identity object. Resource's stored credential tags along.
+                // This object will be returned and used if authenticated.
+                identityMetadata: ((Boolean, Option[UUID], Boolean, Option[UUID], Int), String) => (new Identity2(organization, identityMetadata._1, username), identityMetadata._2)
+              }
+            }
+          }
+          
+          def AuthenticationCheck (resourceIdentityAndCred: Option[(Identity2, String)]): Future[Option[Identity2]] = Future {
+            resourceIdentityAndCred match {
+             case Some(resourceIdentityAndCred) =>
+               // Guard, should never hit this condition. Reject the authentication attempt if true, as we cannot determine this resource's identity.
+               if (resourceIdentityAndCred._1.role == AuthRoles.Anonymous) {
+                 Future { logger.debug(s"Authentication: This resource ${resourceIdentityAndCred._1.resource} yields user archetype ${resourceIdentityAndCred._1.role}.") }
+                 None
+               }
+               // Guard, should never hit this condition. Reject the authentication attempt if true, as we cannot determine this resource's identity.
+               else if (resourceIdentityAndCred._1.isUser &&
+                       resourceIdentityAndCred._1.identifier.isEmpty) {
+                 Future { logger.debug(s"Authentication: The ${resourceIdentityAndCred._1.role} resource ${resourceIdentityAndCred._1.resource} is missing a UUID.") }
+                 None
+               }
+               else if (p.provideVerify(secret = resourceIdentityAndCred._2,
+                                        verifier =
+                                          // (Hashed credential in database, Plain-text password from Authorization: Basic header)
+                                         (storedSecret, requestPassword) => {
+                                           if (!storedSecret.startsWith("$argon2id") && BCrypt.checkpw(requestPassword, storedSecret)) {
+                                             Future { logger.debug(s"Resource ${resourceIdentityAndCred._1.resource}(${resourceIdentityAndCred._1.identifier.getOrElse("None")}):${resourceIdentityAndCred._1.role} has a credential that is using a legacy BCrypt algorithm. Rehashing this credential to Argon2id.") }
+                                             val rehashedCredential = Password.hash(requestPassword)
+                                             
+                                             Future { cacheResourceIdentity.put(p.identifier)(value = (resourceIdentityAndCred._1, rehashedCredential), ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds)) }
+                                             
+                                             Future {
+                                               resourceIdentityAndCred._1.role match {
+                                                 case AuthRoles.Agbot =>
+                                                   Future { db.run(AgbotsTQ.filter(_.id === resourceIdentityAndCred._1.resource).map(_.token).update(rehashedCredential))}
+                                                 case AuthRoles.Node =>
+                                                   Future { db.run(NodesTQ.filter(_.id === resourceIdentityAndCred._1.resource).map(_.token).update(rehashedCredential))}
+                                                 case _ =>
+                                                   Future { db.run(UsersTQ.filter(_.user === resourceIdentityAndCred._1.identifier.get).map(_.password).update(Option(rehashedCredential)))}
+                                               }
+                                             }
+                                             
+                                             Password.check(requestPassword, rehashedCredential)
+                                           }
+                                           else
+                                           /*logger.debug("Line 333:    credential: " + requestPassword + "    secret: " + storedSecret);*/
+                                           Password.check(requestPassword, storedSecret)
+                                         })) {
+                 // Root level permissions are used in test environments, any other user should not have root level access in a production environment.
+                 if (resourceIdentityAndCred._1.role == AuthRoles.SuperUser &&
+                     resourceIdentityAndCred._1.resource != "root/root")
+                   Future { logger.warning(s"User resource ${resourceIdentityAndCred._1.resource}(resource: ${resourceIdentityAndCred._1.identifier.getOrElse("")}) has Root level access permissions") }
+                 
+                 Option(resourceIdentityAndCred._1) // Return the successfully authenticated Identity
+               }
+               else
+                None
+              case None => None
+            }
+          }
+          
+          // Chains the input/output of our futures.
+          // Also yields a result this future can use due to nesting futures.
+          for {
+            fetchedIdentity <- identityCacheGet(resource)
+            //_ = logger.debug(s"Async returns: ${a._1.toString}, ${a._1.identifier.getOrElse("None")}")
+            authenticatedIdentity <- AuthenticationCheck(Option(fetchedIdentity)) fallbackTo(Future{None})
+          } yield authenticatedIdentity
+        }.flatMap(x => x) // Flattens the nested futures.
       case _ =>
         Future.successful(None)
     }
-  } */
+  }
   
   //someday: use directive https://doc.pekko.io/docs/pekko-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
   lazy val routes: Route =
     DebuggingDirectives.logRequestResult(requestResponseLogging _) {
+      withLog(logger) {
       pathPrefix("v1") {
         respondWithDefaultHeaders(`Cache-Control`(Seq(`max-age`(0), `must-revalidate`, `no-cache`, `no-store`)),
                                   // RawHeader("Content-Type", "application/json"/*; charset=UTF-8"*/),
@@ -322,100 +474,101 @@ object ExchangeApiApp extends App
                                   RawHeader("X-Content-Type-Options", "nosniff"),
                                   RawHeader("X-XSS-Protection", "1; mode=block")) {
           handleExceptions(myExceptionHandler) {
-            handleRejections(corsRejectionHandler.withFallback(myRejectionHandler)) {
+            handleRejections(corsRejectionHandler.withFallback(myRejectionHandler).seal) {
               cors() {
                 handleExceptions(myExceptionHandler) {
-                  handleRejections(corsRejectionHandler.withFallback(myRejectionHandler)) {
-//                    authenticateBasicAsync(realm = "Exchange", myUserPassAuthenticator) {  // TODO: Basic authentication idea, does not cover other auth types.
-//                      cred =>
-                      agentConfigurationManagement ~
-                        agreement ~
-                        agreementBot ~
-                        agreementBots ~
-                        agreementNode ~
-                        agreements ~
-                        agreementsNode ~
-                        changePassword ~
-                        changes ~
-                        cleanup ~
-                        clearAuthCache ~
-                        confirm ~
-                        confirmAgreement ~
-                        configuration ~
-                        configurationState ~
-                        deploymentPattern ~
-                        deploymentPatternAgreementBot ~
-                        deploymentPatterns ~
-                        deploymentPatternsAgreementBot ~
-                        deploymentPatternsCatalog ~
-                        deploymentPolicies ~
-                        deploymentPoliciesAgreementBot ~
-                        deploymentPolicy ~
-                        deploymentPolicyAgreementBot ~
-                        deploymentPolicySearch ~
-                        details ~
-                        dockerAuth ~
-                        dockerAuths ~
-                        dropDB ~
-                        errors ~
-                        hashPW ~
-                        heartbeatAgreementBot ~
-                        heartbeatNode ~
-                        initializeDB ~
-                        keyDeploymentPattern ~
-                        keyService ~
-                        keysDeploymentPattern ~
-                        keysService ~
-                        managementPolicies ~
-                        managementPolicy ~
-                        maxChangeId ~
-                        messageAgreementBot ~
-                        messageNode ~
-                        messagesAgreementBot ~
-                        messagesNode ~
-                        myOrganizations ~
-                        node ~
-                        nodeErrorSearch ~
-                        nodeErrorsSearch ~
-                        nodeHealthDeploymentPattern ~
-                        nodeHealthSearch ~
-                        nodeHighAvailabilityGroup ~
-                        nodes ~
-                        nodeServiceSearch ~
-                        nodeGroup ~
-                        nodeGroups ~
-                        organization ~
-                        organizationDeploymentPatterns ~
-                        organizations ~
-                        organizationServices ~
-                        organizationStatus ~
-                        policyNode ~
-                        policyService ~
-                        reload ~
-                        searchNode ~
-                        service ~
-                        services ~
-                        servicesCatalog ~
-                        status ~
-                        statusManagementPolicy ~
-                        statusNode ~
-                        //statusOrganization ~
-                        statuses ~
-                        SwaggerDocService.routes ~
-                        swaggerUiRoutes ~
-                        testRoute ~
-                        token ~
-                        user ~
-                        users ~
-                        version
-//                    }
+                  handleRejections((corsRejectionHandler.withFallback(myRejectionHandler)).seal) {
+                    // These routes do not require Authentication. They accept all requests.
+                    SwaggerDocService.routes ~
+                    swaggerUiRoutes ~
+                    testRoute ~
+                    version ~
+                    Route.seal(
+                    authenticateBasicAsync(realm = "Exchange", myUserPassAuthenticator) {
+                      validIdentity =>
+                        agentConfigurationManagement(validIdentity) ~
+                        agreement(validIdentity) ~
+                        agreementBot(validIdentity) ~
+                        agreementBots(validIdentity) ~
+                        agreementNode(validIdentity) ~
+                        agreements(validIdentity) ~
+                        agreementsNode(validIdentity) ~
+                        changePassword(validIdentity) ~
+                        changes(validIdentity) ~
+                        cleanup(validIdentity) ~
+                        clearAuthCache(validIdentity) ~
+                        confirm(validIdentity) ~
+                        confirmAgreement(validIdentity) ~
+                        configuration(validIdentity) ~
+                        configurationState(validIdentity) ~
+                        deploymentPattern(validIdentity) ~
+                        deploymentPatternAgreementBot(validIdentity) ~
+                        deploymentPatterns(validIdentity) ~
+                        deploymentPatternsAgreementBot(validIdentity) ~
+                        deploymentPatternsCatalog(validIdentity) ~
+                        deploymentPolicies(validIdentity) ~
+                        deploymentPoliciesAgreementBot(validIdentity) ~
+                        deploymentPolicy(validIdentity) ~
+                        deploymentPolicyAgreementBot(validIdentity) ~
+                        deploymentPolicySearch(validIdentity) ~
+                        details(validIdentity) ~
+                        dockerAuth(validIdentity) ~
+                        dockerAuths(validIdentity) ~
+                        dropDB(validIdentity) ~
+                        errors(validIdentity) ~
+                        heartbeatAgreementBot(validIdentity) ~
+                        heartbeatNode(validIdentity) ~
+                        initializeDB(validIdentity) ~
+                        keyDeploymentPattern(validIdentity) ~
+                        keyService(validIdentity) ~
+                        keysDeploymentPattern(validIdentity) ~
+                        keysService(validIdentity) ~
+                        managementPolicies(validIdentity) ~
+                        managementPolicy(validIdentity) ~
+                        maxChangeId(validIdentity) ~
+                        messageAgreementBot(validIdentity) ~
+                        messageNode(validIdentity) ~
+                        messagesAgreementBot(validIdentity) ~
+                        messagesNode(validIdentity) ~
+                        myOrganizations(validIdentity) ~
+                        node(validIdentity) ~
+                        nodeErrorSearch(validIdentity) ~
+                        nodeErrorsSearch(validIdentity) ~
+                        nodeHealthDeploymentPattern(validIdentity) ~
+                        nodeHealthSearch(validIdentity) ~
+                        nodeHighAvailabilityGroup(validIdentity) ~
+                        nodes(validIdentity) ~
+                        nodeServiceSearch(validIdentity) ~
+                        nodeGroup(validIdentity) ~
+                        nodeGroups(validIdentity) ~
+                        organization(validIdentity) ~
+                        //organizationDeploymentPatterns(validIdentity) ~
+                        organizations(validIdentity) ~
+                        // organizationServices(validIdentity) ~
+                        organizationStatus(validIdentity) ~
+                        policyNode(validIdentity) ~
+                        policyService(validIdentity) ~
+                        reload(validIdentity) ~
+                        searchNode(validIdentity) ~
+                        service(validIdentity) ~
+                        services(validIdentity) ~
+                        servicesCatalog(validIdentity) ~
+                        status(validIdentity) ~
+                        statusManagementPolicy(validIdentity) ~
+                        statusNode(validIdentity) ~
+                        // statusOrganization ~
+                        statuses(validIdentity) ~
+                        token(validIdentity) ~
+                        user(validIdentity) ~
+                        users(validIdentity)
+                    })
                   }
                 }
               }
             }
           }
         }
-      }
+      }}
     }
   
   val db: Database = DatabaseConnection.getDatabase//Database.forConfig("exchange-db-connection", system.settings.config.getConfig("exchange-db-connection"))
@@ -438,13 +591,88 @@ object ExchangeApiApp extends App
   }
 
   // Initialize authentication cache from objects in the db
-  AuthCache.initAllCaches(db, includingIbmAuth = true)
+  //AuthCache.initAllCaches(db, includingIbmAuth = true)
+
+  implicit val ownershipCache: cache.Cache[String, Entry[(UUID, Boolean)]] =
+    Caffeine.newBuilder()
+            .maximumSize(Configuration.getConfig.getInt("api.cache.resourcesMaxSize"))
+            .expireAfterWrite(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds"), TimeUnit.SECONDS)
+            .build[String, Entry[(UUID, Boolean)]]
+    
+  implicit val cacheResourceOwnership: CaffeineCache[(UUID, Boolean)] = CaffeineCache(ownershipCache)
+  
+  def getOwnerOfResource(organization: String, resource: String, resource_type: String): Future[(UUID, Boolean)] = {
+    val getOwnerOfResource: DBIOAction[(UUID, Boolean), NoStream, Effect.Read] =
+      for {
+        owner: Seq[(UUID, Boolean)] <-
+           resource_type match {
+             case "agreement_bot" =>
+               Compiled(AgbotsTQ.filter(agbots => agbots.id === resource &&
+                                                  agbots.orgid === organization)
+                                .take(1)
+                                .map(agbots => (agbots.owner, false)))
+                 .result
+             case "deployment_pattern" =>
+               Compiled(PatternsTQ.filter(deployPatterns => deployPatterns.pattern === resource &&
+                                                            deployPatterns.orgid === organization)
+                                  .take(1)
+                                  .map(deployment_patterns => (deployment_patterns.owner, deployment_patterns.public)))
+                 .result
+              case "deployment_policy" =>
+                Compiled(BusinessPoliciesTQ.filter(deployPolicies => deployPolicies.businessPolicy === resource &&
+                                                                     deployPolicies.orgid === organization)
+                                           .take(1)
+                                           .map(deployPolicies => (deployPolicies.owner, false)))
+                .result
+             case "management_policy" =>
+               Compiled(ManagementPoliciesTQ.filter(managePolicies => managePolicies.managementPolicy === resource &&
+                                                                      managePolicies.orgid === organization)
+                                            .take(1)
+                                            .map(managePolicies => (managePolicies.owner, false)))
+                 .result
+             case "node" =>
+               Compiled(NodesTQ.filter(nodes => nodes.id === resource &&
+                                                nodes.orgid === organization)
+                               .take(1)
+                               .map(nodes => (nodes.owner, false)))
+                 .result
+             case "service" =>
+               Compiled(ServicesTQ.filter(services => services.service === resource &&
+                                                      services.orgid === organization)
+                                  .take(1)
+                                  .map(services => (services.owner, services.public)))
+                 .result
+             case "user" =>
+               Compiled(UsersTQ.filter(users => users.organization === organization &&
+                                                users.username === resource.split("/")(1))
+                               .take(1)
+                               .map(users => (users.user, false)))
+                 .result
+             case _ =>
+               DBIO.failed(new Exception())
+           }
+      } yield owner.head
+    
+    db.run(getOwnerOfResource.transactionally)
+  }
+  
+  /*val defaultCachingSettings = CachingSettings(system)
+  val lfuCacheSettings =
+    defaultCachingSettings.lfuCacheSettings
+      .withInitialCapacity(25)
+      .withMaxCapacity(50)
+      .withTimeToLive(20.seconds)
+      .withTimeToIdle(10.seconds)
+  val cachingSettings =
+    defaultCachingSettings.withLfuCacheSettings(lfuCacheSettings)
+  implicit def lfuCache: PekkoCache[(String, String, String), UUID] = LfuCache(cachingSettings))*/
+  
 
   /** Task for trimming `resourcechanges` table */
   def trimResourceChanges(): Unit ={
     // Get the time for trimming rows from the table
     val timeExpires: Timestamp = ApiTime.pastUTCTimestamp(system.settings.config.getInt("api.resourceChanges.ttl"))
-    db.run(ResourceChangesTQ.getRowsExpired(timeExpires).delete.asTry).map({
+    db.run(Compiled(ResourceChangesTQ.getRowsExpired(timeExpires)).delete.asTry).map({
       case Success(v) =>
         if (v <= 0) logger.debug("No resource changes to trim")
         else logger.info("resourcechanges table trimmed, number of records deleted: " + v.toString)
@@ -470,14 +698,18 @@ object ExchangeApiApp extends App
 
   /** Task for removing expired nodemsgs and agbotmsgs */
   def removeExpiredMsgs(): Unit ={
-    db.run(NodeMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry).map({
-      case Success(v) => logger.debug("nodemsgs delete expired result: "+ v.toString)
-      case Failure(_) => logger.error("ERROR: could not remove expired node msgs")
-    })
-    db.run(AgbotMsgsTQ.getMsgsExpired.delete.transactionally.withTransactionIsolation(Serializable).asTry).map({
-      case Success(v) => logger.debug("agbotmsgs delete expired result: " + v.toString)
-      case Failure(_) => logger.error("ERROR: could not remove expired agbot msgs")
-    })
+    Future {
+      db.run(Compiled(NodeMsgsTQ.getMsgsExpired).delete.transactionally.withTransactionIsolation(Serializable).asTry).map {
+        case Success(v) => logger.debug("nodemsgs delete expired result: " + v.toString)
+        case Failure(_) => logger.error("ERROR: could not remove expired node msgs")
+      }
+    }
+    Future {
+      db.run(Compiled(AgbotMsgsTQ.getMsgsExpired).delete.transactionally.withTransactionIsolation(Serializable).asTry).map {
+        case Success(v) => logger.debug("agbotmsgs delete expired result: " + v.toString)
+        case Failure(_) => logger.error("ERROR: could not remove expired agbot msgs")
+      }
+    }
   }
 
   /** Variables and pekko Actor for removing expired nodemsgs and agbotmsgs */
@@ -487,7 +719,7 @@ object ExchangeApiApp extends App
     override def preStart(): Unit = {
       timers.startSingleTimer(key = "removeExpiredMsgsOnStart", msg = CleanupExpiredMessages, timeout = 0.seconds)
       timers.startTimerAtFixedRate(interval = timerInterval.seconds, key = "removeExpiredMsgs", msg = CleanupExpiredMessages)
-      logger.info("Scheduling Agreement Bot message and Node message cleanup every "+ timerInterval.seconds + " seconds")
+      Future { logger.info("Scheduling Agreement Bot message and Node message cleanup every " + timerInterval.seconds + " seconds") }
       super.preStart()
     }
     
@@ -571,10 +803,10 @@ object ExchangeApiApp extends App
           .map(_.addToCoordinatedShutdown(hardTerminationDeadline = secondsToWait.seconds))
           .onComplete {
             case Success(binding) =>
-              logger.info("Server online at "+ s"http://${serviceHost}:${binding.localAddress.getPort}/") // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
+              Future { logger.info("Server online at " + s"http://${serviceHost}:${binding.localAddress.getPort}/") } // This will schedule to send the Cleanup-message and the CleanupExpiredMessages-message
               serverBindingHttp = Option(binding)
             case Failure(e) =>
-              logger.error("HTTP server could not start!")
+              Future { logger.error("HTTP server could not start!") }
               e.printStackTrace()
               system.terminate()
           }

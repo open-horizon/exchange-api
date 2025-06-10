@@ -4,7 +4,7 @@ import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.table
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization
-import org.openhorizon.exchangeapi.auth.Role
+import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ, PostPutNodeGroupsRequest}
@@ -21,6 +21,7 @@ import slick.jdbc.PostgresProfile.api._
 
 import java.sql.Timestamp
 import java.time.ZoneId
+import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 import scala.math.Ordered.orderingToOrdered
@@ -52,41 +53,38 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                orgId              = "TestPostNodeGroup",
                orgType            = "",
                tags               = None))
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = true,
-                email       = "",
-                hashedPw    = "$2a$10$LNH5rZACF8YnbHWtUFnULOxNecpZoq6qXG0iI47OBCdNtugUehRLG", // TestPutAgentConfigMgmt/admin1:admin1pw
-                hubAdmin    = false,
-                lastUpdated = INITIALTIMESTAMPSTRING,
-                orgid       = "TestPostNodeGroup",
-                updatedBy   = "",
-                username    = "TestPostNodeGroup/admin1"),
-        UserRow(admin       = false,
-                email       = "",
-                hashedPw    = "$2a$10$DGVQ73YXt2IXtxA3bMmxSu0q5wEj26UgE.6hGryB5BedV1E945yki", // TestPutAgentConfigMgmt/u1:a1pw
-                hubAdmin    = false,
-                lastUpdated = INITIALTIMESTAMPSTRING,
-                orgid       = "TestPostNodeGroup",
-                updatedBy   = "",
-                username    = "TestPostNodeGroup/u1"),
-        UserRow(admin       = false,
-                email       = "",
-                hashedPw    = "$2a$10$DGVQ73YXt2IXtxA3bMmxSu0q5wEj26UgE.6hGryB5BedV1E945yki", // TestPutAgentConfigMgmt/u1:a1pw
-                hubAdmin    = false,
-                lastUpdated = INITIALTIMESTAMPSTRING,
-                orgid       = "TestPostNodeGroup",
-                updatedBy   = "",
-                username    = "TestPostNodeGroup/u2"))
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = INITIALTIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = INITIALTIMESTAMP,
+                organization = "TestPostNodeGroup",
+                password     = Option(Password.hash("admin1pw")),
+                username     = "admin1"),
+        UserRow(createdAt    = INITIALTIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = INITIALTIMESTAMP,
+                organization = "TestPostNodeGroup",
+                password     = Option(Password.hash("u1pw")),
+                username     = "u1"),
+        UserRow(createdAt    = INITIALTIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = INITIALTIMESTAMP,
+                organization = "TestPostNodeGroup",
+                password     = Option(Password.hash("u2pw")),
+                username     = "u2"))
+  }
   private val TESTAGBOTS: Seq[AgbotRow] =
     Seq(AgbotRow(id            = "TestPostNodeGroup/agbot",
                  orgid         = "TestPostNodeGroup",
-                 token         = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i",
+                 token         = Password.hash("password"),
                  name          = "",
-                 owner         = "TestPostNodeGroup/u1", //org 1 user
+                 owner         = TESTUSERS(1).user, //org 1 user
                  msgEndPoint   = "",
                  lastHeartbeat = INITIALTIMESTAMPSTRING,
                  publicKey     = ""))
-
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch               = "",
                 id                 = TESTORGS.head.orgId + "/node0",
@@ -97,12 +95,12 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS.head.username, //org admin
+                owner              = TESTUSERS.head.user, //org admin
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
                 softwareVersions   = "",
-                token              = "$2a$10$fEe00jBiITDA7RnRUGFH.upsISQ3cm93pdvkbJaFr5ZC/5kxhyZ4i",
+                token              = Password.hash("n0pw"),
                 userInput          = ""),
         NodeRow(arch               = "",
                 id                 = TESTORGS.head.orgId + "/node1",
@@ -113,7 +111,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS.head.username, //org admin
+                owner              = TESTUSERS.head.user, //org admin
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -129,7 +127,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS.head.username, //org admin
+                owner              = TESTUSERS.head.user, //org admin
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -145,7 +143,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(1).username, //org user 1
+                owner              = TESTUSERS(1).user, //org user 1
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -161,7 +159,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(1).username, //org user 1
+                owner              = TESTUSERS(1).user, //org user 1
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -177,7 +175,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(2).username, //org user 2
+                owner              = TESTUSERS(2).user, //org user 2
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -193,7 +191,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(2).username, //org user 2
+                owner              = TESTUSERS(2).user, //org user 2
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -209,7 +207,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
                 name               = "",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS(2).username, //org user 2
+                owner              = TESTUSERS(2).user, //org user 2
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -225,19 +223,19 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
-                                       (UsersTQ ++= TESTUSERS) andThen
-                                       (AgbotsTQ ++= TESTAGBOTS) andThen
-                                       (NodesTQ ++= TESTNODES)), AWAITDURATION)
+                                 (UsersTQ ++= TESTUSERS) andThen
+                                 (AgbotsTQ ++= TESTAGBOTS) andThen
+                                 (NodesTQ ++= TESTNODES)), AWAITDURATION)
   }
 
   override def afterAll(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeGroup").delete andThen
-                                       OrgsTQ.filter(_.orgid startsWith "TestPostNodeGroup").delete), AWAITDURATION)
+                                 OrgsTQ.filter(_.orgid startsWith "TestPostNodeGroup").delete), AWAITDURATION)
   }
   
   override def afterEach(): Unit = {
     Await.ready(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId startsWith "TestPostNodeGroup").delete andThen
-                                       NodeGroupTQ.filter(_.organization startsWith "TestPostNodeGroup").delete), AWAITDURATION)
+                                 NodeGroupTQ.filter(_.organization startsWith "TestPostNodeGroup").delete), AWAITDURATION)
   }
   
   test("POST /orgs/" + "somerandomorg" + ROUTE + "test  -- 404 Not Found - bad organization - root") {

@@ -1,10 +1,9 @@
 package org.openhorizon.exchangeapi.auth
 
 import org.openhorizon.exchangeapi.utility.ApiTime
-import pdi.jwt.{Jwt, JwtAlgorithm, JwtClaim}
 
 /** Create and validate web tokens that expire */
-object Token {
+/*object Token {
   // From: https://github.com/pauldijou/jwt-scala
   val defaultExpiration = 600 // seconds
   val algorithm: JwtAlgorithm.HS256.type = JwtAlgorithm.HS256
@@ -18,4 +17,4 @@ object Token {
 
   /** Returns true if the token is correct for this secret and not expired */
   def isValid(token: String, secret: String): Boolean = { Jwt.isValid(token, secret, Seq(algorithm)) }
-}
+}*/

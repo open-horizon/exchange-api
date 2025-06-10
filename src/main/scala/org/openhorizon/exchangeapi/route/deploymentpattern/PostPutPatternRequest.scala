@@ -8,6 +8,8 @@ import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, ExchMsg}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
+
 final case class PostPutPatternRequest(label: String,
                                        description: Option[String],
                                        public: Option[Boolean],
@@ -28,7 +30,7 @@ final case class PostPutPatternRequest(label: String,
   def validateServiceIds: (DBIO[Vector[Int]], Vector[ServiceRef2]) = { PatternsTQ.validateServiceIds(services, userInput.getOrElse(List())) }
 
   // Note: write() handles correctly the case where the optional fields are None.
-  def toPatternRow(pattern: String, orgid: String, owner: String): PatternRow = {
+  def toPatternRow(pattern: String, orgid: String, owner: UUID): PatternRow = {
     // The nodeHealth field is optional, so fill in a default in each element of services if not specified. (Otherwise json4s will omit it in the DB and the GETs.)
     val agrChkDefault: Int = Configuration.getConfig.getInt("api.defaults.pattern.check_agreement_status")
     val agreementProtocols2: Option[List[Map[String, String]]] = agreementProtocols.orElse(Option(List(Map("name" -> "Basic"))))

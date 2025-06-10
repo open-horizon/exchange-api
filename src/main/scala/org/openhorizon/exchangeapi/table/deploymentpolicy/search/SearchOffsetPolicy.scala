@@ -16,4 +16,5 @@ class SearchOffsetPolicy(tag: Tag) extends Table[SearchOffsetPolicyAttributes](t
   def fkPolicy = foreignKey("fk_policy", policy, BusinessPoliciesTQ)(_.businessPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   
   def * = (agbot, offset, policy, session).mapTo[SearchOffsetPolicyAttributes]
+  def idx_search_offset_pol_fk_deploy_pols = index(name = "idx_search_offset_pol_fk_deploy_pols", on = policy, unique = false)
 }

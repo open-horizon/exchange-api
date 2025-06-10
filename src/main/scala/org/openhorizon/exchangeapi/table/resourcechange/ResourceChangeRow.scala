@@ -4,7 +4,7 @@ import org.json4s.{DefaultFormats, Formats}
 import slick.jdbc.PostgresProfile.api._
 import slick.dbio.DBIO
 
-final case class ResourceChangeRow(changeId: Long,
+final case class ResourceChangeRow(changeId: Long = 0L,
                                    orgId: String,
                                    id: String,
                                    category: String,

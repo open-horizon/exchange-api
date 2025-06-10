@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, POST, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.{AgbotBusinessPol, AgbotBusinessPolsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
 import org.openhorizon.exchangeapi.table.resourcechange
@@ -47,9 +47,11 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
   private def deleteDeploymentPolicies(@Parameter(hidden = true) agreementBot: String,
+                                       @Parameter(hidden = true) identity: Identity2,
                                        @Parameter(hidden = true) organization: String,
                                        @Parameter(hidden = true) resource: String): Route =
     delete {
+      logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols - By ${identity.resource}:${identity.role}")
       complete({
         // remove does *not* throw an exception if the key does not exist
         db.run(AgbotBusinessPolsTQ.getBusinessPols(resource)
@@ -110,13 +112,15 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
   private def getDeploymentPolicies(@Parameter(hidden = true) agreementBot: String,
+                                    @Parameter(hidden = true) identity: Identity2,
                                     @Parameter(hidden = true) organization: String,
                                     @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols - By ${identity.resource}:${identity.role}")
     complete({
       db.run(AgbotBusinessPolsTQ.getBusinessPols(resource).result)
         .map({
           list =>
-            logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/businesspols result size: ${list.size}")
+            logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/businesspols - result size: ${list.size}")
             val businessPols: Map[String, AgbotBusinessPol] = list.map(e => e.busPolId -> e.toAgbotBusinessPol).toMap
             val code: StatusCode =
               if (businessPols.nonEmpty)
@@ -166,11 +170,13 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
                                                description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
   private def postDeploymentPolicies(@Parameter(hidden = true) agreementBot: String,
+                                     @Parameter(hidden = true) identity: Identity2,
                                      @Parameter(hidden = true) organization:String,
                                      @Parameter(hidden = true) resource: String): Route =
     post {
       entity(as[PostAgbotBusinessPolRequest]) {
         reqBody =>
+          logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/businesspols - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
               val deploymentPolicy: String = reqBody.formId
@@ -217,23 +223,23 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val deploymentPoliciesAgreementBot: Route =
+  def deploymentPoliciesAgreementBot(identity: Identity2): Route =
     path("orgs" / Segment / "agbots" / Segment / "businesspols") {
       (organization,
        agreementBot) =>
         val resource: String = OrgAndId(organization, agreementBot).toString
         
         get {
-          exchAuth(TAgbot(resource), Access.READ) {
+          exchAuth(TAgbot(resource), Access.READ, validIdentity = identity) {
             _ =>
-              getDeploymentPolicies(agreementBot, organization, resource)
+              getDeploymentPolicies(agreementBot, identity, organization, resource)
           }
         } ~
         (delete | post) {
-          exchAuth(TAgbot(resource), Access.WRITE) {
+          exchAuth(TAgbot(resource), Access.WRITE, validIdentity = identity) {
             _ =>
-              deleteDeploymentPolicies(agreementBot, organization, resource) ~
-              postDeploymentPolicies(agreementBot, organization, resource)
+              deleteDeploymentPolicies(agreementBot, identity, organization, resource) ~
+              postDeploymentPolicies(agreementBot, identity, organization, resource)
           }
         }
     }

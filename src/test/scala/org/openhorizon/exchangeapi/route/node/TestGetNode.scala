@@ -32,6 +32,16 @@ class TestGetNode extends AnyFunSuite with BeforeAndAfterAll {
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
+  private val TESTUSERS: Seq[UserRow] =
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "TestGetNode",
+                password     = Option(Password.hash("u1pw")),
+                username     = "u1"))
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch               = "",
                 id                 = "TestGetNode/n1",
@@ -42,7 +52,7 @@ class TestGetNode extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "",
                 nodeType           = "",
                 orgid              = "TestGetNode",
-                owner              = "TestGetNode/u1",
+                owner              = TESTUSERS(0).user,
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -74,15 +84,6 @@ class TestGetNode extends AnyFunSuite with BeforeAndAfterAll {
                orgId              = "TestGetNode3@somecomp.com",
                orgType            = "",
                tags               = None))
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin       = false,
-                email       = "",
-                hashedPw    = Password.hash("u1pw"),
-                hubAdmin    = false,
-                lastUpdated = ApiTime.nowUTC,
-                orgid       = "TestGetNode",
-                updatedBy   = "",
-                username    = "TestGetNode/u1"))
   
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
@@ -115,7 +116,7 @@ class TestGetNode extends AnyFunSuite with BeforeAndAfterAll {
                   name               = "",
                   nodeType           = "",
                   orgid              = "TestGetNode",
-                  owner              = "TestGetNode/u1",
+                  owner              = TESTUSERS(0).user,
                   pattern            = "",
                   publicKey          = "",
                   regServices        = "",

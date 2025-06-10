@@ -10,7 +10,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.organization.{NodeHealthHashElement, PostNodeHealthRequest, PostNodeHealthResponse}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
@@ -28,7 +28,7 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // ======== POST /org/{organization}/patterns/{pattern}/nodehealth ========================
+  // ======== POST /org/{organization}/patterns/{deploymentPattern}/nodehealth ========================
   @POST
   @Operation(
     summary = "Returns agreement health of nodes of a particular pattern",
@@ -106,9 +106,12 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
     )
   )
   def postNodeHealth(@Parameter(hidden = true) deploymentPattern: String,
+                     @Parameter(hidden = true) identity: Identity2,
                      @Parameter(hidden = true) organization: String): Route =
     entity(as[PostNodeHealthRequest]) {
       reqBody =>
+        logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/nodehealth - By ${identity.resource}:${identity.role}")
+        
         validateWithMsg(reqBody.getAnyProblem) {
           complete({
             val compositePat: String = OrgAndId(organization, deploymentPattern).toString
@@ -134,14 +137,14 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
         }
     }
   
-  val nodeHealthDeploymentPattern: Route =
+  def nodeHealthDeploymentPattern(identity: Identity2): Route =
     path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns") / Segment / "nodehealth") {
       (organization,
        deploymentPattern) =>
         post {
-          exchAuth(TNode(OrgAndId(organization,"*").toString), Access.READ) {
+          exchAuth(TNode(OrgAndId(organization,"*").toString), Access.READ, validIdentity = identity) {
             _ =>
-              postNodeHealth(deploymentPattern, organization)
+              postNodeHealth(deploymentPattern, identity, organization)
           }
         }
     }

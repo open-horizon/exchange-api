@@ -5,7 +5,8 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, TAction}
+import io.swagger.v3.oas.annotations.Parameter
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TAction}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
@@ -22,10 +23,10 @@ trait Configuration extends JacksonSupport with AuthenticationSupport {
   
   /** set 1 or more variables in the in-memory config (does not affect all instances in multi-node mode).
     * Intentionally not put swagger, because only used by automated tests. */
-  def putConfiguration: Route =
+  def putConfiguration(@Parameter(hidden = true) identity: Identity2): Route =
     entity (as[AdminConfigRequest]) {
       reqBody =>
-        logger.debug(s"Doing POST /admin/config")
+        logger.debug(s"Doing POST /admin/config - By ${identity.resource}:${identity.role}")
         complete({
           val props = new Properties()
           props.setProperty(reqBody.varPath, reqBody.value)
@@ -35,12 +36,12 @@ trait Configuration extends JacksonSupport with AuthenticationSupport {
     }
   
   
-  val configuration: Route =
+  def configuration(identity: Identity2): Route =
     path("admin" / "config") {
       put {
-        exchAuth(TAction(), Access.ADMIN) {
+        exchAuth(TAction(), Access.ADMIN, validIdentity = identity) {
           _ =>
-            putConfiguration
+            putConfiguration(identity)
         }
       }
     }

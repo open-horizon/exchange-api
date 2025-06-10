@@ -1,10 +1,9 @@
-package org.openhorizon.exchangeapi.route.nodegroup
+package org.openhorizon.exchangeapi.route.nodegroup.node
 
-import org.checkerframework.checker.units.qual.A
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.auth.Role
-import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ}
+import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
@@ -14,7 +13,7 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api.{anyToShapedValue, columnExtensionMethods, columnToOrdered, longColumnType, queryDeleteActionExtensionMethods, queryInsertActionExtensionMethods, streamableQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType}
+import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -30,6 +29,8 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
   
   private val INITIALTIMESTAMP: String = ApiTime.nowUTC
   
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  
   private val TESTORGS: Seq[OrgRow] =
     Seq(OrgRow(description        = "",
                heartbeatIntervals = "",
@@ -39,15 +40,15 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
                orgId              = "TestDeleteNodeFromNodeGroup",
                orgType            = "",
                tags               = None))
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(UserRow(admin = false,
-                email = "",
-                hashedPw = "",
-                hubAdmin = false,
-                lastUpdated = INITIALTIMESTAMP,
-                orgid = TESTORGS.head.orgId,
-                updatedBy = "",
-                username = TESTORGS.head.orgId + "/u0"))
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS.head.orgId,
+                password     = None,
+                username     = "u0"))
+  }
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch               = "",
                 id                 = TESTORGS.head.orgId + "/n0",
@@ -58,7 +59,7 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "n0",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS.head.username,
+                owner              = TESTUSERS.head.user,
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -74,7 +75,7 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
                 name               = "n1",
                 nodeType           = "",
                 orgid              = TESTORGS.head.orgId,
-                owner              = TESTUSERS.head.username,
+                owner              = TESTUSERS.head.user,
                 pattern            = "",
                 publicKey          = "",
                 regServices        = "",
@@ -92,9 +93,9 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
   
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGS) andThen
-                                       (UsersTQ ++= TESTUSERS) andThen
-                                       (NodesTQ ++= TESTNODES) andThen
-                                       (NodeGroupTQ ++= TESTNODEGROUPS)), AWAITDURATION)
+                                 (UsersTQ ++= TESTUSERS) andThen
+                                 (NodesTQ ++= TESTNODES) andThen
+                                 (NodeGroupTQ ++= TESTNODEGROUPS)), AWAITDURATION)
   
     val nodeGroup: Long = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.name === TESTNODEGROUPS.head.name).map(_.group).result.head), AWAITDURATION)
     val TESTNODEGROUPASSIGNMENTS: Seq[NodeGroupAssignmentRow] =

@@ -7,5 +7,10 @@ final case class OrgLimits(maxNodes: Int)
 
 object OrgLimits {
   protected implicit val jsonFormats: Formats = DefaultFormats
-  def toOrgLimit(limitsString: String): OrgLimits = if (limitsString != "") read[OrgLimits](limitsString) else OrgLimits(0)
+  
+  def toOrgLimit(limitsString: String): OrgLimits =
+    if (limitsString != "")
+      read[OrgLimits](limitsString)
+    else
+      OrgLimits(0)
 }

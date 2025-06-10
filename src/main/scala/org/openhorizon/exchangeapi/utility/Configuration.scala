@@ -60,7 +60,7 @@ case object Configuration {
     Properties.setProp("log.hikari.datasource", config.getString("logback.hikari.HikariDataSource"))
     Properties.setProp("log.hikari.pool", config.getString("logback.hikari.pool.HikariPool"))
     Properties.setProp("log.hikari.pool.base", config.getString("logback.hikari.pool.PoolBase"))
-    Properties.setProp("log.guavacache", config.getString("logback.scalacache.guava.GuavaCache"))
+    Properties.setProp("log.caffeinecache", config.getString("logback.scalacache.caffeine.CaffeineCache"))
     Properties.setProp("log.action", config.getString("logback.slick.basic.BasicBackend.action"))
     Properties.setProp("log.stream", config.getString("logback.slick.basic.BasicBackend.stream"))
     Properties.setProp("log.qcomp", config.getString("logback.slick.compiler-log"))

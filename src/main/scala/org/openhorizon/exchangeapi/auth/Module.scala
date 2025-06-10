@@ -1,15 +1,14 @@
 package org.openhorizon.exchangeapi.auth
 
-import org.openhorizon.exchangeapi._
 import org.openhorizon.exchangeapi.utility.ExchMsg
 import org.openhorizon.exchangeapi.ExchangeApi
-import org.openhorizon.exchangeapi.auth.cloud.IbmCloudAuth
 
 import javax.security.auth._
 import javax.security.auth.callback._
 import javax.security.auth.login.FailedLoginException
 import javax.security.auth.spi.LoginModule
 import scala.util._
+import scala.util.matching.Regex
 
 /**
  * JAAS module to authenticate local user/pw, nodeid/token, and agbotid/token in the exchange.
@@ -42,28 +41,53 @@ class Module extends LoginModule with AuthorizationSupport {
   override def login(): Boolean = {
     //logger.debug("in Module.login() to try to authenticate a local exchange user")
     val reqCallback = new RequestCallback
-    val loginResult = Try {
-      handler.handle(Array(reqCallback))
-      if (reqCallback.request.isEmpty) {
-        logger.debug("Unable to get HTTP request while authenticating")
-        throw new AuthInternalErrorException(ExchMsg.translate("unable.to.get.http.request.when.authenticating"))
+    
+    val loginResult =
+      Try {
+        handler.handle(Array(reqCallback))
+        
+        if (reqCallback.request.isEmpty) {
+          logger.debug("Unable to get HTTP request while authenticating")
+          throw new AuthInternalErrorException(ExchMsg.translate("unable.to.get.http.request.when.authenticating"))
+        }
+        
+        val reqInfo: RequestInfo = reqCallback.request.get   // reqInfo is of type RequestInfo
+        /*** // ***/ logger.debug(s"auth/Module.login(): reqInfo: $reqInfo") // TODO: comment
+        //val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
+        
+        // Split an id in the form org/id and return both parts. If there is no / we assume it is an id without the org.
+        def compositeIdSplit(compositeId: String): (String, String) = {
+          val reg: Regex = """^(\S*?)/(\S*)$""".r
+          compositeId match {
+            case reg(org, id) => (org, id)
+            // These 2 lines never get run, and aren't needed. If we really want to handle a special, put something like this as the 1st case above: case reg(org, "") => return (org, "")
+            //case reg(org, _) => return (org, "")
+            //case reg(_, id) => return ("", id)
+            case _ => ("", compositeId)
+          }
+        }
+        
+        // Get the creds from the request
+        val (org, id) = compositeIdSplit(reqInfo.creds.id)
+        
+        if (org == "")
+          throw new OrgNotSpecifiedException
+        
+        if (id == "iamapikey" || id == "iamtoken")
+          throw new NotLocalCredsException
+        
+        //logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
+        if (reqInfo.isDbMigration && !Role.isSuperUser(reqInfo.creds.id))
+          throw new IsDbMigrationException()
+          
+        identity = IIdentity(reqInfo.creds, Identity2(None, "", None, "", "")).authenticate(reqInfo.hint) // authenticate() is in AuthorizationSupport and both authenticates this identity and returns the correct IIdentity subclass (IUser, Inode, or IAgbot)
+        //}
+        true
       }
-      val reqInfo = reqCallback.request.get   // reqInfo is of type RequestInfo
-      //logger.debug(s"auth/Module.login(): reqInfo: $reqInfo")
-      //val clientIp = req.header("X-Forwarded-For").orElse(Option(req.getRemoteAddr)).get // haproxy inserts the real client ip into the header for us
-
-      // Get the creds from the request
-      val (org, id) = IbmCloudAuth.compositeIdSplit(reqInfo.creds.id)
-      if (org == "") throw new OrgNotSpecifiedException
-      if (id == "iamapikey" || id == "iamtoken") throw new NotLocalCredsException
-      //logger.info("User or id " + userOrId + " from " + clientIp + " running " + req.getMethod + " " + req.getPathInfo)
-      if (reqInfo.isDbMigration && !Role.isSuperUser(reqInfo.creds.id)) throw new IsDbMigrationException()
-      identity = IIdentity(reqInfo.creds).authenticate(reqInfo.hint) // authenticate() is in AuthorizationSupport and both authenticates this identity and returns the correct IIdentity subclass (IUser, Inode, or IAgbot)
-      //}
-      true
-    }
+    
     //logger.debug("Module.login(): loginResult=" + loginResult)
     succeeded = loginResult.isSuccess
+    
     if (!succeeded) {
       // Throw an exception so we can report the correct error
       loginResult.failed.get match {
@@ -72,6 +96,7 @@ class Module extends LoginModule with AuthorizationSupport {
         case _ => throw new FailedLoginException
       }
     }
+    
     succeeded
   }
 

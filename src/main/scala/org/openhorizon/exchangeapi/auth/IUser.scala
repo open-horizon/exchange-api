@@ -4,24 +4,30 @@ import org.apache.pekko.event.LoggingAdapter
 import org.openhorizon.exchangeapi.auth.Access.Access
 import org.openhorizon.exchangeapi.utility.ExchMsg
 
+import java.util.UUID
 import scala.util.{Failure, Success, Try}
 
-case class IUser(creds: Creds) extends Identity {
-  override def isSuperUser: Boolean = Role.isSuperUser(creds.id)
+case class IUser(creds: Creds,
+                 identity: Identity2) extends Identity {
+  def this(identity: Identity2) =
+    this(creds = Creds(id = identity.resource),
+         identity = identity)
+  
+  def resource: String = identity.resource
+  
+  override def identity2: Identity2 = identity.copy()
+  
+  override def isSuperUser: Boolean = identity.isSuperUser
 
-  override lazy val role: String =
-    if (isSuperUser) AuthRoles.SuperUser
-    else if (isAdmin) AuthRoles.AdminUser
-    else if (isHubAdmin) AuthRoles.HubAdmin
-    else AuthRoles.User
+  override lazy val role: String = identity.role
 
   override def authorizeTo(target: Target, access: Access)(implicit logger: LoggingAdapter): Try[Identity] = {
     val requiredAccess: Access =
       // Transform any generic access into specific access
       if (isMyOrg(target) || target.isPublic) {
         target match {
-          case TUser(id) => access match { // a user accessing a user
-            case Access.READ => logger.debug(s"authorizeTo(): target id=$id, identity creds.id=${creds.id}")
+          case TUser(id, _) => access match { // a user accessing a user
+            case Access.READ =>
               if (id == creds.id) Access.READ_MYSELF
               // since we are in the section in which identity and target are in the same org, if identity is a hub admin we are viewing the users in the root org. Note: the root user is also an hub admin and org admin.
               else if (isHubAdmin || target.mine) Access.READ_MY_USERS // the routes's getAnyProblem() methods will catch the rest of the hubAdmin cases
@@ -34,37 +40,37 @@ case class IUser(creds: Creds) extends Identity {
               else Access.CREATE_USER // this also applies to a hub admin creating another hub admin
             case _ => access
           }
-          case TNode(_) => access match { // a user accessing a node
+          case TNode(_, _) => access match { // a user accessing a node
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_NODES else Access.READ_ALL_NODES
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_NODES else Access.WRITE_ALL_NODES
             case Access.CREATE => Access.CREATE_NODE // not used, because WRITE is used for create also
             case _ => access
           }
-          case TAgbot(_) => access match { // a user accessing a agbot
+          case TAgbot(_, _) => access match { // a user accessing a agbot
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_AGBOTS else Access.READ_ALL_AGBOTS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_AGBOTS else Access.WRITE_ALL_AGBOTS
             case Access.CREATE => Access.CREATE_AGBOT
             case _ => access
           }
-          case TService(_) => access match { // a user accessing a service
+          case TService(_, _, _) => access match { // a user accessing a service
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_SERVICES else Access.READ_ALL_SERVICES
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_SERVICES else Access.WRITE_ALL_SERVICES
             case Access.CREATE => Access.CREATE_SERVICES
             case _ => access
           }
-          case TPattern(_) => access match { // a user accessing a pattern
+          case TPattern(_, _, _) => access match { // a user accessing a pattern
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_PATTERNS else Access.READ_ALL_PATTERNS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_PATTERNS else Access.WRITE_ALL_PATTERNS
             case Access.CREATE => Access.CREATE_PATTERNS
             case _ => access
           }
-          case TBusiness(_) => access match { // a user accessing a business policy
+          case TBusiness(_, _) => access match { // a user accessing a business policy
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_BUSINESS else Access.READ_ALL_BUSINESS
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_BUSINESS else Access.WRITE_ALL_BUSINESS
             case Access.CREATE => Access.CREATE_BUSINESS
             case _ => access
           }
-          case TManagementPolicy(_) => access match { // a user accessing a business policy
+          case TManagementPolicy(_, _) => access match { // a user accessing a business policy
             case Access.READ => if (iOwnTarget(target)) Access.READ_MY_MANAGEMENT_POLICY else Access.READ_ALL_MANAGEMENT_POLICY
             case Access.WRITE => if (iOwnTarget(target)) Access.WRITE_MY_MANAGEMENT_POLICY else Access.WRITE_ALL_MANAGEMENT_POLICY
             case Access.CREATE => Access.CREATE_MANAGEMENT_POLICY
@@ -84,8 +90,8 @@ case class IUser(creds: Creds) extends Identity {
       } else if (isHubAdmin) { // cross-org access is "normal" for a hub admin, because the hub admin is defined in the root org
         // since we are in the cross-org section, the target will never be itself or root
         target match {
-          case TUser(id) => access match { // a hub admin accessing a user
-              case Access.READ => logger.debug(s"authorizeTo(): target id=$id, identity creds.id=${creds.id}")
+          case TUser(id, _) => access match { // a hub admin accessing a user
+              case Access.READ =>
                 Access.READ_MY_USERS // the get routes filter out regular users
               case Access.WRITE => Access.WRITE_MY_USERS // we don't know the content of the request body here, routes's getAnyProblem() methods will prevent updating regular users
               case Access.CREATE => Access.CREATE_USER // we don't know the content of the request body here, routes's getAnyProblem() methods will prevent updating regular users
@@ -98,7 +104,7 @@ case class IUser(creds: Creds) extends Identity {
               case Access.CREATE => Access.CREATE_ORGS
               case _ => access // this includes the case of an org admin or hub admin trying to DELETE_ORG
             }
-          case TAgbot(_) => access match {    // a hub admin accessing an agbot
+          case TAgbot(_, _) => access match {    // a hub admin accessing an agbot
             case Access.READ => Access.READ_ALL_AGBOTS
             case Access.WRITE => Access.WRITE_ALL_AGBOTS
             case _ => access
@@ -116,22 +122,14 @@ case class IUser(creds: Creds) extends Identity {
           case _ => access
         }
       }
-    if (requiredAccess == Access.NOT_FOUND) Failure(new ResourceNotFoundException(ExchMsg.translate("resource.not.found", target.id)))
+    if (requiredAccess == Access.NOT_FOUND) Failure(ResourceNotFoundException(ExchMsg.translate("resource.not.found", target.id)))
     else if (Role.hasAuthorization(role, requiredAccess)) Success(this)
-    else Failure(new AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
+    else Failure(AccessDeniedException(accessDeniedMsg(requiredAccess, target)))
   }
 
-  override def isAdmin: Boolean = {
-    if (isSuperUser) return true
-    val resp: Boolean = AuthCache.getUserIsAdmin(creds.id).getOrElse(false)
-    resp
-  }
+  override def isAdmin: Boolean = identity.isOrgAdmin
 
-  override def isHubAdmin: Boolean = {
-    if (isSuperUser) return true
-    val resp: Boolean = AuthCache.getUserIsHubAdmin(creds.id).getOrElse(false)
-    resp
-  }
+  override def isHubAdmin: Boolean = identity.isHubAdmin
 
   def iOwnTarget(target: Target): Boolean = {
     if (target.mine) true

@@ -13,15 +13,20 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{Await, ExecutionContext, Future}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.util._
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
 
 
@@ -95,29 +100,36 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postConfigurationState(@Parameter(hidden = true) node: String,
+  def postConfigurationState(@Parameter(hidden = true) identity: Identity2,
+                             @Parameter(hidden = true) node: String,
                              @Parameter(hidden = true) organization: String,
                              @Parameter(hidden = true) resource: String): Route =
-    entity(as[PostNodeConfigStateRequest]) { reqBody =>
+    entity(as[PostNodeConfigStateRequest]) {
+      reqBody =>
+        logger.debug(s"POST /orgs/${organization}/nodes/${node}/services_configstate - By ${identity.resource}:${identity.role}")
       validateWithMsg(reqBody.getAnyProblem) {
         complete({
           db.run(NodesTQ.getRegisteredServices(resource).result.asTry.flatMap({
             case Success(v) =>
-              logger.debug("POST /orgs/" + organization + "/nodes/" + node + "/configstate result: " + v)
-              if (v.nonEmpty) reqBody.getDbUpdate(v.head, resource).asTry // pass the update action to the next step
-              else DBIO.failed(new Throwable("Invalid Input: node " + resource + " not found")).asTry // it seems this returns success even when the node is not found
+              logger.debug("POST /orgs/" + organization + "/nodes/" + node + "/configstate - result: " + v)
+              if (v.nonEmpty)
+                reqBody.getDbUpdate(v.head, resource).asTry // pass the update action to the next step
+              else
+                DBIO.failed(new Throwable("Invalid Input: node " + resource + " not found")).asTry // it seems this returns success even when the node is not found
             case Failure(t) => DBIO.failed(t).asTry // rethrow the error to the next step. Is this necessary, or will flatMap do that automatically?
           }).flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
-              logger.debug("POST /orgs/" + organization + "/nodes/" + node + "/configstate write row result: " + v)
+              logger.debug("POST /orgs/" + organization + "/nodes/" + node + "/configstate - write row result: " + v)
               ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODESERVICES_CONFIGSTATE, ResChangeOperation.CREATED).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>
-              logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " updating resource status table: " + n)
-              if (n.asInstanceOf[Int] > 0) (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", resource))) // there were no db errors, but determine if it actually found it or not
-              else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource)))
+              logger.debug("PUT /orgs/" + organization + "/nodes/" + node + "/configstate - updating resource status table: " + n)
+              if (n.asInstanceOf[Int] > 0)
+                (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.services.updated", resource))) // there were no db errors, but determine if it actually found it or not
+              else
+                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource)))
             case Failure(t: AuthException) => t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.not.inserted.or.updated", resource, t.getMessage))
@@ -128,17 +140,28 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  val configurationState: Route =
+  def configurationState(identity: Identity2): Route =
     path("orgs" / Segment / "nodes" / Segment / "services_configstate") {
       (organization,
        node) =>
         val resource: String = OrgAndId(organization, node).toString
-        
-        post {
-          exchAuth(TNode(resource),Access.WRITE) {
-            _ =>
-              postConfigurationState(node, organization, resource)
+        val resource_type: String = "node"
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, node, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+            ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
           }
+        
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          post {
+            exchAuth(TNode(resource, owningResourceIdentity),Access.WRITE, validIdentity = identity) {
+              _ =>
+                postConfigurationState(identity, node, organization, resource)
+            }
+          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

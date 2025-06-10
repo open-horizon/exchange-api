@@ -38,7 +38,7 @@ trait Version extends JacksonSupport with AuthenticationSupport {
                                                                    schema = new Schema(implementation = classOf[String]))))))
   def getVersion: Route =
     get {
-      logger.debug("Doing POST /admin/version")
+      logger.debug(s"POST /admin/version")
       val version: String = ExchangeApi.adminVersion() + "\n"
    
       complete(HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, version)))

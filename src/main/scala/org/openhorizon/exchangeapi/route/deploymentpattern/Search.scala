@@ -10,7 +10,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.{PatternNodeResponse, PostPatternSearchResponse}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PServices, PatternsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
@@ -20,7 +20,7 @@ import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.Breaks.{break, breakable}
 import scala.util.{Failure, Success}
 
@@ -34,7 +34,7 @@ trait Search extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // ======== POST /org/{organization}/patterns/{pattern}/search ========================
+  // ======== POST /org/{organization}/patterns/{deploymentPattern}/search ========================
   @POST
   @Operation(
     summary = "Returns matching nodes of a particular pattern",
@@ -91,11 +91,16 @@ trait Search extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postSearchNode(@Parameter(hidden = true) organization: String,
+  def postSearchNode(@Parameter(hidden = true) deploymentPattern: String,
+                     @Parameter(hidden = true) identity: Identity2,
+                     @Parameter(hidden = true) organization: String,
                      @Parameter(hidden = true) resource: String): Route =
     entity(as[PostPatternSearchRequest]) {
       reqBody =>
-        validateWithMsg(if(!(reqBody.secondsStale.isEmpty || !(reqBody.secondsStale.get < 0)) && !reqBody.serviceUrl.isEmpty) Some(ExchMsg.translate("bad.input")) else None) {
+        Future { logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/search - By ${identity.resource}:${identity.role}") }
+        Future { logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/search - request-body: ${reqBody.toString}") }
+        
+        validateWithMsg(if(!(reqBody.secondsStale.isEmpty || !(reqBody.secondsStale.get < 0)) && reqBody.serviceUrl.nonEmpty) Some(ExchMsg.translate("bad.input")) else None) {
           complete({
             val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(organization)).toSet
   //          logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/search criteria: "+reqBody.toString)
@@ -187,7 +192,7 @@ trait Search extends JacksonSupport with AuthenticationSupport {
               else DBIO.failed(new Throwable(ExchMsg.translate("pattern.id.not.found", resource))).asTry
             })).map({
               case Success(list) =>
-  //              logger.debug("POST /orgs/" + orgid + "/patterns/" + pattern + "/search result size: " + list.size)
+                Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern/search - result size: " + list.size) }
                 if (list.nonEmpty) {
                   (HttpCode.POST_OK,
                    PostPatternSearchResponse(list
@@ -213,16 +218,16 @@ trait Search extends JacksonSupport with AuthenticationSupport {
         }
     }
   
-  val searchNode: Route =
+  def searchNode(identity: Identity2): Route =
     path("orgs" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns") / Segment / "search") {
       (organization,
        deploymentPattern) =>
         val resource: String = OrgAndId(organization, deploymentPattern).toString
         
         post {
-          exchAuth(TNode(OrgAndId(organization,"*").toString), Access.READ) {
+          exchAuth(TNode(OrgAndId(organization,"*").toString), Access.READ, validIdentity = identity) {
             _ =>
-              postSearchNode(organization, resource)
+              postSearchNode(deploymentPattern, identity, organization, resource)
           }
         }
     }

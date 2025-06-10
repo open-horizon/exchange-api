@@ -4,6 +4,8 @@ import org.openhorizon.exchangeapi.auth.OrgAndId
 import slick.lifted.{Query, Rep, TableQuery}
 import slick.jdbc.PostgresProfile.api._
 
+import java.util.UUID
+
 // Instance to access the services table
 object ServicesTQ extends TableQuery(new Services(_)) {
   def formId(orgid: String, url: String, version: String, arch: String): String = {
@@ -30,8 +32,8 @@ object ServicesTQ extends TableQuery(new Services(_)) {
   def getLabel(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.label)
   def getLastUpdated(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.lastUpdated)
   def getMatchHardware(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.matchHardware)
-  def getNumOwned(owner: String): Rep[Int] = this.filter(_.owner === owner).length
-  def getOwner(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.owner)
+  def getNumOwned(owner: UUID): Rep[Int] = this.filter(_.owner === owner).length
+  def getOwner(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.owner.toString())
   def getPublic(service: String): Query[Rep[Boolean], Boolean, Seq] = this.filter(_.service === service).map(_.public)
   def getRequiredServices(service: String): Query[Rep[String], String, Seq] = this.filter(_.service === service).map(_.requiredServices)
   def getService(service: String): Query[Services, ServiceRow, Seq] = if (service.contains("%")) this.filter(_.service like service) else this.filter(_.service === service)

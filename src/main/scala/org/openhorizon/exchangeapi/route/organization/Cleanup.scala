@@ -8,7 +8,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, TAction}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TAction}
 import org.openhorizon.exchangeapi.route.administration.DeleteOrgChangesRequest
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
@@ -35,10 +35,11 @@ trait Cleanup extends JacksonSupport with AuthenticationSupport {
   /* ====== DELETE /orgs/<orgid>/changes/cleanup ================================ */
   // This route is just for unit testing as a way to clean up the changes table once testing has completed
   // Otherwise the changes table gets clogged with entries in the orgs from testing
-  def deleteChanges(@Parameter(hidden = true) organization: String): Route =
+  def deleteChanges(@Parameter(hidden = true) identity: Identity2,
+                    @Parameter(hidden = true) organization: String): Route =
     entity(as[DeleteOrgChangesRequest]) {
       reqBody =>
-        logger.debug(s"Doing POST /orgs/$organization/changes/cleanup")
+        logger.debug(s"POST /orgs/$organization/changes/cleanup - By ${identity.resource}:${identity.role}")
         validateWithMsg(reqBody.getAnyProblem) {
           complete({
             val resourcesSet: Set[String] = reqBody.resources.toSet
@@ -58,13 +59,13 @@ trait Cleanup extends JacksonSupport with AuthenticationSupport {
         }
     }
   
-  val cleanup: Route =
+  def cleanup(identity: Identity2): Route =
     path("orgs" / Segment / "changes" / "cleanup") {
       organization =>
         delete {
-          exchAuth(TAction(), Access.ADMIN) {
+          exchAuth(TAction(), Access.ADMIN, validIdentity = identity) {
             _ =>
-              deleteChanges(organization)
+              deleteChanges(identity, organization)
           }
         }
     }

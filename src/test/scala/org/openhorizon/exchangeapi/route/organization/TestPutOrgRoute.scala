@@ -27,6 +27,8 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
+  
+  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORGADMIN1PASSWORD = "orgadmin1password"
@@ -74,66 +76,50 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
         tags               = None
       ))
 
-  private val TESTUSERS: Seq[UserRow] =
-    Seq(
-      UserRow(
-        username    = "root/TestPutOrgRouteHubAdmin",
-        orgid       = "root",
-        hashedPw    = Password.hash(HUBADMINPASSWORD),
-        admin       = false,
-        hubAdmin    = true,
-        email       = "TestPutOrgRouteHubAdmin@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/TestPutOrgRouteOrgAdmin1",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(ORGADMIN1PASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "TestPutOrgRouteOrgAdmin1@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/TestPutOrgRouteOrgAdmin2",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = Password.hash(ORGADMIN2PASSWORD),
-        admin       = true,
-        hubAdmin    = false,
-        email       = "TestPutOrgRouteOrgAdmin2@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(0).orgId + "/TestPutOrgRouteUser1",
-        orgid       = TESTORGS(0).orgId,
-        hashedPw    = Password.hash(USER1PASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "TestPutOrgRouteUser1@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      ),
-      UserRow(
-        username    = TESTORGS(1).orgId + "/TestPutOrgRouteUser2",
-        orgid       = TESTORGS(1).orgId,
-        hashedPw    = Password.hash(USER2PASSWORD),
-        admin       = false,
-        hubAdmin    = false,
-        email       = "TestPutOrgRouteUser2@ibm.com",
-        lastUpdated = ApiTime.nowUTC,
-        updatedBy   = "root/root"
-      )
-    )
-
+  private val TESTUSERS: Seq[UserRow] = {
+    Seq(UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = true,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = "root",
+                password     = Option(Password.hash(HUBADMINPASSWORD)),
+                username     = "TestPutOrgRouteHubAdmin"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(ORGADMIN1PASSWORD)),
+                username     = "TestPutOrgRouteOrgAdmin1"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = true,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = Option(Password.hash(ORGADMIN2PASSWORD)),
+                username     = "TestPutOrgRouteOrgAdmin2"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = Option(Password.hash(USER1PASSWORD)),
+                username     = "TestPutOrgRouteUser1"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(1).orgId,
+                password     = Option(Password.hash(USER2PASSWORD)),
+                username     = "TestPutOrgRouteUser2"))
+  }
+  
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
-  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
-  private val ORGADMIN1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).username + ":" + ORGADMIN1PASSWORD))
-  private val ORGADMIN2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).username + ":" + ORGADMIN2PASSWORD))
-  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(3).username + ":" + USER1PASSWORD))
-  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(4).username + ":" + USER2PASSWORD))
+  private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(0).organization + "/" + TESTUSERS(0).username + ":" + HUBADMINPASSWORD))
+  private val ORGADMIN1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(1).organization + "/" + TESTUSERS(1).username + ":" + ORGADMIN1PASSWORD))
+  private val ORGADMIN2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(2).organization + "/" + TESTUSERS(2).username + ":" + ORGADMIN2PASSWORD))
+  private val USER1AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(3).organization + "/" + TESTUSERS(3).username + ":" + USER1PASSWORD))
+  private val USER2AUTH = ("Authorization", "Basic " + ApiUtils.encode(TESTUSERS(4).organization + "/" + TESTUSERS(4).username + ":" + USER2PASSWORD))
 
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run(
@@ -145,7 +131,8 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     Await.ready(DBCONNECTION.run(
       ResourceChangesTQ.filter(_.orgId startsWith "testPutOrgRoute").delete andThen
         OrgsTQ.filter(_.orgid startsWith "testPutOrgRoute").delete andThen
-        UsersTQ.filter(_.username startsWith "root/TestPutOrgRouteHubAdmin").delete //this guy doesn't get deleted on cascade
+        UsersTQ.filter(_.organization === "root")
+               .filter(_.username startsWith "TestPutOrgRouteHubAdmin").delete //this guy doesn't get deleted on cascade
     ), AWAITDURATION)
   }
 

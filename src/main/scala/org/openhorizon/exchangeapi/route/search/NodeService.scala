@@ -11,7 +11,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.StatusCode
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, IUser, Identity, OrgAndId, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, IUser, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.{PostServiceSearchRequest, PostServiceSearchResponse}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
@@ -101,11 +101,11 @@ trait NodeService extends JacksonSupport with AuthenticationSupport {
       )
     )
   )
-  def postNodeServiceSearch(@Parameter(hidden = true) identity: Identity,
+  def postNodeServiceSearch(@Parameter(hidden = true) identity: Identity2,
                             @Parameter(hidden = true) organization: String): Route =
     entity(as[PostServiceSearchRequest]) {
       reqBody =>
-        logger.debug(s"Doing POST /orgs/$organization/search/nodes/service")
+        logger.debug(s"POST /orgs/$organization/search/nodes/service - By ${identity.resource}:${identity.role}")
         
         validateWithMsg(reqBody.getAnyProblem) {
           complete({
@@ -113,12 +113,10 @@ trait NodeService extends JacksonSupport with AuthenticationSupport {
             logger.debug("POST /orgs/"+organization+"/search/nodes/service criteria: "+reqBody.toString)
             val orgService: String = "%|" + reqBody.orgid + "/" + service + "|%"
             var qFilter = NodesTQ.filter(_.orgid === organization)
-            identity match {
-              case _: IUser =>
-                // if the caller is a normal user then we need to only return node the caller owns
-                if(!(identity.isSuperUser || identity.isAdmin)) qFilter = qFilter.filter(_.owner === identity.identityString)
-              case _ => ; // nodes can't call this route and agbots don't need an additional filter
-            }
+            if (identity.isUser) {
+              // if the caller is a normal user then we need to only return node the caller owns
+              if(!(identity.isSuperUser || identity.isOrgAdmin)) qFilter = qFilter.filter(_.owner === identity.identifier)
+            }// nodes can't call this route and agbots don't need an additional filter
             val q = for {
               (n, _) <- qFilter join (NodeStatusTQ.filter(_.runningServices like orgService)) on (_.id === _.nodeId)
             } yield (n.id, n.lastHeartbeat)
@@ -132,12 +130,12 @@ trait NodeService extends JacksonSupport with AuthenticationSupport {
       }
   }
   
-  val nodeServiceSearch: Route =
+  def nodeServiceSearch(identity: Identity2): Route =
     path("orgs" / Segment / "search" / "nodes" / "service") {
       organization =>
         post {
-          exchAuth(TNode(OrgAndId(organization,"#").toString),Access.READ) {
-            identity =>
+          exchAuth(TNode(OrgAndId(organization,"#").toString),Access.READ, validIdentity = identity) {
+            _ =>
               postNodeServiceSearch(identity, organization)
           }
         }

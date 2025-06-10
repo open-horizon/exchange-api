@@ -9,5 +9,6 @@ object PropType {
   val INT = "int"
   val WILDCARD = "wildcard"       // means 1 side does not care what value the other side has
   val all = Set(STRING, LIST, VERSION, BOOLEAN, INT, WILDCARD)
+  
   def contains(s: String): Boolean = all.contains(s)
 }

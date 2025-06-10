@@ -10,12 +10,12 @@
     </encoder>
   </appender>
 
-  <appender name="FILE" class="ch.qos.logback.core.FileAppender">
+  <!-- <appender name="FILE" class="ch.qos.logback.core.FileAppender">
     <file>target/myapp-dev.log</file>
     <encoder>
       <pattern>[%date{ISO8601}] %-42([%logger]) [%marker] %-42([%thread]) %-7([%level]) - %msg%n</pattern>
     </encoder>
-  </appender>
+  </appender> -->
 
   <appender name="ASYNC" class="ch.qos.logback.classic.AsyncAppender">
     <queueSize>8192</queueSize>
@@ -23,11 +23,11 @@
     <appender-ref ref="STDOUT" />
   </appender>
 
-  <appender name="ASYNC2" class="ch.qos.logback.classic.AsyncAppender">
+  <!-- <appender name="ASYNC2" class="ch.qos.logback.classic.AsyncAppender">
     <queueSize>8192</queueSize>
     <neverBlock>true</neverBlock>
     <appender-ref ref="FILE"/>
-  </appender>
+  </appender> -->
 
 
   <logger name="ch.qos.logback.classic.model.processor.LoggerModelHandler"    level="${log.logback.loggermodelhandler:-off}" />
@@ -41,7 +41,7 @@
   <!-- <logger name="org.apache.pekko.actor.CoordinatedShutdown"                   level="${log.pekko.actor.coordinatedshutdown:-debug}" />
   <logger name="org.apache.pekko.event.EventStream"                           level="${log.pekko.event.eventstream:-debug}" />
   <logger name="org.apache.pekko.io.TcpListener"                              level="${log.pekko.io.tcplistner:-debug}" /> -->
-  <logger name="scalacache.guava.GuavaCache"                                  level="${log.guavacache:-info}" />
+  <logger name="scalacache.caffeine.CaffeineCache"                            level="${log.caffeinecache:-info}"/>
   <logger name="slick.basic.BasicBackend.action"                              level="${log.action:-info}" />
   <logger name="slick.basic.BasicBackend.stream"                              level="${log.stream:-info}" />
   <logger name="slick.compiler"                                               level="${log.qcomp:-info}" />
@@ -91,6 +91,6 @@
 
   <root level="DEBUG">
     <appender-ref ref="ASYNC"/>
-    <appender-ref ref="ASYNC2"/>
+    <!-- <appender-ref ref="ASYNC2"/> -->
   </root>
 </configuration>

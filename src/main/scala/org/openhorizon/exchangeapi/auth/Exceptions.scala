@@ -36,36 +36,38 @@ class IsDbMigrationException(msg: String = ExchMsg.translate("in.process.db.migr
 class DbTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiRespType.GW_TIMEOUT, msg)
 class DbConnectionException(msg: String) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
 
-class InvalidCredentialsException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+case class InvalidCredentialsException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
-class OrgNotSpecifiedException(msg: String = ExchMsg.translate("org.not.specified")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+case class OrgNotSpecifiedException(msg: String = ExchMsg.translate("org.not.specified")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
-class AccessDeniedException(msg: String = ExchMsg.translate("access.denied")) extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
+case class AccessDeniedException(msg: String = ExchMsg.translate("access.denied"), summary: String = "") extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
 
-class BadInputException(msg: String = ExchMsg.translate("bad.input")) extends AuthException(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, msg)
+case class BadInputException(msg: String = ExchMsg.translate("bad.input"), summary: String = "") extends AuthException(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, msg)
 
-class ResourceNotFoundException(msg: String = ExchMsg.translate("not.found")) extends AuthException(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, msg)
+case class ResourceNotFoundException(msg: String = ExchMsg.translate("not.found")) extends AuthException(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, msg)
 
-class UserCreateException(msg: String = ExchMsg.translate("error.creating.user.noargs")) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
+case class UserCreateException(msg: String = ExchMsg.translate("error.creating.user.noargs")) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
 
-class AlreadyExistsException(msg: String = ExchMsg.translate("already.exists")) extends AuthException(HttpCode.ALREADY_EXISTS2, ApiRespType.ALREADY_EXISTS, msg)
+case class AlreadyExistsException(msg: String = ExchMsg.translate("already.exists")) extends AuthException(HttpCode.ALREADY_EXISTS2, ApiRespType.ALREADY_EXISTS, msg)
+
+case class InternalErrorException(msg: String = ExchMsg.translate("already.exists")) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
 
 // Not currently used. The IAM token we were given was expired, or some similar problem
 //class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
 // Unexpected http code or response body from an IAM API call
-class IamApiErrorException(msg: String) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
+case class IamApiErrorException(msg: String) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
 
 // Didn't get a response from an IAM API after a number of retries
-class IamApiTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiRespType.GW_TIMEOUT, msg)
+case class IamApiTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiRespType.GW_TIMEOUT, msg)
 
 // An error occurred while building the SSLSocketFactory with the self-signed cert
 class SelfSignedCertException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
 
 // The creds id was not found in the db
-class IdNotFoundException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+case class IdNotFoundException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
 
 // The id was not found in the db when looking for owner or isPublic
-class IdNotFoundForAuthorizationException(msg: String = ExchMsg.translate("access.denied")) extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
+case class IdNotFoundForAuthorizationException(msg: String = ExchMsg.translate("access.denied")) extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
 
-class AuthInternalErrorException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
+case class AuthInternalErrorException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)

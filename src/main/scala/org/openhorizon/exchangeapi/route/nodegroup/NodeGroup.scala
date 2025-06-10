@@ -11,23 +11,27 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.path
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, post, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
-import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthRoles, AuthenticationSupport, BadInputException, Identity, OrgAndId, ResourceNotFoundException, TNode}
+import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthRoles, AuthenticationSupport, BadInputException, Identity, Identity2, OrgAndId, ResourceNotFoundException, TNode}
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignment, NodeGroupAssignmentRow, NodeGroupAssignmentTQ, PostPutNodeGroupsRequest}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, Nodes, NodesTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, HttpCode}
-import org.openhorizon.exchangeapi.auth
+import org.openhorizon.exchangeapi.{ExchangeApiApp, auth}
 import org.postgresql.util.PSQLException
+import scalacache.modes.scalaFuture.mode
 import slick.dbio.Effect
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled
 
 import java.sql.Timestamp
 import java.time.ZoneId
+import java.util.UUID
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.ExecutionContext
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext}
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
@@ -59,18 +63,18 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                                                          responseCode = "404")),
              summary = "Deletes a Node Group")
   def deleteNodeGroup(@Parameter(hidden = true) highAvailabilityGroup: String,
-                      @Parameter(hidden = true) identity: Identity,
+                      @Parameter(hidden = true) identity: Identity2,
                       @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"Doing DELETE /orgs/$organization/hagroups/$highAvailabilityGroup")
+      logger.debug(s"DELETE /orgs/$organization/hagroups/$highAvailabilityGroup - By ${identity.resource}:${identity.role}")
       complete({
         val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
         val nodesQuery: Query[Nodes, NodeRow, Seq] =
-          if (identity.isAdmin)
+          if (identity.isOrgAdmin || identity.isSuperUser)
             NodesTQ.getAllNodes(organization)
           else
-            NodesTQ.getAllNodes(organization).filter(_.owner === identity.identityString)
+            NodesTQ.getAllNodes(organization).filter(_.owner === identity.identifier)
         val nodeGroupQuery: Query[org.openhorizon.exchangeapi.table.node.group.NodeGroup, NodeGroupRow, Seq] =
           NodeGroupTQ.filter(_.organization === organization)
                      .filter(_.name === highAvailabilityGroup)
@@ -81,10 +85,10 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
             
             _ <-
               if (nodeGroupAdmin.isEmpty)
-                DBIO.failed(new ResourceNotFoundException())
-              else if (!identity.isAdmin &&
+                DBIO.failed(ResourceNotFoundException())
+              else if (!identity.isOrgAdmin &&
                        nodeGroupAdmin.getOrElse(false))
-                DBIO.failed(new AccessDeniedException())
+                DBIO.failed(AccessDeniedException())
               else
                 DBIO.successful(())
             
@@ -100,7 +104,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
             
             _ <-
               if (!assignedNodesNotOwned.equals(0))
-                DBIO.failed(new AccessDeniedException())
+                DBIO.failed(AccessDeniedException())
               else
                 DBIO.successful(())
             
@@ -111,7 +115,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
             
             _ <-
               if (numNodeGroupsRemoved.equals(0))
-                DBIO.failed(new ResourceNotFoundException())
+                DBIO.failed(ResourceNotFoundException())
               else
                 DBIO.successful(())
             
@@ -199,30 +203,36 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                                                          responseCode = "404")),
              summary = "Lists all members of the specified Node Group (HA Group)")
   def getNodeGroup(@Parameter(hidden = true) highAvailabilityGroup: String,
-                   @Parameter(hidden = true) identity: Identity,
+                   @Parameter(hidden = true) identity: Identity2,
                    @Parameter(hidden = true) organization: String): Route =
     {
-      logger.debug(s"doing GET /orgs/$organization/hagroups")
+      logger.debug(s"GET /orgs/$organization/hagroups - By ${identity.resource}:${identity.role}")
       complete({
         val nodesQuery: Query[Nodes, NodeRow, Seq] =
-          if (identity.isAdmin ||
-              identity.role.equals(AuthRoles.Agbot))
+          if (identity.isOrgAdmin ||
+              identity.isSuperUser ||
+              identity.isAgbot)
             NodesTQ.getAllNodes(organization)
           else
-            NodesTQ.getAllNodes(organization).filter(_.owner === identity.identityString)
+            NodesTQ.getAllNodes(organization).filter(_.owner === identity.identifier.getOrElse(identity.owner.get))
         
         val getNodeGroup =
           for {
-            nodeGroupWAssignments <- NodeGroupTQ.getAllNodeGroups(organization).filter(_.name === highAvailabilityGroup) joinLeft NodeGroupAssignmentTQ.filter(_.node in nodesQuery.map(_.id)) on (_.group === _.group)
+            nodeGroupWAssignments <-
+              NodeGroupTQ.getAllNodeGroups(organization)
+                         .filter(_.name === highAvailabilityGroup)
+                         .joinLeft(NodeGroupAssignmentTQ.filter(_.node in nodesQuery.map(_.id)))
+                         .on(_.group === _.group)
           } yield (nodeGroupWAssignments)
         
         db.run(Compiled(getNodeGroup.sortBy(_._2.map(_.node).getOrElse(""))).result.transactionally.asTry).map({
           case Success(result) =>
+            logger.debug(s"${result.toString()}")
             if (result.nonEmpty)
               if (result.head._2.isDefined)
                 (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(admin = result.head._1.admin,
                                                                       description =
-                                                                        if (!identity.isAdmin && result.head._1.admin)
+                                                                        if ((!identity.isOrgAdmin && !identity.isSuperUser) && result.head._1.admin)
                                                                           ""
                                                                         else
                                                                           result.head._1.description.getOrElse(""),
@@ -232,7 +242,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
               else
                 (HttpCode.OK, GetNodeGroupsResponse(Seq(NodeGroupResp(admin = result.head._1.admin,
                                                                       description =
-                                                                        if (!identity.isAdmin && result.head._1.admin)
+                                                                        if ((!identity.isOrgAdmin && !identity.isSuperUser) && result.head._1.admin)
                                                                           ""
                                                                         else
                                                                           result.head._1.description.getOrElse(""),
@@ -289,12 +299,12 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                                                          responseCode = "409")),
              summary = "Update the nodes that belong to an existing Node Group (HA Group)")
   def putNodeGroup(@Parameter(hidden = true) highAvailabilityGroup: String,
-                   @Parameter(hidden = true) identity: Identity,
+                   @Parameter(hidden = true) identity: Identity2,
                    @Parameter(hidden = true) organization: String): Route =
     {
       entity(as[PutNodeGroupsRequest]) {
         reqBody =>
-          logger.debug(s"Doing PUT /orgs/$organization/users/$highAvailabilityGroup")
+          logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - By ${identity.resource}:${identity.role}")
             validateWithMsg(reqBody.getAnyProblem) {
               complete({
                 val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
@@ -310,22 +320,28 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                   NodeGroupTQ.filter(_.organization === organization)
                              .filter(_.name === highAvailabilityGroup)
                 val nodesQuery: Query[Nodes, NodeRow, Seq] =
-                  if (identity.isAdmin ||
+                  if (identity.isOrgAdmin ||
                       identity.isSuperUser)
                     NodesTQ.getAllNodes(organization)
                   else
-                    NodesTQ.getAllNodes(organization).filter(_.owner === identity.identityString)
+                    NodesTQ.getAllNodes(organization).filter(_.owner === identity.identifier.get)
                 
                 val syncNodeGroup: DBIOAction[(Seq[String], Option[Int], Seq[String], Seq[String]), NoStream, Effect.Write with Effect with Effect.Read] =
                   for {
+                    _ <-
+                      if (identity.isHubAdmin)
+                        DBIO.failed(AccessDeniedException())
+                      else
+                        DBIO.successful(())
+                    
                     nodeGroupAdmin <- Compiled(nodeGroupQuery.map(_.admin)).result.headOption
                     
                     _ <-
                       if (nodeGroupAdmin.isEmpty)
-                        DBIO.failed(new ResourceNotFoundException())
-                      else if (!identity.isAdmin &&
+                        DBIO.failed(ResourceNotFoundException())
+                      else if (!identity.isOrgAdmin &&
                                nodeGroupAdmin.getOrElse(false))
-                        DBIO.failed(new AccessDeniedException())
+                        DBIO.failed(AccessDeniedException())
                       else
                         DBIO.successful(())
                   
@@ -359,7 +375,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
         
                     _ <-
                       if (!assignedNodesNotOwned.equals(0))
-                        DBIO.failed(new AccessDeniedException())
+                        DBIO.failed(AccessDeniedException())
                       else
                         DBIO.successful(())
         
@@ -387,7 +403,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                     _ <-
                       if (members.nonEmpty &&
                           !(nodesToAssign.sizeIs == members.get.length))
-                        DBIO.failed(new AccessDeniedException())
+                        DBIO.failed(AccessDeniedException())
                       else
                         DBIO.successful(())
         
@@ -503,16 +519,16 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                                                          responseCode = "409")),
              summary = "Insert the nodes that belong to an existing Node Group (HA Group)")
   def postNodeGroup(@Parameter(hidden = true) highAvailabilityGroup: String,
-                    @Parameter(hidden = true) identity: Identity,
+                    @Parameter(hidden = true) identity: Identity2,
                     @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) resource: String): Route =
     post {
       entity(as[PostPutNodeGroupsRequest]) {
         reqBody =>
-          logger.debug(s"Doing POST /orgs/$organization/hagroups/$highAvailabilityGroup")
+          logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
-              val admin: Boolean = identity.isAdmin
+              val admin: Boolean = (identity.isOrgAdmin || identity.isSuperUser)
               val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
               val nodeGroupQuery: Query[org.openhorizon.exchangeapi.table.node.group.NodeGroup, NodeGroupRow, Seq] =
                 NodeGroupTQ.filter(_.organization === organization)
@@ -521,13 +537,15 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                 if (admin)
                   NodesTQ.getAllNodes(organization)
                 else
-                  NodesTQ.getAllNodes(organization).filter(_.owner === identity.identityString)
+                  NodesTQ.getAllNodes(organization).filter(_.owner === identity.identifier.get)
               val members: Seq[String] =
                 if (reqBody.members.isEmpty ||
                     reqBody.members.get.isEmpty)
                   Seq()
                 else
                   reqBody.members.get.distinct.map(node => OrgAndId(id = node, org = organization).toString) //don't want duplicate nodes in list, and need to pre-pend orgId to match id in Node table
+                  
+              logger.debug(s"${members.toString()}")
               
               val createNodeGroup: DBIOAction[Unit, NoStream, Effect.Write with Effect.Read with Effect] =
                 for {
@@ -552,15 +570,14 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                     Compiled(nodesQuery.filter(_.id inSet members)
                                        .map(_.id))
                                        .result
-                                       .map(nodes =>
-                                         nodes.map(node =>
-                                           NodeGroupAssignmentRow(group = group,
-                                                                  node = node)))
+                                       .map(nodes => nodes.map(node =>
+                                                                 NodeGroupAssignmentRow(group = group,
+                                                                                        node = node)))
                   
                   // Authorization check for all nodes in the request body.
                   _ <-
                     if (!(nodesToAssign.sizeIs == members.length))
-                      DBIO.failed(new AccessDeniedException())
+                      DBIO.failed(AccessDeniedException())
                     else
                       DBIO.successful(())
                   
@@ -613,7 +630,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                   logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup result: $result")
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.created", resource)))
                 case Failure(e: AccessDeniedException) =>
-                  (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied.no.auth", identity.identityString, "WRITE_ALL_NODES", "")))
+                  (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied.no.auth", identity.resource, "WRITE_ALL_NODES", "")))
                 case Failure(e: IllegalStateException) =>
                   (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.records.not.inserted")))
                 case Failure(e: PSQLException) =>
@@ -633,28 +650,37 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  def nodeGroup: Route =
+  def nodeGroup(identity: Identity2): Route =
     path("orgs" / Segment / "hagroups" / Segment) {
       (organization,
        highAvailabilityGroup) =>
         val resource: String = OrgAndId(organization, highAvailabilityGroup).toString
         
+        /*val i: Option[UUID] =
+          try
+            Option(Await.result(cacheResourceOwnership.cachingF(organization, highAvailabilityGroup)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, something = "node")
+            }, 15.seconds))
+          catch {
+            case _: Throwable => None
+          }*/
+        
         (delete | post) {
-          exchAuth(TNode(resource), Access.WRITE) {
-            identity =>
+          exchAuth(TNode(resource), Access.WRITE, validIdentity = identity) {
+            _ =>
               deleteNodeGroup(highAvailabilityGroup, identity, organization, resource) ~
               postNodeGroup(highAvailabilityGroup, identity, organization, resource)
           }
         } ~
         get {
-          exchAuth(TNode(OrgAndId(organization, "#").toString), Access.READ) {
-            identity =>
+          exchAuth(TNode(OrgAndId(organization, "#").toString), Access.READ, validIdentity = identity) {
+            _ =>
               getNodeGroup(highAvailabilityGroup, identity, organization)
           }
         } ~
         put {
-          exchAuth(TNode(OrgAndId(organization, "#").toString), Access.WRITE) {
-            identity =>
+          exchAuth(TNode(OrgAndId(organization, "#").toString), Access.WRITE, validIdentity = identity) {
+            _ =>
               putNodeGroup(highAvailabilityGroup, identity, organization)
           }
         }

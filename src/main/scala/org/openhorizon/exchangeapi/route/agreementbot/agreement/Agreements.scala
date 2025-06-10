@@ -1,24 +1,29 @@
-package org.openhorizon.exchangeapi.route.agreementbot
+package org.openhorizon.exchangeapi.route.agreementbot.agreement
 
+import com.github.pjfanning.pekkohttpjackson.JacksonSupport
+import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
+import jakarta.ws.rs.{DELETE, GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
-import com.github.pjfanning.pekkohttpjackson.JacksonSupport
-import io.swagger.v3.oas.annotations.enums.ParameterIn
-import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
-import io.swagger.v3.oas.annotations.parameters.RequestBody
-import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
-import jakarta.ws.rs.{DELETE, GET, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.ExchangeApiApp
+import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
+import org.openhorizon.exchangeapi.route.agreementbot.GetAgbotAgreementsResponse
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.{AgbotAgreement, AgbotAgreementsTQ}
-import org.openhorizon.exchangeapi.table.{organization, resourcechange}
-import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.table.resourcechange
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import java.util.UUID
+import scala.concurrent.duration.DurationInt
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 
@@ -44,35 +49,37 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
                     new responses.ApiResponse(responseCode = "403", description = "access denied"),
                     new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
-  def deleteAgreements(@Parameter(hidden = true) id: String,
-                       @Parameter(hidden = true) orgid: String,
-                       @Parameter(hidden = true) compositeId: String): Route = {
+  def deleteAgreements(@Parameter(hidden = true) agreementBot: String,
+                       @Parameter(hidden = true) identity: Identity2,
+                       @Parameter(hidden = true) organization: String,
+                       @Parameter(hidden = true) resource: String): Route = {
+    logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/agreements - By ${identity.resource}:${identity.role}")
       complete({
         // remove does *not* throw an exception if the key does not exist
-        db.run(AgbotAgreementsTQ.getAgreements(compositeId)
+        db.run(AgbotAgreementsTQ.getAgreements(resource)
                                 .delete
                                 .asTry
                                 .flatMap({
                                   case Success(v) =>
                                     if (0 < v) { // there were no db errors, but determine if it actually found it or not
                                       // Add the resource to the resourcechanges table
-                                      logger.debug("DELETE /agbots/" + id + "/agreements result: " + v)
-                                      resourcechange.ResourceChange(0L, orgid, id, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
+                                      logger.debug("DELETE /agbots/" + agreementBot + "/agreements result: " + v)
+                                      resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
                                     }
                                     else
-                                      DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.agreements.found.for.agbot", compositeId))).asTry
+                                      DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.agreements.found.for.agbot", resource))).asTry
                                   case Failure(t) =>
                                     DBIO.failed(t).asTry}))
           .map({
             case Success(v) =>
-              logger.debug("DELETE /agbots/" + id + "/agreements updated in changes table: " + v)
+              logger.debug("DELETE /agbots/" + agreementBot + "/agreements updated in changes table: " + v)
               (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.agreements.deleted")))
             case Failure(t: DBProcessingError) =>
               t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
-              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("agbot.agreements.not.deleted", compositeId, t.toString))
+              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("agbot.agreements.not.deleted", resource, t.toString))
             case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.agreements.not.deleted", compositeId, t.toString)))
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.agreements.not.deleted", resource, t.toString)))
           })
       })
   }
@@ -113,42 +120,55 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/agreement")
   def getAgreements(@Parameter(hidden = true) agreementBot: String,
+                    @Parameter(hidden = true) identity: Identity2,
                     @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) resource: String): Route = {
-    complete({
+    Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/agreements - By ${identity.resource}:${identity.role}") }
+    
+    complete {
       db.run(AgbotAgreementsTQ.getAgreements(resource).result)
-        .map({
+        .map {
           list =>
-            logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/agreements result size: ${list.size}")
+            Future { logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/agreements result size: ${list.size}") }
             val agreements: Map[String, AgbotAgreement] = list.map(e => e.agrId -> e.toAgbotAgreement).toMap
-            val code: StatusCode =
-              if (agreements.nonEmpty)
-                StatusCodes.OK
-              else
-                StatusCodes.NotFound
-            (code, GetAgbotAgreementsResponse(agreements, 0))
-        })
-    })
+           
+            if (agreements.nonEmpty)
+              (StatusCodes.OK, GetAgbotAgreementsResponse(agreements))
+            else
+              (StatusCodes.NotFound, GetAgbotAgreementsResponse(agreements))
+        }
+    }
   }
   
   
-  val agreements: Route =
+  def agreements(identity: Identity2): Route =
     path("orgs" / Segment / "agbots" / Segment / "agreements") {
       (organization,
        agreementBot) =>
         val resource: String = OrgAndId(organization, agreementBot).toString
+        val resource_type = "agreement_bot"
+        val cacheCallback: Future[(UUID, Boolean)] =
+          cacheResourceOwnership.cachingF(organization, agreementBot, resource_type)(ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) {
+              ExchangeApiApp.getOwnerOfResource(organization = organization, resource = resource, resource_type = resource_type)
+            }
         
-        get {
-          exchAuth(TAgbot(resource), Access.READ) {
-            _ =>
-              getAgreements(agreementBot, organization, resource)
+        def routeMethods(owningResourceIdentity: Option[UUID] = None): Route =
+          get {
+            exchAuth(TAgbot(resource, owningResourceIdentity), Access.READ, validIdentity = identity) {
+              _ =>
+                getAgreements(agreementBot, identity, organization, resource)
+            }
+          } ~
+          delete {
+            exchAuth(TAgbot(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
+              _ =>
+                deleteAgreements(agreementBot, identity, organization, resource)
+            }
           }
-        } ~
-        delete {
-          exchAuth(TAgbot(resource), Access.WRITE) {
-            _ =>
-              deleteAgreements(agreementBot, organization, resource)
-          }
+        
+        onComplete(cacheCallback) {
+          case Failure(_) => routeMethods()
+          case Success((owningResourceIdentity, _)) => routeMethods(owningResourceIdentity = Option(owningResourceIdentity))
         }
     }
 }

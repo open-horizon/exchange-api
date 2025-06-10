@@ -12,7 +12,11 @@ class NodeMsgs(tag: Tag) extends Table[NodeMsgRow](tag, "nodemsgs") {
   def message = column[String]("message")
   def timeSent = column[String]("timesent")
   def timeExpires = column[String]("timeexpires")
+  
   def * = (msgId, nodeId, agbotId, agbotPubKey, message, timeSent, timeExpires).<>(NodeMsgRow.tupled, NodeMsgRow.unapply)
-  def node = foreignKey("node_fk", nodeId, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def agbot = foreignKey("agbot_fk", agbotId, AgbotsTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  
+  def agbot = foreignKey("node_msg_fk_agbots", agbotId, AgbotsTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def node = foreignKey("node_msg_fk_nodes", nodeId, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def idx_node_msg_fk_agbots = index(name = "idx_node_msg_fk_agbots", on = agbotId, unique = false)
+  def idx_node_msg_fk_nodes = index(name = "idx_node_msg_fk_nodes", on = nodeId, unique = false)
 }

@@ -4,11 +4,11 @@ import java.time.ZoneId
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 final case class ApiKeyMetadata(
-  id: String,
   description: String,
+  id: String,
   @JsonInclude(JsonInclude.Include.NON_NULL)
   owner: String = null,
-  lastUpdated: String) 
+  lastUpdated: String)
 {
   def this(row: ApiKeyRow, ownerStr: String) = this(
     id = row.id.toString,

@@ -401,4 +401,52 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
   }
 
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "apikey -- reserved username -- 400 bad input") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "apikey")
+      .postData(Serialization.write(normalRequestBody))
+      .headers(ACCEPT)
+      .headers(CONTENT)
+      .headers(ROOTAUTH)
+      .asString
+
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+    assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "iamapikey -- reserved username -- 400 bad input") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "iamapikey")
+      .postData(Serialization.write(normalRequestBody))
+      .headers(ACCEPT)
+      .headers(CONTENT)
+      .headers(ROOTAUTH)
+      .asString
+
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+    assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "aPIkey -- reserved username -- 400 bad input") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "aPIkey")
+      .postData(Serialization.write(normalRequestBody))
+      .headers(ACCEPT)
+      .headers(CONTENT)
+      .headers(ROOTAUTH)
+      .asString
+
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+    assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
+    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
+  }
+
 }

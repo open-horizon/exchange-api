@@ -29,4 +29,6 @@ object ResChangeResource extends Enumeration {
   val SERVICEDOCKAUTHS: ResChangeResource.Value = Value("servicedockauths")
   val SERVICEKEYS: ResChangeResource.Value = Value("servicekeys")
   val SERVICEPOLICIES: ResChangeResource.Value = Value("servicepolicies")
+  
+  val APIKEY: ResChangeResource.Value = Value("apikey")
 }

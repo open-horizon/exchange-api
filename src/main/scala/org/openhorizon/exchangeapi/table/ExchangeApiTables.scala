@@ -14,6 +14,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsT
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.AgbotPatternsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.AgbotBusinessPolsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
+import org.openhorizon.exchangeapi.table.apikey.{ApiKeyRow,ApiKeysTQ}
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
@@ -92,6 +93,7 @@ object ExchangeApiTables {
       ++ NodeGroupTQ.schema
       ++ NodeGroupAssignmentTQ.schema
       ++ SearchServiceTQ.schema
+      ++ ApiKeysTQ.schema
     ).create.transactionally,
     SchemaTQ.getSetVersionAction)
 
@@ -137,6 +139,7 @@ object ExchangeApiTables {
     sqlu"DROP TABLE IF EXISTS public.resourcechanges CASCADE",
     sqlu"DROP TABLE IF EXISTS public.users CASCADE",
     sqlu"DROP TABLE IF EXISTS public.orgs CASCADE",
+    sqlu"DROP TABLE IF EXISTS public.apikeys CASCADE",
     sqlu"DROP TABLE IF EXISTS public.schema CASCADE",
     // these are no longer used, but here just in case they are still hanging around
     sqlu"DROP TABLE IF EXISTS public.microservicekeys CASCADE",
@@ -393,6 +396,7 @@ object ExchangeApiTables {
           (SchemaTQ.schema ++
            OrgsTQ.schema ++
            UsersTQ.schema ++
+           ApiKeysTQ.schema ++
            ResourceChangesTQ.schema ++
            NodesTQ.schema ++
            NodeAgreementsTQ.schema ++

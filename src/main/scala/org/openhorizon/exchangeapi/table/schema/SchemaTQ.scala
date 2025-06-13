@@ -6,6 +6,7 @@ import org.openhorizon.exchangeapi.table.agent.configuration.AgentConfigurationV
 import org.openhorizon.exchangeapi.table.agent.software.AgentSoftwareVersionsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.AgbotPatternsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.AgbotBusinessPolsTQ
+import org.openhorizon.exchangeapi.table.apikey.ApiKeysTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.search.SearchOffsetPolicyTQ
@@ -440,12 +441,17 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
           sqlu"""CREATE INDEX IF NOT EXISTS idx_service_fk_orgs ON public.services(orgid);""",
           sqlu"""CREATE INDEX IF NOT EXISTS idx_service_fk_users ON public.services(owner);""",
           sqlu"""CREATE INDEX IF NOT EXISTS idx_user_fk_users ON public.users(modified_by);""")
+      
+      case 57 => // v2.128.0
+        DBIO.seq(
+          ApiKeysTQ.schema.create)
+              
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }
   }
 
-  val latestSchemaVersion: Int = 56    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 57    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

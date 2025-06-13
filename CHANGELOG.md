@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.128.0](https://github.com/open-horizon/exchange-api/pull/774) - 2025-06-12
+- Add support for internal API key management and authentication.
+- Create APIKEY table and handle schema migration.
+- Add object model and service methods for API key operations.
+
 ## [2.127.0](https://github.com/open-horizon/exchange-api/pull/773) - 2025-06-03
 - Guava has been replaced by Caffeine as the backend cache implementation. ScalaCache is still the wrapper.
   - There are other Caffeine implementations and wrappers out there. This is a start.

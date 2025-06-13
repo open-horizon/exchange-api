@@ -29,7 +29,7 @@ import scalacache.modes.scalaFuture._
 import slick.jdbc.PostgresProfile.api._
 
 @Path("/v1/orgs/{organization}/users/{username}/apikeys")
-@io.swagger.v3.oas.annotations.tags.Tag(name = "apikey")
+@io.swagger.v3.oas.annotations.tags.Tag(name = "user/apikey")
 trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
 
   def db: Database
@@ -81,79 +81,83 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
   )
 )
   def postUserApiKey(@Parameter(hidden = true) identity: Identity2,
-                     @Parameter(hidden = true) organization: String,
-                     @Parameter(hidden = true) username: String,
-                     @Parameter(hidden = true) resourceUuidOpt: Option[UUID]): Route = {
-    entity(as[PostApiKeyRequest]) { body =>
-      val ownerStr = s"$organization/$username"
-      val sha256Token = ApiKeyUtils.generateApiKeyHashedValue()
-      val argon2ForDb = Password.hash(sha256Token)
-      val keyId = ApiKeyUtils.generateApiKeyId()
-      val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
-
-      resourceUuidOpt match {
-        case Some(userUuid) =>
-          // logger.debug(s"[postUserApiKey] Using UUID: $userUuid for user $ownerStr")
-          complete {
-            val createApiKey: DBIOAction[Unit, NoStream, Effect.Read with Effect.Write] =
-              for {
-                userExists <- UsersTQ.filter(user => (user.user === userUuid &&
-                                                     user.organization === organization &&
-                                                     user.username === username))
-                                    .filterIf(identity.isStandardUser)(users => users.user === identity.identifier.get)
-                                    .filterIf(identity.isOrgAdmin)(users => !users.isHubAdmin && users.organization === identity.organization && !(users.organization === "root" && users.username === "root"))
-                                    .filterIf(identity.isHubAdmin)(users => (users.isHubAdmin || users.isOrgAdmin) && !(users.organization === "root" && users.username === "root"))
-                                    .exists.result
-                _ <- if (userExists) {
-                       DBIO.successful(())
-                     } else {
-                       DBIO.failed(new ClassNotFoundException())
-                     }
-                _ <- ApiKeysTQ += ApiKeyRow(
-                       orgid = organization,
-                       id = keyId,
-                       user = userUuid,
-                       description = body.description,
-                       hashedKey = argon2ForDb,
-                       createdAt = timestamp,
-                       createdBy = identity.identifier.get,
-                       modifiedAt = timestamp,
-                       modifiedBy = identity.identifier.get
-                     )
-                _ <- ResourceChangesTQ += ResourceChange(
-                       0L,
-                       organization,
-                       keyId.toString,
-                       ResChangeCategory.APIKEY,
-                       public = false,
-                       ResChangeResource.APIKEY,
-                       ResChangeOperation.CREATED
-                     ).toResourceChangeRow
-              } yield ()
-
-            db.run(createApiKey.transactionally).map { _ =>
-              val response = PostApiKeyResponse(
-                id = keyId.toString,
-                description = body.description,
-                owner = ownerStr,
-                value = sha256Token,
-                lastUpdated = timestamp.toInstant.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("UTC")).toString
-              )
-              (HttpCode.POST_OK, response)
-            }.recover {
-              case ex: ClassNotFoundException =>
-                (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", s"$organization/$username")))
-              case ex =>
-                logger.error(s"Failed to create API key for $organization/$username", ex)
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("apikey.creation.failed")))
+                    @Parameter(hidden = true) organization: String,
+                    @Parameter(hidden = true) username: String,
+                    @Parameter(hidden = true) resourceUuidOpt: Option[UUID]): Route = {
+      entity(as[PostApiKeyRequest]) { body =>
+        val ownerStr = s"$organization/$username"
+        val sha256Token = ApiKeyUtils.generateApiKeyHashedValue()
+        val argon2ForDb = Password.hash(sha256Token)
+        val keyId = ApiKeyUtils.generateApiKeyId()
+        val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+        
+        resourceUuidOpt match {
+          case Some(userUuid) =>
+            // logger.debug(s"[postUserApiKey] Using UUID: $userUuid for user $ownerStr")
+            complete {
+              val userQuery = Compiled {
+                UsersTQ.filter(user => (user.user === userUuid &&
+                                      user.organization === organization &&
+                                      user.username === username))
+                      .filterIf(identity.isStandardUser)(users => users.user === identity.identifier.get)
+                      .filterIf(identity.isOrgAdmin)(users => !users.isHubAdmin && users.organization === identity.organization && !(users.organization === "root" && users.username === "root"))
+                      .filterIf(identity.isHubAdmin)(users => (users.isHubAdmin || users.isOrgAdmin) && !(users.organization === "root" && users.username === "root"))
+                      .take(1).length
+              }
+              
+              val createApiKey: DBIOAction[Unit, NoStream, Effect.Read with Effect.Write] =
+                for {
+                  userCount <- userQuery.result
+                  _ <- if (userCount > 0) {
+                        DBIO.successful(())
+                      } else {
+                        DBIO.failed(new ClassNotFoundException())
+                      }
+                  _ <- ApiKeysTQ += ApiKeyRow(
+                        orgid = organization,
+                        id = keyId,
+                        user = userUuid,
+                        description = body.description,
+                        hashedKey = argon2ForDb,
+                        createdAt = timestamp,
+                        createdBy = identity.identifier.get,
+                        modifiedAt = timestamp,
+                        modifiedBy = identity.identifier.get
+                      )
+                  // _ <- ResourceChangesTQ += ResourceChange(
+                  //       0L,
+                  //       organization,
+                  //       keyId.toString,
+                  //       ResChangeCategory.APIKEY,
+                  //       public = false,
+                  //       ResChangeResource.APIKEY,
+                  //       ResChangeOperation.CREATED
+                  //     ).toResourceChangeRow
+                } yield ()
+              
+              db.run(createApiKey.transactionally).map { _ =>
+                val response = PostApiKeyResponse(
+                  id = keyId.toString,
+                  description = body.description,
+                  owner = ownerStr,
+                  value = sha256Token,
+                  lastUpdated = timestamp.toInstant.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("UTC")).toString
+                )
+                (HttpCode.POST_OK, response)
+              }.recover {
+                case ex: ClassNotFoundException =>
+                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", s"$organization/$username")))
+                case ex =>
+                  logger.error(s"Failed to create API key for $organization/$username", ex)
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("apikey.creation.failed")))
+              }
             }
-          }
-
-        case None =>
-          complete(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, "User not found"))
+          
+          case None =>
+            complete(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, "User not found"))
+        }
       }
     }
-  }
 
   // === DELETE /v1/orgs/{organization}/users/{username}/apikeys/{keyid} ===
   @DELETE
@@ -175,32 +179,35 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
   )
 )
   def deleteUserApiKey(@Parameter(hidden = true) identity: Identity2,
-                       @Parameter(hidden = true) organization: String,
-                       @Parameter(hidden = true) username: String,
-                       @Parameter(hidden = true) keyid: UUID,
-                       @Parameter(hidden = true) resourceUuidOpt: Option[UUID]): Route = complete {
+                      @Parameter(hidden = true) organization: String,
+                      @Parameter(hidden = true) username: String,
+                      @Parameter(hidden = true) keyid: UUID,
+                      @Parameter(hidden = true) resourceUuidOpt: Option[UUID]): Route = complete {
 
     resourceUuidOpt match {
       case Some(userUuid) =>
+        val deleteQuery = Compiled {
+          ApiKeysTQ.filter(k => k.id === keyid && k.user === userUuid && k.orgid === organization)
+                  .filterIf(identity.isStandardUser)(k => k.user === identity.identifier.get)
+                  .filterIf(identity.isOrgAdmin)(k => k.orgid === identity.organization)
+                  .filterIf(identity.isHubAdmin)(k => UsersTQ.filter(u => u.user === k.user && ((u.isHubAdmin || u.isOrgAdmin) && !(u.organization === "root" && u.username === "root"))).exists)
+        }
+        
         db.run((for {
-          deleted <- ApiKeysTQ.filter(k => k.id === keyid && k.user === userUuid && k.orgid === organization)
-                             .filterIf(identity.isStandardUser)(k => k.user === identity.identifier.get)
-                             .filterIf(identity.isOrgAdmin)(k => k.orgid === identity.organization)
-                             .filterIf(identity.isHubAdmin)(k => UsersTQ.filter(u => u.user === k.user && ((u.isHubAdmin || u.isOrgAdmin) && !(u.organization === "root" && u.username === "root"))).exists)
-                             .delete
-          _ <- if (deleted > 0) {
-                 ResourceChangesTQ += ResourceChange(
-                   0L,
-                   organization,
-                   keyid.toString,
-                   ResChangeCategory.APIKEY,
-                   public = false,
-                   ResChangeResource.APIKEY,
-                   ResChangeOperation.DELETED
-                 ).toResourceChangeRow
-               } else {
-                 DBIO.successful(0)
-               }
+          deleted <- deleteQuery.delete
+          // _ <- if (deleted > 0) {
+          //       ResourceChangesTQ += ResourceChange(
+          //         0L,
+          //         organization,
+          //         keyid.toString,
+          //         ResChangeCategory.APIKEY,
+          //         public = false,
+          //         ResChangeResource.APIKEY,
+          //         ResChangeOperation.DELETED
+          //       ).toResourceChangeRow
+          //     } else {
+          //       DBIO.successful(0)
+          //     }
         } yield deleted).transactionally).map {
           case 0 =>
             (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("apikey.not.found")))
@@ -211,7 +218,7 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
             logger.error(s"Error deleting API key $keyid for $organization/$username", ex)
             (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("apikey.deletion.failed")))
         }
-
+      
       case None =>
         complete(StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "User not found"))
     }
@@ -252,25 +259,27 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
     new responses.ApiResponse(responseCode = "404", description = "not found")
   )
 )
-  def getUserApiKeyById(@Parameter(hidden = true) identity: Identity2,
-                        @Parameter(hidden = true) organization: String,
-                        @Parameter(hidden = true) username: String,
-                        @Parameter(hidden = true) keyid: UUID,
-                        @Parameter(hidden = true) resourceUuidOpt: Option[UUID]): Route = complete {
-
-    resourceUuidOpt match {
+def getUserApiKeyById(@Parameter(hidden = true) identity: Identity2,
+                      @Parameter(hidden = true) organization: String,
+                      @Parameter(hidden = true) username: String,
+                      @Parameter(hidden = true) keyid: UUID,
+                      @Parameter(hidden = true) resourceUuidOpt: Option[UUID]): Route = complete {
+     resourceUuidOpt match {
       case Some(userUuid) =>
-        val keyQuery = ApiKeysTQ.filter(k => k.id === keyid && k.user === userUuid && k.orgid === organization)
-                               .filterIf(identity.isStandardUser)(k => k.user === identity.identifier.get)
-                               .filterIf(identity.isOrgAdmin)(k => k.orgid === identity.organization)
-                               .filterIf(identity.isHubAdmin)(k => UsersTQ.filter(u => u.user === k.user && ((u.isHubAdmin || u.isOrgAdmin) && !(u.organization === "root" && u.username === "root"))).exists)
-        
+        val keyQuery = Compiled {
+          ApiKeysTQ.filter(k => k.id === keyid && k.user === userUuid && k.orgid === organization)
+                   .filterIf(identity.isStandardUser)(k => k.user === identity.identifier.get)
+                   .filterIf(identity.isOrgAdmin)(k => k.orgid === identity.organization)
+                   .filterIf(identity.isHubAdmin)(k => UsersTQ.filter(u => u.user === k.user && ((u.isHubAdmin || u.isOrgAdmin) && !(u.organization === "root" && u.username === "root"))).exists)
+                   .take(1)
+        }
+                 
         db.run(keyQuery.result.headOption).map {
           case Some(keyRow) =>
             val ownerStr = s"$organization/$username"
             val metadata = new ApiKeyMetadata(keyRow, ownerStr)
             (StatusCodes.OK, metadata)
-            
+                       
           case None =>
             (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("apikey.not.found")))
         }.recover {
@@ -278,13 +287,13 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
             logger.error(s"Failed to get API key $keyid for $organization/$username", ex)
             (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, "Failed to retrieve API key"))
         }
-        
+               
       case None =>
         complete(StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "User not found"))
     }
   }
 
-  def userApiKeys(identity: Identity2): Route = {
+def userApiKeys(identity: Identity2): Route = {
     pathPrefix("orgs" / Segment / "users" / Segment / "apikeys") { (organization, username) =>
       val resourceType = "user"
       val resource = OrgAndId(organization, username).toString
@@ -298,11 +307,9 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
         }
 
       def routeMethods(resourceIdentity: Option[UUID]): Route = {
-        pathEndOrSingleSlash {
-          post {
-            exchAuth(TUser(resource, resourceIdentity), Access.WRITE, validIdentity = identity) { _ =>
-              postUserApiKey(identity, organization, username, resourceIdentity)
-            }
+        post {
+          exchAuth(TUser(resource, resourceIdentity), Access.WRITE, validIdentity = identity) { _ =>
+            postUserApiKey(identity, organization, username, resourceIdentity)
           }
         } ~
         path(JavaUUID) { keyid =>

@@ -387,8 +387,16 @@ object ExchangeApiApp extends App
             Future.successful(None)
             
           } else if (username == "apikey") {
+            val getApiKeysByOrg = Compiled((org: Rep[String]) =>
+              ApiKeysTQ.filter(_.orgid === org)
+            )
+            val getUsernameByUserId = Compiled((org: Rep[String], uid: Rep[UUID]) =>
+              UsersTQ.filter(u => u.organization === org && u.user === uid)
+                    .map(_.username)
+                    .take(1)
+            )
             val verifiedIdentityFut = for {
-              apiKeys <- db.run(ApiKeysTQ.getByOrg(organization).result)
+              apiKeys <- db.run(getApiKeysByOrg(organization).result)
               matchedKeyOpt = apiKeys.find(apiKey =>
                 p.provideVerify("unused", (_, providedToken) =>
                   Password.check(providedToken, apiKey.hashedKey)
@@ -396,11 +404,7 @@ object ExchangeApiApp extends App
               )
               actualUsernameOpt <- matchedKeyOpt match {
                 case Some(matchedKey) =>
-                  db.run(
-                    UsersTQ.filter(u => u.organization === organization && u.user === matchedKey.user)
-                          .map(_.username)
-                          .result.headOption
-                  )
+                  db.run(getUsernameByUserId(organization, matchedKey.user).result.headOption)
                 case None =>
                   Future.successful(None)
               }

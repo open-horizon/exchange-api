@@ -33,30 +33,30 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val PASSWORD = "password"
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  private val TESTORGS = Seq(
+private val TESTORGS = Seq(
     OrgRow(
+      description = "",
+      heartbeatIntervals = "",
+      label = "",
+      lastUpdated = "",
+      limits = "",
       orgId = "testPostApiKeyRouteOrg0",
       orgType = "",
-      label = "",
-      description = "",
-      lastUpdated = "",
-      tags = None, 
-      limits = "",
-      heartbeatIntervals = ""
+      tags = None
   ),
     OrgRow(
+      description = "",
+      heartbeatIntervals = "",
+      label = "",
+      lastUpdated = "",
+      limits = "",
       orgId = "testPostApiKeyRouteOrg1",
       orgType = "",
-      label = "",
-      description = "",
-      lastUpdated = "",
-      tags = None,
-      limits = "",
-      heartbeatIntervals = ""
+      tags = None
   )
 )
-  
-  private val TESTUSERS = Seq(
+
+private val TESTUSERS = Seq(
     UserRow(
       createdAt = ApiTime.nowUTCTimestamp,
       email = Some("admin0@example.com"),
@@ -109,12 +109,12 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
       user = UUID.randomUUID(),
       username = "testPostApiKeyRouteHubAdmin0"
   )
-) 
+)
 
   private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("testPostApiKeyRouteOrg0/testPostApiKeyRouteAdmin0:password"))
   private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode("testPostApiKeyRouteOrg0/testPostApiKeyRouteUser0:password"))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/testPostApiKeyRouteHubAdmin0:password"))
-  private val ROOTUSERAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/root:password"))
+  private val ROOTUSERAUTH = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
 
   override def beforeAll(): Unit = {
     val setupAction = DBIO.seq(
@@ -140,8 +140,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     ), AWAITDURATION)
   }
 
-  // User creates their own API key
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- user creates apikey") {
+  // User creates their own API key - Expected: 201
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- user creates apikey - 201") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -162,8 +162,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.value.nonEmpty)
   }
 
-  // Org admin creates an API key for themselves
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + " -- org admin creates apikey") {
+  // Org admin creates an API key for themselves - Expected: 201
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + " -- org admin creates apikey - 201") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -183,8 +183,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.value.nonEmpty)
   }
 
-  // Org admin creates an API key for another user in same org
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- org admin creates apikey for user") {
+  // Org admin creates an API key for another user in same org - Expected: 201
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- org admin creates apikey for user - 201") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -204,8 +204,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.value.nonEmpty)
   }
 
-  // Missing auth header should return 401
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- without auth should return 401") {
+  // Missing auth header should return 401 - Expected: 401
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- without auth - 401") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -219,8 +219,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.BADCREDS.intValue)
   }
 
-  // Invalid JSON body should return 400
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- invalid JSON should return 400") {
+  // Invalid JSON body should return 400 - Expected: 400
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- invalid JSON - 400") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -234,8 +234,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.BAD_INPUT.intValue)
   }
 
-  // Org admin attempts to create an API key for a user in another org (should fail)
-  test("POST /orgs/" + TESTORGS(1).orgId + "/users/" + TESTUSERS(2).username + ROUTE + " -- org admin cannot create apikey for user in another org") {
+  // Org admin attempts to create an API key for a user in another org (should fail) - Expected: 403
+  test("POST /orgs/" + TESTORGS(1).orgId + "/users/" + TESTUSERS(2).username + ROUTE + " -- org admin cannot create apikey for user in another org - 403") {
     val response = Http(
       URL + TESTORGS(1).orgId + "/users/" + TESTUSERS(2).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -250,8 +250,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  // Non-admin user tries to create API key for another user => should fail (403)
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + " -- non-admin tries to create apikey for another user") {
+  // Non-admin user tries to create API key for another user => should fail (403) - Expected: 403
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + " -- non-admin tries to create apikey for another user - 403") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -267,8 +267,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  // Admin tries to create key for non-existent user => should fail (400 for now)
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/nonexistentuser" + ROUTE + " -- admin creates apikey for non-existent user") {
+  // Admin tries to create key for non-existent user => should fail (400 for now) - Expected: 404
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/nonexistentuser" + ROUTE + " -- admin creates apikey for non-existent user - 404") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/nonexistentuser" + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -284,8 +284,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  // Hub admin creates their own API key
-  test("POST /orgs/root/users/" + TESTUSERS(3).username + ROUTE + " -- hub admin creates own apikey") {
+  // Hub admin creates their own API key - Expected: 201
+  test("POST /orgs/root/users/" + TESTUSERS(3).username + ROUTE + " -- hub admin creates own apikey - 201") {
     val response = Http(
       URL + "root/users/" + TESTUSERS(3).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -305,8 +305,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.value.nonEmpty)
   }
 
-  // Hub admin creates API key for org admin
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + " -- hub admin creates apikey for org admin") {
+  // Hub admin creates API key for org admin - Expected: 201
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + " -- hub admin creates apikey for org admin - 201") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -326,8 +326,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.value.nonEmpty)
   }
 
-  // Hub admin tries to create API key for regular user (should fail)
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- hub admin tries to create apikey for user") {
+  // Hub admin tries to create API key for regular user (should fail) - Expected: 404
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- hub admin tries to create apikey for user - 404") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -342,8 +342,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  // Root user creates their own API key
-  test("POST /orgs/root/users/root/apikeys -- root user creates own apikey") {
+  // Root user creates their own API key - Expected: 201
+  test("POST /orgs/root/users/root/apikeys -- root user creates own apikey - 201") {
     val response = Http(
       URL + "root/users/root/apikeys")
       .headers(ACCEPT)
@@ -363,8 +363,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.value.nonEmpty)
   }
 
-  // Root user creates apikey for org admin
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + " -- root user creates apikey for org admin") {
+  // Root user creates apikey for org admin - Expected: 201
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + " -- root user creates apikey for org admin - 201") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE.dropRight(1))
       .headers(ACCEPT)
@@ -384,8 +384,8 @@ class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(responseBody.value.nonEmpty)
   }
 
-  // Root user creates apikey for regular user
-  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- root user creates apikey for regular user") {
+  // Root user creates apikey for regular user - Expected: 201
+  test("POST /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + " -- root user creates apikey for regular user - 201") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE.dropRight(1))
       .headers(ACCEPT)

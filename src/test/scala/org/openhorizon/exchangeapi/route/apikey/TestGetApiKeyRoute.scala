@@ -31,7 +31,7 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ROUTE = "/apikeys/"
   private implicit val formats: DefaultFormats.type = DefaultFormats
 
-  private val TESTORGS = Seq(
+private val TESTORGS = Seq(
     OrgRow(
     description = "",
     heartbeatIntervals = "",
@@ -116,111 +116,110 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private val TESTAPIKEYS = Seq(
     ApiKeyRow(
-      orgid = "testGetUserApiKeyOrg0",
-      id = UUID.randomUUID(),
-      user = TESTUSERS(0).user,
+      createdAt = ApiTime.nowUTCTimestamp,
+      createdBy = TESTUSERS(0).user,
       description = "TestGetUserApiKeyRoute Test API Key 1",
       hashedKey = "hash1",
-      createdAt = ApiTime.nowUTCTimestamp,
-      createdBy = TESTUSERS(0).user,
+      id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
-      modifiedBy = TESTUSERS(0).user
+      modifiedBy = TESTUSERS(0).user,
+      orgid = "testGetUserApiKeyOrg0",
+      user = TESTUSERS(0).user
     ),
     ApiKeyRow(
-      orgid = "testGetUserApiKeyOrg0",
-      id = UUID.randomUUID(),
-      user = TESTUSERS(1).user,
+      createdAt = ApiTime.nowUTCTimestamp,
+      createdBy = TESTUSERS(1).user,
       description = "TestGetUserApiKeyRoute Test API Key 2",
       hashedKey = "hash2",
-      createdAt = ApiTime.nowUTCTimestamp,
-      createdBy = TESTUSERS(1).user,
+      id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
-      modifiedBy = TESTUSERS(1).user
+      modifiedBy = TESTUSERS(1).user,
+      orgid = "testGetUserApiKeyOrg0",
+      user = TESTUSERS(1).user
     ),
     ApiKeyRow(
-      orgid = "testGetUserApiKeyOrg0",
-      id = UUID.randomUUID(),
-      user = TESTUSERS(1).user,
+      createdAt = ApiTime.nowUTCTimestamp,
+      createdBy = TESTUSERS(1).user,
       description = "TestGetUserApiKeyRoute Test API Key 3",
       hashedKey = "hash3",
-      createdAt = ApiTime.nowUTCTimestamp,
-      createdBy = TESTUSERS(1).user,
+      id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
-      modifiedBy = TESTUSERS(1).user
+      modifiedBy = TESTUSERS(1).user,
+      orgid = "testGetUserApiKeyOrg0",
+      user = TESTUSERS(1).user
     ),
     ApiKeyRow(
-      orgid = "testGetUserApiKeyOrg1",
-      id = UUID.randomUUID(),
-      user = TESTUSERS(2).user,
-      description = "TestGetUserApiKeyRoute Test API Key 4",
-      hashedKey = "hash4",
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(2).user,
+      description = "TestGetUserApiKeyRoute Test API Key 4",
+      hashedKey = "hash4",
+      id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
-      modifiedBy = TESTUSERS(2).user
+      modifiedBy = TESTUSERS(2).user,
+      orgid = "testGetUserApiKeyOrg1",
+      user = TESTUSERS(2).user
     ),
     ApiKeyRow(
-      orgid = "root",
-      id = UUID.randomUUID(),
-      user = TESTUSERS(3).user,
+      createdAt = ApiTime.nowUTCTimestamp,
+      createdBy = TESTUSERS(3).user,
       description = "TestGetUserApiKeyRoute Test API Key HubAdmin",
       hashedKey = "hashHubAdmin",
-      createdAt = ApiTime.nowUTCTimestamp,
-      createdBy = TESTUSERS(3).user,
+      id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
-      modifiedBy = TESTUSERS(3).user
+      modifiedBy = TESTUSERS(3).user,
+      orgid = "root",
+      user = TESTUSERS(3).user
     ),
     ApiKeyRow(
-      orgid = "root",
-      id = UUID.randomUUID(),
-      user = ROOTUSERID,
-      description = "TestGetUserApiKeyRoute Root Own",
-      hashedKey = "hash5",
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = ROOTUSERID,
+      description = "TestGetUserApiKeyRoute Root Own",
+      hashedKey = "hash5",
+      id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
-      modifiedBy = ROOTUSERID
+      modifiedBy = ROOTUSERID,
+      orgid = "root",
+      user = ROOTUSERID
     ),
     ApiKeyRow(
-      orgid = "testGetUserApiKeyOrg0",
-      id = UUID.randomUUID(),
-      user = TESTUSERS(0).user,
-      description = "TestGetUserApiKeyRoute For Root Get Admin",
-      hashedKey = "hash6",
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(0).user,
+      description = "TestGetUserApiKeyRoute For Root Get Admin",
+      hashedKey = "hash6",
+      id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
-      modifiedBy = TESTUSERS(0).user
+      modifiedBy = TESTUSERS(0).user,
+      orgid = "testGetUserApiKeyOrg0",
+      user = TESTUSERS(0).user
     ),
     ApiKeyRow(
-      orgid = "testGetUserApiKeyOrg0",
-      id = UUID.randomUUID(),
-      user = TESTUSERS(1).user,
-      description = "TestGetUserApiKeyRoute For Root Get User",
-      hashedKey = "hash7",
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(1).user,
+      description = "TestGetUserApiKeyRoute For Root Get User",
+      hashedKey = "hash7",
+      id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
-      modifiedBy = TESTUSERS(1).user
+      modifiedBy = TESTUSERS(1).user,
+      orgid = "testGetUserApiKeyOrg0",
+      user = TESTUSERS(1).user
     ),
     ApiKeyRow(
-      orgid = "root",
-      id = UUID.randomUUID(),
-      user = TESTUSERS(3).user,
-      description = "TestGetUserApiKeyRoute For Root Get HubAdmin",
-      hashedKey = "hash8",
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(3).user,
+      description = "TestGetUserApiKeyRoute For Root Get HubAdmin",
+      hashedKey = "hash8",
+      id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
-      modifiedBy = TESTUSERS(3).user
+      modifiedBy = TESTUSERS(3).user,
+      orgid = "root",
+      user = TESTUSERS(3).user
     )
   )
-  
 
   private val ORGADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetUserApiKeyOrg0/testGetUserApiKeyAdmin0:password"))
   private val USERAUTH = ("Authorization", "Basic " + ApiUtils.encode("testGetUserApiKeyOrg0/testGetUserApiKeyUser0:password"))
   private val HUBADMINAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/testGetUserApiKeyHubAdmin0:password"))
-  private val ROOTUSERAUTH = ("Authorization", "Basic " + ApiUtils.encode("root/root:password"))
+  private val ROOTUSERAUTH = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
 
 
   override def beforeAll(): Unit = {
@@ -247,8 +246,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
 
 
 // GET /users/{username}/apikeys/{keyid}
-  // User get own key with key id
-  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id + " -- get existing apikey by id") {
+// User get own key with key id - Expected: 200
+  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id + " -- get existing apikey by id - 200") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id
     ).headers(ACCEPT).headers(USERAUTH).asString
@@ -262,8 +261,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert((responseBody \ "id").extract[String] === TESTAPIKEYS(1).id.toString)
   }
 
-  // User tried to get non existent key
-  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + "nonexistentkeyid -- should return 404") {
+  // User tried to get non existent key - Expected: 404
+  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + "nonexistentkeyid -- 404") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + UUID.randomUUID()
     ).headers(ACCEPT).headers(USERAUTH).asString
@@ -273,8 +272,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  // Org admin tries to access another user's API key
-  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id + " -- org admin should be allowed") {
+  // Org admin tries to access another user's API key - Expected: 200
+  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id + " -- org admin should be allowed - 200") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id
     ).headers(ACCEPT).headers(ORGADMINAUTH).asString
@@ -288,8 +287,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert((responseBody \ "id").extract[String] === TESTAPIKEYS(1).id.toString)
   }
 
-  // User tries to access someone else's API key (same org) -- should fail
-  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + TESTAPIKEYS(1).id + " -- user should be forbidden") {
+  // User tries to access someone else's API key (same org) -- should fail - Expected: 403
+  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + TESTAPIKEYS(1).id + " -- user should be forbidden - 403") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + TESTAPIKEYS(1).id
     ).headers(ACCEPT).headers(USERAUTH).asString
@@ -299,8 +298,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  // Org Admin tries to access API key from another org
-  test("GET /orgs/" + TESTORGS(1).orgId + "/users/" + TESTUSERS(2).username + ROUTE + TESTAPIKEYS(3).id + " -- cross-org access should be forbidden") {
+  // Org Admin tries to access API key from another org - Expected: 403
+  test("GET /orgs/" + TESTORGS(1).orgId + "/users/" + TESTUSERS(2).username + ROUTE + TESTAPIKEYS(3).id + " -- cross-org access should be forbidden - 403") {
     val response = Http(
       URL + TESTORGS(1).orgId + "/users/" + TESTUSERS(2).username + ROUTE + TESTAPIKEYS(3).id
     ).headers(ACCEPT).headers(ORGADMINAUTH).asString
@@ -310,8 +309,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
 
-  // No auth header provided
-  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id + " -- unauthorized access without credentials") {
+  // No auth header provided - Expected: 401
+  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id + " -- unauthorized access without credentials - 401") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id
     ).headers(ACCEPT).asString
@@ -321,8 +320,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.BADCREDS.intValue)
   }
 
-  // Hub admin gets their own API key
-  test("GET /orgs/root/users/" + TESTUSERS(3).username + ROUTE + TESTAPIKEYS(4).id + " -- hub admin gets own apikey") {
+  // Hub admin gets their own API key - Expected: 200
+  test("GET /orgs/root/users/" + TESTUSERS(3).username + ROUTE + TESTAPIKEYS(4).id + " -- hub admin gets own apikey - 200") {
     val response = Http(
       URL + "root/users/" + TESTUSERS(3).username + ROUTE + TESTAPIKEYS(4).id
     ).headers(ACCEPT).headers(HUBADMINAUTH).asString
@@ -336,8 +335,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert((responseBody \ "id").extract[String] === TESTAPIKEYS(4).id.toString)
   }
 
-  // Hub admin gets org admin's API key
-  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + TESTAPIKEYS(0).id + " -- hub admin gets org admin apikey") {
+  // Hub admin gets org admin's API key - Expected: 200
+  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + TESTAPIKEYS(0).id + " -- hub admin gets org admin apikey - 200") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + TESTAPIKEYS(0).id
     ).headers(ACCEPT).headers(HUBADMINAUTH).asString
@@ -351,8 +350,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert((responseBody \ "id").extract[String] === TESTAPIKEYS(0).id.toString)
   }
 
-  // Hub admin tries to get regular user's API key (should fail)
-  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id + " -- hub admin tries to get user apikey") {
+  // Hub admin tries to get regular user's API key (should fail) - Expected: 404
+  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id + " -- hub admin tries to get user apikey - 404") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(1).id
     ).headers(ACCEPT).headers(HUBADMINAUTH).asString
@@ -362,8 +361,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.NOT_FOUND.intValue)
   }
 
-  // Root user gets their own API key
-  test("GET /orgs/" + "root" + "/users/" + "root" + ROUTE + TESTAPIKEYS(5).id + " -- root user gets own apikey") {
+  // Root user gets their own API key - Expected: 200
+  test("GET /orgs/" + "root" + "/users/" + "root" + ROUTE + TESTAPIKEYS(5).id + " -- root user gets own apikey - 200") {
     val response = Http(
       URL + "root" + "/users/" + "root" + ROUTE + TESTAPIKEYS(5).id
     ).headers(ACCEPT).headers(ROOTUSERAUTH).asString
@@ -377,8 +376,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert((responseBody \ "id").extract[String] === TESTAPIKEYS(5).id.toString)
   }
 
-  // Root user gets org admin's API key
-  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + TESTAPIKEYS(6).id + " -- root user gets org admin apikey") {
+  // Root user gets org admin's API key - Expected: 200
+  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + TESTAPIKEYS(6).id + " -- root user gets org admin apikey - 200") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(0).username + ROUTE + TESTAPIKEYS(6).id
     ).headers(ACCEPT).headers(ROOTUSERAUTH).asString
@@ -392,8 +391,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert((responseBody \ "id").extract[String] === TESTAPIKEYS(6).id.toString)
   }
 
-  // Root user gets regular user's API key
-  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(7).id + " -- root user gets regular user apikey") {
+  // Root user gets regular user's API key - Expected: 200
+  test("GET /orgs/" + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(7).id + " -- root user gets regular user apikey - 200") {
     val response = Http(
       URL + TESTORGS(0).orgId + "/users/" + TESTUSERS(1).username + ROUTE + TESTAPIKEYS(7).id
     ).headers(ACCEPT).headers(ROOTUSERAUTH).asString
@@ -407,8 +406,8 @@ class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     assert((responseBody \ "id").extract[String] === TESTAPIKEYS(7).id.toString)
   }
 
-  // Root user gets hub admin's API key
-  test("GET /orgs/" + "root" + "/users/" + TESTUSERS(3).username + ROUTE + TESTAPIKEYS(8).id + " -- root user gets hub admin apikey") {
+  // Root user gets hub admin's API key - Expected: 200
+  test("GET /orgs/" + "root" + "/users/" + TESTUSERS(3).username + ROUTE + TESTAPIKEYS(8).id + " -- root user gets hub admin apikey - 200") {
     val response = Http(
       URL + "root" + "/users/" + TESTUSERS(3).username + ROUTE + TESTAPIKEYS(8).id
     ).headers(ACCEPT).headers(ROOTUSERAUTH).asString

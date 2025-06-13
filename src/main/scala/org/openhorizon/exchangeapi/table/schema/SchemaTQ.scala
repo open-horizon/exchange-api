@@ -440,7 +440,10 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
           sqlu"""CREATE INDEX IF NOT EXISTS idx_serv_pol_fk_services ON public.servicekeys(serviceid);""",
           sqlu"""CREATE INDEX IF NOT EXISTS idx_service_fk_orgs ON public.services(orgid);""",
           sqlu"""CREATE INDEX IF NOT EXISTS idx_service_fk_users ON public.services(owner);""",
-          sqlu"""CREATE INDEX IF NOT EXISTS idx_user_fk_users ON public.users(modified_by);""",
+          sqlu"""CREATE INDEX IF NOT EXISTS idx_user_fk_users ON public.users(modified_by);""")
+      
+      case 57 => // v2.128.0
+        DBIO.seq(
           ApiKeysTQ.schema.create)
               
       case other => // should never get here
@@ -448,7 +451,7 @@ object SchemaTQ  extends TableQuery(new SchemaTable(_)){
     }
   }
 
-  val latestSchemaVersion: Int = 56    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 57    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

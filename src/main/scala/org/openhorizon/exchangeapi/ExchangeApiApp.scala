@@ -295,7 +295,7 @@ object ExchangeApiApp extends App
         case _ => "<invalid-auth-format>"
       }
       // Now log all the info
-      Option(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.DebugLevel))
+      Option(LogEntry(s"${req.uri.authority.host.address}:$authId ${req.method.name} ${req.uri}: ${res.status}", Logging.InfoLevel))
     //case Rejected(rejections) => Some(LogEntry(s"${req.method.name} ${req.uri}: rejected with: $rejections", Logging.InfoLevel)) // <- left here for when you temporarily want to see the full list of rejections that pekko produces
     case Rejected(rejections) =>
       // Sometimes pekko produces a bunch of MethodRejection objects (for http methods in the routes that didn't match) and then

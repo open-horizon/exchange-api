@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.128.1] - 2025-06-18
+## [2.128.1](https://github.com/open-horizon/exchange-api/pull/777) - 2025-06-18
 - Issue 776: Fixed log level of basic response information.
 
 ## [2.128.0](https://github.com/open-horizon/exchange-api/pull/774) - 2025-06-12

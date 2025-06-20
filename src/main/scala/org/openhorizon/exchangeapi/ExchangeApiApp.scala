@@ -366,7 +366,13 @@ object ExchangeApiApp extends App
   
   val reg: Regex = """^(\S*?)/(\S*)$""".r
   
-  
+  def getIdentityCacheValueFromDB(organization: String, username: String): Future[(Identity2, String)] = {
+    getResourceIdentityAndPassword(organization, username).map {
+      // Yield this Resource's identity metadata and construct a future identity object. Resource's stored credential tags along.
+      // This object will be returned and used if authenticated.
+      identityMetadata: ((Boolean, Option[UUID], Boolean, Option[UUID], Int), String) => (new Identity2(organization, identityMetadata._1, username), identityMetadata._2)
+    }
+  }
   
   def myUserPassAuthenticator(credentials: Credentials): Future[Option[Identity2]] = {
     credentials match {
@@ -418,16 +424,13 @@ object ExchangeApiApp extends App
               }
             } yield result
             verifiedIdentityFut
-          } else {
+          }
+          else {
             def identityCacheGet (resource: String): Future[(Identity2, String)] = {
               cacheResourceIdentity.cachingF(resource)(ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds)) {
                 // On cache miss execute this block to try and find what the value should be.
                 // If found add to the cache for next time.
-                getResourceIdentityAndPassword(organization, username).map {
-                  // Yield this Resource's identity metadata and construct a future identity object. Resource's stored credential tags along.
-                  // This object will be returned and used if authenticated.
-                  identityMetadata: ((Boolean, Option[UUID], Boolean, Option[UUID], Int), String) => (new Identity2(organization, identityMetadata._1, username), identityMetadata._2)
-                }
+                getIdentityCacheValueFromDB(organization: String, username: String)
               }
             }
             
@@ -469,8 +472,8 @@ object ExchangeApiApp extends App
                                               Password.check(requestPassword, rehashedCredential)
                                             }
                                             else
-                                            /*logger.debug("Line 333:    credential: " + requestPassword + "    secret: " + storedSecret);*/
-                                            Password.check(requestPassword, storedSecret)
+                                              /*logger.debug("Line 333:    credential: " + requestPassword + "    secret: " + storedSecret);*/
+                                              Password.check(requestPassword, storedSecret)
                                           })) {
                   // Root level permissions are used in test environments, any other user should not have root level access in a production environment.
                   if (resourceIdentityAndCred._1.role == AuthRoles.SuperUser &&
@@ -490,7 +493,22 @@ object ExchangeApiApp extends App
               fetchedIdentity <- identityCacheGet(resource)
               //_ = logger.debug(s"Async returns: ${a._1.toString}, ${a._1.identifier.getOrElse("None")}")
               authenticatedIdentity <- AuthenticationCheck(Option(fetchedIdentity)) fallbackTo(Future{None})
-            } yield authenticatedIdentity
+              authenticatedIdentityRetry <-
+                // On failure of the first attempt clear the cache value for this caller's key and run the two functions again. This will force a database pull.
+                if (authenticatedIdentity.isEmpty) {
+                  cacheResourceIdentity.remove(resource)
+                  identityCacheGet(resource).flatMap( fetchedIdentity => AuthenticationCheck(Option(fetchedIdentity)) fallbackTo(Future{None}))
+                }
+                else
+                  Future { None }
+              authenticatedIdentityWithCacheInvalidation <-
+                Future {
+                  if (authenticatedIdentity.isDefined)
+                    authenticatedIdentity
+                  else
+                    authenticatedIdentityRetry
+                }
+            } yield authenticatedIdentityWithCacheInvalidation
           }
         }.flatMap(x => x) // Flattens the nested futures.
       case _ =>

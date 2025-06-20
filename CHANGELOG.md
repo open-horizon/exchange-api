@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.129.0](https://github.com/open-horizon/exchange-api/pull/779) - 2025-06-20
+- Issue 778: Added a second attempt authentication mechanism that forces a cache synchronization with the database.
+             This is only useful when using multiple Exchange instances in a container orchestration cluster.
+             Cache invalidation already works as intended for a single instance.   
+
 ## [2.128.1](https://github.com/open-horizon/exchange-api/pull/777) - 2025-06-18
 - Issue 776: Fixed log level of basic response information.
 

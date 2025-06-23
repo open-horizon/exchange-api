@@ -6,6 +6,7 @@ object ApiRespType {
   val ALREADY_EXISTS: String = ExchMsg.translate("api.already.exists")
   val BAD_INPUT: String = ExchMsg.translate("api.invalid.input")
   val NOT_FOUND: String = ExchMsg.translate("api.not.found")
+  val METHOD_NOT_ALLOWED: String = ExchMsg.translate("api.method.not.allowed")
   val INTERNAL_ERROR: String = ExchMsg.translate("api.internal.error")
   val NOT_IMPLEMENTED: String = ExchMsg.translate("api.not.implemented")
   val BAD_GW: String = ExchMsg.translate("api.db.connection.error")

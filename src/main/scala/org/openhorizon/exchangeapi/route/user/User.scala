@@ -10,7 +10,7 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives._
-import org.apache.pekko.http.scaladsl.server.Route
+import org.apache.pekko.http.scaladsl.server.{Directive0, Route}
 import org.apache.pekko.http.scaladsl.server.directives.DebuggingDirectives
 import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshaller
 import org.apache.pekko.pattern.BackoffOpts.onFailure
@@ -180,7 +180,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
   @POST
   @Operation(
     summary = "Adds a user",
-    description = "Creates a new user. This can be run root/root, or a user with admin privilege.",
+    description = "Creates a new user. This can be run root/root, or a user with admin privilege. This endpoint is not allowed in OAuth mode.",
     parameters = Array(
       new Parameter(
         name = "organization",
@@ -755,6 +755,12 @@ trait User extends JacksonSupport with AuthenticationSupport {
         }
       }
     }
+
+  def oauthEnabledCheck: Directive0 = {
+    if (Configuration.getConfig.getBoolean("api.oauth.enabled")) {
+      complete(StatusCodes.MethodNotAllowed -> ApiResponse(ApiRespType.METHOD_NOT_ALLOWED, ExchMsg.translate("api.endpoint.disabled.oauth")))
+    } else pass
+  }
   
   def user(identity: Identity2): Route = {
     path("orgs" / Segment / "users"/ Segment) {
@@ -783,9 +789,11 @@ trait User extends JacksonSupport with AuthenticationSupport {
             }
           } ~
           post {
-            exchAuth(TUser(resource, resource_identity), Access.CREATE, validIdentity = identity) {
-              _ =>
-                postUser(identity, organization, resource, username)
+            oauthEnabledCheck {
+              exchAuth(TUser(resource, resource_identity), Access.CREATE, validIdentity = identity) {
+                _ =>
+                  postUser(identity, organization, resource, username)
+              }
             }
           }
         }

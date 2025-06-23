@@ -160,8 +160,17 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       (UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "newUser")).delete andThen
       (UsersTQ.filter(users => users.organization === "root" && users.username === "TestPostUserRouteNewUser").delete).transactionally
     ), AWAITDURATION)
-  }
 
+    val response: HttpResponse[String] = Http(BASEURL + "/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+  }
+  // Note:
+  // If the environment variable EXCHANGE_OAUTH_USER_INFO_URL is set (via `export`),
+  // the updateConfig(...) call cannot override its value.
+  // This might cause tests that rely on non-OAuth mode to fail.
+  // To ensure consistent behavior, unset the variable before running tests with:
+  // unset EXCHANGE_OAUTH_USER_INFO_URL
   def updateConfig(key: String, value: String): Unit = {
       val configInput = AdminConfigRequest(key, value)
       val response = Http(BASEURL+"/admin/config").postData(Serialization.write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
@@ -169,33 +178,33 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
   }
 
   def withOauthDisabled(testCode: => Unit): Unit = {
-    val oauthEnabled = Configuration.getConfig.getBoolean("api.oauth.enabled")
+    val oauthEnabled = Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url")
     assume(!oauthEnabled || runningLocally, "Skipping: OAuth mode enabled and not running locally")
 
     if (oauthEnabled && runningLocally) {
-      updateConfig("api.oauth.enabled", "false")
+      updateConfig("api.authentication.oauth.provider.user_info.url", "")
     } 
     try {
       testCode
     } finally {
       if (oauthEnabled && runningLocally) {
-        updateConfig("api.oauth.enabled", "true")
+        updateConfig("api.authentication.oauth.provider.user_info.url", "http://localhost:8080/mock-oauth")
       }
     }
   }
 
   def withOauthEnabled(testCode: => Unit): Unit = {
-    val oauthEnabled = Configuration.getConfig.getBoolean("api.oauth.enabled")
+    val oauthEnabled = Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url")
     assume(oauthEnabled || runningLocally, "Skipping: OAuth mode disabled and not running locally")
 
     if (!oauthEnabled && runningLocally) {
-      updateConfig("api.oauth.enabled", "true")
-    } 
+      updateConfig("api.authentication.oauth.provider.user_info.url", "http://localhost:8080/mock-oauth")
+    }
     try {
       testCode
     } finally {
       if (!oauthEnabled && runningLocally) {
-        updateConfig("api.oauth.enabled", "false")
+        updateConfig("api.authentication.oauth.provider.user_info.url", "")
       }
     }
   }

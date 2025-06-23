@@ -30,6 +30,7 @@ object HttpCode {
   val ALREADY_EXISTS: StatusCodes.ClientError = StatusCodes.Forbidden // trying to create a resource that already exists. For now using 403 (forbidden), but could also use 409 (conflict)
   val ALREADY_EXISTS2: StatusCodes.ClientError = StatusCodes.Conflict // trying to create a resource that already exists (409 means conflict)
   val NOT_FOUND: StatusCodes.ClientError = StatusCodes.NotFound // resource not found
+  val NOT_ALLOWED: StatusCodes.ClientError = StatusCodes.MethodNotAllowed // endpoint disabled
   val INTERNAL_ERROR: StatusCodes.ServerError = StatusCodes.InternalServerError
   val NOT_IMPLEMENTED: StatusCodes.ServerError = StatusCodes.NotImplemented
   val BAD_GW: StatusCodes.ServerError = StatusCodes.BadGateway // bad gateway, which for us means db connection error or IAM API problem

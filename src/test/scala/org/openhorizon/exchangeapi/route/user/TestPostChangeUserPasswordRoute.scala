@@ -1,15 +1,17 @@
 package org.openhorizon.exchangeapi.route.user
 
 import org.json4s.DefaultFormats
+import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceIdentity
 import org.openhorizon.exchangeapi.auth.{Password, Role}
+import org.openhorizon.exchangeapi.route.administration.AdminConfigRequest
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, HttpCode}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalacache.modes.scalaFuture._
@@ -27,7 +29,13 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
   private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
-  private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
+  
+  private val localUrlRoot = "http://localhost:8080"
+  private val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
+  private val runningLocally = (urlRoot == localUrlRoot)
+  
+  private val BASEURL = urlRoot + "/v1"
+  private val URL = BASEURL + "/orgs/"
   private val ROUTE1 = "/users/"
   private val ROUTE2 = "/changepw"
 
@@ -100,7 +108,15 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
                 modifiedAt   = TIMESTAMP,
                 organization = TESTORGS(0).orgId,
                 password     = Option(Password.hash(ORG1USERPASSWORD)),
-                username     = "orgUser2"))
+                username     = "orgUser2"),
+        UserRow(createdAt    = TIMESTAMP,
+                isHubAdmin   = false,
+                isOrgAdmin   = false,
+                modifiedAt   = TIMESTAMP,
+                organization = TESTORGS(0).orgId,
+                password     = None,
+                identityProvider ="External OAuth",
+                username     = "externalUser"))
   }
   
   private val TESTAGBOTS: Seq[AgbotRow] =
@@ -163,16 +179,53 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
               .filter(_.username startsWith "TestPostChangeUserPasswordRouteHubAdmin").delete).transactionally
     ), AWAITDURATION)
   }
-
   override def afterEach(): Unit = {
     Await.ready(DBCONNECTION.run(
       (UsersTQ.filter(_.user === TESTUSERS(2).user).update(TESTUSERS(2)) andThen
        UsersTQ.filter(_.user === TESTUSERS(1).user).update(TESTUSERS(1))).transactionally
     ), AWAITDURATION)
     
-    val response: HttpResponse[String] = Http(sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    val response: HttpResponse[String] = Http(BASEURL + "/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
+  }
+
+  def updateConfig(key: String, value: String): Unit = {
+      val configInput = AdminConfigRequest(key, value)
+      val response = Http(BASEURL+"/admin/config").postData(Serialization.write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  def withOauthDisabled(testCode: => Unit): Unit = {
+    val oauthEnabled = Configuration.getConfig.getBoolean("api.oauth.enabled")
+    assume(!oauthEnabled || runningLocally, "Skipping: OAuth mode enabled and not running locally")
+
+    if (oauthEnabled && runningLocally) {
+      updateConfig("api.oauth.enabled", "false")
+    } 
+    try {
+      testCode
+    } finally {
+      if (oauthEnabled && runningLocally) {
+        updateConfig("api.oauth.enabled", "true")
+      }
+    }
+  }
+
+  def withOauthEnabled(testCode: => Unit): Unit = {
+    val oauthEnabled = Configuration.getConfig.getBoolean("api.oauth.enabled")
+    assume(oauthEnabled || runningLocally, "Skipping: OAuth mode disabled and not running locally")
+
+    if (!oauthEnabled && runningLocally) {
+      updateConfig("api.oauth.enabled", "true")
+    } 
+    try {
+      testCode
+    } finally {
+      if (!oauthEnabled && runningLocally) {
+        updateConfig("api.oauth.enabled", "false")
+      }
+    }
   }
 
   private val normalRequestBody: ChangePwRequest = ChangePwRequest(newPassword = "newPassword")
@@ -180,118 +233,168 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
   private val normalUsernameToUpdate = TESTUSERS(2).username
 
   test("POST /orgs/doesNotExist" + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- 404 not found") {
-    val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.NOT_FOUND.intValue)
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + "doesNotExist" + ROUTE2 + " -- 404 not found") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "doesNotExist" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "doesNotExist" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.NOT_FOUND.intValue)
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- empty body -- 400 bad input") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
-    assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+      assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- blank password -- 400 bad input") {
-    val requestBody: ChangePwRequest = ChangePwRequest(newPassword = "")
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
-    assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
+    withOauthDisabled {
+      val requestBody: ChangePwRequest = ChangePwRequest(newPassword = "")
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+      assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as root -- 201 OK") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
-    //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+      //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
+    }
   }
 
   //currently a hub admin is able to change the password of any user (other than root). However, a hub admin is only supposed to be able to change the password of admins
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as hub admin -- 404 NOT FOUND") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
-    assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.NOT_FOUND.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+      assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + "orgAdmin" + ROUTE2 + " -- as hub admin -- 201 OK") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "orgAdmin" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(1).user).result), AWAITDURATION).head.password
-    //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "orgAdmin" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(1).user).result), AWAITDURATION).head.password
+      //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as org admin -- 201 OK") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
-    //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+      //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
+    }
   }
 
   test("POST /orgs/" + TESTORGS(1).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as org admin in other org -- 403 ACCESS DENIED") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(3).user).result), AWAITDURATION).head.password
-    assert(dbPass === TESTUSERS(3).password) //assert password hasn't changed
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(3).user).result), AWAITDURATION).head.password
+      assert(dbPass === TESTUSERS(3).password) //assert password hasn't changed
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- user updates self -- 201 OK") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
-    //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+      //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + "orgUser2" + ROUTE2 + " -- user tries to update other user -- 403 ACCESS DENIED") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "orgUser2" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(4).user).result), AWAITDURATION).head.password
-    assert(dbPass === TESTUSERS(4).password) //assert password hasn't changed
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "orgUser2" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(4).user).result), AWAITDURATION).head.password
+      assert(dbPass === TESTUSERS(4).password) //assert password hasn't changed
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as node -- 403 ACCESS DENIED") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(NODEAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
-    assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(NODEAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+      assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- as agbot -- 403 ACCESS DENIED") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(AGBOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
-    assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(AGBOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+      assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
+    }
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + "externalUser" + ROUTE2 + " -- external user password change disabled in OAuth mode -- 405 METHOD NOT ALLOWED") {
+    withOauthEnabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "externalUser" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.NOT_ALLOWED.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("password.disabled.oauth.user"))
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(5).user).result), AWAITDURATION).head.password
+      assert(dbPass === TESTUSERS(5).password) //assert password hasn't changed
+    }
+  }
+
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2 + " -- internal user password change allowed in OAuth mode -- 201 OK") {
+    withOauthEnabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
+      assert(Password.check(normalRequestBody.newPassword, dbPass.getOrElse("")))
+    }
   }
 
 }

@@ -385,15 +385,16 @@ trait User extends JacksonSupport with AuthenticationSupport {
       entity(as[PostPutUsersRequest]) {
         reqBody =>
           Future { logger.debug(s"PUT /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}") }
+          val isOAuthEnabled = Configuration.getConfig.getBoolean("api.oauth.enabled")
           
-          validateWithMsg(if(Option(reqBody.password).isEmpty || Option(reqBody.email).isEmpty || reqBody.password == null || reqBody.email == null)
+          validateWithMsg(if(!isOAuthEnabled && (Option(reqBody.password).isEmpty || Option(reqBody.email).isEmpty || reqBody.password == null || reqBody.email == null))
                             Option(ExchMsg.translate("password.must.be.non.blank.when.creating.user"))  // Tha lack of password disables the account, currently. We do not allow the creation of User accounts in a disabled state to begin with.
-                          else if (reqBody.password.isBlank || reqBody.password.isEmpty)
+                          else if (!isOAuthEnabled && (reqBody.password.isBlank || reqBody.password.isEmpty))
                             Option(ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
                           else if (organization == "root" &&
                                    username == "root") // Can only PATCH Root.
                             Option(ExchMsg.translate("non.admin.user.cannot.make.admin.user"))
-                          else if (Option(reqBody.password).isEmpty || Option(reqBody.email).isEmpty)
+                          else if (!isOAuthEnabled && (Option(reqBody.password).isEmpty || Option(reqBody.email).isEmpty))
                             Option(ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
                           else if (reqBody.admin &&
                                    reqBody.hubAdmin.getOrElse(false)) // Cannot create Root.
@@ -412,7 +413,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                           else if (organization != "root" &&
                                    reqBody.hubAdmin.getOrElse(false))
                             Option(ExchMsg.translate("hub.admins.in.root.org"))
-                          else if (reqBody.email.isEmpty)
+                          else if (!isOAuthEnabled && reqBody.email.isEmpty)
                             Option(ExchMsg.translate("bad.input"))
                           else if (identity.isHubAdmin &&
                                    !reqBody.admin &&
@@ -424,51 +425,67 @@ trait User extends JacksonSupport with AuthenticationSupport {
             val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
             val uuid: java.util.UUID          = UUID.randomUUID()        // version 4
             
-            val createOrModifyUser: DBIOAction[(Int, Int), NoStream, Effect.Write] =
-              for {
-                numUsersModified <-
-                  Compiled(UsersTQ.filter(user => (user.organization === organization &&
-                                          user.username === username))
+            // Extract common query filters
+            val userQuery = UsersTQ.filter(user => (user.organization === organization && user.username === username))
                                   .filterIf(identity.isUser && !identity.isSuperUser)(users => (users.organization ++ "/" ++ users.username) =!= "root/root")
                                   .filterIf(identity.isStandardUser)(users => users.user === identity.identifier)
                                   .filterIf(identity.isOrgAdmin)(users => users.organization === identity.organization && !users.isHubAdmin)
                                   .filterIf(identity.isHubAdmin)(user => (user.isHubAdmin || user.isOrgAdmin))
-                                  .map(user =>
-                                        (user.email,
-                                        user.isOrgAdmin,
-                                        user.isHubAdmin,
-                                        user.modifiedAt,
-                                        user.modifiedBy,
-                                        user.password)))
-                                  .update((if (reqBody.email.isEmpty)
-                                             None
-                                           else
-                                             Option(reqBody.email),
-                                           reqBody.admin,
-                                           reqBody.hubAdmin.getOrElse(false),
-                                           timestamp,
-                                           identity.identifier,
-                                           Option(Password.hash(reqBody.password))))
+            
+            val createOrModifyUser: DBIOAction[(Int, Int), NoStream, Effect.Write] =
+              for {
+                numUsersModified <-
+                  if (isOAuthEnabled) {
+                    // OAuth mode: only update admin permissions
+                    Compiled(userQuery.map(user => 
+                      (user.isOrgAdmin,
+                       user.isHubAdmin, 
+                       user.modifiedAt, 
+                       user.modifiedBy)))
+                      .update((reqBody.admin, reqBody.hubAdmin.getOrElse(false), timestamp, identity.identifier))
+                  } else {
+                    // Non-OAuth mode: update all fields
+                    Compiled(userQuery.map(user =>
+                      (user.email,
+                      user.isOrgAdmin,
+                      user.isHubAdmin,
+                      user.modifiedAt, 
+                      user.modifiedBy,
+                      user.password)))
+                              .update((if (reqBody.email.isEmpty)
+                                         None
+                                       else
+                                         Option(reqBody.email),
+                              reqBody.admin,
+                              reqBody.hubAdmin.getOrElse(false),
+                              timestamp,
+                              identity.identifier,
+                              Option(Password.hash(reqBody.password))))
+                  }
                 
                 numUsersCreated <-
-                  if (numUsersModified.equals(0))
-                    UsersTQ +=
-                      UserRow(createdAt = timestamp,
-                              email =
-                                if (reqBody.email.isEmpty)
-                                  None
-                                else
-                                  Option(reqBody.email),
-                              isOrgAdmin = reqBody.admin,
-                              isHubAdmin = reqBody.hubAdmin.getOrElse(false),
-                              modifiedAt = timestamp,
-                              modified_by = identity.identifier,
-                              organization = organization,
-                              password = Option(Password.hash(reqBody.password)),
-                              user = uuid,
-                              username = username)
-                  else
-                    DBIO.successful(0)
+                  if (numUsersModified.equals(0)) {
+                    if (isOAuthEnabled){
+                      DBIO.failed(new MethodNotAllowedException(ExchMsg.translate("user.creation.disabled.oauth")))
+                    } else {
+                      UsersTQ +=
+                        UserRow(createdAt = timestamp,
+                                email =
+                                  if (reqBody.email.isEmpty)
+                                    None
+                                  else
+                                    Option(reqBody.email),
+                                isOrgAdmin = reqBody.admin,
+                                isHubAdmin = reqBody.hubAdmin.getOrElse(false),
+                                modifiedAt = timestamp,
+                                modified_by = identity.identifier,
+                                organization = organization,
+                                password = Option(Password.hash(reqBody.password)),
+                                user = uuid,
+                                username = username)
+                    }
+                  } else
+                      DBIO.successful(0)
                 
                 // TODO: Auth Cache things
                   
@@ -493,7 +510,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                                                                                  case (false, false) => AuthRoles.User
                                                                                }),
                                                                              username     = username),
-                                                                  Password.hash(reqBody.password)),
+                                                                  if (isOAuthEnabled) "" else Password.hash(reqBody.password)),
                                                                 ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
                            else
                              cacheResourceIdentity.remove(resource)
@@ -513,6 +530,8 @@ trait User extends JacksonSupport with AuthenticationSupport {
                     case _ =>
                       (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.updated", t.toString)))
                   }
+                case Failure(t: MethodNotAllowedException) =>
+                  (StatusCodes.MethodNotAllowed, ApiResponse(ApiRespType.METHOD_NOT_ALLOWED, ExchMsg.translate("user.creation.disabled.oauth")))
                 case Failure(t) =>
                   (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
               }
@@ -572,8 +591,11 @@ trait User extends JacksonSupport with AuthenticationSupport {
             val validAttribute: String =
               attributeExistence.filter(attribute => attribute._2).head._1
             
-            validateWithMsg(// ----- Root -----
-                            if (resource == "root/root" && !identity.isSuperUser)
+            validateWithMsg(// ----- OAuth restrictions -----
+                            if (Configuration.getConfig.getBoolean("api.oauth.enabled") && (validAttribute == "email" || validAttribute == "password"))
+                              Option(ExchMsg.translate("user.attr.not.allowed.oauth", validAttribute))
+                            // ----- Root -----
+                            else if (resource == "root/root" && !identity.isSuperUser)
                               Option(ExchMsg.translate("user.not.updated", username))
                             else if (resource == "root/root" && (validAttribute == "admin" || validAttribute == "hubadmin"))
                               Option(ExchMsg.translate("user.not.updated", username))

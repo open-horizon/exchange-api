@@ -99,10 +99,9 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
         
         validateWithMsg(reqBody.getAnyProblem) {
           val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+                      val isOAuthEnabled = Configuration.getConfig.getBoolean("api.oauth.enabled")
           
           val action =
-            for {
-              numUsersModified <-
                 Compiled(UsersTQ.filter(user => (user.organization === organization &&
                                                  user.username === username))
                                 .filterIf(identity.isUser && !identity.isSuperUser)(users => (users.organization ++ "/" ++ users.username) =!= "root/root")
@@ -116,10 +115,33 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
                                 .update(timestamp,
                                         identity.identifier,
                                         Option(Password.hash(reqBody.newPassword))) // Grab this last second.
-              } yield numUsersModified
+ 
+            val checkExternalUserQuery = Compiled(
+              UsersTQ.filter(user => user.organization === organization && user.username === username)
+                    .filter(_.identityProvider =!= "Open Horizon")
+                    .take(1)
+                    .length
+            )
+            
+            val checkUserAndUpdate: DBIOAction[Int, NoStream, Effect.Read with Effect.Write] =
+              if (isOAuthEnabled) {
+                for {
+                  externalUserCount <- checkExternalUserQuery.result
+                  
+                  _ <- if (externalUserCount > 0) {
+                    DBIO.failed(new MethodNotAllowedException(ExchMsg.translate("password.disabled.oauth.user")))
+                  } else {
+                    DBIO.successful(())
+                  }
+                  
+                  numUsersModified <- action
+                } yield numUsersModified
+              } else {
+                action
+              }
           
           complete {
-            db.run(action.transactionally.asTry).map {
+            db.run(checkUserAndUpdate.transactionally.asTry).map {
               case Success(numUsersModified) =>
                 Future { logger.debug("POST /orgs/" + organization + "/users/" + username + "/changepw result: " + numUsersModified)
                 }
@@ -135,6 +157,8 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
                 }
                 else
                   (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", resource)))
+                case Failure(t: MethodNotAllowedException) =>
+                  (HttpCode.NOT_ALLOWED, ApiResponse(ApiRespType.METHOD_NOT_ALLOWED, ExchMsg.translate("password.disabled.oauth.user")))
               case Failure(t: org.postgresql.util.PSQLException) =>
                 ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.password.not.updated", resource, t.toString))
               case Failure(t) =>
@@ -143,7 +167,7 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
           }
         }
     }
-  
+
   def changePassword(identity: Identity2): Route =
     path("orgs" / Segment / "users" / Segment / "changepw") {
       (organization, username) =>

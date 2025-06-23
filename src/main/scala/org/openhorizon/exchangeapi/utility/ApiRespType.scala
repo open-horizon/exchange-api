@@ -15,4 +15,5 @@ object ApiRespType {
   val INFO: String = ExchMsg.translate("info")
   val OK: String = ExchMsg.translate("ok")
   val TOO_BUSY: String = ExchMsg.translate("too.busy")
+  val METHOD_NOT_ALLOWED: String = ExchMsg.translate("api.method.not.allowed")
 }

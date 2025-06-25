@@ -22,7 +22,7 @@ import java.util.UUID
 
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
-import scala.util.{Failure, Success}
+import scala.util.{Failure, Success, Try}
 
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import scalacache.modes.scalaFuture._
@@ -181,46 +181,50 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
   def deleteUserApiKey(@Parameter(hidden = true) identity: Identity2,
                       @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) username: String,
-                      @Parameter(hidden = true) keyid: UUID,
+                      @Parameter(hidden = true) keyidStr: String,
                       @Parameter(hidden = true) resourceUuidOpt: Option[UUID]): Route = complete {
-
-    resourceUuidOpt match {
-      case Some(userUuid) =>
-        val deleteQuery = Compiled {
-          ApiKeysTQ.filter(k => k.id === keyid && k.user === userUuid && k.orgid === organization)
-                  .filterIf(identity.isStandardUser)(k => k.user === identity.identifier.get)
-                  .filterIf(identity.isOrgAdmin)(k => k.orgid === identity.organization)
-                  .filterIf(identity.isHubAdmin)(k => UsersTQ.filter(u => u.user === k.user && ((u.isHubAdmin || u.isOrgAdmin) && !(u.organization === "root" && u.username === "root"))).exists)
+    Try(UUID.fromString(keyidStr)) match {
+      case Failure(_) =>
+        Future.successful((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, "Invalid UUID format for API key ID")))
+      case Success(keyid) =>
+        resourceUuidOpt match {
+          case Some(userUuid) =>
+            val deleteQuery = Compiled {
+              ApiKeysTQ.filter(k => k.id === keyid && k.user === userUuid && k.orgid === organization)
+                .filterIf(identity.isStandardUser)(k => k.user === identity.identifier.get)
+                .filterIf(identity.isOrgAdmin)(k => k.orgid === identity.organization)
+                .filterIf(identity.isHubAdmin)(k => UsersTQ.filter(u => u.user === k.user && ((u.isHubAdmin || u.isOrgAdmin) && !(u.organization === "root" && u.username === "root"))).exists)
+            }
+            
+            db.run((for {
+              deleted <- deleteQuery.delete
+              // _ <- if (deleted > 0) {
+              //       ResourceChangesTQ += ResourceChange(
+              //         0L,
+              //         organization,
+              //         keyid.toString,
+              //         ResChangeCategory.APIKEY,
+              //         public = false,
+              //         ResChangeResource.APIKEY,
+              //         ResChangeOperation.DELETED
+              //       ).toResourceChangeRow
+              //     } else {
+              //       DBIO.successful(0)
+              //     }
+            } yield deleted).transactionally).map {
+              case 0 =>
+                (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("apikey.not.found")))
+              case _ =>
+                (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("apikey.deleted")))
+            }.recover {
+              case ex =>
+                logger.error(s"Error deleting API key $keyid for $organization/$username", ex)
+                (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("apikey.deletion.failed")))
+            }
+            
+          case None =>
+            Future.successful((StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "User not found")))
         }
-        
-        db.run((for {
-          deleted <- deleteQuery.delete
-          // _ <- if (deleted > 0) {
-          //       ResourceChangesTQ += ResourceChange(
-          //         0L,
-          //         organization,
-          //         keyid.toString,
-          //         ResChangeCategory.APIKEY,
-          //         public = false,
-          //         ResChangeResource.APIKEY,
-          //         ResChangeOperation.DELETED
-          //       ).toResourceChangeRow
-          //     } else {
-          //       DBIO.successful(0)
-          //     }
-        } yield deleted).transactionally).map {
-          case 0 =>
-            (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("apikey.not.found")))
-          case _ =>
-            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("apikey.deleted")))
-        }.recover {
-          case ex =>
-            logger.error(s"Error deleting API key $keyid for $organization/$username", ex)
-            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("apikey.deletion.failed")))
-        }
-      
-      case None =>
-        complete(StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "User not found"))
     }
   }
 
@@ -259,41 +263,47 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
     new responses.ApiResponse(responseCode = "404", description = "not found")
   )
 )
-def getUserApiKeyById(@Parameter(hidden = true) identity: Identity2,
-                      @Parameter(hidden = true) organization: String,
-                      @Parameter(hidden = true) username: String,
-                      @Parameter(hidden = true) keyid: UUID,
-                      @Parameter(hidden = true) resourceUuidOpt: Option[UUID]): Route = complete {
-     resourceUuidOpt match {
-      case Some(userUuid) =>
-        val keyQuery = Compiled {
-          ApiKeysTQ.filter(k => k.id === keyid && k.user === userUuid && k.orgid === organization)
-                   .filterIf(identity.isStandardUser)(k => k.user === identity.identifier.get)
-                   .filterIf(identity.isOrgAdmin)(k => k.orgid === identity.organization)
-                   .filterIf(identity.isHubAdmin)(k => UsersTQ.filter(u => u.user === k.user && ((u.isHubAdmin || u.isOrgAdmin) && !(u.organization === "root" && u.username === "root"))).exists)
-                   .take(1)
-        }
-                 
-        db.run(keyQuery.result.headOption).map {
-          case Some(keyRow) =>
-            val ownerStr = s"$organization/$username"
-            val metadata = new ApiKeyMetadata(keyRow, ownerStr)
-            (StatusCodes.OK, metadata)
-                       
+  def getUserApiKeyById(@Parameter(hidden = true) identity: Identity2,
+                        @Parameter(hidden = true) organization: String,
+                        @Parameter(hidden = true) username: String,
+                        @Parameter(hidden = true) keyidStr: String,
+                        @Parameter(hidden = true) resourceUuidOpt: Option[UUID]): Route = complete {
+    Try(UUID.fromString(keyidStr)) match {
+      case Failure(_) =>
+        Future.successful((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, "Invalid UUID format for API key ID")))
+
+      case Success(keyid) =>
+        resourceUuidOpt match {
+          case Some(userUuid) =>
+            val keyQuery = Compiled {
+              ApiKeysTQ.filter(k => k.id === keyid && k.user === userUuid && k.orgid === organization)
+                      .filterIf(identity.isStandardUser)(k => k.user === identity.identifier.get)
+                      .filterIf(identity.isOrgAdmin)(k => k.orgid === identity.organization)
+                      .filterIf(identity.isHubAdmin)(k => UsersTQ.filter(u => u.user === k.user && ((u.isHubAdmin || u.isOrgAdmin) && !(u.organization === "root" && u.username === "root"))).exists)
+                      .take(1)
+            }
+
+            db.run(keyQuery.result.headOption).map {
+              case Some(keyRow) =>
+                val ownerStr = s"$organization/$username"
+                val metadata = new ApiKeyMetadata(keyRow, ownerStr)
+                (StatusCodes.OK, metadata)
+
+              case None =>
+                (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("apikey.not.found")))
+            }.recover {
+              case ex =>
+                logger.error(s"Failed to get API key $keyid for $organization/$username", ex)
+                (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, "Failed to retrieve API key"))
+            }
+
           case None =>
-            (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("apikey.not.found")))
-        }.recover {
-          case ex =>
-            logger.error(s"Failed to get API key $keyid for $organization/$username", ex)
-            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, "Failed to retrieve API key"))
+            Future.successful((StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "User not found")))
         }
-               
-      case None =>
-        complete(StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "User not found"))
     }
   }
 
-def userApiKeys(identity: Identity2): Route = {
+  def userApiKeys(identity: Identity2): Route = {
     pathPrefix("orgs" / Segment / "users" / Segment / "apikeys") { (organization, username) =>
       val resourceType = "user"
       val resource = OrgAndId(organization, username).toString
@@ -307,20 +317,22 @@ def userApiKeys(identity: Identity2): Route = {
         }
 
       def routeMethods(resourceIdentity: Option[UUID]): Route = {
-        post {
-          exchAuth(TUser(resource, resourceIdentity), Access.WRITE, validIdentity = identity) { _ =>
-            postUserApiKey(identity, organization, username, resourceIdentity)
+        pathEnd {
+          post {
+            exchAuth(TUser(resource, resourceIdentity), Access.WRITE, validIdentity = identity) { _ =>
+              postUserApiKey(identity, organization, username, resourceIdentity)
+            }
           }
         } ~
-        path(JavaUUID) { keyid =>
+        path(Segment) { keyidStr =>
           get {
             exchAuth(TUser(resource, resourceIdentity), Access.READ, validIdentity = identity) { _ =>
-              getUserApiKeyById(identity, organization, username, keyid, resourceIdentity)
+              getUserApiKeyById(identity, organization, username, keyidStr, resourceIdentity)
             }
           } ~
           delete {
             exchAuth(TUser(resource, resourceIdentity), Access.WRITE, validIdentity = identity) { _ =>
-              deleteUserApiKey(identity, organization, username, keyid, resourceIdentity)
+              deleteUserApiKey(identity, organization, username, keyidStr, resourceIdentity)
             }
           }
         }

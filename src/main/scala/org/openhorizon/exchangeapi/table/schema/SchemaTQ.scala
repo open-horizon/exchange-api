@@ -22,6 +22,7 @@ import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuthsTQ
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyTQ
 import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServicesTQ}
 import org.openhorizon.exchangeapi.table.agent.AgentVersionsChangedTQ
+import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
@@ -29,7 +30,7 @@ import slick.lifted.TableQuery
 
 import scala.collection.mutable.ListBuffer
 
-object SchemaTQ  extends TableQuery(new SchemaTable(_)){
+object SchemaTQ extends TableQuery(new SchemaTable(_)){
 
   // Returns the db actions necessary to get the schema from step-1 to step. The fromSchemaVersion arg is there because sometimes where you
   // originally came from affects how to get to the next step.

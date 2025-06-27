@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.135.0](https://github.com/open-horizon/exchange-api/pull/788) - 2025-07-07
+- Issue 787: Added /users/apikey and /users/iamapikey endpoints to let clients retrieve their own user info when using API key authentication without explicitly setting the username (e.g. to support how hzn and other components construct requests)
+
 ## [2.134.0](https://github.com/open-horizon/exchange-api/pull/794) - 2025-07-07
 - Fixed a timing issue where newly created users could temporarily receive 404 errors when creating API keys. Now falls back to DB lookup if the cache is not yet populated.
 

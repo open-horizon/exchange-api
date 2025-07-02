@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.130.0](https://github.com/open-horizon/exchange-api/pull/789) - 2025-07-02
+- Issue 769: Added basic OAuth capabilities using bearer access tokens and requests to external provided
+             userinfo endpoints. A custom header with configuration has been added to supply the intended organization
+             to be used for the authenticated identity and any user creation via OAuth.
+
 ## [2.129.0](https://github.com/open-horizon/exchange-api/pull/779) - 2025-06-20
 - Issue 778: Added a second attempt authentication mechanism that forces a cache synchronization with the database.
              This is only useful when using multiple Exchange instances in a container orchestration cluster.

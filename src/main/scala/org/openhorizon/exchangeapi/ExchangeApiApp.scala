@@ -395,7 +395,10 @@ object ExchangeApiApp extends App
               username.isEmpty) {
             Future.successful(None)
             
-          } else if (username == "apikey") {
+          }
+          else if (username == "iamtoken" || username == "token")
+            oauthAuthenticator(organization)(Credentials.apply())
+          else if (username == "apikey") {
             val getApiKeysByOrg = Compiled((org: Rep[String]) =>
               ApiKeysTQ.filter(_.orgid === org)
             )
@@ -598,12 +601,12 @@ object ExchangeApiApp extends App
     userApiKeys(authenticatedIdentity)
   }
   
-  def oauthAuthenticator(credentials: Credentials): Future[Option[Identity2]] = {
+  def oauthAuthenticator(a: String)(credentials: Credentials): Future[Option[Identity2]] = {
     credentials match {
       case bearerCredential@Credentials.Provided(token) =>
         Future {
           val uri = Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.url")
-          Future { logger.debug(s"$uri - OAuth: Received bearer token: $token") }
+          Future { logger.debug(s"$uri - OAuth: Received bearer token: `$token`") }
           
           def evaluateResponseEntity(method: HttpMethod, entity: ResponseEntity): Future[Option[Identity2]] = {
             entity.dataBytes.runFold(ByteString(""))(_ ++ _).flatMap {
@@ -614,7 +617,7 @@ object ExchangeApiApp extends App
                     val responseBody = JsonMethods.parse(jsonstring)
                     Future { logger.debug(s"$method $uri - body:  $responseBody") }
                     
-                    if (!(responseBody \ "active").extract[Boolean]) {
+                    if (!(try { (responseBody \ "active").extract[Boolean]} catch { case _: Throwable => true })) {
                       Future { logger.debug(s"$method $uri - OAuth: This access token is not active") }
                       Future { None }
                     }
@@ -647,8 +650,8 @@ object ExchangeApiApp extends App
                                 case exception: ArrayIndexOutOfBoundsException =>
                                   Future { logger.debug(s"$method $uri - OAuth: Multiple organizations with the same tag value were found.") }
                                   Future { None }
-                                case _ =>
-                                  Future { logger.debug(s"$method $uri - OAuth: Unknown error.") }
+                                case exception: Throwable =>
+                                  Future { logger.debug(s"$method $uri - OAuth: Unknown error. ${exception.getMessage}") }
                                   Future { None }
                               }
                       }
@@ -665,7 +668,8 @@ object ExchangeApiApp extends App
             val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
               for {
                 organizationAccountMap <-
-                  Compiled(OrgsTQ.filter(organizations => organizations.tags.+>>("group") inSet userMetadata._2)
+                  Compiled(OrgsTQ.filter(organizations => organizations.orgid =!= "root")
+                                 .filter(organizations => organizations.tags.+>>("group") inSet userMetadata._2)
                                  .map(_.orgid))
                     .result
                 
@@ -703,7 +707,7 @@ object ExchangeApiApp extends App
                               user = UUID.randomUUID(),
                               username = userMetadata._4)
                   else
-                    null
+                    DBIO.successful(user.head._4)
                 
                 validIdentity =
                   if (user.isEmpty) {
@@ -727,7 +731,8 @@ object ExchangeApiApp extends App
             val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
               for {
                 organizationAccountMap <-
-                  Compiled(OrgsTQ.filter(organizations => organizations.tags.+>>("ibmcloud_id") like userMetadata._1)
+                  Compiled(OrgsTQ.filter(organizations => organizations.orgid =!= "root")
+                                 .filter(organizations => organizations.tags.+>>("ibmcloud_id") like userMetadata._1)
                                  .map(_.orgid))
                     .result
                 
@@ -788,21 +793,30 @@ object ExchangeApiApp extends App
           def parseUserInfoGeneric(responseBody: JValue): Option[(String, List[String], String, String)] = {
             implicit val defaultFormats: Formats = DefaultFormats
             val groupsClaim = Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.groups_claim_key")
-            Future { logger.debug("$uri - generic user info parser - groups claim key: $groupsClaim") }
+            Future { logger.debug(s"$uri - generic user info parser - groups claim key: $groupsClaim") }
             
-            val userMetaData =
-              for {
-                JObject(userInfo) <- responseBody
-                JField("email", JString(email)) <- userInfo
-                JField(groupsClaim, JArray(groups)) <- userInfo
-                JField("iss", JString(iss)) <- userInfo
-                JField("sub", JString(sub)) <- userInfo
-              } yield (email, groups.map(Serialization.write(_)), iss, sub)
+            val userMetaData = {
+              try {
+                Option((responseBody \ "email").extract[String],
+                       (responseBody \ groupsClaim).extract[List[String]],
+                       try {
+                         (responseBody \ "iss").extract[String]
+                       }
+                       catch {
+                         case _:Throwable => uri
+                       },
+                       (responseBody \ "sub").extract[String])
+              }
+              catch {
+                case _: Throwable =>
+                  None
+              }
+            }
             
             Future { logger.debug(s"$uri - Parsed user info size: ${userMetaData.size}")}
-            Future { logger.debug(s"$uri - Parsed user info: (email: ${userMetaData.headOption.getOrElse(("None", "None", "None", "None"))._1}, groups: ${userMetaData.headOption.getOrElse(("None", "None", "None", "None"))._2}, iss: ${userMetaData.headOption.getOrElse(("None", "None", "None", "None"))._3}, sub: ${userMetaData.headOption.getOrElse(("None", "None", "None", "None"))._4})") }
+            Future { logger.debug(s"$uri - Parsed user info: (email: ${userMetaData.getOrElse(("None", "None", "None", "None"))._1}, groups: ${userMetaData.getOrElse(("None", "None", "None", "None"))._2}, iss: ${userMetaData.getOrElse(("None", "None", "None", "None"))._3}, sub: ${userMetaData.getOrElse(("None", "None", "None", "None"))._4})") }
             
-            userMetaData.headOption
+            userMetaData
           }
           
           // https://iam.cloud.ibm.com/identity/userinfo
@@ -814,9 +828,9 @@ object ExchangeApiApp extends App
               JField("bss", JString(bss)) <- account
               JField("email", JString(email)) <- userInfo
               JField("iam_id", JString(iam_id)) <- userInfo
-              JField("iss", JString(iss)) <- userInfo
+              JField(key, JString(iss)) <- userInfo if key == "xyz"
               JField("sub", JString(bus)) <- userInfo
-            } yield (bss, email, iam_id, iss, bus)
+            } yield (bss, email, iam_id, Option(iss).getOrElse("something something darkside"), bus)
             
             Future { logger.debug(s"$uri - Parsed user info: (account.bss: ${userMetaData.head._1}, email: ${userMetaData.head._2}, iam_id: ${userMetaData.head._3}, iss: ${userMetaData.head._4}, sub: ${userMetaData.head._5})") }
             
@@ -836,22 +850,29 @@ object ExchangeApiApp extends App
             _ <- Future { logger.debug(s"POST $uri - response:  $responsePost") }
             authenticatedIdentity <-
               responseGet match {
-                case HttpResponse(StatusCodes.OK, _, entity, _) =>
-                  evaluateResponseEntity(HttpMethods.GET, entity)
-                case resp @ HttpResponse(code, _, _, _) =>
-                  Future { logger.debug(s"GET $uri - OAuth: Provider request failed, falling back to POST: $code") }
-                  responsePost match {
-                    case HttpResponse(StatusCodes.OK, _, entity, _) =>
-                      evaluateResponseEntity(HttpMethods.POST, entity)
-                    case resp @ HttpResponse(code, _, _, _) =>
-                      Future { logger.debug(s"POST $uri - OAuth: Provider request failed, all methods exhausted: $code") }
-                      Future { None }
-                  }
-                case _ => Future { None }
-              }
+                      case HttpResponse(StatusCodes.OK, _, entity, _) =>
+                        evaluateResponseEntity(HttpMethods.GET, entity)
+                      case resp@HttpResponse(code, _, _, _) =>
+                        Future {
+                          logger.debug(s"GET $uri - OAuth: Provider request failed, falling back to POST: $code")
+                        }
+                        responsePost match {
+                          case HttpResponse(StatusCodes.OK, _, entity, _) =>
+                            evaluateResponseEntity(HttpMethods.POST, entity)
+                          case resp@HttpResponse(code, _, _, _) =>
+                            Future {
+                              logger.debug(s"POST $uri - OAuth: Provider request failed, all methods exhausted: $code")
+                            }
+                            Future {
+                              None
+                            }
+                        }
+                      case _ => Future {
+                        None
+                      }
+                    }
           } yield authenticatedIdentity
         }.flatMap(x => x)
-        
       case _ => Future { None }
     }
   }
@@ -877,20 +898,26 @@ object ExchangeApiApp extends App
                       testRoute ~
                       version ~
                       Route.seal(
-                        extractCredentials{
-                          creds =>
-                            if (Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url") &&
-                                creds.isDefined &&
-                                creds.get.scheme().toLowerCase == "bearer")
-                              authenticateOAuth2Async(realm = "Exchange", authenticator = oauthAuthenticator) {
-                                validIdentity =>
-                                  authenticatedRoutes(validIdentity)
-                              }
-                            else
-                              authenticateBasicAsync(realm = "Exchange", authenticator = basicAuthenticator) {
-                                validIdentity =>
-                                  authenticatedRoutes(validIdentity)
-                              }
+                        optionalHeaderValueByName(Configuration.getConfig.getString("api.authentication.oauth.identity.organization.header")) {
+                          oauthOrganization =>
+                            extractCredentials {
+                              creds =>
+                                
+                                
+                                if (Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url") &&
+                                    creds.isDefined &&
+                                    creds.get.scheme().toLowerCase == "bearer" &&
+                                    oauthOrganization.isDefined)
+                                  authenticateOAuth2Async(realm = "Exchange", authenticator = oauthAuthenticator(oauthOrganization.get)) {
+                                    validIdentity =>
+                                      authenticatedRoutes(validIdentity)
+                                  }
+                                else
+                                  authenticateBasicAsync(realm = "Exchange", authenticator = basicAuthenticator) {
+                                    validIdentity =>
+                                      authenticatedRoutes(validIdentity)
+                                  }
+                            }
                         }
                       )
                     }

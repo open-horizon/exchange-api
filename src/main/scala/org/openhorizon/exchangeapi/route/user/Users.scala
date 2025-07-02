@@ -10,9 +10,8 @@ import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, _}
+import org.apache.pekko.http.scaladsl.server.Directives.{Segment, _}
 import org.apache.pekko.http.scaladsl.server.Route
-import org.openhorizon.exchangeapi.ExchangeApiApp.myUserPassAuthenticator
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthRoles, AuthenticationSupport, IUser, Identity, Identity2, OrgAndId, Password, Role, TUser}
 import org.openhorizon.exchangeapi.table.user.{User, UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.table.apikey.{ApiKeys, ApiKeyRow, ApiKeysTQ,ApiKeyMetadata}

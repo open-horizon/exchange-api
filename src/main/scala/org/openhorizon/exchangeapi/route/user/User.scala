@@ -9,13 +9,13 @@ import jakarta.ws.rs.{DELETE, GET, PATCH, POST, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{HttpRequest, HttpResponse, StatusCode, StatusCodes}
-import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, patch, path, post, put, _}
+import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.apache.pekko.http.scaladsl.server.directives.DebuggingDirectives
 import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshaller
 import org.apache.pekko.pattern.BackoffOpts.onFailure
 import org.openhorizon.exchangeapi.ExchangeApiApp
-import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership, getOwnerOfResource, myUserPassAuthenticator, routes}
+import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership}
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthRoles, AuthenticationSupport, BadInputException, IUser, Identity, Identity2, OrgAndId, Password, Role, TUser}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ, User => UserTable}
 import org.openhorizon.exchangeapi.table.apikey.{ApiKeyRow, ApiKeys, ApiKeysTQ,ApiKeyMetadata}

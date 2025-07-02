@@ -25,15 +25,15 @@ import org.apache.pekko.http.cors.scaladsl.CorsRejection
 import org.apache.pekko.http.javadsl.model.HttpHeader
 import org.apache.pekko.http.javadsl.server.CustomRejection
 import org.apache.pekko.http.scaladsl.{ConnectionContext, Http}
-import org.apache.pekko.http.scaladsl.model.{HttpRequest, StatusCodes}
+import org.apache.pekko.http.scaladsl.model.{HttpMethod, HttpMethods, HttpRequest, HttpResponse, ResponseEntity, StatusCodes}
 import org.apache.pekko.http.scaladsl.model.headers.CacheDirectives.{`max-age`, `must-revalidate`, `no-cache`, `no-store`}
-import org.apache.pekko.http.scaladsl.model.headers.{RawHeader, `Cache-Control`}
+import org.apache.pekko.http.scaladsl.model.headers.{Authorization, OAuth2BearerToken, RawHeader, `Cache-Control`}
 import org.apache.pekko.http.scaladsl.server.{AuthenticationFailedRejection, AuthorizationFailedRejection, CircuitBreakerOpenRejection, ExceptionHandler, ExpectedWebSocketRequestRejection, InvalidOriginRejection, MalformedQueryParamRejection, MalformedRequestContentRejection, MethodRejection, MissingAttributeRejection, MissingCookieRejection, MissingFormFieldRejection, MissingHeaderRejection, MissingQueryParamRejection, Rejection, RejectionHandler, RejectionWithOptionalCause, RequestEntityExpectedRejection, Route, RouteResult, SchemeRejection, TooManyRangesRejection, TransformationRejection, ValidationRejection}
 import org.apache.pekko.http.scaladsl.server.RouteResult.Rejected
 import org.apache.pekko.http.scaladsl.server.directives.{Credentials, DebuggingDirectives, LogEntry}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.pattern.{BackoffOpts, FutureRef}
-import org.json4s._
+import org.json4s.{JValue, _}
 import org.openhorizon.exchangeapi.SwaggerDocService.complete
 import org.openhorizon.exchangeapi.auth.AuthCache.logger
 import org.openhorizon.exchangeapi.auth.{ApiKeyUtils, AuthCache, AuthRoles, AuthenticationSupport, DbConnectionException, IAgbot, INode, IUser, IdNotFoundForAuthorizationException, Identity, Identity2, InvalidCredentialsException, Password}
@@ -72,8 +72,11 @@ import scalacache._
 import scalacache.caffeine._
 import scalacache.modes.scalaFuture._
 import com.github.benmanes.caffeine.cache.Caffeine
+import org.apache.pekko.http.scaladsl.unmarshalling.Unmarshal
 import org.apache.pekko.pattern.BackoffOpts.onFailure
 import org.apache.pekko.routing.NoRouter
+import org.apache.pekko.util.ByteString
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.springframework.security.crypto.bcrypt.BCrypt
 import slick.jdbc.TransactionIsolation.Serializable
 
@@ -374,7 +377,7 @@ object ExchangeApiApp extends App
     }
   }
   
-  def myUserPassAuthenticator(credentials: Credentials): Future[Option[Identity2]] = {
+  def basicAuthenticator(credentials: Credentials): Future[Option[Identity2]] = {
     credentials match {
       case p@Credentials.Provided(resource) =>
         Future {
@@ -392,7 +395,10 @@ object ExchangeApiApp extends App
               username.isEmpty) {
             Future.successful(None)
             
-          } else if (username == "apikey") {
+          }
+          //else if (username == "iamtoken" || username == "token")
+            //oauthAuthenticator(organization)(Credentials.apply())
+          else if (username == "apikey") {
             val getApiKeysByOrg = Compiled((org: Rep[String]) =>
               ApiKeysTQ.filter(_.orgid === org)
             )
@@ -516,113 +522,414 @@ object ExchangeApiApp extends App
     }
   }
   
+  def authenticatedRoutes(authenticatedIdentity: Identity2): Route = {
+    agentConfigurationManagement(authenticatedIdentity) ~
+    agreement(authenticatedIdentity) ~
+    agreementBot(authenticatedIdentity) ~
+    agreementBots(authenticatedIdentity) ~
+    agreementNode(authenticatedIdentity) ~
+    agreements(authenticatedIdentity) ~
+    agreementsNode(authenticatedIdentity) ~
+    changePassword(authenticatedIdentity) ~
+    changes(authenticatedIdentity) ~
+    cleanup(authenticatedIdentity) ~
+    clearAuthCache(authenticatedIdentity) ~
+    confirm(authenticatedIdentity) ~
+    confirmAgreement(authenticatedIdentity) ~
+    configuration(authenticatedIdentity) ~
+    configurationState(authenticatedIdentity) ~
+    deploymentPattern(authenticatedIdentity) ~
+    deploymentPatternAgreementBot(authenticatedIdentity) ~
+    deploymentPatterns(authenticatedIdentity) ~
+    deploymentPatternsAgreementBot(authenticatedIdentity) ~
+    deploymentPatternsCatalog(authenticatedIdentity) ~
+    deploymentPolicies(authenticatedIdentity) ~
+    deploymentPoliciesAgreementBot(authenticatedIdentity) ~
+    deploymentPolicy(authenticatedIdentity) ~
+    deploymentPolicyAgreementBot(authenticatedIdentity) ~
+    deploymentPolicySearch(authenticatedIdentity) ~
+    details(authenticatedIdentity) ~
+    dockerAuth(authenticatedIdentity) ~
+    dockerAuths(authenticatedIdentity) ~
+    dropDB(authenticatedIdentity) ~
+    errors(authenticatedIdentity) ~
+    heartbeatAgreementBot(authenticatedIdentity) ~
+    heartbeatNode(authenticatedIdentity) ~
+    initializeDB(authenticatedIdentity) ~
+    keyDeploymentPattern(authenticatedIdentity) ~
+    keyService(authenticatedIdentity) ~
+    keysDeploymentPattern(authenticatedIdentity) ~
+    keysService(authenticatedIdentity) ~
+    managementPolicies(authenticatedIdentity) ~
+    managementPolicy(authenticatedIdentity) ~
+    maxChangeId(authenticatedIdentity) ~
+    messageAgreementBot(authenticatedIdentity) ~
+    messageNode(authenticatedIdentity) ~
+    messagesAgreementBot(authenticatedIdentity) ~
+    messagesNode(authenticatedIdentity) ~
+    myOrganizations(authenticatedIdentity) ~
+    node(authenticatedIdentity) ~
+    nodeErrorSearch(authenticatedIdentity) ~
+    nodeErrorsSearch(authenticatedIdentity) ~
+    nodeHealthDeploymentPattern(authenticatedIdentity) ~
+    nodeHealthSearch(authenticatedIdentity) ~
+    nodeHighAvailabilityGroup(authenticatedIdentity) ~
+    nodes(authenticatedIdentity) ~
+    nodeServiceSearch(authenticatedIdentity) ~
+    nodeGroup(authenticatedIdentity) ~
+    nodeGroups(authenticatedIdentity) ~
+    organization(authenticatedIdentity) ~
+    //organizationDeploymentPatterns(authenticatedIdentity) ~
+    organizations(authenticatedIdentity) ~
+    // organizationServices(authenticatedIdentity) ~
+    organizationStatus(authenticatedIdentity) ~
+    policyNode(authenticatedIdentity) ~
+    policyService(authenticatedIdentity) ~
+    reload(authenticatedIdentity) ~
+    searchNode(authenticatedIdentity) ~
+    service(authenticatedIdentity) ~
+    services(authenticatedIdentity) ~
+    servicesCatalog(authenticatedIdentity) ~
+    status(authenticatedIdentity) ~
+    statusManagementPolicy(authenticatedIdentity) ~
+    statusNode(authenticatedIdentity) ~
+    // statusOrganization ~
+    statuses(authenticatedIdentity) ~
+    token(authenticatedIdentity) ~
+    user(authenticatedIdentity) ~
+    users(authenticatedIdentity) ~
+    userApiKeys(authenticatedIdentity)
+  }
+  
+  def oauthAuthenticator(tokenOrganization: String)(credentials: Credentials): Future[Option[Identity2]] = {
+    credentials match {
+      case bearerCredential@Credentials.Provided(token) =>
+        Future {
+          val uri = Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.url")
+          Future { logger.debug(s"$uri - OAuth: Received bearer token: `$token`") }
+          
+          def evaluateResponseEntity(method: HttpMethod, entity: ResponseEntity): Future[Option[Identity2]] = {
+            entity.dataBytes.runFold(ByteString(""))(_ ++ _).flatMap {
+              body =>
+                Future { logger.debug(s"$method $uri - byte string: ${body.utf8String}") }
+                Unmarshal(body.utf8String).to[String].map {
+                  jsonstring =>
+                    val responseBody = JsonMethods.parse(jsonstring)
+                    Future { logger.debug(s"$method $uri - body:  $responseBody") }
+                    
+                    if (!(try { (responseBody \ "active").extract[Boolean]} catch { case _: Throwable => true })) {
+                      Future { logger.debug(s"$method $uri - OAuth: This access token is not active") }
+                      Future { None }
+                    }
+                    else {
+                      uri match {
+                        case ibmCloud if ibmCloud.contains("iam.cloud.ibm.com") =>
+                          getUserIdentityIBMCloud(parseUserInfoIBMCloud(responseBody))
+                            .recoverWith {
+                              case exception: ClassNotFoundException =>
+                                Future { logger.debug(s"$method $uri - OAuth: No valid organization with tag was found for user.") }
+                                Future { None }
+                              case exception: ArrayIndexOutOfBoundsException =>
+                                Future { logger.debug(s"$method $uri - OAuth: Multiple organizations with the same tag value were found.") }
+                                Future { None }
+                              case _ =>
+                                Future { logger.debug(s"$method $uri - OAuth: Unknown error.") }
+                                Future { None }
+                            }
+                        case _ =>
+                          val userInfo = parseUserInfoGeneric(responseBody)
+                          
+                          if (userInfo.isEmpty)
+                            Future { None }
+                          else
+                            getUserIdentityGeneric(userInfo.get)
+                              .recoverWith {
+                                case exception: ClassNotFoundException =>
+                                  Future { logger.debug(s"$method $uri - OAuth: No valid organization with tag was found for user.") }
+                                  Future { None }
+                                case exception: ArrayIndexOutOfBoundsException =>
+                                  Future { logger.debug(s"$method $uri - OAuth: Multiple organizations with the same tag value were found.") }
+                                  Future { None }
+                                case exception: Throwable =>
+                                  Future { logger.debug(s"$method $uri - OAuth: Unknown error. ${exception.getMessage}") }
+                                  Future { None }
+                              }
+                      }
+                    }
+                }.flatMap(x => x)
+            }
+          }
+          
+          def getUserIdentityGeneric(userMetadata: (String, List[String], String, String)): Future[Option[Identity2]] = {
+            import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
+            
+            val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+            
+            val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
+              for {
+                organizationAccountMap <-
+                  Compiled(OrgsTQ.filter(organizations => organizations.orgid =!= "root")
+                                 .filter(organizations => organizations.orgid === tokenOrganization)
+                                 .filter(organizations => organizations.tags.+>>("group") inSet userMetadata._2)
+                                 .map(_.orgid))
+                    .result
+                
+                _ = Future { logger.debug(s"$uri - Generic OAuth account organization map - organizationAccountMap: ${organizationAccountMap.toString()}") }
+                
+                _ <-
+                  if (organizationAccountMap.size < 1)
+                    DBIO.failed(new ClassNotFoundException())
+                  else if (1 < organizationAccountMap.size)
+                    DBIO.failed(new ArrayIndexOutOfBoundsException())
+                  else
+                    DBIO.successful(())
+                
+                user <-
+                  Compiled(UsersTQ.filter(users => users.organization === organizationAccountMap.head && users.username === userMetadata._4)
+                                  .take(1)
+                                  .map(users =>
+                                    (users.isHubAdmin,
+                                     users.isOrgAdmin,
+                                     users.organization,
+                                     users.user,
+                                     users.username)))
+                    .result
+                
+                userIdentifier <-
+                  if (user.isEmpty)
+                    (UsersTQ returning UsersTQ.map(_.user)) +=
+                      UserRow(createdAt = timestamp,
+                              email = Option(userMetadata._1),
+                              identityProvider = userMetadata._3,
+                              modifiedAt = timestamp,
+                              modified_by = None,
+                              organization = organizationAccountMap.head,
+                              password = None,
+                              user = UUID.randomUUID(),
+                              username = userMetadata._4)
+                  else
+                    DBIO.successful(user.head._4)
+                
+                validIdentity =
+                  if (user.isEmpty) {
+                    Future { logger.debug(s"$uri - OAuth: Yielding valid identity from user creation.") }
+                    Option(Identity2(identifier = Option(userIdentifier), organization = organizationAccountMap.head, owner = None, role = AuthRoles.User, username = userMetadata._4))
+                  }
+                  else {
+                    Future { logger.debug(s"$uri - OAuth: Yielding valid identity from an existing user.") }
+                    Option(new Identity2(user.head))
+                  }
+              } yield validIdentity
+            
+            db.run(getIdentity.transactionally)
+          }
+          
+          def getUserIdentityIBMCloud(userMetadata: (String, String, String, String, String)): Future[Option[Identity2]] = {
+            import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
+            
+            val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+            
+            val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
+              for {
+                organizationAccountMap <-
+                  Compiled(OrgsTQ.filter(organizations => organizations.orgid =!= "root")
+                                 .filter(organizations => organizations.orgid === tokenOrganization)
+                                 .filter(organizations => organizations.tags.+>>("ibmcloud_id") like userMetadata._1)
+                                 .map(_.orgid))
+                    .result
+                
+                _ = Future { logger.debug (s"\"${userMetadata._1}\"") }
+                
+                _ = Future { logger.debug(s"$uri - IBM Cloud OAuth account organization map - organizationAccountMap: ${organizationAccountMap.toString()}") }
+                
+                _ <-
+                  if (organizationAccountMap.size < 1)
+                    DBIO.failed(new ClassNotFoundException())
+                  else if (1 < organizationAccountMap.size)
+                    DBIO.failed(new ArrayIndexOutOfBoundsException())
+                  else
+                    DBIO.successful(())
+                
+                user <-
+                  Compiled(UsersTQ.filter(users => users.organization === organizationAccountMap.head && users.username === userMetadata._5)
+                                  .take(1)
+                                  .map(users =>
+                                    (users.isHubAdmin,
+                                     users.isOrgAdmin,
+                                     users.organization,
+                                     users.user,
+                                     users.username)))
+                    .result
+                
+                newUUID = UUID.randomUUID()
+                
+                userIdentifier <-
+                  if (user.isEmpty)
+                    (UsersTQ returning UsersTQ.map(_.user)) +=
+                      UserRow(createdAt = timestamp,
+                              email = Option(userMetadata._2),
+                              identityProvider = userMetadata._4,
+                              modifiedAt = timestamp,
+                              modified_by = None,
+                              organization = organizationAccountMap.head,
+                              password = None,
+                              user = newUUID,
+                              username = userMetadata._5)
+                  else
+                    DBIO.successful(null)
+                
+                validIdentity =
+                  if (user.isEmpty) {
+                    Future { logger.debug(s"$uri - OAuth: Yielding valid identity from user creation.") }
+                    Option(Identity2(identifier = Option(userIdentifier), organization = organizationAccountMap.head, owner = None, role = AuthRoles.User, username = userMetadata._5))
+                  }
+                  else {
+                    Future { logger.debug(s"$uri - OAuth: Yielding valid identity from an existing user.") }
+                    Option(new Identity2(user.head))
+                  }
+              } yield validIdentity
+            
+            db.run(getIdentity.transactionally)
+          }
+          
+          def parseUserInfoGeneric(responseBody: JValue): Option[(String, List[String], String, String)] = {
+            implicit val defaultFormats: Formats = DefaultFormats
+            val groupsClaim = Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.groups_claim_key")
+            Future { logger.debug(s"$uri - generic user info parser - groups claim key: $groupsClaim") }
+            
+            val userMetaData = {
+              try {
+                Option((responseBody \ "email").extract[String],
+                       (responseBody \ groupsClaim).extract[List[String]],
+                       try {
+                         (responseBody \ "iss").extract[String]
+                       }
+                       catch {
+                         case _:Throwable => uri
+                       },
+                       (responseBody \ "sub").extract[String])
+              }
+              catch {
+                case _: Throwable =>
+                  None
+              }
+            }
+            
+            Future { logger.debug(s"$uri - Parsed user info size: ${userMetaData.size}")}
+            Future { logger.debug(s"$uri - Parsed user info: (email: ${userMetaData.getOrElse(("None", "None", "None", "None"))._1}, groups: ${userMetaData.getOrElse(("None", "None", "None", "None"))._2}, iss: ${userMetaData.getOrElse(("None", "None", "None", "None"))._3}, sub: ${userMetaData.getOrElse(("None", "None", "None", "None"))._4})") }
+            
+            userMetaData
+          }
+          
+          // https://iam.cloud.ibm.com/identity/userinfo
+          def parseUserInfoIBMCloud(responseBody: JValue): (String, String, String, String, String) = {
+            val userMetaData =
+              for {
+              JObject(userInfo) <- responseBody
+              JField("account", JObject(account)) <- userInfo
+              JField("bss", JString(bss)) <- account
+              JField("email", JString(email)) <- userInfo
+              JField("iam_id", JString(iam_id)) <- userInfo
+              JField(key, JString(iss)) <- userInfo if key == "xyz"
+              JField("sub", JString(bus)) <- userInfo
+            } yield (bss, email, iam_id, Option(iss).getOrElse("something something darkside"), bus)
+            
+            Future { logger.debug(s"$uri - Parsed user info: (account.bss: ${userMetaData.head._1}, email: ${userMetaData.head._2}, iam_id: ${userMetaData.head._3}, iss: ${userMetaData.head._4}, sub: ${userMetaData.head._5})") }
+            
+            userMetaData.head
+          }
+          
+          def queryUserInfo(method: HttpMethod = HttpMethods.GET, token: String, uri: String): Future[HttpResponse] = {
+            Http().singleRequest(HttpRequest(method = method,
+                                             uri = uri,
+                                             headers = List(Authorization(OAuth2BearerToken(token)))))
+          }
+          
+          for {
+            responseGet <- queryUserInfo(token = token, uri = uri)
+            responsePost <- queryUserInfo(method = HttpMethods.POST, token = token, uri = uri)
+            _ <- Future { logger.debug(s"GET $uri - response:  $responseGet") }
+            _ <- Future { logger.debug(s"POST $uri - response:  $responsePost") }
+            authenticatedIdentity <-
+              responseGet match {
+                      case HttpResponse(StatusCodes.OK, _, entity, _) =>
+                        evaluateResponseEntity(HttpMethods.GET, entity)
+                      case resp@HttpResponse(code, _, _, _) =>
+                        Future {
+                          logger.debug(s"GET $uri - OAuth: Provider request failed, falling back to POST: $code")
+                        }
+                        responsePost match {
+                          case HttpResponse(StatusCodes.OK, _, entity, _) =>
+                            evaluateResponseEntity(HttpMethods.POST, entity)
+                          case resp@HttpResponse(code, _, _, _) =>
+                            Future {
+                              logger.debug(s"POST $uri - OAuth: Provider request failed, all methods exhausted: $code")
+                            }
+                            Future {
+                              None
+                            }
+                        }
+                      case _ => Future {
+                        None
+                      }
+                    }
+          } yield authenticatedIdentity
+        }.flatMap(x => x)
+      case _ => Future { None }
+    }
+  }
+  
   //someday: use directive https://doc.pekko.io/docs/pekko-http/current/routing-dsl/directives/misc-directives/selectPreferredLanguage.html to support a different language for each client
   lazy val routes: Route =
     DebuggingDirectives.logRequestResult(requestResponseLogging _) {
       withLog(logger) {
-      pathPrefix("v1") {
-        respondWithDefaultHeaders(`Cache-Control`(Seq(`max-age`(0), `must-revalidate`, `no-cache`, `no-store`)),
-                                  // RawHeader("Content-Type", "application/json"/*; charset=UTF-8"*/),
-                                  RawHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"), // 2 years
-                                  RawHeader("X-Content-Type-Options", "nosniff"),
-                                  RawHeader("X-XSS-Protection", "1; mode=block")) {
-          handleExceptions(myExceptionHandler) {
-            handleRejections(corsRejectionHandler.withFallback(myRejectionHandler).seal) {
-              cors() {
-                handleExceptions(myExceptionHandler) {
-                  handleRejections((corsRejectionHandler.withFallback(myRejectionHandler)).seal) {
-                    // These routes do not require Authentication. They accept all requests.
-                    SwaggerDocService.routes ~
-                    swaggerUiRoutes ~
-                    testRoute ~
-                    version ~
-                    Route.seal(
-                    authenticateBasicAsync(realm = "Exchange", myUserPassAuthenticator) {
-                      validIdentity =>
-                        agentConfigurationManagement(validIdentity) ~
-                        agreement(validIdentity) ~
-                        agreementBot(validIdentity) ~
-                        agreementBots(validIdentity) ~
-                        agreementNode(validIdentity) ~
-                        agreements(validIdentity) ~
-                        agreementsNode(validIdentity) ~
-                        changePassword(validIdentity) ~
-                        changes(validIdentity) ~
-                        cleanup(validIdentity) ~
-                        clearAuthCache(validIdentity) ~
-                        confirm(validIdentity) ~
-                        confirmAgreement(validIdentity) ~
-                        configuration(validIdentity) ~
-                        configurationState(validIdentity) ~
-                        deploymentPattern(validIdentity) ~
-                        deploymentPatternAgreementBot(validIdentity) ~
-                        deploymentPatterns(validIdentity) ~
-                        deploymentPatternsAgreementBot(validIdentity) ~
-                        deploymentPatternsCatalog(validIdentity) ~
-                        deploymentPolicies(validIdentity) ~
-                        deploymentPoliciesAgreementBot(validIdentity) ~
-                        deploymentPolicy(validIdentity) ~
-                        deploymentPolicyAgreementBot(validIdentity) ~
-                        deploymentPolicySearch(validIdentity) ~
-                        details(validIdentity) ~
-                        dockerAuth(validIdentity) ~
-                        dockerAuths(validIdentity) ~
-                        dropDB(validIdentity) ~
-                        errors(validIdentity) ~
-                        heartbeatAgreementBot(validIdentity) ~
-                        heartbeatNode(validIdentity) ~
-                        initializeDB(validIdentity) ~
-                        keyDeploymentPattern(validIdentity) ~
-                        keyService(validIdentity) ~
-                        keysDeploymentPattern(validIdentity) ~
-                        keysService(validIdentity) ~
-                        managementPolicies(validIdentity) ~
-                        managementPolicy(validIdentity) ~
-                        maxChangeId(validIdentity) ~
-                        messageAgreementBot(validIdentity) ~
-                        messageNode(validIdentity) ~
-                        messagesAgreementBot(validIdentity) ~
-                        messagesNode(validIdentity) ~
-                        myOrganizations(validIdentity) ~
-                        node(validIdentity) ~
-                        nodeErrorSearch(validIdentity) ~
-                        nodeErrorsSearch(validIdentity) ~
-                        nodeHealthDeploymentPattern(validIdentity) ~
-                        nodeHealthSearch(validIdentity) ~
-                        nodeHighAvailabilityGroup(validIdentity) ~
-                        nodes(validIdentity) ~
-                        nodeServiceSearch(validIdentity) ~
-                        nodeGroup(validIdentity) ~
-                        nodeGroups(validIdentity) ~
-                        organization(validIdentity) ~
-                        //organizationDeploymentPatterns(validIdentity) ~
-                        organizations(validIdentity) ~
-                        // organizationServices(validIdentity) ~
-                        organizationStatus(validIdentity) ~
-                        policyNode(validIdentity) ~
-                        policyService(validIdentity) ~
-                        reload(validIdentity) ~
-                        searchNode(validIdentity) ~
-                        service(validIdentity) ~
-                        services(validIdentity) ~
-                        servicesCatalog(validIdentity) ~
-                        status(validIdentity) ~
-                        statusManagementPolicy(validIdentity) ~
-                        statusNode(validIdentity) ~
-                        // statusOrganization ~
-                        statuses(validIdentity) ~
-                        token(validIdentity) ~
-                        user(validIdentity) ~
-                        users(validIdentity) ~
-                        userApiKeys(validIdentity)
-                    })
+        pathPrefix("v1") {
+          respondWithDefaultHeaders(`Cache-Control`(Seq(`max-age`(0), `must-revalidate`, `no-cache`, `no-store`)),
+                                    // RawHeader("Content-Type", "application/json"/*; charset=UTF-8"*/),
+                                    RawHeader("Strict-Transport-Security", "max-age=63072000; includeSubDomains; preload"), // 2 years
+                                    RawHeader("X-Content-Type-Options", "nosniff"),
+                                    RawHeader("X-XSS-Protection", "1; mode=block")) {
+            handleExceptions(myExceptionHandler) {
+              handleRejections(corsRejectionHandler.withFallback(myRejectionHandler).seal) {
+                cors() {
+                  handleExceptions(myExceptionHandler) {
+                    handleRejections((corsRejectionHandler.withFallback(myRejectionHandler)).seal) {
+                      // These routes do not require Authentication. They accept all requests.
+                      SwaggerDocService.routes ~
+                      swaggerUiRoutes ~
+                      testRoute ~
+                      version ~
+                      Route.seal(
+                        optionalHeaderValueByName(Configuration.getConfig.getString("api.authentication.oauth.identity.organization.header")) {
+                          oauthOrganization =>
+                            extractCredentials {
+                              creds =>
+                                
+                                
+                                if (Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url") &&
+                                    creds.isDefined &&
+                                    creds.get.scheme().toLowerCase == "bearer" &&
+                                    oauthOrganization.isDefined)
+                                  authenticateOAuth2Async(realm = "Exchange", authenticator = oauthAuthenticator(oauthOrganization.get)) {
+                                    validIdentity =>
+                                      authenticatedRoutes(validIdentity)
+                                  }
+                                else
+                                  authenticateBasicAsync(realm = "Exchange", authenticator = basicAuthenticator) {
+                                    validIdentity =>
+                                      authenticatedRoutes(validIdentity)
+                                  }
+                            }
+                        }
+                      )
+                    }
                   }
                 }
               }
             }
           }
         }
-      }}
+      }
     }
   
   val db: Database = DatabaseConnection.getDatabase//Database.forConfig("exchange-db-connection", system.settings.config.getConfig("exchange-db-connection"))

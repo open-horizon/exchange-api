@@ -6,7 +6,7 @@
       <level>TRACE</level>
     </filter> -->
     <encoder>
-     <pattern>[%date{ISO8601}] %-44([%logger]) [%marker] %-42([%thread]) %highlight(%-7([%level])) -%kvp- %msg%n</pattern>
+     <pattern>[%date{ISO8601}] %-58([%logger]) [%marker] %-42([%thread]) %highlight(%-7([%level])) -%kvp- %msg%n</pattern>
     </encoder>
   </appender>
 

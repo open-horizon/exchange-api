@@ -8,7 +8,6 @@ import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
-import org.openhorizon.exchangeapi.ExchangeApiApp.myUserPassAuthenticator
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, Role, TAction}
 import org.openhorizon.exchangeapi.route.administration.AdminDropdbTokenResponse
 import org.openhorizon.exchangeapi.utility.HttpCode

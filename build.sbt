@@ -77,8 +77,6 @@ lazy val root = (project in file("."))
       "org.postgresql" % "postgresql" % "[42.7.6,)",
       "org.scalaj" %% "scalaj-http" % "[2.4.2]",                  // Deprecated as of April 2022, in v2.4.2
       "com.typesafe" % "config" % "[1.4.3,)",
-      //"org.mindrot" % "jbcrypt" % "[0.4,)",                       // Last version (v0.4) release February 13, 2017
-      //"com.pauldijou" %% "jwt-core" % "[5.0.0,)",
       "com.github.cb372" %% "scalacache-caffeine" % "[0.28.0]",
       "com.osinka.i18n" %% "scala-i18n" % "[1.1.0,)",
       

@@ -43,6 +43,19 @@ case class Identity2(identifier: Option[UUID] = None,  // Only used by Users cur
              case _ => AuthRoles.Anonymous
            },
          username = username)
+   
+  def this(tuple: (Boolean, Boolean, String, UUID, String)) =
+    this (identifier = Option(tuple._4),
+          organization = tuple._3,
+          owner = None,
+          role =
+            (tuple._1, tuple._2) match {
+              case (true, true) => AuthRoles.SuperUser
+              case (true, false) => AuthRoles.HubAdmin
+              case (false, true) => AuthRoles.AdminUser
+              case (false, false) => AuthRoles.User
+            },
+          username = tuple._5)
   
   /**
     * If resource identity is an Agreement Bot, then true. Otherwise, false.

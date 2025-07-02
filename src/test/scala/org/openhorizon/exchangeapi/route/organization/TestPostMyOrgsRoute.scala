@@ -44,7 +44,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
         description        = "Test Organization 1",
         lastUpdated        = ApiTime.nowUTC,
         tags               = Some(JsonMethods.parse(
-          "{\"cloud_id\":\"account1\"}"
+          "{\"ibmcloud_id\":\"account1\"}"
         )),
         limits             = "{\"maxNodes\":5}",
         heartbeatIntervals = "{" +
@@ -60,7 +60,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
         description        = "Test Organization 2",
         lastUpdated        = ApiTime.nowUTC,
         tags               = Some(JsonMethods.parse(
-          "{\"cloud_id\":\"account2\"}"
+          "{\"ibmcloud_id\":\"account2\"}"
         )),
         limits             = "{\"maxNodes\":10}",
         heartbeatIntervals = "{" +
@@ -76,7 +76,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
         description        = "Test Organization 3",
         lastUpdated        = ApiTime.nowUTC,
         tags               = Some(JsonMethods.parse(
-          "{\"cloud_id\":\"account2\"}"
+          "{\"ibmcloud_id\":\"account2\"}"
         )),
         limits             = "{\"maxNodes\":15}",
         heartbeatIntervals = "{" +

@@ -567,7 +567,7 @@ object ExchangeApiApp extends App
     messageNode(authenticatedIdentity) ~
     messagesAgreementBot(authenticatedIdentity) ~
     messagesNode(authenticatedIdentity) ~
-    myOrganizations(authenticatedIdentity) ~
+    myOrganizations(Option(authenticatedIdentity)) ~
     node(authenticatedIdentity) ~
     nodeErrorSearch(authenticatedIdentity) ~
     nodeErrorsSearch(authenticatedIdentity) ~
@@ -764,7 +764,7 @@ object ExchangeApiApp extends App
                 newUUID = UUID.randomUUID()
                 
                 userIdentifier <-
-                  if (user.isEmpty)
+                  if (user.isEmpty) {
                     (UsersTQ returning UsersTQ.map(_.user)) +=
                       UserRow(createdAt = timestamp,
                               email = Option(userMetadata._2),
@@ -775,17 +775,227 @@ object ExchangeApiApp extends App
                               password = None,
                               user = newUUID,
                               username = userMetadata._5)
-                  else
+                  } else
                     DBIO.successful(null)
                 
                 validIdentity =
                   if (user.isEmpty) {
                     Future { logger.debug(s"$uri - OAuth: Yielding valid identity from user creation.") }
-                    Option(Identity2(identifier = Option(userIdentifier), organization = organizationAccountMap.head, owner = None, role = AuthRoles.User, username = userMetadata._5))
+                    Option(Identity2(identifier = Option(userIdentifier), organization = organizationAccountMap.headOption.getOrElse(""), owner = None, role = AuthRoles.User, username = userMetadata._5))
                   }
                   else {
                     Future { logger.debug(s"$uri - OAuth: Yielding valid identity from an existing user.") }
                     Option(new Identity2(user.head))
+                  }
+              } yield validIdentity
+            
+            db.run(getIdentity.transactionally)
+          }
+          
+          def parseUserInfoGeneric(responseBody: JValue): Option[(String, List[String], String, String)] = {
+            implicit val defaultFormats: Formats = DefaultFormats
+            val groupsClaim = Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.groups_claim_key")
+            Future { logger.debug(s"$uri - generic user info parser - groups claim key: $groupsClaim") }
+            
+            val userMetaData = {
+              try {
+                Option((responseBody \ "email").extract[String],
+                       (responseBody \ groupsClaim).extract[List[String]],
+                       try {
+                         (responseBody \ "iss").extract[String]
+                       }
+                       catch {
+                         case _:Throwable => uri
+                       },
+                       (responseBody \ "sub").extract[String])
+              }
+              catch {
+                case _: Throwable =>
+                  None
+              }
+            }
+            
+            Future { logger.debug(s"$uri - Parsed user info size: ${userMetaData.size}")}
+            Future { logger.debug(s"$uri - Parsed user info: (email: ${userMetaData.getOrElse(("None", "None", "None", "None"))._1}, groups: ${userMetaData.getOrElse(("None", "None", "None", "None"))._2}, iss: ${userMetaData.getOrElse(("None", "None", "None", "None"))._3}, sub: ${userMetaData.getOrElse(("None", "None", "None", "None"))._4})") }
+            
+            userMetaData
+          }
+          
+          // https://iam.cloud.ibm.com/identity/userinfo
+          def parseUserInfoIBMCloud(responseBody: JValue): (String, String, String, String, String) = {
+            val userMetaData =
+              for {
+              JObject(userInfo) <- responseBody
+              JField("account", JObject(account)) <- userInfo
+              JField("bss", JString(bss)) <- account
+              JField("email", JString(email)) <- userInfo
+              JField("iam_id", JString(iam_id)) <- userInfo
+              JField(key, JString(iss)) <- userInfo if key == "xyz"
+              JField("sub", JString(bus)) <- userInfo
+            } yield (bss, email, iam_id, Option(iss).getOrElse("something something darkside"), bus)
+            
+            Future { logger.debug(s"$uri - Parsed user info: (account.bss: ${userMetaData.head._1}, email: ${userMetaData.head._2}, iam_id: ${userMetaData.head._3}, iss: ${userMetaData.head._4}, sub: ${userMetaData.head._5})") }
+            
+            userMetaData.head
+          }
+          
+          def queryUserInfo(method: HttpMethod = HttpMethods.GET, token: String, uri: String): Future[HttpResponse] = {
+            Http().singleRequest(HttpRequest(method = method,
+                                             uri = uri,
+                                             headers = List(Authorization(OAuth2BearerToken(token)))))
+          }
+          
+          for {
+            responseGet <- queryUserInfo(token = token, uri = uri)
+            responsePost <- queryUserInfo(method = HttpMethods.POST, token = token, uri = uri)
+            _ <- Future { logger.debug(s"GET $uri - response:  $responseGet") }
+            _ <- Future { logger.debug(s"POST $uri - response:  $responsePost") }
+            authenticatedIdentity <-
+              responseGet match {
+                      case HttpResponse(StatusCodes.OK, _, entity, _) =>
+                        evaluateResponseEntity(HttpMethods.GET, entity)
+                      case resp@HttpResponse(code, _, _, _) =>
+                        Future {
+                          logger.debug(s"GET $uri - OAuth: Provider request failed, falling back to POST: $code")
+                        }
+                        responsePost match {
+                          case HttpResponse(StatusCodes.OK, _, entity, _) =>
+                            evaluateResponseEntity(HttpMethods.POST, entity)
+                          case resp@HttpResponse(code, _, _, _) =>
+                            Future {
+                              logger.debug(s"POST $uri - OAuth: Provider request failed, all methods exhausted: $code")
+                            }
+                            Future {
+                              None
+                            }
+                        }
+                      case _ => Future {
+                        None
+                      }
+                    }
+          } yield authenticatedIdentity
+        }.flatMap(x => x)
+      case _ => Future { None }
+    }
+  }
+  
+  def oauthAuthenticatorNoUser(credentials: Credentials): Future[Option[Identity2]] = {
+    credentials match {
+      case bearerCredential@Credentials.Provided(token) =>
+        Future {
+          val uri = Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.url")
+          Future { logger.debug(s"$uri - OAuth: Received bearer token: `$token`") }
+          
+          def evaluateResponseEntity(method: HttpMethod, entity: ResponseEntity): Future[Option[Identity2]] = {
+            entity.dataBytes.runFold(ByteString(""))(_ ++ _).flatMap {
+              body =>
+                Future { logger.debug(s"$method $uri - byte string: ${body.utf8String}") }
+                Unmarshal(body.utf8String).to[String].map {
+                  jsonstring =>
+                    val responseBody = JsonMethods.parse(jsonstring)
+                    Future { logger.debug(s"$method $uri - body:  $responseBody") }
+                    
+                    if (!(try { (responseBody \ "active").extract[Boolean]} catch { case _: Throwable => true })) {
+                      Future { logger.debug(s"$method $uri - OAuth: This access token is not active") }
+                      Future { None }
+                    }
+                    else {
+                      uri match {
+                        case ibmCloud if ibmCloud.contains("iam.cloud.ibm.com") =>
+                          getUserIdentityIBMCloud(parseUserInfoIBMCloud(responseBody))
+                            .recoverWith {
+                              case exception: ClassNotFoundException =>
+                                Future { logger.debug(s"$method $uri - OAuth: No valid organization with tag was found for user.") }
+                                Future { None }
+                              case exception: ArrayIndexOutOfBoundsException =>
+                                Future { logger.debug(s"$method $uri - OAuth: Multiple organizations with the same tag value were found.") }
+                                Future { None }
+                              case _ =>
+                                Future { logger.debug(s"$method $uri - OAuth: Unknown error.") }
+                                Future { None }
+                            }
+                        case _ =>
+                          val userInfo = parseUserInfoGeneric(responseBody)
+                          
+                          if (userInfo.isEmpty)
+                            Future { None }
+                          else
+                            getUserIdentityGeneric(userInfo.get)
+                              .recoverWith {
+                                case exception: ClassNotFoundException =>
+                                  Future { logger.debug(s"$method $uri - OAuth: No valid organization with tag was found for user.") }
+                                  Future { None }
+                                case exception: ArrayIndexOutOfBoundsException =>
+                                  Future { logger.debug(s"$method $uri - OAuth: Multiple organizations with the same tag value were found.") }
+                                  Future { None }
+                                case exception: Throwable =>
+                                  Future { logger.debug(s"$method $uri - OAuth: Unknown error. ${exception.getMessage}") }
+                                  Future { None }
+                              }
+                      }
+                    }
+                }.flatMap(x => x)
+            }
+          }
+          
+          def getUserIdentityGeneric(userMetadata: (String, List[String], String, String)): Future[Option[Identity2]] = {
+            import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
+            
+            val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+            
+            val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
+              for {
+                organizationAccountMap <-
+                  Compiled(OrgsTQ.filter(organizations => organizations.orgid =!= "root")
+                                 .filter(organizations => organizations.tags.+>>("group") inSet userMetadata._2)
+                                 .map(_.orgid))
+                    .result
+                
+                _ = Future { logger.debug(s"$uri - Generic OAuth account organization map - organizationAccountMap: ${organizationAccountMap.toString()}") }
+                
+                _ <-
+                  if (organizationAccountMap.size < 1)
+                    DBIO.failed(new ClassNotFoundException())
+                  else
+                    DBIO.successful(())
+                
+                validIdentity =
+                  {
+                    Future { logger.debug(s"$uri - OAuth: Yielding valid identity from user creation.") }
+                    Option(Identity2(identifier = None, organization = organizationAccountMap.head, owner = None, role = AuthRoles.User, username = userMetadata._4))
+                  }
+              } yield validIdentity
+            
+            db.run(getIdentity.transactionally)
+          }
+          
+          def getUserIdentityIBMCloud(userMetadata: (String, String, String, String, String)): Future[Option[Identity2]] = {
+            import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
+            
+            val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+            
+            val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
+              for {
+                organizationAccountMap <-
+                  Compiled(OrgsTQ.filter(organizations => organizations.orgid =!= "root")
+                                 .filter(organizations => organizations.tags.+>>("ibmcloud_id") like userMetadata._1)
+                                 .map(_.orgid))
+                    .result
+                
+                _ = Future { logger.debug (s"\"${userMetadata._1}\"") }
+                
+                _ = Future { logger.debug(s"$uri - IBM Cloud OAuth account organization map - organizationAccountMap: ${organizationAccountMap.toString()}") }
+                
+                _ <-
+                  if (organizationAccountMap.size < 1)
+                    DBIO.failed(new ClassNotFoundException())
+                  else
+                    DBIO.successful(())
+                
+                validIdentity =
+                  {
+                    Future { logger.debug(s"$uri - OAuth: Yielding valid identity from user creation.") }
+                    Option(Identity2(identifier = None, organization = organizationAccountMap.headOption.getOrElse(""), owner = None, role = AuthRoles.User, username = userMetadata._5))
                   }
               } yield validIdentity
             
@@ -900,20 +1110,23 @@ object ExchangeApiApp extends App
                       testRoute ~
                       version ~
                       Route.seal(
-                        optionalHeaderValueByName(Configuration.getConfig.getString("api.authentication.oauth.identity.organization.header")) {
-                          oauthOrganization =>
-                            extractCredentials {
-                              creds =>
-                                
-                                
+                        extractCredentials {
+                          creds =>
+                            optionalHeaderValueByName(Configuration.getConfig.getString("api.authentication.oauth.identity.organization.header")) {
+                              oauthOrganization =>
                                 if (Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url") &&
                                     creds.isDefined &&
                                     creds.get.scheme().toLowerCase == "bearer" &&
-                                    oauthOrganization.isDefined)
+                                    oauthOrganization.isDefined) {
                                   authenticateOAuth2Async(realm = "Exchange", authenticator = oauthAuthenticator(oauthOrganization.get)) {
                                     validIdentity =>
                                       authenticatedRoutes(validIdentity)
                                   }
+                                }
+                                else if (Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url") &&
+                                         creds.isDefined &&
+                                         creds.get.scheme().toLowerCase == "bearer")
+                                  myOrganizations(None)
                                 else
                                   authenticateBasicAsync(realm = "Exchange", authenticator = basicAuthenticator) {
                                     validIdentity =>

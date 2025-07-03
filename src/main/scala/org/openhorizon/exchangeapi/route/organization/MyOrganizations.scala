@@ -10,6 +10,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
+import org.openhorizon.exchangeapi.ExchangeApiApp.{oauthAuthenticator, oauthAuthenticatorNoUser}
 import org.openhorizon.exchangeapi.auth.cloud.IamAccountInfo
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TOrg}
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgsTQ}
@@ -98,7 +99,7 @@ trait MyOrganizations extends JacksonSupport with AuthenticationSupport {
     {
       entity(as[List[IamAccountInfo]]) {
         reqBody =>
-          logger.debug("POST /myorgs - By ${identity.resource}:${identity.role}")
+          logger.debug(s"POST /myorgs - By ${identity.resource}:${identity.role}")
           
           complete({
             // getting list of accounts in req body from UI
@@ -106,7 +107,7 @@ trait MyOrganizations extends JacksonSupport with AuthenticationSupport {
             for (account <- reqBody) {accountsList += account.id}
             // filter on the orgs for orgs with those account ids
             val q =
-              OrgsTQ.filter(organizations => organizations.orgid =!= "root")
+              OrgsTQ.filterIf(!identity.isSuperUser)(organizations => organizations.orgid =!= "root")
                     .filter(_.tags.map(tag => ((tag +>> "ibmcloud_id") inSet accountsList.toSet) || ((tag +>> "group") inSet accountsList.toSet)))
             db.run(q.result.transactionally).map({ list =>
               logger.debug("POST /myorgs result size: " + list.size)
@@ -118,15 +119,21 @@ trait MyOrganizations extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  def myOrganizations(identity: Identity2): Route =
+  def myOrganizations(identity: Option[Identity2]): Route =
     path("myorgs") {
       post {
         // set hint here to some key that states that no org is ok
         // UI should omit org at the beginning of credentials still have them put the slash in there
-        exchAuth(TOrg("#"), Access.READ_MY_ORG, hint = "exchangeNoOrgForMultLogin", validIdentity = identity) {
-          _ =>
-            postMyOrganizations(identity)
-        }
+        if (identity.isDefined)
+          exchAuth(TOrg("#"), Access.READ_MY_ORG, hint = "exchangeNoOrgForMultLogin", validIdentity = identity.get) {
+            _ =>
+              postMyOrganizations(identity.get)
+          }
+        else
+          authenticateOAuth2Async(realm = "Exchange", authenticator = oauthAuthenticatorNoUser) {
+            identity =>
+              postMyOrganizations(identity)
+          }
       }
     }
 }

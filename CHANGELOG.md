@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.132.0](https://github.com/open-horizon/exchange-api/pull/792) - 2025-07-03
+- Enables OAuth authentication without creating an existing or new identity for the route .../v1/myorgs.
+
 ## [2.131.0](https://github.com/open-horizon/exchange-api/pull/781) - 2025-07-03
 - Issue 780: Blocked user creation by returing 405 from POST /users/{username} endpoint when OAuth mode is enabled.
 

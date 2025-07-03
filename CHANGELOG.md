@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.131.0](https://github.com/open-horizon/exchange-api/pull/788) - 2025-06-30
+- Issue 787: Added /users/apikey and /users/iamapikey endpoints to let clients retrieve their own user info when using API key authentication without explicitly setting the username (e.g. to support how hzn and other components construct requests)
+
 ## [2.130.0](https://github.com/open-horizon/exchange-api/pull/789) - 2025-07-02
 - Issue 769: Added basic OAuth capabilities using bearer access tokens and requests to external provided
              userinfo endpoints. A custom header with configuration has been added to supply the intended organization

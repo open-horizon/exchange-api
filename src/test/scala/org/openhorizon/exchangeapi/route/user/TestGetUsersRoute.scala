@@ -22,10 +22,11 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
+  private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val ROUTE = "/users"
-
+  
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
   val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
@@ -169,6 +170,10 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
        UsersTQ.filter(_.organization === "root")
               .filter(_.username startsWith "TestGetUsersRouteHubAdmin").delete).transactionally
     ), AWAITDURATION)
+
+    val response: HttpResponse[String] = Http(sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
   }
 
   def assertUsersEqual(user1: TestUser, user2: UserRow): Unit = {
@@ -305,4 +310,122 @@ class TestGetUsersRoute extends AnyFunSuite with BeforeAndAfterAll {
     info("Body: " + response.body)
     assert(response.code === HttpCode.ACCESS_DENIED.intValue)
   }
+
+    // GET /orgs/{org}/users/apikey tests
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + "/apikey -- as org user in correct org -- 200 success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "/apikey").headers(ACCEPT).headers(ORG1USERAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size === 1)
+    assert(responseBody.users.contains((TESTUSERS(2).organization + "/" + TESTUSERS(2).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(2).organization + "/" + TESTUSERS(2).username)), TESTUSERS(2))
+  }
+
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + "/apikey -- as org admin in correct org -- 200 success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "/apikey").headers(ACCEPT).headers(ORG1ADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size === 1)
+    assert(responseBody.users.contains((TESTUSERS(1).organization + "/" + TESTUSERS(1).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(1).organization + "/" + TESTUSERS(1).username)), TESTUSERS(1))
+  }
+
+  test("GET /orgs/root" + ROUTE + "/apikey -- as root user -- 200 success") {
+    val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "/apikey").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size === 1)
+    assert(responseBody.users.contains("root/root"))
+  }
+
+  test("GET /orgs/root" + ROUTE + "/apikey -- as hub admin -- 200 success") {
+    val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "/apikey").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size === 1)
+    assert(responseBody.users.contains((TESTUSERS(0).organization + "/" + TESTUSERS(0).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(0).organization + "/" + TESTUSERS(0).username)), TESTUSERS(0))
+  }
+
+  test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + "/apikey -- as user in different org -- 403 Forbidden") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + "/apikey").headers(ACCEPT).headers(ORG1USERAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  }
+
+  test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + "/apikey -- as admin in different org -- 403 Forbidden") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + "/apikey").headers(ACCEPT).headers(ORG1ADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+  }
+
+
+  // GET /orgs/{org}/users/iamapikey tests (identical to apikey tests)
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + "/iamapikey -- as org user in correct org -- 200 success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "/iamapikey").headers(ACCEPT).headers(ORG1USERAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size === 1)
+    assert(responseBody.users.contains((TESTUSERS(2).organization + "/" + TESTUSERS(2).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(2).organization + "/" + TESTUSERS(2).username)), TESTUSERS(2))
+  }
+
+  test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + "/iamapikey -- as org admin in correct org -- 200 success") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "/iamapikey").headers(ACCEPT).headers(ORG1ADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size === 1)
+    assert(responseBody.users.contains((TESTUSERS(1).organization + "/" + TESTUSERS(1).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(1).organization + "/" + TESTUSERS(1).username)), TESTUSERS(1))
+  }
+
+  test("GET /orgs/root" + ROUTE + "/iamapikey -- as root user -- 200 success") {
+    val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "/iamapikey").headers(ACCEPT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size === 1)
+    assert(responseBody.users.contains("root/root"))
+  }
+
+  test("GET /orgs/root" + ROUTE + "/iamapikey -- as hub admin -- 200 success") {
+    val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "/iamapikey").headers(ACCEPT).headers(HUBADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.OK.intValue)
+    val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
+    assert(responseBody.users.size === 1)
+    assert(responseBody.users.contains((TESTUSERS(0).organization + "/" + TESTUSERS(0).username)))
+    assertUsersEqual(responseBody.users((TESTUSERS(0).organization + "/" + TESTUSERS(0).username)), TESTUSERS(0))
+  }
+
+  test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + "/iamapikey -- as user in different org -- 404 not found") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + "/iamapikey").headers(ACCEPT).headers(ORG1USERAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+  }
+
+  test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + "/iamapikey -- as admin in different org -- 404 not found") {
+    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + "/iamapikey").headers(ACCEPT).headers(ORG1ADMINAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.NOT_FOUND.intValue)
+  }
+
 }

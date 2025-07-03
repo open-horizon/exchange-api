@@ -286,6 +286,7 @@ org.not.found.user.facing.error=the iamapikey or iamtoken specified can not be u
 org.not.found=org ''{0}'' not found
 org.not.specified=No org was specified at the beginning of the request credentials
 org.not.updated="org ''{0}'' not updated: {1}
+org.path.mismatch=Organization in path does not match authenticated user organization
 org.updated=org updated
 over.limit.of.agreements.for.node=Access Denied: you are over the limit of {0} agreements for this node
 over.limit.of.max.patterns=Access Denied: you are over the limit of {0} patterns

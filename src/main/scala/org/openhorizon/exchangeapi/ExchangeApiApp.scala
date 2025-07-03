@@ -596,8 +596,8 @@ object ExchangeApiApp extends App
     // statusOrganization ~
     statuses(authenticatedIdentity) ~
     token(authenticatedIdentity) ~
-    user(authenticatedIdentity) ~
     users(authenticatedIdentity) ~
+    user(authenticatedIdentity) ~
     userApiKeys(authenticatedIdentity)
   }
   

@@ -4,6 +4,7 @@ import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
 import org.openhorizon.exchangeapi.auth.{Password, Role}
+import org.openhorizon.exchangeapi.route.administration.AdminConfigRequest
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
@@ -22,16 +23,21 @@ import scala.concurrent.duration.{Duration, DurationInt}
 
 class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndAfterEach {
 
-  private val ACCEPT = ("Accept","application/json")
-  private val CONTENT: (String, String) = ("Content-Type", "application/json")
-  private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
-  private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val ROUTE = "/users/"
-
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  private val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  private val AWAITDURATION: Duration = 15.seconds
+  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+
+  private val localUrlRoot = "http://localhost:8080"
+  private val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)
+  private val runningLocally = (urlRoot == localUrlRoot)
+
+  private val BASEURL = urlRoot + "/v1"
+  private val URL = BASEURL + "/orgs/"
+  private val ROUTE = "/users/"
+  private val ACCEPT: (String, String) = ("Accept", "application/json")
+  private val CONTENT: (String, String) = ("Content-Type", "application/json")
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORGADMINPASSWORD = "orgadminpassword"
@@ -156,6 +162,44 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     ), AWAITDURATION)
   }
 
+  def updateConfig(key: String, value: String): Unit = {
+      val configInput = AdminConfigRequest(key, value)
+      val response = Http(BASEURL+"/admin/config").postData(Serialization.write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
+      assert(response.code === HttpCode.PUT_OK.intValue)
+  }
+
+  def withOauthDisabled(testCode: => Unit): Unit = {
+    val oauthEnabled = Configuration.getConfig.getBoolean("api.oauth.enabled")
+    assume(!oauthEnabled || runningLocally, "Skipping: OAuth mode enabled and not running locally")
+
+    if (oauthEnabled && runningLocally) {
+      updateConfig("api.oauth.enabled", "false")
+    } 
+    try {
+      testCode
+    } finally {
+      if (oauthEnabled && runningLocally) {
+        updateConfig("api.oauth.enabled", "true")
+      }
+    }
+  }
+
+  def withOauthEnabled(testCode: => Unit): Unit = {
+    val oauthEnabled = Configuration.getConfig.getBoolean("api.oauth.enabled")
+    assume(oauthEnabled || runningLocally, "Skipping: OAuth mode disabled and not running locally")
+
+    if (!oauthEnabled && runningLocally) {
+      updateConfig("api.oauth.enabled", "true")
+    } 
+    try {
+      testCode
+    } finally {
+      if (!oauthEnabled && runningLocally) {
+        updateConfig("api.oauth.enabled", "false")
+      }
+    }
+  }
+
   def assertUsersEqual(user1: PostPutUsersRequest, user2: UserRow): Unit = {
     //assert(BCrypt.checkpw(user1.password, user2.password.getOrElse("")))
     assert(user1.email === user2.email.getOrElse(""))
@@ -172,281 +216,338 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
 
   //should this give 404 not found instead?
   test("POST /orgs/doesNotExist" + ROUTE + "newUser -- 500 SQL error") {
-    val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE + "newUser").method("POST").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.INTERNAL_ERROR.intValue)
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "doesNotExist/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE + "newUser").method("POST").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.INTERNAL_ERROR.intValue)
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "doesNotExist/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- empty body -- 400 bad input") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- null password -- 400 bad input") {
-    val requestBody: Map[String, String] = Map( //can't use PostPutUsersRequest here because it would throw error for null password
-      "password" -> null,
-      "admin" -> null,
-      "hubAdmin" -> null,
-      "email" -> "newUser@ibm.com"
-    )
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val requestBody: Map[String, String] = Map( //can't use PostPutUsersRequest here because it would throw error for null password
+        "password" -> null,
+        "admin" -> null,
+        "hubAdmin" -> null,
+        "email" -> "newUser@ibm.com"
+      )
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- null email -- 400 bad input") {
-    val requestBody: Map[String, String] = Map( //can't use PostPutUsersRequest here because it would throw error for null email
-      "password" -> "newPassword",
-      "admin" -> null,
-      "hubAdmin" -> null,
-      "email" -> null
-    )
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val requestBody: Map[String, String] = Map( //can't use PostPutUsersRequest here because it would throw error for null email
+        "password" -> "newPassword",
+        "admin" -> null,
+        "hubAdmin" -> null,
+        "email" -> null
+      )
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- blank password -- as org admin -- 400 bad input") {
-    /*val requestBody: PostPutUsersRequest = PostPutUsersRequest(
-      password = "",
-      admin = false,
-      hubAdmin = None,
-      email = "newUser@ibm.com"
-    )*/
-    
-    val requestBody: Map[String, String] = Map( //can't use PostPutUsersRequest here because it would throw error for null email
-      "password" -> "",
-      "admin" -> "false",
-      "hubAdmin" -> "false",
-      "email" -> "newUser@ibm.com"
-    )
-    
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      /*val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+        password = "",
+        admin = false,
+        hubAdmin = None,
+        email = "newUser@ibm.com"
+      )*/
+      
+      val requestBody: Map[String, String] = Map( //can't use PostPutUsersRequest here because it would throw error for null email
+        "password" -> "",
+        "admin" -> "false",
+        "hubAdmin" -> "false",
+        "email" -> "newUser@ibm.com"
+      )
+      
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- blank password -- as root -- 400 bad input") {
-    val requestBody: PostPutUsersRequest = PostPutUsersRequest(
-      password = "",
-      admin = false,
-      hubAdmin = None,
-      email = "newUser@ibm.com"
-    )
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+        password = "",
+        admin = false,
+        hubAdmin = None,
+        email = "newUser@ibm.com"
+      )
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- org admin tries to create hub admin -- 400 bad input") {
-    val requestBody: PostPutUsersRequest = PostPutUsersRequest(
-      password = "newPassword",
-      admin = false,
-      hubAdmin = Some(true),
-      email = "newUser@ibm.com"
-    )
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === ExchMsg.translate("only.super.users.make.hub.admins"))
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+        password = "newPassword",
+        admin = false,
+        hubAdmin = Some(true),
+        email = "newUser@ibm.com"
+      )
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("only.super.users.make.hub.admins"))
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/root" + ROUTE + "TestPostUserRouteNewUser -- hub admin creates new hub admin -- 201 OK") {
-    val requestBody: PostPutUsersRequest = PostPutUsersRequest(
-      password = "newPassword",
-      admin = false,
-      hubAdmin = Some(true),
-      email = "TestPostUserRouteNewUser@ibm.com"
-    )
-    val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestPostUserRouteNewUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) ===  "root/TestPostUserRouteNewUser").result), AWAITDURATION).head
-    assert(newUser.organization === "root")
-    assert(newUser.username === "TestPostUserRouteNewUser")
-    assert(newUser.modified_by === Option(TESTUSERS(0).user)) //updated by hub admin
-    assertUsersEqual(requestBody, newUser)
+    withOauthDisabled {
+      val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+        password = "newPassword",
+        admin = false,
+        hubAdmin = Some(true),
+        email = "TestPostUserRouteNewUser@ibm.com"
+      )
+      val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestPostUserRouteNewUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      //insure new user is in DB correctly
+      val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) ===  "root/TestPostUserRouteNewUser").result), AWAITDURATION).head
+      assert(newUser.organization === "root")
+      assert(newUser.username === "TestPostUserRouteNewUser")
+      assert(newUser.modified_by === Option(TESTUSERS(0).user)) //updated by hub admin
+      assertUsersEqual(requestBody, newUser)
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- try to create hubAdmin in non-root org -- 400 bad input") {
-    val requestBody: PostPutUsersRequest = PostPutUsersRequest(
-      password = "newPassword",
-      admin = false,
-      hubAdmin = Some(true),
-      email = "newUser@ibm.com"
-    )
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === ExchMsg.translate("hub.admins.in.root.org"))
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+        password = "newPassword",
+        admin = false,
+        hubAdmin = Some(true),
+        email = "newUser@ibm.com"
+      )
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("hub.admins.in.root.org"))
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/root" + ROUTE + "TestPostUserRouteNewUser -- try to create regular user in root org -- 400 bad input") {
-    val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestPostUserRouteNewUser2").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === ExchMsg.translate("user.cannot.be.in.root.org"))
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "root/TestPostUserRouteNewUser2").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestPostUserRouteNewUser2").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("user.cannot.be.in.root.org"))
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "root/TestPostUserRouteNewUser2").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- hub admin tries to create regular user -- 400 bad input") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === ExchMsg.translate("hub.admins.only.write.admins"))
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("hub.admins.only.write.admins"))
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/root" + ROUTE + "TestPostUserRouteNewUser -- try to make a user who is both admin and hub admin -- 400 bad input") {
-    val requestBody: PostPutUsersRequest = PostPutUsersRequest(
-      password = "newPassword",
-      admin = true,
-      hubAdmin = Some(true),
-      email = "newUser@ibm.com"
-    )
-    val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestPostUserRouteNewUser").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === ExchMsg.translate("non.admin.user.cannot.make.admin.user"))
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "root/TestPostUserRouteNewUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+        password = "newPassword",
+        admin = true,
+        hubAdmin = Some(true),
+        email = "newUser@ibm.com"
+      )
+      val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestPostUserRouteNewUser").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("non.admin.user.cannot.make.admin.user"))
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "root/TestPostUserRouteNewUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "orgUser -- try to create user with existing username -- 400 bad input") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "orgUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/orgUser").result), AWAITDURATION).length === 1) //insure only one exists
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "orgUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/orgUser").result), AWAITDURATION).length === 1) //insure only one exists
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- as org admin -- 201 OK") {
-    val requestBody: PostPutUsersRequest = PostPutUsersRequest(
-      password = "newPassword",
-      admin = true,
-      hubAdmin = None,
-      email = "newUser@ibm.com"
-    )
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
-    //insure new user is in DB correctly
-    val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).head
-    assert(newUser.username === "newUser")
-    assert(newUser.organization === TESTORGS(0).orgId)
-    assert(newUser.modified_by === Option(TESTUSERS(1).user)) //updated by org admin
-    assertUsersEqual(requestBody, newUser)
+    withOauthDisabled {
+      val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+        password = "newPassword",
+        admin = true,
+        hubAdmin = None,
+        email = "newUser@ibm.com"
+      )
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.POST_OK.intValue)
+      //insure new user is in DB correctly
+      val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).head
+      assert(newUser.username === "newUser")
+      assert(newUser.organization === TESTORGS(0).orgId)
+      assert(newUser.modified_by === Option(TESTUSERS(1).user)) //updated by org admin
+      assertUsersEqual(requestBody, newUser)
+    }
   }
   
   test("POST /orgs/" + TESTORGS(1).orgId + ROUTE + "newUser -- org admin tries to create user in other org -- 403 access denied") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(1).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(1).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- as regular user -- 403 access denied") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- as agbot -- 403 access denied") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(AGBOTAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(AGBOTAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
   
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser -- as node -- 403 access denied") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(NODEAUTH).asString
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(NODEAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "apikey -- reserved username -- 400 bad input") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "apikey")
-      .postData(Serialization.write(normalRequestBody))
-      .headers(ACCEPT)
-      .headers(CONTENT)
-      .headers(ROOTAUTH)
-      .asString
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "apikey")
+        .postData(Serialization.write(normalRequestBody))
+        .headers(ACCEPT)
+        .headers(CONTENT)
+        .headers(ROOTAUTH)
+        .asString
 
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "iamapikey -- reserved username -- 400 bad input") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "iamapikey")
-      .postData(Serialization.write(normalRequestBody))
-      .headers(ACCEPT)
-      .headers(CONTENT)
-      .headers(ROOTAUTH)
-      .asString
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "iamapikey")
+        .postData(Serialization.write(normalRequestBody))
+        .headers(ACCEPT)
+        .headers(CONTENT)
+        .headers(ROOTAUTH)
+        .asString
 
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
+    }
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "aPIkey -- reserved username -- 400 bad input") {
-    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "aPIkey")
-      .postData(Serialization.write(normalRequestBody))
-      .headers(ACCEPT)
-      .headers(CONTENT)
-      .headers(ROOTAUTH)
-      .asString
+    withOauthDisabled {
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "aPIkey")
+        .postData(Serialization.write(normalRequestBody))
+        .headers(ACCEPT)
+        .headers(CONTENT)
+        .headers(ROOTAUTH)
+        .asString
 
-    info("Code: " + response.code)
-    info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
-    val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
-    assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
-    assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
+      assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
+    }
   }
-
+  
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + "newUser2 -- operation disabled in OAuth mode") {
+    withOauthEnabled {
+      val requestBody: PostPutUsersRequest = PostPutUsersRequest(
+        password = "newPassword",
+        admin = false,
+        hubAdmin = None,
+        email = "newUser2@ibm.com"
+      )
+      val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser2").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
+      assert(response.code === HttpCode.NOT_ALLOWED.intValue)
+      assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser2").result), AWAITDURATION).isEmpty)
+    }
+  }
 }

@@ -26,6 +26,7 @@ import java.util.UUID
 
 class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT = ("Accept","application/json")
+  private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
@@ -138,6 +139,10 @@ private val TESTUSERS = Seq(
     Await.ready(DBCONNECTION.run(
       OrgsTQ.filter(_.orgid startsWith "testPostApiKeyRouteOrg").delete
     ), AWAITDURATION)
+
+    val response: HttpResponse[String] = Http(sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(CONTENT).headers(ROOTUSERAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
   }
 
   // User creates their own API key - Expected: 201

@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.133.0](https://github.com/open-horizon/exchange-api/pull/784) - 2025-07-04
+- Issue 782: Disable password update for external users in OAuth mode. Affects Put and Patch User routes, and the change-password route. 
+- Issue 783: Disable user creation via PUT endpoint in OAuth mode
+
 ## [2.132.0](https://github.com/open-horizon/exchange-api/pull/792) - 2025-07-03
 - Enables OAuth authentication without creating an existing or new identity for the route .../v1/myorgs.
 

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.133.0](https://github.com/open-horizon/exchange-api/pull/786) - 2025-07-07
+- Issue: #785: Fixed incorrect routing for POST /apikeys/{keyid} with invalid UUID: now correctly rejects extra path segments. Improved GET/DELETE /apikeys/{keyid} to return 400 Bad Request for invalid UUID format instead of falling back to 405.
+
 ## [2.132.0](https://github.com/open-horizon/exchange-api/pull/792) - 2025-07-03
 - Enables OAuth authentication without creating an existing or new identity for the route .../v1/myorgs.
 

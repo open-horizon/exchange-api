@@ -343,8 +343,14 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
           // logger.debug(s"[userApiKeys] Resolved UUID for $resource: $uuid (fromCache = $fromCache)")
           routeMethods(Some(uuid))
         case Failure(ex) =>
-          // logger.warning(s"[userApiKeys] Failed to resolve UUID for $resource: ${ex.getMessage}")
-          routeMethods(None)
+          // Retry with direct database query when cache lookup fails
+          // logger.warning(s"[userApiKeys] Cache lookup failed for $resource: ${ex.getMessage}, retrying with direct DB query")
+          onComplete(getOwnerOfResource(organization, resource, resourceType)) {
+            case Success((uuid, _)) =>
+              routeMethods(Some(uuid))
+            case Failure(retryEx) =>
+              routeMethods(None)
+        }
       }
     }
   }

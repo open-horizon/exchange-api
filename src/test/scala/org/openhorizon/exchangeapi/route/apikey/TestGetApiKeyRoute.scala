@@ -24,6 +24,7 @@ import java.util.UUID
 
 class TestGetApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT = ("Accept","application/json")
+  private val CONTENT: (String, String) = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
   private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
   private val PASSWORD = "password"
@@ -110,7 +111,7 @@ private val TESTORGS = Seq(
 )
 
   private val ROOTUSERID: UUID = {
-    val rootUserQuery = UsersTQ.filter(_.username === "root").result.headOption
+    val rootUserQuery = UsersTQ.filter((u => u.username === "root" && u.organization === "root")).result.headOption
     Await.result(DBCONNECTION.run(rootUserQuery), AWAITDURATION).get.user
   }
 
@@ -241,6 +242,10 @@ private val TESTORGS = Seq(
     Await.ready(DBCONNECTION.run(
       OrgsTQ.filter(_.orgid startsWith "testGetUserApiKeyOrg").delete
     ), AWAITDURATION)
+
+    val response: HttpResponse[String] = Http(sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(CONTENT).headers(ROOTUSERAUTH).asString
+      info("Code: " + response.code)
+      info("Body: " + response.body)
   }
 
 

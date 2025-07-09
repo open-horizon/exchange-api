@@ -99,7 +99,7 @@ trait Users extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "403", description = "access denied"),
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def getUsers(@Parameter(hidden = true) identity: Identity2,
-              @Parameter(hidden = true) organization: String): Route =
+               @Parameter(hidden = true) organization: String): Route =
     {
       logger.debug(s"GET /orgs/$organization/users - By ${identity.resource}:${identity.role}")
       
@@ -213,14 +213,163 @@ trait Users extends JacksonSupport with AuthenticationSupport {
       }) // end of complete*/
     }
   
-  def users(identity: Identity2): Route =
-    path("orgs" / Segment / "users") {
-      organization =>
-        get {
-          exchAuth(TUser(OrgAndId(organization, "#").toString), Access.READ, validIdentity = identity) {
-            _ =>
-              getUsers(identity, organization)
-          }
+// TODO: These hardcoded /apikey and /iamapikey endpoints are temporary workarounds 
+// for legacy components that pass "apikey"/"iamapikey" as username in HTTP requests.
+// Long-term solution: update calling components to use proper authentication instead 
+// of these compatibility endpoints.
+
+  // =========== GET /orgs/{organization}/users/apikey and /orgs/{organization}/users/iamapikey ================================
+  @GET
+  @Path("/apikey")
+  @Operation(summary = "Returns current user info", description = "Returns the authenticated user's own information using apikey authentication.",
+    parameters = Array(
+      new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id.")),
+    responses = Array(
+      new responses.ApiResponse(responseCode = "200", description = "response body",
+        content = Array(
+          
+          new Content(
+            examples = Array(
+              new ExampleObject(
+                value =
+                  """{
+  "users": {
+    "orgid/username": {
+      "password": "string",
+      "admin": false,
+      "email": "string",
+      "lastUpdated": "string",
+      "updatedBy": "string",
+      "apikeys": [
+        {
+          "id": "string",
+          "description": "string",
+          "lastUpdated": "string"
         }
+      ]
+    }
+  },
+  "lastIndex": 0
+}
+"""
+              )
+            ),
+            mediaType = "application/json",
+            schema = new Schema(implementation = classOf[GetUsersResponse])
+          )
+        )),
+      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
+      new responses.ApiResponse(responseCode = "403", description = "access denied"),
+      new responses.ApiResponse(responseCode = "404", description = "not found")))
+  def getUserSelf(@Parameter(hidden = true) identity: Identity2, 
+                  @Parameter(hidden = true) organization: String, 
+                  @Parameter(hidden = true) pathSegment: String): Route = 
+    get {
+      if (identity.organization != organization) {
+        complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("org.path.mismatch"))))
+      } 
+      else{
+        logger.debug(s"GET /orgs/$organization/users/$pathSegment - By ${identity.resource}:${identity.role}")
+        
+        val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String)], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
+          for {
+            users <-
+              Compiled((UsersTQ.filter(user => (user.organization === organization &&
+                                              user.username === identity.username))
+                              .filter(_.password.isDefined)
+                              .take(1)
+                              .joinLeft(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                              .on(_.modifiedBy === _._2)
+                              .joinLeft(ApiKeysTQ)
+                              .on(_._1.user === _.user)
+                              .map(users =>
+                                    ((users._1._1.createdAt,
+                                    users._1._1.email,
+                                    users._1._1.identityProvider,
+                                    users._1._1.isHubAdmin,
+                                    users._1._1.isOrgAdmin,
+                                    users._1._1.modifiedAt,
+                                    users._1._1.modifiedBy,
+                                    users._1._1.organization,
+                                    Option(StrConstants.hiddenPw),  // DO NOT grab and return credentials.
+                                    users._1._1.user,
+                                    users._1._1.username), users._1._2, users._2)))  // Because of the outer-join we cannot touch the content of these values to combine them ((organization, username) => (organization/username)).
+                      ++
+                      (UsersTQ.filter(user => (user.organization === organization && // Have to retrieve the Some and None values separately to substitute the Some values.
+                                              user.username === identity.username))
+                              .filter(_.password.isEmpty)
+                              .take(1)
+                              .joinLeft(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                              .on(_.modifiedBy === _._2)
+                              .joinLeft(ApiKeysTQ)
+                              .on(_._1.user === _.user)
+                              .map(users =>
+                                    ((users._1._1.createdAt,
+                                      users._1._1.email,
+                                      users._1._1.identityProvider,
+                                      users._1._1.isHubAdmin,
+                                      users._1._1.isOrgAdmin,
+                                      users._1._1.modifiedAt,
+                                      users._1._1.modifiedBy,
+                                      users._1._1.organization,
+                                      None,
+                                      users._1._1.user,
+                                      users._1._1.username), users._1._2, users._2))))
+          } yield users.map(user => (user._1.mapTo[UserRow], user._2, user._3))
+          
+        complete({
+              db.run(getUserWithApiKeys.result.transactionally).map { result =>
+                    // logger.debug(s"GET /orgs/$organization/users/$username result size: " + result.size)
+
+                    if (result.nonEmpty) {
+                          val userResult = result.head
+                          val userRow = userResult._1
+                          val modifiedByInfo = userResult._2
+
+                          val apiKeyMetadataList = result.filter(_._3.isDefined).map { case (_, _, Some(apiKeyRow)) =>
+                                new ApiKeyMetadata(apiKeyRow, null)
+                          }.distinct
+
+                          val user = new User((userRow, modifiedByInfo), Some(apiKeyMetadataList))
+                          val userMap: Map[String, User] =
+                                Map(s"${userRow.organization}/${userRow.username}" -> user) // Ugly mapping, TODO: redesign response body
+
+                          (StatusCodes.OK, GetUsersResponse(userMap, 0))
+                    } else {
+                          (StatusCodes.NotFound, GetUsersResponse())
+                    }
+              }.recover {
+                    case t: org.postgresql.util.PSQLException =>
+                          ExchangePosgtresErrorHandling.ioProblemError(
+                                t, ExchMsg.translate("user.not.added", t.toString))
+
+                    case t =>
+                          (HttpCode.BAD_INPUT,
+                                ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
+              }
+        })
+      }
+    }
+
+def users(identity: Identity2): Route =
+  path("orgs" / Segment / "users") { 
+    organization =>
+      get {
+        exchAuth(TUser(OrgAndId(organization, "#").toString), Access.READ, validIdentity = identity) {
+          _ =>
+            getUsers(identity, organization)
+        }
+      }
+    } ~
+  path("orgs" / Segment / "users" / ("apikey" | "iamapikey")) { 
+    organization =>
+      get {
+        val resource = OrgAndId(organization, identity.username).toString
+        val resource_identity = identity.identifier
+        exchAuth(TUser(resource, resource_identity), Access.READ, validIdentity = identity) {
+          _ =>
+            getUserSelf(identity, organization, "self")
+        }
+      }
     }
 }

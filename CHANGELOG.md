@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.136.0](https://github.com/open-horizon/exchange-api/pull/784) - 2025-07-09
+- Issue 782: Disable password update for external users in OAuth mode. Affects Put and Patch User routes, and the change-password route. 
+- Issue 783: Disable user creation via PUT endpoint in OAuth mode
+
 ## [2.135.0](https://github.com/open-horizon/exchange-api/pull/788) - 2025-07-07
 - Issue 787: Added /users/apikey and /users/iamapikey endpoints to let clients retrieve their own user info when using API key authentication without explicitly setting the username (e.g. to support how hzn and other components construct requests)
 

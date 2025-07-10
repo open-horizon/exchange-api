@@ -267,7 +267,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                               nodes._1.name,
                               nodes._1.nodeType,
                               // node.orgid,    TODO:
-                              (nodes._2._1 ++ "/" ++ nodes._2._1),
+                              (nodes._2._1 ++ "/" ++ nodes._2._3),
                               nodes._1.pattern,
                               nodes._1.publicKey,
                               nodes._1.regServices,

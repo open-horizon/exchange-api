@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.137.0](https://github.com/open-horizon/exchange-api/pull/796) - 2025-07-11
+- Correct owner field construction in GET /orgs/{organization}/nodes/{node} endpoint
+
 ## [2.136.0](https://github.com/open-horizon/exchange-api/pull/784) - 2025-07-09
 - Issue 782: Disable password update for external users in OAuth mode. Affects Put and Patch User routes, and the change-password route. 
 - Issue 783: Disable user creation via PUT endpoint in OAuth mode

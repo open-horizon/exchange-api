@@ -446,13 +446,25 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
       case 57 => // v2.128.0
         DBIO.seq(
           ApiKeysTQ.schema.create)
+      
+      case 58 => // v2.138.0 - Add external_id column for OAuth integration
+        DBIO.seq(
+          sqlu"ALTER TABLE public.users ADD COLUMN IF NOT EXISTS external_id VARCHAR NULL;",
+
+          sqlu"""UPDATE public.users SET external_id = username 
+                WHERE external_id IS NULL AND identity_provider != 'Open Horizon';""",
+
+          sqlu"""UPDATE public.users SET username = email 
+                WHERE email IS NOT NULL AND 
+                      external_id IS NOT NULL AND 
+                      identity_provider != 'Open Horizon';""")
               
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }
   }
 
-  val latestSchemaVersion: Int = 57    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 58    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

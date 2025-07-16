@@ -324,7 +324,8 @@ trait User extends JacksonSupport with AuthenticationSupport {
                                                                          case (false, false) => AuthRoles.User
                                                                        }),
                                                                      username     = username),
-                                                           Password.hash(reqBody.password)),
+                                                           Password.hash(reqBody.password),
+                                                           Option(Password.hashNoWorkfactor(reqBody.password))),
                                                         ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
                     
                   }
@@ -528,7 +529,8 @@ trait User extends JacksonSupport with AuthenticationSupport {
                                                                               case (false, false) => AuthRoles.User
                                                                             }),
                                                                           username     = username),
-                                                                if (isOAuthEnabled) "" else Password.hash(reqBody.password)),
+                                                                if (isOAuthEnabled) "" else Password.hash(reqBody.password),
+                                                                if (isOAuthEnabled) None else Option(Password.hashNoWorkfactor(reqBody.password))),
                                                               ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
                           else
                             cacheResourceIdentity.remove(resource)
@@ -729,7 +731,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                     Future {
                       if (validAttribute == "password" &&
                           resource == identity.resource)
-                        cacheResourceIdentity.put(resource)(value = (identity, Password.hash(reqBody.password.getOrElse(""))),
+                        cacheResourceIdentity.put(resource)(value = (identity, Password.hash(reqBody.password.getOrElse("")), Option(Password.hashNoWorkfactor(reqBody.password.getOrElse("")))),
                           ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
                       else
                         cacheResourceIdentity.remove(resource)

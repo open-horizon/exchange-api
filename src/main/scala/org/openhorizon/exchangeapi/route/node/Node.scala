@@ -495,7 +495,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
                 implicit val formats: DefaultFormats.type = DefaultFormats
                 // Multi-threaded rest requests. Need to break records into blocks based on request.
-                val session: String = Password.hash(password = s"patch$organization$node${identity.resource}${changeTimestamp.getTime.toString}")
+                val session: String = UUID.randomUUID().toString
 
                 
 
@@ -541,11 +541,16 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                    service.orgid,
                                    service.url,
                                    service.version))
-              val hashedPW =
+              val hashedPW: String =
                 if (validAttribute == "token" && reqBody.token.get.nonEmpty)
                   Password.hash(reqBody.token.get)
                 else
                   ""
+              val hashedPWNoWorkfactor: Option[String] =
+                if (validAttribute == "token" && reqBody.token.get.nonEmpty)
+                  Option(Password.hashNoWorkfactor(reqBody.token.get))
+                else
+                  None
               
                 val patchNode =
                   for {
@@ -730,11 +735,11 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       
                       Future {
                         if (validAttribute == "token") {
-                    //      if (identity.isNode &&
-                    //          resource == identity.resource)
-                    //        cacheResourceIdentity.put(resource)(value = (identity, hashedPW),
-                    //                                            ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
-                    //      else
+                          if (identity.isNode &&
+                              resource == identity.resource)
+                            cacheResourceIdentity.put(resource)(value = (identity, hashedPW, hashedPWNoWorkfactor),
+                                                                ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                          else
                             cacheResourceIdentity.remove(resource)
                         }
                       }
@@ -982,6 +987,15 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 else
                   None
               
+              val hashedTokenNoWorkfactor: Option[String] =
+                if (reqBody.token.isDefined)
+                  if (reqBody.token.getOrElse("") != "")
+                    Option(Password.hashNoWorkfactor(reqBody.token.get))
+                  else
+                    None
+                else
+                  None
+              
               val NodeToCreate: NodeRow =
                 new NodeRow(heartbeat =
                             if (noheartbeat.getOrElse(false))
@@ -1013,7 +1027,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                     public = false.toString,
                                     resource = ResChangeResource.NODE.toString))
               
-              val session: String = Password.hash(password = s"put$organization$node${identity.resource}${identity.identifier.getOrElse(identity.owner.getOrElse(""))}${modified_at}")
+              val session: String = UUID.randomUUID().toString
               
               val getPatternBase: Query[Patterns, PatternRow, Seq] =
                 PatternsTQ.filter(_.pattern === reqBody.pattern)
@@ -1348,7 +1362,8 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                                                                           owner        = identity.identifier,
                                                                           role         = AuthRoles.Node,
                                                                           username     = node),
-                                                                if (hashedToken.isDefined) hashedToken.get else ""),
+                                                                if (hashedToken.isDefined) hashedToken.get else "",
+                                                                hashedTokenNoWorkfactor),
                                                              ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
                           cacheResourceOwnership.put(organization, node, "node")(value = (identity.identifier.get, false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
                         }

@@ -323,13 +323,13 @@ object ExchangeApiApp extends App
       }
     }
   }
-  
-  val identityCacheSettings: cache.Cache[String, Entry[(Identity2, String)]] =
+  //                                          (Identity, Hashed Password, Option(Hashed Password No Workfactor))
+  val identityCacheSettings: cache.Cache[String, Entry[(Identity2, String, Option[String])]] =
     Caffeine.newBuilder()
                 .maximumSize(Configuration.getConfig.getInt("api.cache.idsMaxSize"))
                 .expireAfterWrite(Configuration.getConfig.getInt("api.cache.idsTtlSeconds"), TimeUnit.SECONDS)
-                .build[String, Entry[(Identity2, String)]]
-  implicit val cacheResourceIdentity: CaffeineCache[(Identity2, String)] = CaffeineCache(identityCacheSettings)
+                .build[String, Entry[(Identity2, String, Option[String])]]
+  implicit val cacheResourceIdentity: CaffeineCache[(Identity2, String, Option[String])] = CaffeineCache(identityCacheSettings)
   
   // This should only be used for Authorization: Basic challenges using organization/username:password
   // This does not support other authentication types (OAuth, Api Keys), nor using a UUID as provided user.
@@ -369,11 +369,11 @@ object ExchangeApiApp extends App
   
   val reg: Regex = """^(\S*?)/(\S*)$""".r
   
-  def getIdentityCacheValueFromDB(organization: String, username: String): Future[(Identity2, String)] = {
+  def getIdentityCacheValueFromDB(organization: String, username: String): Future[(Identity2, String, Option[String])] = {
     getResourceIdentityAndPassword(organization, username).map {
       // Yield this Resource's identity metadata and construct a future identity object. Resource's stored credential tags along.
       // This object will be returned and used if authenticated.
-      identityMetadata: ((Boolean, Option[UUID], Boolean, Option[UUID], Int), String) => (new Identity2(organization, identityMetadata._1, username), identityMetadata._2)
+      identityMetadata: ((Boolean, Option[UUID], Boolean, Option[UUID], Int), String) => (new Identity2(organization, identityMetadata._1, username), identityMetadata._2, None)
     }
   }
   
@@ -432,7 +432,7 @@ object ExchangeApiApp extends App
             verifiedIdentityFut
           }
           else {
-            def identityCacheGet (resource: String): Future[(Identity2, String)] = {
+            def identityCacheGet (resource: String): Future[(Identity2, String, Option[String])] = {
               cacheResourceIdentity.cachingF(resource)(ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds)) {
                 // On cache miss execute this block to try and find what the value should be.
                 // If found add to the cache for next time.
@@ -440,7 +440,7 @@ object ExchangeApiApp extends App
               }
             }
             
-            def AuthenticationCheck (resourceIdentityAndCred: Option[(Identity2, String)]): Future[Option[Identity2]] = Future {
+            def AuthenticationCheck (resourceIdentityAndCred: Option[(Identity2, String, Option[String])]): Future[Option[Identity2]] = Future {
               resourceIdentityAndCred match {
               case Some(resourceIdentityAndCred) =>
                 // Guard, should never hit this condition. Reject the authentication attempt if true, as we cannot determine this resource's identity.
@@ -454,15 +454,16 @@ object ExchangeApiApp extends App
                   Future { logger.debug(s"Authentication: The ${resourceIdentityAndCred._1.role} resource ${resourceIdentityAndCred._1.resource} is missing a UUID.") }
                   None
                 }
-                else if (p.provideVerify(secret = resourceIdentityAndCred._2,
+                else if (p.provideVerify(secret = if (resourceIdentityAndCred._3.isEmpty) resourceIdentityAndCred._2 else resourceIdentityAndCred._3.get,
                                           verifier =
                                             // (Hashed credential in database, Plain-text password from Authorization: Basic header)
                                           (storedSecret, requestPassword) => {
                                             if (!storedSecret.startsWith("$argon2id") && BCrypt.checkpw(requestPassword, storedSecret)) {
                                               Future { logger.debug(s"Resource ${resourceIdentityAndCred._1.resource}(${resourceIdentityAndCred._1.identifier.getOrElse("None")}):${resourceIdentityAndCred._1.role} has a credential that is using a legacy BCrypt algorithm. Rehashing this credential to Argon2id.") }
-                                              val rehashedCredential = Password.hash(requestPassword)
+                                              val rehashedCredential: String = Password.hash(requestPassword)
+                                              val rehashedCredentialNoWorkfactor: Option[String] = Option(Password.hashNoWorkfactor(requestPassword))
                                               
-                                              Future { cacheResourceIdentity.put(p.identifier)(value = (resourceIdentityAndCred._1, rehashedCredential), ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds)) }
+                                              Future { cacheResourceIdentity.put(p.identifier)(value = (resourceIdentityAndCred._1, rehashedCredential, rehashedCredentialNoWorkfactor), ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds)) }
                                               
                                               Future {
                                                 resourceIdentityAndCred._1.role match {
@@ -475,11 +476,18 @@ object ExchangeApiApp extends App
                                                 }
                                               }
                                               
-                                              Password.check(requestPassword, rehashedCredential)
+                                              Password.check(requestPassword, rehashedCredentialNoWorkfactor.get)
                                             }
-                                            else
+                                            else {
                                               /*logger.debug("Line 333:    credential: " + requestPassword + "    secret: " + storedSecret);*/
-                                              Password.check(requestPassword, storedSecret)
+                                              val authSuccess: Boolean = Password.check(requestPassword, storedSecret)
+                                              
+                                              if (authSuccess &&
+                                                  resourceIdentityAndCred._3.isEmpty)
+                                                Future { cacheResourceIdentity.put(p.identifier)(value = (resourceIdentityAndCred._1, resourceIdentityAndCred._2, Option(Password.hashNoWorkfactor(requestPassword))), ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds)) }
+                                                
+                                              authSuccess
+                                            }
                                           })) {
                   // Root level permissions are used in test environments, any other user should not have root level access in a production environment.
                   if (resourceIdentityAndCred._1.role == AuthRoles.SuperUser &&

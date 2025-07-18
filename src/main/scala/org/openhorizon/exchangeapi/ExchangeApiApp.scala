@@ -834,7 +834,7 @@ object ExchangeApiApp extends App
               JField("sub", JString(sub)) <- userInfo
             } yield {
               val username = if (email.nonEmpty) email else sub
-              (bss, email, iam_id, Option(iss).getOrElse("something something darkside"), username)
+              (bss, email, iam_id, Option(iss).getOrElse(uri), username)
             }
             
             Future { logger.debug(s"$uri - Parsed user info: (account.bss: ${userMetaData.head._1}, email: ${userMetaData.head._2}, iam_id: ${userMetaData.head._3}, iss: ${userMetaData.head._4}, username: ${userMetaData.head._5})") }
@@ -1045,7 +1045,7 @@ object ExchangeApiApp extends App
               JField("sub", JString(sub)) <- userInfo
             } yield {
               val username = if (email.nonEmpty) email else sub
-              (bss, email, iam_id, Option(iss).getOrElse("something something darkside"), username)
+              (bss, email, iam_id, Option(iss).getOrElse(uri), username)
             }
             
             Future { logger.debug(s"$uri - Parsed user info: (account.bss: ${userMetaData.head._1}, email: ${userMetaData.head._2}, iam_id: ${userMetaData.head._3}, iss: ${userMetaData.head._4}, username: ${userMetaData.head._5})") }

@@ -21,9 +21,10 @@ class Users(tag: Tag) extends Table[UserRow](tag, "users") {
   def password = column[Option[String]]("password")
   def user = column[UUID]("user", O.PrimaryKey)
   def username = column[String]("username")
-  
-  def * : ProvenShape[UserRow] = (createdAt, email, identityProvider, isHubAdmin, isOrgAdmin, modifiedAt, modifiedBy, organization, password, user, username).mapTo[UserRow]
-  
+  def externalId = column[Option[String]]("external_id")
+
+  def * : ProvenShape[UserRow] = (createdAt, email, identityProvider, isHubAdmin, isOrgAdmin, modifiedAt, modifiedBy, organization, password, user, username, externalId).mapTo[UserRow]
+
   def usersUnqKey = index(name = "users_uk", on = (organization, username), unique = true)
   def usersOrgForKey = foreignKey("users_org_fk", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def usersUsrForKey = foreignKey("users_usr_fk", modifiedBy, UsersTQ)(_.user.?, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.SetNull)

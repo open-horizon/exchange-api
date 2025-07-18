@@ -18,7 +18,8 @@ case class UserRow(createdAt: java.sql.Timestamp,
                    organization: String,
                    password: Option[String] = None,
                    user: UUID = UUID.randomUUID(),
-                   username: String) {
+                   username: String,
+                   externalId: Option[String] = None) {
   def this(tuple: (java.sql.Timestamp,
                    Option[String],
                    String,
@@ -28,7 +29,8 @@ case class UserRow(createdAt: java.sql.Timestamp,
                    Option[UUID],
                    String,
                    UUID,
-                   String)) =
+                   String,
+                   Option[String])) =
        this(createdAt = tuple._1,
             email = tuple._2,
             identityProvider = tuple._3,
@@ -38,5 +40,7 @@ case class UserRow(createdAt: java.sql.Timestamp,
             modified_by = tuple._7,
             organization = tuple._8,
             user = tuple._9,
-            username = tuple._10)
+            username = tuple._10,
+            externalId = tuple._11)
+
 }

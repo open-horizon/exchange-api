@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.138.0](https://github.com/open-horizon/exchange-api/pull/797) - 2025-07-17
+- Use email as username for OAuth users, fallback to sub if email not provided
+- Add externalId column to store OAuth sub field
+
 ## [2.137.0](https://github.com/open-horizon/exchange-api/pull/796) - 2025-07-11
 - Correct owner field construction in GET /orgs/{organization}/nodes/{node} endpoint
 

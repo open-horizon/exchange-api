@@ -668,7 +668,7 @@ object ExchangeApiApp extends App
             }
           }
           
-          def getUserIdentityGeneric(userMetadata: (String, List[String], String, String)): Future[Option[Identity2]] = {
+          def getUserIdentityGeneric(userMetadata: (String, List[String], String, String, String)): Future[Option[Identity2]] = {
             import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
             
             val timestamp: Timestamp = ApiTime.nowUTCTimestamp
@@ -693,7 +693,7 @@ object ExchangeApiApp extends App
                     DBIO.successful(())
                 
                 user <-
-                  Compiled(UsersTQ.filter(users => users.organization === organizationAccountMap.head && users.username === userMetadata._4)
+                  Compiled(UsersTQ.filter(users => users.organization === organizationAccountMap.head && users.username === userMetadata._5)
                                   .take(1)
                                   .map(users =>
                                     (users.isHubAdmin,
@@ -707,21 +707,22 @@ object ExchangeApiApp extends App
                   if (user.isEmpty)
                     (UsersTQ returning UsersTQ.map(_.user)) +=
                       UserRow(createdAt = timestamp,
-                              email = Option(userMetadata._1),
+                              email = if (userMetadata._1.nonEmpty) Option(userMetadata._1) else None,
                               identityProvider = userMetadata._3,
                               modifiedAt = timestamp,
                               modified_by = None,
                               organization = organizationAccountMap.head,
                               password = None,
                               user = UUID.randomUUID(),
-                              username = userMetadata._4)
+                              username = userMetadata._5, 
+                              externalId = Option(userMetadata._4)) 
                   else
                     DBIO.successful(user.head._4)
                 
                 validIdentity =
                   if (user.isEmpty) {
                     Future { logger.debug(s"$uri - OAuth: Yielding valid identity from user creation.") }
-                    Option(Identity2(identifier = Option(userIdentifier), organization = organizationAccountMap.head, owner = None, role = AuthRoles.User, username = userMetadata._4))
+                    Option(Identity2(identifier = Option(userIdentifier), organization = organizationAccountMap.head, owner = None, role = AuthRoles.User, username = userMetadata._5))
                   }
                   else {
                     Future { logger.debug(s"$uri - OAuth: Yielding valid identity from an existing user.") }
@@ -734,7 +735,7 @@ object ExchangeApiApp extends App
           
           def getUserIdentityIBMCloud(userMetadata: (String, String, String, String, String)): Future[Option[Identity2]] = {
             import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
-            
+  
             val timestamp: Timestamp = ApiTime.nowUTCTimestamp
             
             val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
@@ -775,14 +776,15 @@ object ExchangeApiApp extends App
                   if (user.isEmpty) {
                     (UsersTQ returning UsersTQ.map(_.user)) +=
                       UserRow(createdAt = timestamp,
-                              email = Option(userMetadata._2),
+                              email = if (userMetadata._2.nonEmpty) Option(userMetadata._2) else None,
                               identityProvider = userMetadata._4,
                               modifiedAt = timestamp,
                               modified_by = None,
                               organization = organizationAccountMap.head,
                               password = None,
                               user = newUUID,
-                              username = userMetadata._5)
+                              username = userMetadata._5,
+                              externalId = Option(userMetadata._3))
                   } else
                     DBIO.successful(null)
                 
@@ -800,22 +802,20 @@ object ExchangeApiApp extends App
             db.run(getIdentity.transactionally)
           }
           
-          def parseUserInfoGeneric(responseBody: JValue): Option[(String, List[String], String, String)] = {
+          def parseUserInfoGeneric(responseBody: JValue): Option[(String, List[String], String, String, String)] = {
             implicit val defaultFormats: Formats = DefaultFormats
             val groupsClaim = Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.groups_claim_key")
             Future { logger.debug(s"$uri - generic user info parser - groups claim key: $groupsClaim") }
             
             val userMetaData = {
               try {
-                Option((responseBody \ "email").extract[String],
-                       (responseBody \ groupsClaim).extract[List[String]],
-                       try {
-                         (responseBody \ "iss").extract[String]
-                       }
-                       catch {
-                         case _:Throwable => uri
-                       },
-                       (responseBody \ "sub").extract[String])
+                val email = try { (responseBody \ "email").extract[String] } catch { case _: Throwable => "" }
+                val sub = (responseBody \ "sub").extract[String]
+                val username = if (email.nonEmpty) email else sub
+                val iss = try { (responseBody \ "iss").extract[String] } catch { case _:Throwable => uri }
+                val groups = (responseBody \ groupsClaim).extract[List[String]]
+                
+                Option((email, groups, iss, sub, username))
               }
               catch {
                 case _: Throwable =>
@@ -824,7 +824,7 @@ object ExchangeApiApp extends App
             }
             
             Future { logger.debug(s"$uri - Parsed user info size: ${userMetaData.size}")}
-            Future { logger.debug(s"$uri - Parsed user info: (email: ${userMetaData.getOrElse(("None", "None", "None", "None"))._1}, groups: ${userMetaData.getOrElse(("None", "None", "None", "None"))._2}, iss: ${userMetaData.getOrElse(("None", "None", "None", "None"))._3}, sub: ${userMetaData.getOrElse(("None", "None", "None", "None"))._4})") }
+            Future { logger.debug(s"$uri - Parsed user info: (email: ${userMetaData.getOrElse(("None", "None", "None", "None", "None"))._1}, groups: ${userMetaData.getOrElse(("None", "None", "None", "None", "None"))._2}, iss: ${userMetaData.getOrElse(("None", "None", "None", "None", "None"))._3}, sub: ${userMetaData.getOrElse(("None", "None", "None", "None", "None"))._4}, username: ${userMetaData.getOrElse(("None", "None", "None", "None", "None"))._5})") }
             
             userMetaData
           }
@@ -839,10 +839,13 @@ object ExchangeApiApp extends App
               JField("email", JString(email)) <- userInfo
               JField("iam_id", JString(iam_id)) <- userInfo
               JField(key, JString(iss)) <- userInfo if key == "xyz"
-              JField("sub", JString(bus)) <- userInfo
-            } yield (bss, email, iam_id, Option(iss).getOrElse("something something darkside"), bus)
+              JField("sub", JString(sub)) <- userInfo
+            } yield {
+              val username = if (email.nonEmpty) email else sub
+              (bss, email, iam_id, Option(iss).getOrElse(uri), username)
+            }
             
-            Future { logger.debug(s"$uri - Parsed user info: (account.bss: ${userMetaData.head._1}, email: ${userMetaData.head._2}, iam_id: ${userMetaData.head._3}, iss: ${userMetaData.head._4}, sub: ${userMetaData.head._5})") }
+            Future { logger.debug(s"$uri - Parsed user info: (account.bss: ${userMetaData.head._1}, email: ${userMetaData.head._2}, iam_id: ${userMetaData.head._3}, iss: ${userMetaData.head._4}, username: ${userMetaData.head._5})") }
             
             userMetaData.head
           }
@@ -946,7 +949,7 @@ object ExchangeApiApp extends App
             }
           }
           
-          def getUserIdentityGeneric(userMetadata: (String, List[String], String, String)): Future[Option[Identity2]] = {
+          def getUserIdentityGeneric(userMetadata: (String, List[String], String, String, String)): Future[Option[Identity2]] = {
             import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
             
             val timestamp: Timestamp = ApiTime.nowUTCTimestamp
@@ -970,16 +973,16 @@ object ExchangeApiApp extends App
                 validIdentity =
                   {
                     Future { logger.debug(s"$uri - OAuth: Yielding valid identity from user creation.") }
-                    Option(Identity2(identifier = None, organization = organizationAccountMap.head, owner = None, role = AuthRoles.User, username = userMetadata._4))
+                    Option(Identity2(identifier = None, organization = organizationAccountMap.head, owner = None, role = AuthRoles.User, username = userMetadata._5))
                   }
               } yield validIdentity
             
             db.run(getIdentity.transactionally)
           }
-          
+        
           def getUserIdentityIBMCloud(userMetadata: (String, String, String, String, String)): Future[Option[Identity2]] = {
             import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
-            
+  
             val timestamp: Timestamp = ApiTime.nowUTCTimestamp
             
             val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
@@ -1010,22 +1013,20 @@ object ExchangeApiApp extends App
             db.run(getIdentity.transactionally)
           }
           
-          def parseUserInfoGeneric(responseBody: JValue): Option[(String, List[String], String, String)] = {
+          def parseUserInfoGeneric(responseBody: JValue): Option[(String, List[String], String, String, String)] = {
             implicit val defaultFormats: Formats = DefaultFormats
             val groupsClaim = Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.groups_claim_key")
             Future { logger.debug(s"$uri - generic user info parser - groups claim key: $groupsClaim") }
             
             val userMetaData = {
               try {
-                Option((responseBody \ "email").extract[String],
-                       (responseBody \ groupsClaim).extract[List[String]],
-                       try {
-                         (responseBody \ "iss").extract[String]
-                       }
-                       catch {
-                         case _:Throwable => uri
-                       },
-                       (responseBody \ "sub").extract[String])
+                val email = try { (responseBody \ "email").extract[String] } catch { case _: Throwable => "" }
+                val sub = (responseBody \ "sub").extract[String]
+                val username = if (email.nonEmpty) email else sub
+                val iss = try { (responseBody \ "iss").extract[String] } catch { case _:Throwable => uri }
+                val groups = (responseBody \ groupsClaim).extract[List[String]]
+                
+                Option((email, groups, iss, sub, username))
               }
               catch {
                 case _: Throwable =>
@@ -1034,7 +1035,7 @@ object ExchangeApiApp extends App
             }
             
             Future { logger.debug(s"$uri - Parsed user info size: ${userMetaData.size}")}
-            Future { logger.debug(s"$uri - Parsed user info: (email: ${userMetaData.getOrElse(("None", "None", "None", "None"))._1}, groups: ${userMetaData.getOrElse(("None", "None", "None", "None"))._2}, iss: ${userMetaData.getOrElse(("None", "None", "None", "None"))._3}, sub: ${userMetaData.getOrElse(("None", "None", "None", "None"))._4})") }
+            Future { logger.debug(s"$uri - Parsed user info: (email: ${userMetaData.getOrElse(("None", "None", "None", "None", "None"))._1}, groups: ${userMetaData.getOrElse(("None", "None", "None", "None", "None"))._2}, iss: ${userMetaData.getOrElse(("None", "None", "None", "None", "None"))._3}, sub: ${userMetaData.getOrElse(("None", "None", "None", "None", "None"))._4}, username: ${userMetaData.getOrElse(("None", "None", "None", "None", "None"))._5})") }
             
             userMetaData
           }
@@ -1049,10 +1050,13 @@ object ExchangeApiApp extends App
               JField("email", JString(email)) <- userInfo
               JField("iam_id", JString(iam_id)) <- userInfo
               JField(key, JString(iss)) <- userInfo if key == "xyz"
-              JField("sub", JString(bus)) <- userInfo
-            } yield (bss, email, iam_id, Option(iss).getOrElse("something something darkside"), bus)
+              JField("sub", JString(sub)) <- userInfo
+            } yield {
+              val username = if (email.nonEmpty) email else sub
+              (bss, email, iam_id, Option(iss).getOrElse(uri), username)
+            }
             
-            Future { logger.debug(s"$uri - Parsed user info: (account.bss: ${userMetaData.head._1}, email: ${userMetaData.head._2}, iam_id: ${userMetaData.head._3}, iss: ${userMetaData.head._4}, sub: ${userMetaData.head._5})") }
+            Future { logger.debug(s"$uri - Parsed user info: (account.bss: ${userMetaData.head._1}, email: ${userMetaData.head._2}, iam_id: ${userMetaData.head._3}, iss: ${userMetaData.head._4}, username: ${userMetaData.head._5})") }
             
             userMetaData.head
           }

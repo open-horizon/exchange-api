@@ -91,7 +91,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
     get {
       logger.debug(s"GET /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
       
-      val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String)], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
+      val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
         for {
           users <-
             Compiled((UsersTQ.filter(user => (user.organization === organization &&
@@ -116,7 +116,8 @@ trait User extends JacksonSupport with AuthenticationSupport {
                                    users._1._1.organization,
                                    Option(StrConstants.hiddenPw),  // DO NOT grab and return credentials.
                                    users._1._1.user,
-                                   users._1._1.username), users._1._2, users._2)))  // Because of the outer-join we cannot touch the content of these values to combine them ((organization, username) => (organization/username)).
+                                   users._1._1.username,
+                                   users._1._1.externalId), users._1._2, users._2)))  // Because of the outer-join we cannot touch the content of these values to combine them ((organization, username) => (organization/username)).
                      ++
                      (UsersTQ.filter(user => (user.organization === organization && // Have to retrieve the Some and None values separately to substitute the Some values.
                                              user.username === username))
@@ -140,7 +141,8 @@ trait User extends JacksonSupport with AuthenticationSupport {
                                      users._1._1.organization,
                                      None,
                                      users._1._1.user,
-                                     users._1._1.username), users._1._2, users._2))))
+                                     users._1._1.username,
+                                     users._1._1.externalId), users._1._2, users._2))))
         } yield users.map(user => (user._1.mapTo[UserRow], user._2, user._3))
         
       complete({

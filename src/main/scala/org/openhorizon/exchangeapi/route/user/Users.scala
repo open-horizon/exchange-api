@@ -103,7 +103,7 @@ trait Users extends JacksonSupport with AuthenticationSupport {
     {
       logger.debug(s"GET /orgs/$organization/users - By ${identity.resource}:${identity.role}")
       
-      val getUsersWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String)], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
+      val getUsersWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
         for {
           users <-
             Compiled((UsersTQ.filter(user => (user.organization === organization))
@@ -126,7 +126,8 @@ trait Users extends JacksonSupport with AuthenticationSupport {
                                    user._1._1.organization,
                                    Option(StrConstants.hiddenPw), // DO NOT grab and return credentials.
                                    user._1._1.user,
-                                   user._1._1.username), user._1._2, user._2))) // Because of the outer-join we cannot touch the content of these values to combine them ((organization, username) => (organization/username)).
+                                   user._1._1.username,
+                                   user._1._1.externalId), user._1._2, user._2))) // Because of the outer-join we cannot touch the content of these values to combine them ((organization, username) => (organization/username)).
                             .union(UsersTQ.filter(user => (user.organization === organization))  // Have to retrieve the Some and None values separately to substitute the Some values.
                                           .filterIf(identity.isStandardUser)(_.user === identity.identifier.get)
                                           .filterIf(identity.isOrgAdmin)(users => !users.isHubAdmin && users.organization === identity.organization && !(users.organization === "root" && users.username === "root"))
@@ -147,8 +148,9 @@ trait Users extends JacksonSupport with AuthenticationSupport {
                                                  user._1._1.organization,
                                                  None,
                                                  user._1._1.user,
-                                                 user._1._1.username), user._1._2, user._2)))
-                            .sortBy(users => (users._1._8.asc, users._1._10)))
+                                                 user._1._1.username,
+                                                 user._1._1.externalId), user._1._2, user._2)))
+                            .sortBy(users => (users._1._8.asc, users._1._10.asc, users._1._12.asc.nullsLast))) 
         } yield users.map(user => (user._1.mapTo[UserRow], user._2, user._3))
         
       complete({
@@ -271,7 +273,7 @@ trait Users extends JacksonSupport with AuthenticationSupport {
       else{
         logger.debug(s"GET /orgs/$organization/users/$pathSegment - By ${identity.resource}:${identity.role}")
         
-        val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String)], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
+        val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
           for {
             users <-
               Compiled((UsersTQ.filter(user => (user.organization === organization &&
@@ -293,7 +295,8 @@ trait Users extends JacksonSupport with AuthenticationSupport {
                                     users._1._1.organization,
                                     Option(StrConstants.hiddenPw),  // DO NOT grab and return credentials.
                                     users._1._1.user,
-                                    users._1._1.username), users._1._2, users._2)))  // Because of the outer-join we cannot touch the content of these values to combine them ((organization, username) => (organization/username)).
+                                    users._1._1.username,
+                                    users._1._1.externalId), users._1._2, users._2)))  // Because of the outer-join we cannot touch the content of these values to combine them ((organization, username) => (organization/username)).
                       ++
                       (UsersTQ.filter(user => (user.organization === organization && // Have to retrieve the Some and None values separately to substitute the Some values.
                                               user.username === identity.username))
@@ -314,7 +317,8 @@ trait Users extends JacksonSupport with AuthenticationSupport {
                                       users._1._1.organization,
                                       None,
                                       users._1._1.user,
-                                      users._1._1.username), users._1._2, users._2))))
+                                      users._1._1.username,
+                                      users._1._1.externalId), users._1._2, users._2))))
           } yield users.map(user => (user._1.mapTo[UserRow], user._2, user._3))
           
         complete({

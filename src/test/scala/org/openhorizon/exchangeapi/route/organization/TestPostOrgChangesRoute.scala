@@ -331,12 +331,11 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     assert(body.changes.exists(x => x.orgId === rc.orgId && x.resource === rc.resource && x.id === rc.id && x.operation === rc.operation)) //should be enough to uniquely identify an RC
   }
 
-  private val defaultIdRequest: ResourceChangesRequest = ResourceChangesRequest(
-    changeId = lastChangeId, //will ensure that at least the final RC added will be returned
-    lastUpdated = None,
-    maxRecords = 300,
-    orgList = None
-  )
+  private val defaultIdRequest: ResourceChangesRequest =
+    ResourceChangesRequest(changeId = lastChangeId, //will ensure that at least the final RC added will be returned
+                           lastUpdated = None,
+                           maxRecords = 300,
+                           orgList = None)
 
   private val defaultTimeRequest: ResourceChangesRequest = ResourceChangesRequest(
     changeId = 0L, // <- 0 means don't use
@@ -379,6 +378,24 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- specify changeId -- success, returns last TESTRC") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultIdRequest)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
+    info("Code: " + response.code)
+    info("Body: " + response.body)
+    assert(response.code === HttpCode.POST_OK.intValue)
+    val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
+    assert(responseObj.changes.nonEmpty)
+    assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId === lastChangeId))) //check if RC with lastChangeId is in response
+    assert(responseObj.exchangeVersion === EXCHANGEVERSION)
+  }
+  
+  test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- specify changeId for record that no longer exists -- success, returns last TESTRC") {
+    
+    val request =
+      ResourceChangesRequest(changeId = defaultIdRequest.changeId - 1000,
+                             lastUpdated = None,
+                             maxRecords = 300,
+                             orgList = None)
+    
+    val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
     assert(response.code === HttpCode.POST_OK.intValue)

@@ -53,16 +53,13 @@ trait AuthorizationSupport {
             if (target.getId == "iamapikey" ||
                 target.getId == "iamtoken") {
               // This is a cloud IAM user. Get the actual username before continuing.
-              //logger.debug("HERE")
               identity.authorizeTo(TUser(identity.identity2.resource), access)
             }
             else {
-              //logger.debug("THERE")
               identity.authorizeTo(target, access)
             }
           case _ =>
             // This is an exchange node or agbot
-            //logger.debug("SOMEWHERE")
             identity.authorizeTo(target, access)
         }
       }

@@ -21,9 +21,10 @@ import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled
 
+import java.sql.Timestamp
 import java.time.{ZoneId, ZonedDateTime}
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 @Path("/v1")
@@ -132,14 +133,14 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
     complete({
       // make sure callers obey maxRecords cap set in config, defaults is 10,000
       val maxRecordsCap: Int = Configuration.getConfig.getInt("api.resourceChanges.maxRecordsCap")
-      logger.debug(s"POST /orgs/$organization/changes - maxRecordsCap:            $maxRecordsCap")
+      logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - maxRecordsCap:                   $maxRecordsCap")
       
       val maxRecords: Int =
         if (maxRecordsCap < reqBody.maxRecords)
           maxRecordsCap
         else
           reqBody.maxRecords
-      logger.debug(s"POST /orgs/$organization/changes - maxRecords:               $maxRecords")
+      logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - maxRecords:                      $maxRecords")
       
       val orgList : List[String] =
         if (reqBody.orgList.isDefined)
@@ -150,7 +151,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
             reqBody.orgList.get ++ List(organization)
         else
           List(organization)
-      logger.debug(s"POST /orgs/$organization/changes - organizations to search:  ${orgList.toString()}")
+      logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - organizations to search:         ${orgList.toString()}")
       
       val orgSet : Set[String] = orgList.toSet
       
@@ -159,7 +160,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
           None
         else
           Option(reqBody.changeId)
-      logger.debug(s"POST /orgs/$organization/changes - changeId to search:       $reqChangeId")
+      logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - changeId to search:              $reqChangeId")
       
       // Convert strigified timestamp into a Timestamp
       val reqLastUpdate: Option[java.sql.Timestamp] =
@@ -167,9 +168,9 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
           case (Some(""), _) => None  // Empty timestamp
           case (None, _) => None      // Empty timestamp
           case (_, Some(_)) => None   // Some(ChangeId), take over timestamp
-          case (_, None) => Option(java.sql.Timestamp.from(ZonedDateTime.parse(reqBody.lastUpdated.get).toInstant))  // Some(timestamp)
+          case (_, None) => Option(java.sql.Timestamp.from(ZonedDateTime.parse(reqBody.lastUpdated.get).toInstant.minusMillis(50)))  // Some(timestamp).  // Roll back time to catch any records that were added after we last queried. Timestamp only.
         }
-      logger.debug(s"POST /orgs/$organization/changes - timestamp to search:      $reqLastUpdate")
+      logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - timestamp to search:             $reqLastUpdate")
       
       val organizationRestriction: Option[Boolean] =
         if (!(identity.isMultiTenantAgbot ||
@@ -178,30 +179,55 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
         else
           None
       
-      val allChanges: Query[ResourceChanges, ResourceChangeRow, Seq] =
+      def allChanges(queryEarlierTimestamp: Option[Timestamp]): Query[ResourceChanges, ResourceChangeRow, Seq] =
         ResourceChangesTQ.filterOpt(organizationRestriction)((change, _) => (change.orgId === organization || change.public === "true"))
-                         .filterOpt(reqChangeId)((change, changeId) => change.changeId >= changeId)
+                         .filterOpt(if (queryEarlierTimestamp.isDefined) None else reqChangeId)((change, changeId) => change.changeId >= changeId)
                          .filterOpt(reqLastUpdate)((change, timestamp) => change.lastUpdated >= timestamp)
+                         .filterOpt(queryEarlierTimestamp)((change, timestamp) => change.lastUpdated >= timestamp)
       
-      val changesWithAuth: PostgresProfile.api.Query[ResourceChanges, ResourceChangeRow, Seq] =
+      def changesWithAuth(queryEarlierTimestamp: Option[Timestamp]): PostgresProfile.api.Query[ResourceChanges, ResourceChangeRow, Seq] =
         identity.role match {
           case AuthRoles.Node =>
-            logger.debug(s"POST /orgs/$organization/changes - User Arch:                Node")
-            allChanges.filter(u => (u.category === "mgmtpolicy") || (u.category === "node" && u.id === identity.username) || (u.category === "service" || u.category === "org"))
+            logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - User Arch:                       Node")
+            allChanges(queryEarlierTimestamp).filter(u => (u.category === "mgmtpolicy") || (u.category === "node" && u.id === identity.username) || (u.category === "service" || u.category === "org"))
           case AuthRoles.Agbot =>
-            logger.debug(s"POST /orgs/$organization/changes - User Arch:                Agbot: " + identity.isMultiTenantAgbot)
-            allChanges.filterIf(identity.isMultiTenantAgbot && !(orgSet.contains("*") || orgSet.contains("")))(u => (u.orgId inSet orgSet) || ((u.resource === "org") && (u.operation === ResChangeOperation.CREATED.toString)))
-                      .filterNot(_.resource === "nodemsgs")
-                      .filterNot(_.resource === "nodestatus")
-                      .filterNot(u => u.resource === "nodeagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString)
-                      .filterNot(u => u.resource === "agbotagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString)
+            logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - User Arch:                       Agbot: " + identity.isMultiTenantAgbot)
+            allChanges(queryEarlierTimestamp).filterIf(identity.isMultiTenantAgbot && !(orgSet.contains("*") || orgSet.contains("")))(u => (u.orgId inSet orgSet) || ((u.resource === "org") && (u.operation === ResChangeOperation.CREATED.toString)))
+                                             .filterNot(_.resource === "nodemsgs")
+                                             .filterNot(_.resource === "nodestatus")
+                                             .filterNot(u => u.resource === "nodeagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString)
+                                             .filterNot(u => u.resource === "agbotagreements" && u.operation === ResChangeOperation.CREATEDMODIFIED.toString)
           case _ =>
-            logger.debug(s"POST /orgs/$organization/changes - User Arch:                User")
-            allChanges
+            logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - User Arch:                       User")
+            allChanges(queryEarlierTimestamp)
         }
       
       val changes: DBIOAction[(Seq[ResourceChangeRow], Option[Long]), NoStream, Effect.Write with Effect with Effect.Read] =
         for {
+          /*
+           * Attempt to convert the incoming ChangeId from the request to a timestamp. This can only work if
+           * the record tied to the given ChangeId still exists in the database and has not been cleaned
+           * up by the change record cleaning actor. This is a mitigation not a fix, nor a solution.
+           */
+          changeIdTimestamp <-
+            if (reqChangeId.isDefined)
+              Compiled(ResourceChangesTQ.filter(_.changeId === reqChangeId.get)
+                                        .take(1)
+                                        .map(_.lastUpdated))
+                .result
+                .headOption
+            else
+              DBIO.successful(None)
+          
+          _ = Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Timestamp of changeId:           ${changeIdTimestamp.getOrElse("Change record no longer exists")}") }
+          
+          queryEarlierTimestamp =
+            try
+              Option(Timestamp.from(changeIdTimestamp.get.toInstant.minusMillis(50)))
+            catch { case _: Throwable => None }
+          
+          _ = Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Converted timestamp to query on: ${changeIdTimestamp.getOrElse("None")}") }
+          
           resourceUpdated <-
             if (identity.isNode)
               Compiled(NodesTQ.getLastHeartbeat(identity.resource)).update(Option(ApiTime.nowUTC))
@@ -221,22 +247,22 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
             sql"SELECT last_value FROM public.resourcechanges_changeid_seq;".as[(Long)].headOption
           
           changes <-
-            Compiled(changesWithAuth.sortBy(_.changeId.asc.nullsFirst).take(maxRecords)).result
+            Compiled(changesWithAuth(queryEarlierTimestamp).sortBy(_.changeId.asc.nullsFirst).take(maxRecords)).result
         } yield((changes, currentChange))
       
       db.run(changes.transactionally.asTry).map({
         case Success(result) =>
           if (result._1.nonEmpty) {
-            logger.debug(s"POST /orgs/$organization/changes - changes:                  ${result._1.length}")
-            logger.debug(s"POST /orgs/$organization/changes - currentChange:            ${result._2}")
+            logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - changes:                         ${result._1.length}")
+            logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - currentChange:                   ${result._2}")
             (HttpCode.POST_OK, buildResourceChangesResponse(inputList = result._1,
               hitMaxRecords = (result._1.sizeIs == maxRecords),
               inputChangeId = reqBody.changeId,
               maxChangeIdOfTable = result._2.getOrElse(0)))
           }
           else {
-            logger.debug(s"POST /orgs/$organization/changes - changes:                  0")
-            logger.debug(s"POST /orgs/$organization/changes - currentChange:            ${result._2}")
+            logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - changes:                         0")
+            logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - currentChange:                   ${result._2}")
             (HttpCode.POST_OK, ResourceChangesRespObject(changes = List[ChangeEntry](),
               mostRecentChangeId = result._2.getOrElse(0),
               hitMaxRecords = false,
@@ -258,9 +284,10 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
         post {
           exchAuth(TOrg(organization), Access.READ, validIdentity = identity) {
             _ =>
-              logger.debug(s"POST /orgs/$organization/changes - By ${identity.resource}:${identity.role}")
+              logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
               entity(as[ResourceChangesRequest]) {
                 reqBody =>
+                  logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Request { changeId:${reqBody.changeId}, lastUpdated:${reqBody.lastUpdated.getOrElse("NONE")}, maxRecords:${reqBody.maxRecords}, orgList:${reqBody.orgList.getOrElse(List.empty[String])} }")
                   validateWithMsg(reqBody.getAnyProblem) {
                     postChanges(identity, organization, reqBody)
                   }

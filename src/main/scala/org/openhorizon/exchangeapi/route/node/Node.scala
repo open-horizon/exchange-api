@@ -490,7 +490,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
               val validAttribute: String =
                 attributeExistence.filter(attribute => attribute._2).head._1
                 
-              logger.debug(s"PATCH /orgs/$organization/nodes/$node - attribute=$validAttribute    request-body: ${reqBody.toString}")
+              logger.debug(s"PATCH /orgs/$organization/nodes/$node - attribute=$validAttribute"    /*request-body: ${reqBody.toString}"*/)
                 // Synchronize the timestamps of the records we are changing. This helps debugging/troubleshooting from the records and logs.
                 val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
                 implicit val formats: DefaultFormats.type = DefaultFormats

@@ -14,6 +14,7 @@ agbot.agreements.not.deleted=agreements for agbot ''{0}'' not deleted: {1}
 agbot.attribute.updated=attribute ''{0}'' of agbot ''{1}'' updated
 agbot.deleted=agbot deleted
 agbot.mailbox.full=Access Denied: the message mailbox of {0} is full ({1} messages)
+agbot.message.inserted=agbot msg {0} inserted
 agbot.message.agbotid.not.found=agbot ''{0}'' not found: {1}
 agbot.message.deleted=agbot msg deleted
 agbot.message.invalid.input=Invalid Input: the message sender must have their public key registered with the Exchange

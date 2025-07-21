@@ -18,11 +18,14 @@ import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotMsgsResponse, Pos
 import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMsgRow, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange
-import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.sql.Timestamp
+import java.time.ZoneId
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -128,60 +131,119 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
                    @Parameter(hidden = true) resource: String): Route =
     entity (as[PostAgbotsMsgsRequest]) {
       reqBody =>
-        complete({
-          val nodeId: String = identity.resource //somday: handle the case where the acls allow users to send msgs
-          var msgNum = ""
+        Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+        
+          // val agbotId: String = identity.resource      //someday: handle the case where the acls allow users to send msgs
+          // var msgNum = ""
           val maxMessagesInMailbox: Int = Configuration.getConfig.getInt("api.limits.maxMessagesInMailbox")
-          val getNumOwnedDbio =
-            if (maxMessagesInMailbox == 0)
-              DBIO.successful(0)
-            else
-              AgbotMsgsTQ.getNumOwned(resource).result // avoid DB read for this if there is no max
-          // Remove msgs whose TTL is past, then check the mailbox is not full, then get the node publicKey, then write the agbotmsgs row, all in the same db.run thread
-          db.run(getNumOwnedDbio.flatMap({
-                                  xs =>
-                                    if (maxMessagesInMailbox != 0)
-                                      logger.debug("POST /orgs/" + organization + "/agbots/" + agreementBot + "/msgs mailbox size: " + xs)
-                                    val mailboxSize: Int = xs
-                                    if (maxMessagesInMailbox == 0 ||
-                                        mailboxSize < maxMessagesInMailbox)
-                                      NodesTQ.getPublicKey(nodeId).result.asTry
-                                    else
-                                      DBIO.failed(new DBProcessingError(HttpCode.BAD_GW, ApiRespType.BAD_GW, ExchMsg.translate("agbot.mailbox.full", resource, maxMessagesInMailbox))).asTry
-                                })
-                                .flatMap({
-                                  case Success(v) =>
-                                    logger.debug("POST /orgs/" + organization + "/agbots/" + agreementBot + "/msgs node publickey result: " + v)
-                                    val nodePubKey: String = v.head
-                                    if (nodePubKey != "")
-                                      AgbotMsgRow(0, resource, nodeId, nodePubKey, reqBody.message, ApiTime.nowUTC, ApiTime.futureUTC(reqBody.ttl)).insert.asTry
-                                    else
-                                      DBIO.failed(new DBProcessingError(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, ExchMsg.translate("agbot.message.invalid.input"))).asTry
-                                  case Failure(t) =>
-                                    DBIO.failed(t).asTry // rethrow the error to the next step
-                                })
-                                .flatMap({
-                                  case Success(v) => // Add the resource to the resourcechanges table
-                                    logger.debug("POST /orgs/{organization}/agbots/" + agreementBot + "/msgs write row result: " + v)
-                                    msgNum = v.toString
-                                    resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTMSGS, ResChangeOperation.CREATED).insert.asTry
-                                  case Failure(t) =>
-                                    DBIO.failed(t).asTry}))
-            .map({
-              case Success(v) =>
-                logger.debug("POST /orgs/{organization}/agbots/" + agreementBot + "/msgs updated in changes table: " + v)
-                (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, "agbot msg " + msgNum + " inserted"))
-              case Failure(t: DBProcessingError) =>
-                t.toComplete
-              case Failure(t: org.postgresql.util.PSQLException) =>
-                if (ExchangePosgtresErrorHandling.isKeyNotFoundError(t))
-                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.agbotid.not.found", resource, t.getMessage)))
+          
+          // This is a high performance, high through-put, concurrent system. Unification of Timestamps is a requirement.
+          val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+          val timestampString: String =
+            fixFormatting(timestamp.toInstant
+                                   .atZone(ZoneId.of("UTC"))
+                                   .withZoneSameInstant(ZoneId.of("UTC"))
+                                   .toString)
+          
+          val createAgbotMessage =
+            for {
+              // Make additional room if possible.
+              numMsgsDeleted <-
+                Compiled(AgbotMsgsTQ.filter(_.agbotId === resource)
+                                    .filter(_.timeExpires < (fixFormatting(timestamp.toInstant
+                                                                                    .minusMillis(5)  // Allow a little grace for concurrent messages coming from multiple Exchange instances.
+                                                                                    .atZone(ZoneId.of("UTC"))
+                                                                                    .withZoneSameInstant(ZoneId.of("UTC"))
+                                                                                    .toString))))
+                  .delete
+              
+              _ = Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Expired messages deleted:   ${numMsgsDeleted}") }
+              
+              numMsgsForAgbot <-
+                if (maxMessagesInMailbox == 0)
+                  DBIO.successful(-1)
                 else
-                  ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("agbot.message.not.inserted", resource, t.toString))
-              case Failure(t) =>
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", resource, t.toString)))
-            })
-        })
+                  Compiled(AgbotMsgsTQ.filter(_.agbotId === resource)
+                                      .length)
+                    .result
+              
+              _ = Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Mailbox capacity:           ${if (numMsgsForAgbot == -1) "-" else numMsgsForAgbot}:${if (maxMessagesInMailbox == 0) "infinite" else maxMessagesInMailbox}") }
+              
+              _ <-
+                if (maxMessagesInMailbox == 0)
+                  DBIO.successful(())
+                else if (numMsgsForAgbot < maxMessagesInMailbox)
+                  DBIO.successful(())
+                else
+                  throw new ArrayIndexOutOfBoundsException()
+              
+              nodePublicKey <-
+                Compiled(NodesTQ.filter(_.id === identity.resource)
+                                .take(1)
+                                .map(_.publicKey))
+                  .result
+              
+              _ <-
+                if (nodePublicKey.size == 1 &&
+                    nodePublicKey.head.nonEmpty)
+                  DBIO.successful(())
+                else
+                  throw new ClassNotFoundException()
+              
+              createdChange <-
+                (ResourceChangesTQ returning ResourceChangesTQ.map(_.changeId)) +=
+                  ResourceChangeRow(category    = ResChangeCategory.AGBOT.toString,
+                                    changeId    = 0L,
+                                    lastUpdated = timestamp,
+                                    id          = agreementBot,
+                                    operation   = ResChangeOperation.CREATED.toString,
+                                    orgId       = organization,
+                                    public      = false.toString,
+                                    resource    = ResChangeResource.AGBOTMSGS.toString)
+              
+              _ = Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Created change identifier:  ${createdChange}") }
+              _ = Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Created change:             ${timestamp}") }
+              
+              timeExpires =
+                fixFormatting(timestamp.toInstant
+                                       .plusSeconds(reqBody.ttl.toLong)
+                                       .atZone(ZoneId.of("UTC"))
+                                       .withZoneSameInstant(ZoneId.of("UTC"))
+                                       .toString)
+              
+              createdMsgForNode <-
+                (AgbotMsgsTQ returning AgbotMsgsTQ.map(_.msgId)) +=
+                  AgbotMsgRow(agbotId     = resource,
+                              message     = reqBody.message,
+                              msgId       = 0,
+                              nodeId      = identity.resource,
+                              nodePubKey  = nodePublicKey.head,
+                              timeExpires = timeExpires,
+                              timeSent    = timestampString)
+              
+              _ = Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Created message identifier: ${createdMsgForNode}") }
+              _ = Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Created message:            ${timestampString}") }
+              _ = Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Created message expires:    ${timeExpires}") }
+            } yield (createdMsgForNode)
+        
+          complete {
+            db.run(createAgbotMessage.transactionally.asTry)
+              .map {
+                case Success(msgNum) =>
+                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.message.inserted", msgNum)))
+                case Failure(t: DBProcessingError) =>
+                  t.toComplete
+                case Failure(t: org.postgresql.util.PSQLException) =>
+                  if (ExchangePosgtresErrorHandling.isKeyNotFoundError(t)) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.agbotid.not.found", resource, t.getMessage)))
+                  else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("agbot.message.not.inserted", resource, t.toString))
+                case Failure(_: ClassNotFoundException) =>
+                  (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.agbot.not.found", identity.resource)))
+                case Failure(_: ArrayIndexOutOfBoundsException) =>
+                  (StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("node.mailbox.full", resource, maxMessagesInMailbox)))
+                case Failure(t) =>
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", resource, t.toString)))
+              }
+          }
     }
   
   

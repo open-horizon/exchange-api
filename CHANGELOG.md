@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+
+## [2.139.0](https://github.com/open-horizon/exchange-api/pull/798) - 2025-07-21
+- Expanded the cached entry type for the authentication cache to include a no-workfactor alternative hashed credential.
+- Increased the resource cache default size and time-to-live.
+- Rewrote the post messages routes for agreement bots and nodes.
+- Added a mitigation to the post changes route that will attempt to overlap the result records returned with the prior query. This mitigation is not a fix for race-conditioned records appearing after the prior query but earlier in timestamp and changeId.
+
 ## [2.138.0](https://github.com/open-horizon/exchange-api/pull/797) - 2025-07-17
 - Use email as username for OAuth users, fallback to sub if email not provided
 - Add externalId column to store OAuth sub field

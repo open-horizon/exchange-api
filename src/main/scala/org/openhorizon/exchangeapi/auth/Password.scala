@@ -22,10 +22,16 @@ case object Password {
   private val parallelism: Int = Configuration.getConfig.getInt("api.cryptography.argon2id.parallelism")
   private val salt_length: Int = Configuration.getConfig.getInt("api.cryptography.argon2id.salt_length")
   
+  private val hash_length_lite: Int = Configuration.getConfig.getInt("api.cryptography.argon2id-lite-workfactor.hash_length")
+  private val iterations_lite:  Int = Configuration.getConfig.getInt("api.cryptography.argon2id-lite-workfactor.iterations")
+  private val memory_lite:      Int = Configuration.getConfig.getInt("api.cryptography.argon2id-lite-workfactor.memory")
+  private val parallelism_lite: Int = Configuration.getConfig.getInt("api.cryptography.argon2id-lite-workfactor.parallelism")
+  private val salt_length_lite: Int = Configuration.getConfig.getInt("api.cryptography.argon2id-lite-workfactor.salt_length")
+  
   private val argon2idEncoder = new Argon2PasswordEncoder(salt_length, hash_length, parallelism, memory, iterations);
   
   // DO NOT use this encoder for credential storage. This implementation does not contain any form of workfactor (Security).
-  private val argon2idEncoderNoWorkfactor = new Argon2PasswordEncoder(2, 4, 1, 0, 1);
+  private val argon2idEncoderNoWorkfactor = new Argon2PasswordEncoder(salt_length_lite, hash_length_lite, iterations_lite, memory_lite, parallelism_lite);
   
   /** Returns true if plainPw matches hashedPw */
   def check(plainPw: String, hashedPw: String): Boolean =

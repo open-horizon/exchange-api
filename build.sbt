@@ -104,7 +104,7 @@ lazy val root = (project in file("."))
     
     // These settings are for the Docker subplugin within sbt-native-packager. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html
     Docker / version        := sys.env.getOrElse("IMAGE_VERSION", versionFunc()), // overwrite this setting to build a test version of the exchange with a custom tag in docker, defaults to exchange version
-    Docker / packageName    := "ghcr.io/naphelps/" ++ name.value,
+    Docker / packageName    := sys.env.getOrElse("CONTAINER_REGISTRY", "openhorizon") ++ "/" ++ name.value,
     Docker / daemonUser     := "exchangeuser",
     Docker / daemonUserUid  := Some("1001"),
     Docker / daemonGroup    := "exchangegroup",

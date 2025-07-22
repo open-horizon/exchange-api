@@ -104,17 +104,22 @@ lazy val root = (project in file("."))
     
     // These settings are for the Docker subplugin within sbt-native-packager. See: https://sbt-native-packager.readthedocs.io/en/stable/formats/docker.html
     Docker / version        := sys.env.getOrElse("IMAGE_VERSION", versionFunc()), // overwrite this setting to build a test version of the exchange with a custom tag in docker, defaults to exchange version
-    Docker / packageName    := "openhorizon/" ++ name.value,
+    Docker / packageName    := sys.env.getOrElse("CONTAINER_REGISTRY", "openhorizon") ++ "/" ++ name.value,
     Docker / daemonUser     := "exchangeuser",
     Docker / daemonUserUid  := Some("1001"),
     Docker / daemonGroup    := "exchangegroup",
     Docker / daemonGroupGid := some("1001"),
     dockerExposedPorts     ++= Seq(8080),
-    dockerBaseImage         := "registry.access.redhat.com/ubi10-minimal:latest",
+    dockerBaseImage         := "${BASE_IMAGE_REGISTRY}/${BASE_IMAGE}:${BASE_IMAGE_TAG}",
     dockerEnvVars := Map("JAVA_OPTS" -> ""),   // this is here so JAVA_OPTS can be overridden on the docker run cmd with a value like: -Xmx1G
     // dockerEntrypoint ++= Seq("-Djava.security.auth.login.config=src/main/resources/jaas.config")  // <- had trouble getting this to work
     Docker / mappings ++= Seq((baseDirectory.value / "LICENSE.txt") -> "/1/licenses/LICENSE.txt"),
-    dockerCommands           := Seq(Cmd("FROM", dockerBaseImage.value ++ " AS stage0"),
+    dockerCommands           := Seq(Cmd("ARG", "RED_HAT_UBI_TYPE=minimal"),
+                                    Cmd("ARG", "RHEL_VERSION=10"),
+                                    Cmd("ARG", "BASE_IMAGE=ubi${RHEL_VERSION}-${RED_HAT_UBI_TYPE}"),
+                                    Cmd("ARG", "BASE_IMAGE_REGISTRY=registry.access.redhat.com"),
+                                    Cmd("ARG", "BASE_IMAGE_TAG=latest"),
+                                    Cmd("FROM", dockerBaseImage.value ++ " AS stage0"),
                                     Cmd("LABEL", "snp-multi-stage='intermediate'"),
                                     Cmd("LABEL", "snp-multi-stage-id='6466ecf3-c305-40bb-909a-47e60bded33d'"),
                                     Cmd("WORKDIR", "/etc/horizon/exchange"),

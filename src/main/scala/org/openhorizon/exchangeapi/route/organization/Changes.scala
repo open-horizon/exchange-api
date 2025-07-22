@@ -183,7 +183,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
         ResourceChangesTQ.filterOpt(organizationRestriction)((change, _) => (change.orgId === organization || change.public === "true"))
                          .filterOpt(if (queryEarlierTimestamp.isDefined) None else reqChangeId)((change, changeId) => change.changeId >= changeId)
                          .filterOpt(reqLastUpdate)((change, timestamp) => change.lastUpdated >= timestamp)
-                         .filterOpt(queryEarlierTimestamp)((change, timestamp) => change.lastUpdated >= timestamp)
+                         .filterOpt(queryEarlierTimestamp)((change, timestamp) => (change.changeId >= reqChangeId.get || change.lastUpdated >= timestamp))
       
       def changesWithAuth(queryEarlierTimestamp: Option[Timestamp]): PostgresProfile.api.Query[ResourceChanges, ResourceChangeRow, Seq] =
         identity.role match {
@@ -223,7 +223,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
           
           queryEarlierTimestamp =
             try
-              Option(Timestamp.from(changeIdTimestamp.get.toInstant.minusMillis(50)))
+              Option(Timestamp.from(changeIdTimestamp.get.toInstant.minusSeconds(2)))
             catch { case _: Throwable => None }
           
           _ = Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Converted timestamp to query on: ${changeIdTimestamp.getOrElse("None")}") }

@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## [2.141.0](https://github.com/open-horizon/exchange-api/pull/801) - 2025-07-23
+- Added response discards for client requests to OAuth providers.
+
 ## [2.140.0](https://github.com/open-horizon/exchange-api/pull/800) - 2025-07-22
 - Changed the base image reference in the Dockerfile to be configurable via Docker build arguments.
 - Tweaked the bounds of the changes route mitigation. Increased the coverage overlap to 2 seconds from 

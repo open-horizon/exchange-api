@@ -864,11 +864,13 @@ object ExchangeApiApp extends App
             authenticatedIdentity <-
               responseGet match {
                       case HttpResponse(StatusCodes.OK, _, entity, _) =>
+                        Future { responsePost.discardEntityBytes() }
                         evaluateResponseEntity(HttpMethods.GET, entity)
                       case resp@HttpResponse(code, _, _, _) =>
                         Future {
                           logger.debug(s"GET $uri - OAuth: Provider request failed, falling back to POST: $code")
                         }
+                        Future { responseGet.discardEntityBytes() }
                         responsePost match {
                           case HttpResponse(StatusCodes.OK, _, entity, _) =>
                             evaluateResponseEntity(HttpMethods.POST, entity)
@@ -876,11 +878,14 @@ object ExchangeApiApp extends App
                             Future {
                               logger.debug(s"POST $uri - OAuth: Provider request failed, all methods exhausted: $code")
                             }
+                            Future { responsePost.discardEntityBytes() }
                             Future {
                               None
                             }
                         }
                       case _ => Future {
+                        Future { responseGet.discardEntityBytes() }
+                        Future { responsePost.discardEntityBytes() }
                         None
                       }
                     }

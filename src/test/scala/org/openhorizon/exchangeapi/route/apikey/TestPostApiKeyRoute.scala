@@ -195,7 +195,7 @@ private val TESTUSERS = Seq(
       .headers(ACCEPT)
       .headers(ORGADMINAUTH)
       .header("Content-Type", "application/json")
-      .postData("""{"description": "TestPostApiKeyRoute Admin Created Key for a user"}""")
+      .postData("""{"description": "TestPostApiKeyRoute Admin Created Key for a user", "label": "Your new API Key"}""")
       .timeout(connTimeoutMs = 1000, readTimeoutMs = 10000)
       .asString
 
@@ -205,6 +205,7 @@ private val TESTUSERS = Seq(
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
     assert(responseBody.owner === s"${TESTUSERS(1).organization}/${TESTUSERS(1).username}")
     assert(responseBody.description === "TestPostApiKeyRoute Admin Created Key for a user")
+    assert(responseBody.label === "Your new API Key")
     assert(responseBody.id.nonEmpty)
     assert(responseBody.value.nonEmpty)
   }
@@ -306,6 +307,7 @@ private val TESTUSERS = Seq(
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
     assert(responseBody.owner === s"${TESTUSERS(3).organization}/${TESTUSERS(3).username}")
     assert(responseBody.description === "TestPostApiKeyRoute Hub Admin API Key")
+    assert(responseBody.label.isEmpty)
     assert(responseBody.id.nonEmpty)
     assert(responseBody.value.nonEmpty)
   }
@@ -317,7 +319,7 @@ private val TESTUSERS = Seq(
       .headers(ACCEPT)
       .headers(HUBADMINAUTH)
       .header("Content-Type", "application/json")
-      .postData("""{"description": "TestPostApiKeyRoute Hub Admin Created Key for Org Admin"}""")
+      .postData("""{"label": "TestPostApiKeyRoute Hub Admin Created Key for Org Admin"}""")
       .timeout(connTimeoutMs = 1000, readTimeoutMs = 10000)
       .asString
 
@@ -326,7 +328,8 @@ private val TESTUSERS = Seq(
     assert(response.code === HttpCode.POST_OK.intValue)
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
     assert(responseBody.owner === s"${TESTUSERS(0).organization}/${TESTUSERS(0).username}")
-    assert(responseBody.description === "TestPostApiKeyRoute Hub Admin Created Key for Org Admin")
+    assert(responseBody.description.isEmpty)
+    assert(responseBody.label === "TestPostApiKeyRoute Hub Admin Created Key for Org Admin")
     assert(responseBody.id.nonEmpty)
     assert(responseBody.value.nonEmpty)
   }

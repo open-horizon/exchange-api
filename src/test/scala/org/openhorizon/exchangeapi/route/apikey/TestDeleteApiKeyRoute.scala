@@ -122,7 +122,7 @@ class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(0).user,
-      description = "TestDeleteApiKeyRoute Test API Key 1",
+      description = Option("TestDeleteApiKeyRoute Test API Key 1"),
       hashedKey = "hash1",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -133,7 +133,7 @@ class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(1).user,
-      description = "TestDeleteApiKeyRoute Test API Key 2",
+      description = Option("TestDeleteApiKeyRoute Test API Key 2"),
       hashedKey = "hash2",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -144,7 +144,7 @@ class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(1).user,
-      description = "TestDeleteApiKeyRoute Test API Key 3",
+      description = Option("TestDeleteApiKeyRoute Test API Key 3"),
       hashedKey = "hash3",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -155,7 +155,7 @@ class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(2).user,
-      description = "TestDeleteApiKeyRoute Test API Key 4",
+      description = Option("TestDeleteApiKeyRoute Test API Key 4"),
       hashedKey = "hash4",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -166,7 +166,7 @@ class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(3).user,
-      description = "TestDeleteApiKeyRoute Test API Key HubAdmin",
+      description = Option("TestDeleteApiKeyRoute Test API Key HubAdmin"),
       hashedKey = "hash5",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -177,7 +177,7 @@ class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = ROOTUSERID,
-      description = "TestDeleteApiKeyRoute Test API Key Root Own",
+      description = Option("TestDeleteApiKeyRoute Test API Key Root Own"),
       hashedKey = "hash6",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -188,7 +188,7 @@ class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(0).user,
-      description = "TestDeleteApiKeyRoute Test API Key For Root Delete Admin",
+      description = Option("TestDeleteApiKeyRoute Test API Key For Root Delete Admin"),
       hashedKey = "hash7",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -199,7 +199,7 @@ class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(1).user,
-      description = "TestDeleteApiKeyRoute Test API Key For Root Delete User",
+      description = Option("TestDeleteApiKeyRoute Test API Key For Root Delete User"),
       hashedKey = "hash8",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -210,7 +210,7 @@ class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(3).user,
-      description = "TestDeleteApiKeyRoute Test API Key For Root Delete HubAdmin",
+      description = Option("TestDeleteApiKeyRoute Test API Key For Root Delete HubAdmin"),
       hashedKey = "hash9",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,

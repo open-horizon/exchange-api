@@ -451,20 +451,32 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
         DBIO.seq(
           sqlu"ALTER TABLE public.users ADD COLUMN IF NOT EXISTS external_id VARCHAR NULL;",
 
-          sqlu"""UPDATE public.users SET external_id = username 
-                WHERE external_id IS NULL AND identity_provider != 'Open Horizon';""",
+          sqlu"""UPDATE public.users
+                 SET external_id = username
+                 WHERE external_id IS NULL AND
+                       identity_provider != 'Open Horizon';""",
 
-          sqlu"""UPDATE public.users SET username = email 
-                WHERE email IS NOT NULL AND 
-                      external_id IS NOT NULL AND 
-                      identity_provider != 'Open Horizon';""")
-              
+          sqlu"""UPDATE public.users
+                 SET username = email
+                 WHERE email IS NOT NULL AND
+                       external_id IS NOT NULL AND
+                       identity_provider != 'Open Horizon';""")
+      
+      case 59 => // 2.142.0
+        DBIO.seq(
+          sqlu"""ALTER TABLE public.apikeys ALTER COLUMN description DROP NOT NULL;""",
+          sqlu"""ALTER TABLE public.apikeys ADD IF NOT EXISTS "label" varchar NULL;""",
+          sqlu"""
+                 UPDATE public.apikeys
+                 SET description = NULL
+                 WHERE description = '';
+              """)
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }
   }
 
-  val latestSchemaVersion: Int = 58    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 59    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

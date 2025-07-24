@@ -4,10 +4,11 @@ import java.util.UUID
 
 final case class ApiKeyRow(createdAt: java.sql.Timestamp,
                            createdBy: UUID,
-                           description: String,
+                           description: Option[String] = None,
                            hashedKey: String,
                            id: UUID,
                            modifiedAt: java.sql.Timestamp,
                            modifiedBy: UUID,
                            orgid: String,
-                           user: UUID)
+                           user: UUID,
+                           label: Option[String] = None)

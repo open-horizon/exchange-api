@@ -84,12 +84,13 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
                     @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) username: String,
                     @Parameter(hidden = true) resourceUuidOpt: Option[UUID]): Route = {
-      entity(as[PostApiKeyRequest]) { body =>
-        val ownerStr = s"$organization/$username"
-        val sha256Token = ApiKeyUtils.generateApiKeyHashedValue()
-        val argon2ForDb = Password.hash(sha256Token)
-        val keyId = ApiKeyUtils.generateApiKeyId()
-        val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+      entity(as[PostApiKeyRequest]) {
+        body =>
+          val ownerStr = s"$organization/$username"
+          val sha256Token = ApiKeyUtils.generateApiKeyHashedValue()
+          val argon2ForDb = Password.hash(sha256Token)
+          val keyId = ApiKeyUtils.generateApiKeyId()
+          val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
         
         resourceUuidOpt match {
           case Some(userUuid) =>
@@ -113,17 +114,18 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
                       } else {
                         DBIO.failed(new ClassNotFoundException())
                       }
-                  _ <- ApiKeysTQ += ApiKeyRow(
-                        orgid = organization,
-                        id = keyId,
-                        user = userUuid,
-                        description = body.description,
-                        hashedKey = argon2ForDb,
-                        createdAt = timestamp,
-                        createdBy = identity.identifier.get,
-                        modifiedAt = timestamp,
-                        modifiedBy = identity.identifier.get
-                      )
+                  _ <-
+                    ApiKeysTQ +=
+                      ApiKeyRow(id          = keyId,
+                                createdAt   = timestamp,
+                                createdBy   = identity.identifier.get,
+                                description = body.description,
+                                hashedKey   = argon2ForDb,
+                                label       = body.label,
+                                modifiedAt  = timestamp,
+                                modifiedBy  = identity.identifier.get,
+                                orgid       = organization,
+                                user        = userUuid)
                   // _ <- ResourceChangesTQ += ResourceChange(
                   //       0L,
                   //       organization,
@@ -136,20 +138,25 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
                 } yield ()
               
               db.run(createApiKey.transactionally).map { _ =>
-                val response = PostApiKeyResponse(
-                  id = keyId.toString,
-                  description = body.description,
-                  owner = ownerStr,
-                  value = sha256Token,
-                  lastUpdated = timestamp.toInstant.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("UTC")).toString
-                )
+                val response =
+                  PostApiKeyResponse(id = keyId.toString,
+                                     description = body.description.getOrElse(""),
+                                     label = body.label.getOrElse(""),
+                                     lastUpdated =
+                                       timestamp.toInstant
+                                                .atZone(ZoneId.of("UTC"))
+                                                .withZoneSameInstant(ZoneId.of("UTC"))
+                                                .toString,
+                                     owner = ownerStr,
+                                     value = sha256Token)
+                
                 (HttpCode.POST_OK, response)
               }.recover {
                 case ex: ClassNotFoundException =>
-                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", s"$organization/$username")))
+                  (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", s"$organization/$username")))
                 case ex =>
                   logger.error(s"Failed to create API key for $organization/$username", ex)
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("apikey.creation.failed")))
+                  (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("apikey.creation.failed")))
               }
             }
           

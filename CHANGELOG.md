@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## [2.142.0](https://github.com/open-horizon/exchange-api/pull/802) - 2025-07-24
+- Added label field to API Key resources to compliment description.
+
 ## [2.141.0](https://github.com/open-horizon/exchange-api/pull/801) - 2025-07-23
 - Added response discards for client requests to OAuth providers.
 

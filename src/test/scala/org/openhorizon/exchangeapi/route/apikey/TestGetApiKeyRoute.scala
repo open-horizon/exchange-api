@@ -119,9 +119,10 @@ private val TESTORGS = Seq(
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(0).user,
-      description = "TestGetUserApiKeyRoute Test API Key 1",
+      description = Option("TestGetUserApiKeyRoute Test API Key 1"),
       hashedKey = "hash1",
       id = UUID.randomUUID(),
+      label = Option("TestGetUserApiKeyRoute Test API Key 1"),
       modifiedAt = ApiTime.nowUTCTimestamp,
       modifiedBy = TESTUSERS(0).user,
       orgid = "testGetUserApiKeyOrg0",
@@ -130,7 +131,7 @@ private val TESTORGS = Seq(
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(1).user,
-      description = "TestGetUserApiKeyRoute Test API Key 2",
+      description = Option("TestGetUserApiKeyRoute Test API Key 2"),
       hashedKey = "hash2",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -141,7 +142,7 @@ private val TESTORGS = Seq(
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(1).user,
-      description = "TestGetUserApiKeyRoute Test API Key 3",
+      description = Option("TestGetUserApiKeyRoute Test API Key 3"),
       hashedKey = "hash3",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -152,7 +153,7 @@ private val TESTORGS = Seq(
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(2).user,
-      description = "TestGetUserApiKeyRoute Test API Key 4",
+      description = Option("TestGetUserApiKeyRoute Test API Key 4"),
       hashedKey = "hash4",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -163,7 +164,7 @@ private val TESTORGS = Seq(
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(3).user,
-      description = "TestGetUserApiKeyRoute Test API Key HubAdmin",
+      description = Option("TestGetUserApiKeyRoute Test API Key HubAdmin"),
       hashedKey = "hashHubAdmin",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -174,7 +175,7 @@ private val TESTORGS = Seq(
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = ROOTUSERID,
-      description = "TestGetUserApiKeyRoute Root Own",
+      description = Option("TestGetUserApiKeyRoute Root Own"),
       hashedKey = "hash5",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -185,7 +186,7 @@ private val TESTORGS = Seq(
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(0).user,
-      description = "TestGetUserApiKeyRoute For Root Get Admin",
+      description = Option("TestGetUserApiKeyRoute For Root Get Admin"),
       hashedKey = "hash6",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -196,7 +197,7 @@ private val TESTORGS = Seq(
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(1).user,
-      description = "TestGetUserApiKeyRoute For Root Get User",
+      description = Option("TestGetUserApiKeyRoute For Root Get User"),
       hashedKey = "hash7",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -207,7 +208,7 @@ private val TESTORGS = Seq(
     ApiKeyRow(
       createdAt = ApiTime.nowUTCTimestamp,
       createdBy = TESTUSERS(3).user,
-      description = "TestGetUserApiKeyRoute For Root Get HubAdmin",
+      description = Option("TestGetUserApiKeyRoute For Root Get HubAdmin"),
       hashedKey = "hash8",
       id = UUID.randomUUID(),
       modifiedAt = ApiTime.nowUTCTimestamp,
@@ -352,6 +353,7 @@ private val TESTORGS = Seq(
 
     val responseBody = JsonMethods.parse(response.body)
     assert((responseBody \ "description").extract[String] === "TestGetUserApiKeyRoute Test API Key 1")
+    assert((responseBody \ "label").extract[String] === "TestGetUserApiKeyRoute Test API Key 1")
     assert((responseBody \ "id").extract[String] === TESTAPIKEYS(0).id.toString)
   }
 
@@ -378,6 +380,7 @@ private val TESTORGS = Seq(
 
     val responseBody = JsonMethods.parse(response.body)
     assert((responseBody \ "description").extract[String] === "TestGetUserApiKeyRoute Root Own")
+    assert((responseBody \ "label").extract[String].isEmpty)
     assert((responseBody \ "id").extract[String] === TESTAPIKEYS(5).id.toString)
   }
 

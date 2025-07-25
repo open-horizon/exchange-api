@@ -1,4 +1,5 @@
-package org.openhorizon.exchangeapi.route.apikey
+package org.openhorizon.exchangeapi.route.user.apikey
+
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Identity, Role}

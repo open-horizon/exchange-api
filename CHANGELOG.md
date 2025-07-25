@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## [2.142.1](https://github.com/open-horizon/exchange-api/pull/803) - 2025-07-25
+- Swagger document updates.
+- Swagger UI 5.22.0 -> 5.27.0
+
 ## [2.142.0](https://github.com/open-horizon/exchange-api/pull/802) - 2025-07-24
 - Added label field to API Key resources to compliment description.
 

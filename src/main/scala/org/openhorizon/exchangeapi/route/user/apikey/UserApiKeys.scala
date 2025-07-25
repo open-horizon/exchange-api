@@ -1,10 +1,11 @@
-package org.openhorizon.exchangeapi.route.apikey
+package org.openhorizon.exchangeapi.route.user.apikey
 
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations._
 import io.swagger.v3.oas.annotations.enums.ParameterIn
+import io.swagger.v3.oas.annotations.extensions.Extension
 import io.swagger.v3.oas.annotations.media._
-import jakarta.ws.rs.{GET, POST, DELETE, Path}
+import jakarta.ws.rs.{DELETE, GET, POST, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
@@ -12,21 +13,22 @@ import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceOwnership, getOwnerOfResource}
-import org.openhorizon.exchangeapi.table.apikey.{ApiKeyMetadata, ApiKeysTQ, ApiKeyRow}
+import org.openhorizon.exchangeapi.table.apikey.{ApiKeyMetadata, ApiKeyRow, ApiKeysTQ}
 import org.openhorizon.exchangeapi.table.user.{User, UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.utility._
+
 import java.sql.Timestamp
 import java.time.ZoneId
 import java.util.UUID
-
 import scala.concurrent.{ExecutionContext, Future}
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
-
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import scalacache.modes.scalaFuture._
 import slick.jdbc.PostgresProfile.api._
+
+import java.lang.annotation.Annotation
 
 @Path("/v1/orgs/{organization}/users/{username}/apikeys")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "user/apikey")
@@ -43,7 +45,7 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
   summary = "Create a new API key for a user",
   description = "Creates a new API key for the specified user. Can be called by the user or org admin.",
   parameters = Array(
-    new Parameter(name = "organization", in = ParameterIn.PATH, required = true, description = "Organization ID"),
+    new Parameter(name = "organization", in = ParameterIn.PATH, required = true, description = "Organization"),
     new Parameter(name = "username", in = ParameterIn.PATH, required = true, description = "Username")
   ),
   requestBody = new RequestBody(
@@ -53,25 +55,54 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
       schema = new Schema(implementation = classOf[PostApiKeyRequest]),
       examples = Array(
         new ExampleObject(
+          description = "Create API key with an optional description and label",
+          name = "With description and label",
+          summary = "With description and label",
           value = """{
-  "description": "Test API key for user"
-}""")
+  "description": "Test API key for user",
+  "label": "api-key-test-0"
+}"""),
+        new ExampleObject(
+          description = "Create API key with an optional description",
+          name = "With description",
+          summary = "With description",
+          value = """{
+  "description": "Test API key for user",
+  "label": null
+}"""),
+        new ExampleObject(
+          description = "Create API key with an optional label",
+          name = "With label",
+          summary = "With label",
+          value = """{
+  "description": null,
+  "label": "api-key-test-0"
+}"""),
+        new ExampleObject(
+          description = "Create API key with no optional request body parameters",
+          name = "Without description and label",
+          summary = "Without description and label",
+          value = """{
+  "description": null,
+  "label": null
+}"""),
       )
     ))
   ),
   responses = Array(
-    new responses.ApiResponse(responseCode = "201", description = "resource created - response body:",
+    new responses.ApiResponse(responseCode = "201", description = "created",
       content = Array(new Content(
         mediaType = "application/json", 
         schema = new Schema(implementation = classOf[PostApiKeyResponse]),
         examples = Array(
           new ExampleObject(
             value = """{
-  "id": "string",
-  "description": "string",
-  "owner": "string",
-  "value": "string",
-  "lastUpdated": "string"
+  "description": "Test API key for user",
+  "id": "50dea228-8bca-4640-4480-4d1ec44ec89f",
+  "label": "api-key-test-0",
+  "lastUpdated": "2025-07-25T13:38:15.295452297Z[UTC]",
+  "owner": "myorg/user0",
+  "value": "01c00b41d92425484731319e688358019daf3796af5a3a9b85e42bc19fb578d6"
 }""")
         )
       ))),
@@ -166,16 +197,16 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
       }
     }
 
-  // === DELETE /v1/orgs/{organization}/users/{username}/apikeys/{keyid} ===
+  // === DELETE /v1/orgs/{organization}/users/{username}/apikeys/{apikey} ===
   @DELETE
-  @Path("/{keyid}")
+  @Path("/{apikey}")
   @Operation(
   summary = "Delete an API key for a user",
   description = "Deletes API key with the given ID. Must be called by the user themselves (if they are the owner) or an organization admin.",
   parameters = Array(
-    new Parameter(name = "organization", in = ParameterIn.PATH, required = true, description = "Organization ID"),
+    new Parameter(name = "organization", in = ParameterIn.PATH, required = true, description = "Organization"),
     new Parameter(name = "username", in = ParameterIn.PATH, required = true, description = "Username"),
-    new Parameter(name = "keyid", in = ParameterIn.PATH, required = true, description = "API key ID to delete")
+    new Parameter(name = "apikey", in = ParameterIn.PATH, required = true, description = "API key")
   ),
   responses = Array(
     new responses.ApiResponse(responseCode = "204", description = "deleted"),
@@ -235,31 +266,34 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
     }
   }
 
-  // === GET /v1/orgs/{organization}/users/{username}/apikeys/{keyid} ===
+  // === GET /v1/orgs/{organization}/users/{username}/apikeys/{apikey} ===
   @GET
-  @Path("/{keyid}")
+  @Path("/{apikey}")
   @Operation(
   summary = "Get an API key by ID",
   description = "Returns API key with the given ID. Must be called by the user on their own behalf (if they are the owner) or by an organization admin.",
   parameters = Array(
-    new Parameter(name = "organization", in = ParameterIn.PATH, required = true, description = "Organization ID"),
+    new Parameter(name = "organization", in = ParameterIn.PATH, required = true, description = "Organization"),
     new Parameter(name = "username", in = ParameterIn.PATH, required = true, description = "Username"),
-    new Parameter(name = "keyid", in = ParameterIn.PATH, required = true, description = "API key ID")
+    new Parameter(name = "apikey", in = ParameterIn.PATH, required = true, description = "API key")
   ),
   responses = Array(
     new responses.ApiResponse(
       responseCode = "200",
-      description = "response body",
+      description = "ok",
       content = Array(new Content(
         mediaType = "application/json",
         schema = new Schema(implementation = classOf[ApiKeyMetadata]),
         examples = Array(
           new ExampleObject(
+            description = "The response body for an API key resource",
+            name = "200 - API key resource",
             value = """{
-  "id": "string",
-  "description": "string",
-  "owner": "string",
-  "lastUpdated": "string"
+  "description": "Test API key for user",
+  "id": "50dea228-8bca-4640-4480-4d1ec44ec89f",
+  "label": "api-key-test-0",
+  "lastUpdated": "2025-07-25T13:38:15.295452297Z[UTC]",
+  "owner": "myorg/user0"
 }"""
           )
         )

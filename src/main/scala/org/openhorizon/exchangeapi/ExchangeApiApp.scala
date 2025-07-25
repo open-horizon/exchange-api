@@ -33,7 +33,7 @@ import org.apache.pekko.http.scaladsl.server.RouteResult.Rejected
 import org.apache.pekko.http.scaladsl.server.directives.{Credentials, DebuggingDirectives, LogEntry}
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.pattern.{BackoffOpts, FutureRef}
-import org.json4s.{JValue, _}
+import org.json4s._
 import org.openhorizon.exchangeapi.SwaggerDocService.complete
 import org.openhorizon.exchangeapi.auth.AuthCache.logger
 import org.openhorizon.exchangeapi.auth.{ApiKeyUtils, AuthCache, AuthRoles, AuthenticationSupport, DbConnectionException, IAgbot, INode, IUser, IdNotFoundForAuthorizationException, Identity, Identity2, InvalidCredentialsException, Password}
@@ -41,7 +41,6 @@ import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
 import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements, Confirm}
 import org.openhorizon.exchangeapi.route.agreementbot.message.{Message, Messages}
-import org.openhorizon.exchangeapi.route.apikey.UserApiKeys
 import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
 import org.openhorizon.exchangeapi.route.managementpolicy.{ManagementPolicies, ManagementPolicy}
@@ -77,6 +76,7 @@ import org.apache.pekko.pattern.BackoffOpts.onFailure
 import org.apache.pekko.routing.NoRouter
 import org.apache.pekko.util.ByteString
 import org.json4s.jackson.{JsonMethods, Serialization}
+import org.openhorizon.exchangeapi.route.user.apikey.UserApiKeys
 import org.springframework.security.crypto.bcrypt.BCrypt
 import slick.jdbc.TransactionIsolation.Serializable
 

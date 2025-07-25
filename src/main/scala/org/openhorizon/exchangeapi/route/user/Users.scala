@@ -57,33 +57,47 @@ trait Users extends JacksonSupport with AuthenticationSupport {
   "users": {
     "org1/user1": {
       "admin": false,
+      "apikeys": [
+        {
+          "description": "string",
+          "id": "string",
+          "label": "string",
+          "lastUpdated": "string"
+        },
+        {
+          "description": "string",
+          "id": "string",
+          "label": "string",
+          "lastUpdated": "string"
+        }
+      ],
       "email": "user1@email1.com",
       "hubAdmin": false,
       "lastUpdated": "2025-05-13T02:34:09.357160Z[UTC]",
       "password": "***************",
-      "updatedBy": "org1/user1",
-      "apikeys": [
-        {
-          "id": "string",
-          "description": "string",
-          "lastUpdated": "string"
-        }
-      ]
+      "updatedBy": "org1/user1"
     },
     "org2/user2": {
       "admin": true,
+      "apikeys": [
+        {
+          "description": "string",
+          "id": "string",
+          "label": "string",
+          "lastUpdated": "string"
+        },
+        {
+          "description": "string",
+          "id": "string",
+          "label": "string",
+          "lastUpdated": "string"
+        }
+      ],
       "email": "",
       "hubAdmin": false,
       "lastUpdated": "",
       "password": "***************",
-      "updatedBy": "",
-      "apikeys": [
-        {
-          "id": "string",
-          "description": "string",
-          "lastUpdated": "string"
-        }
-      ]
+      "updatedBy": ""
     }
   },
   "lastIndex": 0
@@ -103,7 +117,7 @@ trait Users extends JacksonSupport with AuthenticationSupport {
     {
       logger.debug(s"GET /orgs/$organization/users - By ${identity.resource}:${identity.role}")
       
-      val getUsersWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
+      val getUsersWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Timestamp], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)])] =
         for {
           users <-
             Compiled((UsersTQ.filter(user => (user.organization === organization))
@@ -113,8 +127,8 @@ trait Users extends JacksonSupport with AuthenticationSupport {
                             .filter(_.password.isDefined)
                             .joinLeft(UsersTQ.map(users => (users.organization, users.user, users.username)))
                             .on(_.modifiedBy === _._2)
-                            .joinLeft(ApiKeysTQ)
-                            .on(_._1.user === _.user)
+                            .joinLeft((ApiKeysTQ.map(key => (key.description, key.id, key.label, key.modifiedAt, key.user)))) // DO NOT query hashed credentials from the database
+                            .on(_._1.user === _._5)
                             .map(user =>
                                   ((user._1._1.createdAt,
                                    user._1._1.email,
@@ -135,8 +149,8 @@ trait Users extends JacksonSupport with AuthenticationSupport {
                                           .filter(_.password.isEmpty)
                                           .joinLeft(UsersTQ.map(users => (users.organization, users.user, users.username)))
                                           .on(_.modifiedBy === _._2)
-                                          .joinLeft(ApiKeysTQ)
-                                          .on(_._1.user === _.user)
+                                          .joinLeft((ApiKeysTQ.map(key => (key.description, key.id, key.label, key.modifiedAt, key.user)))) // DO NOT query hashed credentials from the database
+                                          .on(_._1.user === _._5)
                                           .map(user =>
                                                 ((user._1._1.createdAt,
                                                  user._1._1.email,
@@ -166,9 +180,11 @@ trait Users extends JacksonSupport with AuthenticationSupport {
                               val userResult = userResults.head  
                               val userRow = userResult._1
                               
-                              val apiKeyMetadataList = userResults.filter(_._3.isDefined).map { case (_, _, Some(apiKeyRow)) =>
-                                    new ApiKeyMetadata(apiKeyRow, null)
-                              }.distinct
+                              val apiKeyMetadataList =
+                                userResults.filter(_._3.isDefined).map {
+                                  case (_, _, Some(apiKeyRow)) =>
+                                    new ApiKeyMetadata(tuple = (apiKeyRow._1, apiKeyRow._2, apiKeyRow._3, apiKeyRow._4)) // (description, id, label, modified_at)
+                                }.distinct
 
                               val user = new User((userResult._1, userResult._2), Some(apiKeyMetadataList))
                               s"${userRow.organization}/${userRow.username}" -> user

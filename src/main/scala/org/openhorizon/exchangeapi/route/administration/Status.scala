@@ -218,7 +218,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
                                                                    schema = new Schema(implementation = classOf[AdminStatus])))),
                      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                      new responses.ApiResponse(responseCode = "403", description = "access denied")))
-  def adminStatus(identity: Identity2): Route = {
+  def adminStatus(@Parameter(hidden = true) identity: Identity2): Route = {
     path("admin" / "status") {
       get {
         exchAuth(TAction(), Access.STATUS, validIdentity = identity) {
@@ -244,7 +244,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(description = "access denied", responseCode = "403"),
                      new responses.ApiResponse(description = "not found", responseCode = "404")),
              summary = "Returns summary status of the org")
-  def orgStatus(identity: Identity2): Route = {
+  def orgStatus(@Parameter(hidden = true) identity: Identity2): Route = {
     path("orgs" / Segment /"status") {
       organization =>
         get {

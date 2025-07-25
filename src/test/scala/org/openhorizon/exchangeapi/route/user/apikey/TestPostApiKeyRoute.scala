@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.apikey
+package org.openhorizon.exchangeapi.route.user.apikey
 
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
@@ -11,16 +11,21 @@ import org.openhorizon.exchangeapi.utility.{ApiUtils, Configuration, DatabaseCon
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
+
 import scala.concurrent.Await
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
+
 import scala.concurrent.duration.{Duration, DurationInt}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 import org.openhorizon.exchangeapi.auth.{Password, Role}
+
 import scala.concurrent.ExecutionContext.Implicits.global
-import _root_.org.openhorizon.exchangeapi.utility.{HttpCode,ApiTime}
+import _root_.org.openhorizon.exchangeapi.utility.{ApiTime, HttpCode}
+import org.openhorizon.exchangeapi.route.user.apikey.PostApiKeyResponse
+
 import java.sql.Timestamp
 import java.util.UUID
 

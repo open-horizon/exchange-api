@@ -13,6 +13,7 @@ import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
 import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements, Confirm}
 import org.openhorizon.exchangeapi.route.agreementbot.message.{Message, Messages}
 import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat}
+import org.openhorizon.exchangeapi.route.user.apikey.UserApiKeys
 //import org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns
 import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
 import org.openhorizon.exchangeapi.route.deploymentpolicy.{DeploymentPolicy, DeploymentPolicySearch}
@@ -115,7 +116,7 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[org.openhorizon.exchangeapi.route.user.Confirm],
         classOf[org.openhorizon.exchangeapi.route.user.User],
         classOf[org.openhorizon.exchangeapi.route.user.Users],
-        classOf[org.openhorizon.exchangeapi.route.apikey.UserApiKeys])
+        classOf[UserApiKeys])
   override def apiDocsPath: String = "api-docs" //where you want the swagger-json endpoint exposed
   // override def basePath: String = ""
   private def domain: String = {

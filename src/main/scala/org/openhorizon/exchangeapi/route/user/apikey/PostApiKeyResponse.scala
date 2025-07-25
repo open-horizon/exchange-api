@@ -1,4 +1,4 @@
-package org.openhorizon.exchangeapi.route.apikey
+package org.openhorizon.exchangeapi.route.user.apikey
 
 final case class PostApiKeyResponse(description: String = "",
                                     id: String,

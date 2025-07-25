@@ -58,18 +58,26 @@ trait User extends JacksonSupport with AuthenticationSupport {
                   """{
   "users": {
     "orgid/username": {
-      "password": "string",
       "admin": false,
-      "email": "string",
-      "lastUpdated": "string",
-      "updatedBy": "string",
       "apikeys": [
         {
-          "id": "string",
           "description": "string",
+          "id": "string",
+          "label": "string",
+          "lastUpdated": "string"
+        },
+        {
+          "description": "string",
+          "id": "string",
+          "label": "string",
           "lastUpdated": "string"
         }
-      ]
+      ],
+      "email": "string",
+      "hubAdmin": false,
+      "lastUpdated": "string",
+      "password": "string",
+      "updatedBy": "string"
     }
   },
   "lastIndex": 0
@@ -91,7 +99,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
     get {
       logger.debug(s"GET /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
       
-      val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
+      val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Timestamp], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)])] =
         for {
           users <-
             Compiled((UsersTQ.filter(user => (user.organization === organization &&
@@ -103,8 +111,8 @@ trait User extends JacksonSupport with AuthenticationSupport {
                             .take(1)
                             .joinLeft(UsersTQ.map(users => (users.organization, users.user, users.username)))
                             .on(_.modifiedBy === _._2)
-                            .joinLeft(ApiKeysTQ)
-                            .on(_._1.user === _.user)
+                            .joinLeft((ApiKeysTQ.map(key => (key.description, key.id, key.label, key.modifiedAt, key.user)))) // DO NOT query hashed credentials from the database
+                            .on(_._1.user === _._5)
                             .map(users =>
                                   ((users._1._1.createdAt,
                                    users._1._1.email,
@@ -128,8 +136,8 @@ trait User extends JacksonSupport with AuthenticationSupport {
                             .take(1)
                             .joinLeft(UsersTQ.map(users => (users.organization, users.user, users.username)))
                             .on(_.modifiedBy === _._2)
-                            .joinLeft(ApiKeysTQ)
-                            .on(_._1.user === _.user)
+                            .joinLeft((ApiKeysTQ.map(key => (key.description, key.id, key.label, key.modifiedAt, key.user)))) // DO NOT query hashed credentials from the database
+                            .on(_._1.user === _._5)
                             .map(users =>
                                    ((users._1._1.createdAt,
                                      users._1._1.email,
@@ -154,9 +162,11 @@ trait User extends JacksonSupport with AuthenticationSupport {
                         val userRow = userResult._1
                         val modifiedByInfo = userResult._2
 
-                        val apiKeyMetadataList = result.filter(_._3.isDefined).map { case (_, _, Some(apiKeyRow)) =>
-                              new ApiKeyMetadata(apiKeyRow, null)
-                        }.distinct
+                        val apiKeyMetadataList =
+                          result.filter(_._3.isDefined).map {
+                            case (_, _, Some(apiKeyRow)) =>
+                              new ApiKeyMetadata(tuple = (apiKeyRow._1, apiKeyRow._2, apiKeyRow._3, apiKeyRow._4)) // (description, id, label, modified_at)
+                          }.distinct
 
                         val user = new UserTable((userRow, modifiedByInfo), Some(apiKeyMetadataList))
                         val userMap: Map[String, UserTable] =

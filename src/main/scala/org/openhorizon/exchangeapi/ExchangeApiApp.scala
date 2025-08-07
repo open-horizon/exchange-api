@@ -1340,7 +1340,6 @@ object ExchangeApiApp extends App
     val keyManager: KeyManagerFactory = KeyManagerFactory.getInstance("PKIX")
     val sslContext: SSLContext = SSLContext.getInstance("TLSv1.3")
     val trustManager: TrustManagerFactory = TrustManagerFactory.getInstance("PKIX")
-    trustManager
     
     try {
       keyStore.load(new FileInputStream(truststore.get),

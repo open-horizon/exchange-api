@@ -25,6 +25,7 @@ import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResC
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import scalacache.modes.scalaFuture.mode
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.language.postfixOps
@@ -108,6 +109,9 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
       reqBody =>
         logger.debug(s"POST /orgs/${organization}/nodes/${node}/services_configstate - By ${identity.resource}:${identity.role}")
       validateWithMsg(reqBody.getAnyProblem) {
+        
+        val INSTANT: Instant = Instant.now()
+        
         complete({
           db.run(NodesTQ.getRegisteredServices(resource).result.asTry.flatMap({
             case Success(v) =>
@@ -121,7 +125,7 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + organization + "/nodes/" + node + "/configstate - write row result: " + v)
-              ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODESERVICES_CONFIGSTATE, ResChangeOperation.CREATED).insert.asTry
+              ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODESERVICES_CONFIGSTATE, ResChangeOperation.CREATED, INSTANT).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>

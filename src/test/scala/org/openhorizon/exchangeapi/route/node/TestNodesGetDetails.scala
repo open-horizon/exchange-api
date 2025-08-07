@@ -23,6 +23,7 @@ import org.scalatest.BeforeAndAfterAll
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.collection.immutable.{List, Map}
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -42,7 +43,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   // Test data.
   private val TESTUSERS: Seq[UserRow] =

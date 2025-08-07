@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.nodegroup
 
-import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.table
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.auth.{Password, Role}
@@ -19,8 +18,7 @@ import slick.jdbc
 import slick.jdbc.PostgresProfile.api.{anyToShapedValue, columnExtensionMethods, columnToOrdered, longColumnType, queryDeleteActionExtensionMethods, queryInsertActionExtensionMethods, streamableQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType}
 import slick.sql.FixedSqlAction
 
-import java.sql.Timestamp
-import java.time.ZoneId
+import java.time.{Instant, ZoneId}
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 import scala.math.Ordered.orderingToOrdered
@@ -35,11 +33,8 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
-  private val INITIALTIMESTAMP: Timestamp = ApiTime.nowUTCTimestamp
-  private val INITIALTIMESTAMPSTRING: String = fixFormatting(INITIALTIMESTAMP.toInstant
-                                                                             .atZone(ZoneId.of("UTC"))
-                                                                             .withZoneSameInstant(ZoneId.of("UTC"))
-                                                                             .toString)
+  private val INITIALTIMESTAMP: Instant = ApiTime.nowUTCTimestamp
+  private val INITIALTIMESTAMPSTRING: String = INITIALTIMESTAMP.toString
   
   private val TESTNODEGROUPS: Seq[NodeGroupRow] =
     Seq(NodeGroupRow(admin = false,

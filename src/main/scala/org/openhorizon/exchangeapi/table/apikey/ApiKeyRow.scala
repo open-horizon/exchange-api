@@ -1,13 +1,14 @@
 package org.openhorizon.exchangeapi.table.apikey
-import java.sql.Timestamp
+
+import java.time.Instant
 import java.util.UUID
 
-final case class ApiKeyRow(createdAt: java.sql.Timestamp,
+final case class ApiKeyRow(createdAt: Instant,
                            createdBy: UUID,
                            description: Option[String] = None,
                            hashedKey: String,
                            id: UUID,
-                           modifiedAt: java.sql.Timestamp,
+                           modifiedAt: Instant,
                            modifiedBy: UUID,
                            orgid: String,
                            user: UUID,

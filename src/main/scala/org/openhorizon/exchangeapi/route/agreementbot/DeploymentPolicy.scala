@@ -20,6 +20,7 @@ import org.openhorizon.exchangeapi.{ExchangeApiApp, table}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -55,6 +56,9 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                                      @Parameter(hidden = true) organization: String,
                                      @Parameter(hidden = true) resource: String): Route = {
     logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - By ${identity.resource}:${identity.role}")
+    
+    val INSTANT: Instant = Instant.now()
+    
     complete({
       db.run(AgbotBusinessPolsTQ.getBusinessPol(resource, deploymentPolicy)
                                 .delete
@@ -64,7 +68,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                                     // Add the resource to the resourcechanges table
                                     logger.debug("DELETE /agbots/" + agreementBot + "/businesspols/" + deploymentPolicy + " result: " + v)
                                     if (v > 0) // there were no db errors, but determine if it actually found it or not
-                                      resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTBUSINESSPOLS, ResChangeOperation.DELETED).insert.asTry
+                                      resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTBUSINESSPOLS, ResChangeOperation.DELETED, INSTANT).insert.asTry
                                     else
                                       DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("buspol.not.found", deploymentPolicy, resource))).asTry
                                   case Failure(t) =>

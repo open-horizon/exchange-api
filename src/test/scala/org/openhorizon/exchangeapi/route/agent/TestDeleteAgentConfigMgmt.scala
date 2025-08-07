@@ -25,7 +25,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc.PostgresProfile.api._
 
 import java.sql.Timestamp
-import java.time.ZoneId
+import java.time.{Instant, ZoneId}
 import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -42,7 +42,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   private val TESTORGANIZATIONS: Seq[OrgRow] =
     Seq(OrgRow(heartbeatIntervals = "",
@@ -145,7 +145,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   // Users that are dynamically needed, specific to the test case.
-  def fixtureVersionsChanged(testCode: Seq[(java.sql.Timestamp, String)] => Any, testData: Seq[(java.sql.Timestamp, String)]): Any = {
+  def fixtureVersionsChanged(testCode: Seq[(Instant, String)] => Any, testData: Seq[(Instant, String)]): Any = {
     try{
       Await.result(DBCONNECTION.run(AgentVersionsChangedTQ ++= testData), AWAITDURATION)
       testCode(testData)
@@ -172,8 +172,8 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   test("DELETE /v1/orgs/IBM/AgentFileVersion -- 403 Unauthorized Access - IBM User") {
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     val TESTUSERS: Seq[UserRow] = {
       Seq(UserRow(createdAt    = TIMESTAMP,
                 isHubAdmin   = false,
@@ -220,8 +220,8 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
       Seq(("2.2.2", "IBM", None))
     val TESTSOFT: Seq[(String, String, Option[Long])] =
       Seq(("IBM", "3.3.3", None))
-    val TESTCHG: Seq[(Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))  // TODO HERE!!!!!!!!!!!!!!!!!!!!!!1
     
     fixtureAgentCertVersions(
       _ => {
@@ -238,7 +238,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                     assert(response.code === HttpCode.DELETED.intValue)
                     
                     val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
-                    val changed: Seq[(java.sql.Timestamp, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
+                    val changed: Seq[(Instant, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
                     val configurations: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
                     val resource: Seq[ResourceChangeRow] =
                       Await.result(
@@ -289,8 +289,8 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
         owner         = TESTUSERS(1).user,
         publicKey     = "",
         token         = Password.hash("TestDeleteAgentConfigMgmt-a1tok")))  // IBM/TestDeleteAgentConfigMgmt-a1:TestDeleteAgentConfigMgmt-a1tok
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     
     fixtureAgbots(
       _ =>{
@@ -303,7 +303,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
             assert(response.code === HttpCode.DELETED.intValue)
   
             val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
-            val changed: Seq[(Timestamp, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
+            val changed: Seq[(Instant, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
             val configurations: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
             val resource: Seq[ResourceChangeRow] =
               Await.result(DBCONNECTION.run(
@@ -329,8 +329,8 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   test("DELETE /v1/orgs/IBM/AgentFileVersion -- 204 Deleted - IBM Organization Admin") {
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     val TESTUSER: Seq[UserRow] = {
       Seq(UserRow(createdAt    = TIMESTAMP,
                   isHubAdmin   = false,
@@ -354,8 +354,8 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
   }
   
   test("DELETE /v1/orgs/IBM/AgentFileVersion -- 204 Deleted - TestDeleteAgentConfigMgmt Agbot") {
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     
     fixtureVersionsChanged(
       _ => {

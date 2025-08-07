@@ -22,6 +22,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configurat
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -54,6 +55,9 @@ trait Key extends JacksonSupport with AuthenticationSupport {
                                  @Parameter(hidden = true) orgid: String,
                                  @Parameter(hidden = true) compositeId: String): Route =
     delete {
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         var storedPublicField = false
         db.run(PatternsTQ.getPublic(compositeId).result.asTry.flatMap({
@@ -70,7 +74,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /patterns/" + pattern + "/keys/" + keyId + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.key.not.found", keyId, compositeId))).asTry
             }
@@ -161,6 +165,9 @@ trait Key extends JacksonSupport with AuthenticationSupport {
         reqBodyAsStr =>
           val reqBody: PutPatternKeyRequest = PutPatternKeyRequest(reqBodyAsStr)
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               db.run(reqBody.toPatternKeyRow(compositeId, keyId).upsert.asTry.flatMap({
                 case Success(v) =>
@@ -174,7 +181,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
                   logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " public field: " + public)
                   if (public.nonEmpty) {
                     val publicField: Boolean = public.head
-                    ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                    ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                   } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({

@@ -15,6 +15,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -29,7 +30,7 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
   
   private val INITIALTIMESTAMP: String = ApiTime.nowUTC
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   private val TESTORGS: Seq[OrgRow] =
     Seq(OrgRow(description        = "",

@@ -14,7 +14,6 @@ import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.schema.SchemaTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.tag.AdminStatusTest
-import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, HttpCode}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
@@ -22,8 +21,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
-import java.sql.Timestamp
-import java.time.ZoneId
+import java.time.{Instant, ZoneId}
 import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -43,8 +41,8 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
 
   private val PASSWORD = "password"
   
-  private val TIMESTAMP: Timestamp = ApiTime.nowUTCTimestamp
-  private val TIMESTAMPSTRING: String = fixFormatting(TIMESTAMP.toInstant.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("UTC")).toString)
+  private val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
+  private val TIMESTAMPSTRING: String = TIMESTAMP.toString
 
   private val TESTORGS: Seq[OrgRow] =
     Seq(OrgRow(description = "",
@@ -245,28 +243,28 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                     msgId = 0,
                     nodeId = TESTNODES(0).id,
                     nodePubKey = "",
-                    timeExpires = ApiTime.futureUTC(120),
+                    timeExpires = Instant.now().plusSeconds(120).toString,
                     timeSent = TIMESTAMPSTRING),
         AgbotMsgRow(agbotId = TESTAGBOTS(1).id,
                     message = "",
                     msgId = 0,
                     nodeId = TESTNODES(0).id,
                     nodePubKey = "",
-                    timeExpires = ApiTime.futureUTC(120),
+                    timeExpires = Instant.now().plusSeconds(120).toString,
                     timeSent = TIMESTAMPSTRING),
         AgbotMsgRow(agbotId = TESTAGBOTS(2).id,
                     message = "",
                     msgId = 0,
                     nodeId = TESTNODES(1).id,
                     nodePubKey = "",
-                    timeExpires = ApiTime.futureUTC(120),
+                    timeExpires = Instant.now().plusSeconds(120).toString,
                     timeSent = TIMESTAMPSTRING),
         AgbotMsgRow(agbotId = TESTAGBOTS(3).id,
                     message = "",
                     msgId = 0,
                     nodeId = TESTNODES(2).id,
                     nodePubKey = "",
-                    timeExpires = ApiTime.futureUTC(120),
+                    timeExpires = Instant.now().plusSeconds(120).toString,
                     timeSent = TIMESTAMPSTRING))
   
   private val TESTNODEMESSAGES: Seq[NodeMsgRow] =
@@ -275,21 +273,21 @@ class TestGetAdminStatus extends AnyFunSuite with BeforeAndAfterAll {
                    message = "",
                    msgId = 0, // this will be automatically set to a unique ID by the DB
                    nodeId = TESTNODES(0).id,
-                   timeExpires = ApiTime.futureUTC(120),
+                   timeExpires = Instant.now().plusSeconds(120).toString,
                    timeSent = TIMESTAMPSTRING),
         NodeMsgRow(agbotId = TESTAGBOTS(2).id,
                    agbotPubKey = "",
                    message = "",
                    msgId = 0, // this will be automatically set to a unique ID by the DB
                    nodeId = TESTNODES(1).id,
-                   timeExpires = ApiTime.futureUTC(120),
+                   timeExpires = Instant.now().plusSeconds(120).toString,
                    timeSent = TIMESTAMPSTRING),
         NodeMsgRow(agbotId = TESTAGBOTS(3).id,
                    agbotPubKey = "",
                    message = "",
                    msgId = 0, // this will be automatically set to a unique ID by the DB
                    nodeId = TESTNODES(2).id,
-                   timeExpires = ApiTime.futureUTC(120),
+                   timeExpires = Instant.now().plusSeconds(120).toString,
                    timeSent = TIMESTAMPSTRING))
 
   private val ROOTAUTH = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))

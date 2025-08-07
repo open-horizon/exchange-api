@@ -17,6 +17,7 @@ import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.utility.{ApiTime, HttpCode, RouteUtils}
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 @Path("/v1/orgs/{organization}/patterns/{pattern}/nodehealth")
@@ -122,7 +123,7 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
               The filter is: n.pattern==ourpattern && n.lastHeartbeat>=lastTime
               Note about Slick usage: joinLeft returns node rows even if they don't have any agreements (which means the agreement cols are Option() )
             */
-            val lastTime: String = if (reqBody.lastTime != "") reqBody.lastTime else ApiTime.beginningUTC
+            val lastTime: String = if (reqBody.lastTime != "") reqBody.lastTime else Instant.MIN.toString
             val q = for {
               (n, a) <- NodesTQ.filter(_.orgid inSet(nodeOrgids)).filter(_.pattern === compositePat).filter(_.lastHeartbeat >= lastTime) joinLeft NodeAgreementsTQ on (_.id === _.nodeId)
             } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))

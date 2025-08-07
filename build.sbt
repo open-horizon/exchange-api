@@ -50,7 +50,7 @@ lazy val root = (project in file("."))
     
     // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
     libraryDependencies ++= Seq(
-      "com.github.pjfanning" %% "pekko-http-jackson" % "[3.2.0,)",
+      "com.github.pjfanning" %% "pekko-http-jackson" % "[3.2.2,)",
       "org.apache.pekko"     %% "pekko-http"         % pekkoHttpVersion.value,
       "org.apache.pekko"     %% "pekko-http-xml"     % pekkoHttpVersion.value,
       // "org.apache.pekko"     %% "pekko-http-caching" % pekkoHttpVersion.value,
@@ -59,8 +59,8 @@ lazy val root = (project in file("."))
       "org.apache.pekko"     %% "pekko-protobuf-v3"  % pekkoVersion.value,
       "org.apache.pekko"     %% "pekko-stream"       % pekkoVersion.value,
 
-      "org.springframework.security" % "spring-security-core" % "[6.5.0,)",
-      "org.bouncycastle" % "bcprov-jdk18on" % "[1.80,)",
+      "org.springframework.security" % "spring-security-core" % "[7.0.0-M1,)",
+      "org.bouncycastle" % "bcprov-jdk18on" % "[1.81,)",
       
       //"org.pac4j" % "pac4j-oauth" % "6.1.2",
       //"org.pac4j" % "pac4j-oidc"  % "6.1.2",
@@ -74,7 +74,7 @@ lazy val root = (project in file("."))
       "ch.qos.logback" % "logback-classic" % "[1.5.18,)",
       "com.typesafe.slick" %% "slick-hikaricp" % "[3.4.1]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       "com.github.tminglei" %% "slick-pg_json4s" % "[0.21.0]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
-      "org.postgresql" % "postgresql" % "[42.7.6,)",
+      "org.postgresql" % "postgresql" % "[42.7.7,)",
       "org.scalaj" %% "scalaj-http" % "[2.4.2]",                  // Deprecated as of April 2022, in v2.4.2
       "com.typesafe" % "config" % "[1.4.3,)",
       "com.github.cb372" %% "scalacache-caffeine" % "[0.28.0]",

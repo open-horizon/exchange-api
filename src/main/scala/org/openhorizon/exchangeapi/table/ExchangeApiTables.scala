@@ -14,7 +14,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsT
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.AgbotPatternsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.AgbotBusinessPolsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
-import org.openhorizon.exchangeapi.table.apikey.{ApiKeyRow,ApiKeysTQ}
+import org.openhorizon.exchangeapi.table.apikey.{ApiKeyRow, ApiKeysTQ}
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
@@ -38,16 +38,15 @@ import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicyTQ
 import org.openhorizon.exchangeapi.table.service.{SearchServiceTQ, ServicesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg}
 import org.postgresql.util.PSQLException
 import org.springframework.security.crypto.bcrypt.BCrypt
 import scalacache.modes.scalaFuture.mode
 
+import java.time.Instant
 import java.util.UUID
 //import slick.jdbc.PostgresProfile.api._
 
-import java.sql.Timestamp
 import java.time.ZoneId
 import scala.collection.mutable
 import scala.concurrent.{Await, ExecutionContext}
@@ -151,8 +150,8 @@ object ExchangeApiTables {
 
   /** Create the root user in the DB. This is done separately from load() because we need the db execution context */
   def createRoot(db: Database)(implicit logger: LoggingAdapter, executionContext: ExecutionContext): Unit = {
-    val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
-    val timeStamp: String = fixFormatting(changeTimestamp.toInstant.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("UTC")).toString)
+    val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
+    val timeStamp: String = changeTimestamp.toString
     val configHubAdmins: scala.collection.mutable.Map[String, UserRow] = mutable.Map.empty[String, UserRow]
     
     // IBM Cloud Account ID for the root Organization

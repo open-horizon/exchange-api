@@ -25,6 +25,7 @@ import slick.jdbc.PostgresProfile.api._
 import slick.lifted.MappedProjection
 
 import java.lang.IllegalStateException
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -384,6 +385,9 @@ trait Service extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"PUT /orgs/${organization}/services/${service} - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem(organization, resource)) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val owner: Option[UUID] = identity.identifier   // currently only users are allowed to create/update services, so owner will never be blank
               
@@ -432,7 +436,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                     // TODO: if (owner.isDefined) AuthCache.putServiceOwner(resource, owner.get) // currently only users are allowed to update service resources, so owner should never be blank
                     // TODO: AuthCache.putServiceIsPublic(resource, reqBody.public)
                     val serviceId: String = resource.substring(resource.indexOf("/") + 1, resource.length)
-                    ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, reqBody.public, ResChangeResource.SERVICE, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                    ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, reqBody.public, ResChangeResource.SERVICE, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                   } else {
                     DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                   }
@@ -522,6 +526,9 @@ trait Service extends JacksonSupport with AuthenticationSupport {
           logger.debug(s"PATCH /orgs/${organization}/services/${service} - By ${identity.resource}:${identity.role}")
         logger.debug(s"Doing PATCH /orgs/$organization/services/$service")
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val (action, attrName) = reqBody.getDbUpdate(resource, organization)
               if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.service.attr.specified")))
@@ -593,7 +600,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                       else {
                         publicField = public.head
                       }
-                      ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, publicField, ResChangeResource.SERVICE, ResChangeOperation.MODIFIED).insert.asTry
+                      ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, publicField, ResChangeResource.SERVICE, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
                     } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                   case Failure(t) => DBIO.failed(t).asTry
                 })).map({

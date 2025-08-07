@@ -23,6 +23,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.collection.immutable
 import scala.concurrent.Await
 import scala.concurrent.duration._
@@ -39,7 +40,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
   
   private val AWAITDURATION: Duration = 15.seconds
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   // Resources we minimally and statically need for all test cases.
   private val TESTUSER: UserRow =
@@ -526,7 +527,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
     
     fixturePolicies(_ => {
       fixtureNodes(_ => {
-        val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(ApiTime.nowSeconds, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+        val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(Instant.now().getEpochSecond, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
         info("code: " + response.code)
         info("body: " + response.body)
         assert(response.code === HttpCode.NOT_FOUND.intValue)
@@ -915,7 +916,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 publicKey = "key",
                 arch = "arm",
                 heartbeatIntervals = "",
-                lastUpdated = ApiTime.futureUTC(60)))
+                lastUpdated = Instant.now().plusSeconds(60).toString))
     //val TESTPAGINATION: Seq[SearchOffsetPolicyAttributes] =
       //Seq(SearchOffsetPolicyAttributes(agbot = "TestPolicySearchPost/a1",
         //offset = Some(ApiTime.beginningUTC),
@@ -980,10 +981,10 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                   publicKey = "key",
                   arch = "arm",
                   heartbeatIntervals = "",
-                  lastUpdated = ApiTime.futureUTC(60)))
+                  lastUpdated = Instant.now().plusSeconds(60).toString))
     val TESTPAGINATION: Seq[SearchOffsetPolicyAttributes] =
       Seq(SearchOffsetPolicyAttributes(agbot = "TestPolicySearchPost/a1",
-                                       offset = Some(ApiTime.beginningUTC),
+                                       offset = Some(Instant.MIN.toString),
                                        policy = "TestPolicySearchPost/pol1",
                                        session = Some("token")))
   

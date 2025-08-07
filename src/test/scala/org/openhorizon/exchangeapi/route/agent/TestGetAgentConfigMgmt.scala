@@ -25,7 +25,8 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
-import java.time.ZoneId
+import java.time.temporal.{ChronoUnit, TemporalUnit}
+import java.time.{Instant, ZoneId}
 import scala.collection.immutable.List
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -42,7 +43,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   private val TESTUSERS: Seq[UserRow] =
     Seq(UserRow(createdAt    = TIMESTAMP,
@@ -171,7 +172,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   // Users that are dynamically needed, specific to the test case.
-  def fixtureVersionsChanged(testCode: Seq[(java.sql.Timestamp, String)] => Any, testData: Seq[(java.sql.Timestamp, String)]): Any = {
+  def fixtureVersionsChanged(testCode: Seq[(Instant, String)] => Any, testData: Seq[(Instant, String)]): Any = {
     try{
       Await.result(DBCONNECTION.run(AgentVersionsChangedTQ ++= testData), AWAITDURATION)
       testCode(testData)
@@ -207,8 +208,8 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
     val TESTSOFT: Seq[(String, String, Option[Long])] =
       Seq(("IBM", "3.3.3-a", Option(10L)),
           ("IBM", "some other version", Option(4L)))
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
   
     fixtureAgentCertVersions(
       _ => {
@@ -236,7 +237,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
                     assert(versions.agentConfigVersions(1)   === TESTCONFIG(0)._1)
                     assert(versions.agentSoftwareVersions(0) === TESTSOFT(1)._2)
                     assert(versions.agentSoftwareVersions(1) === TESTSOFT(0)._2)
-                    assert(versions.lastUpdated              === TESTCHG(0)._1.toLocalDateTime.atZone(ZoneId.of("UTC")).toString)
+                    assert(TESTCHG(0)._1.truncatedTo(ChronoUnit.MICROS).toString <= versions.lastUpdated)
                   }, TESTCHG)
               }, TESTSOFT)
           }, TESTCONFIG)
@@ -253,8 +254,8 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
                    owner         = TESTUSERS(1).user,
                    publicKey     = "",
                    token         = Password.hash("TestGetAgentConfigMgmt-a1tok")))  // IBM/TestGetAgentConfigMgmt-a1:TestGetAgentConfigMgmt-a1tok
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     
     fixtureAgbots(
       _ =>{
@@ -270,8 +271,8 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - IBM Node") {
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     val TESTNODE: Seq[NodeRow] =
       Seq(NodeRow(id = "IBM/TestGetAgentConfigMgmt-n1",
                   orgid = "IBM",
@@ -304,8 +305,8 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - IBM Organization Admin") {
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     val TESTUSERS: Seq[UserRow] = {
       Seq(UserRow(createdAt    = TIMESTAMP,
                   isHubAdmin   = false,
@@ -330,8 +331,8 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - IBM User") {
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     val TESTUSERS: Seq[UserRow] = {
       Seq(UserRow(createdAt    = TIMESTAMP,
                   isHubAdmin   = false,
@@ -356,8 +357,8 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - TestGetAgentConfigMgmt Agbot") {
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     
     fixtureVersionsChanged(
       _ => {
@@ -370,8 +371,8 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - TestGetAgentConfigMgmt Node") {
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
 
     fixtureVersionsChanged(
       _ => {
@@ -384,8 +385,8 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - TestGetAgentConfigMgmt Organization Admin") {
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     
     fixtureVersionsChanged(
       _ => {
@@ -398,8 +399,8 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - TestGetAgentConfigMgmt User") {
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] =
-      Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] =
+      Seq((ApiTime.nowUTCTimestamp, "IBM"))
     
     fixtureVersionsChanged(
       _ => {

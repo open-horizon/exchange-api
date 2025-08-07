@@ -22,6 +22,7 @@ import scala.concurrent.duration.DurationInt
 import scala.util.{Failure, Success}
 import scalacache.modes.scalaFuture._
 
+import java.time.Instant
 import java.util.UUID
 
 @Path("/v1/orgs/{organization}/users/{username}/changepw")
@@ -98,7 +99,7 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
         Future { logger.debug(s"POST /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}") }
         
         validateWithMsg(reqBody.getAnyProblem) {
-          val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+          val timestamp: Instant = ApiTime.nowUTCTimestamp
                       val isOAuthEnabled = Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url")
           
           val action =

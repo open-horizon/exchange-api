@@ -22,6 +22,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configurat
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -57,6 +58,9 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                       @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot/agreements/$agreement - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         db.run(AgbotAgreementsTQ.getAgreement(resource, agreement)
                                 .delete.asTry
@@ -65,7 +69,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                                     // Add the resource to the resourcechanges table
                                     logger.debug("DELETE /agbots/" + agreementBot + "/agreements/" + agreement + " result: " + v)
                                     if (0 < v) // there were no db errors, but determine if it actually found it or not
-                                      resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
+                                      resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.DELETED, INSTANT).insert.asTry
                                     else
                                       DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.for.agbot.not.found", agreement, resource))).asTry
                                   case Failure(t) =>
@@ -196,6 +200,9 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot/agreements/$agreement - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val maxAgreements: Int = Configuration.getConfig.getInt("api.limits.maxAgreements")
               val getNumOwnedDbio =
@@ -217,7 +224,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                                     .flatMap({
                                       case Success(v) => // Add the resource to the resourcechanges table
                                         logger.debug("PUT /orgs/" + organization + "/agbots/" + agreementBot + "/agreements/" + agreement + " result: " + v)
-                                        resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                                        resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                                       case Failure(t) =>
                                         DBIO.failed(t).asTry}))
                 .map({

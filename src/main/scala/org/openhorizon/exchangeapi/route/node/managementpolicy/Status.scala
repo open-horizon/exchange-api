@@ -22,6 +22,7 @@ import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -244,6 +245,9 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       entity(as[PutNodeMgmtPolStatusRequest]) {
         reqBody =>
           logger.debug(s"PUT /orgs/${organization}/nodes/${node}/managementStatus/${managementPolicy} - By ${identity.resource}:${identity.role}")
+          
+          val INSTANT: Instant = Instant.now()
+          
           complete({
             db.run(
               NodeMgmtPolStatuses
@@ -276,6 +280,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
                   ResourceChange(category = ResChangeCategory.NODE,
                                  changeId = 0L,
                                  id = node,
+                                 lastUpdated = INSTANT,
                                  operation = ResChangeOperation.CREATEDMODIFIED,
                                  orgId = organization,
                                  public = false,

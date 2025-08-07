@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi
 
 import org.openhorizon.exchangeapi.route.administration.{AdminConfigRequest, DeleteIBMChangesRequest, DeleteOrgChangesRequest}
 
-import java.time.ZonedDateTime
+import java.time.{Instant, ZonedDateTime}
 import java.util.Base64
 import scala.collection.immutable.{List, Map}
 import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, convertToJsonInput, jvalue2extractable}
@@ -274,7 +274,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   /** Calculated the changedSince arg for business pol search, given seconds ago. */
-  def changedSinceAgo(secondsAgo: Long) = {ApiTime.nowSeconds - secondsAgo}
+  def changedSinceAgo(secondsAgo: Long) = {Instant.now().minusSeconds(secondsAgo).getEpochSecond}
   
   //~~~~~ Create org, user, service, pattern ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
   
@@ -499,7 +499,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " was created and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -910,7 +910,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " services_configstate was created and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1369,7 +1369,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
   
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " was updated via PATCH and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1537,7 +1537,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/nodehealth - as agbot, with current time - should get no nodes") {
     //Thread.sleep(500)    // delay 0.5 seconds so no agreements will be current
-    val currentTime = ApiTime.futureUTC(100000)   // sometimes there is a mismatch between the exch svr time and this client's time
+    val currentTime = Instant.now().plusSeconds(100000).toString   // sometimes there is a mismatch between the exch svr time and this client's time
     info("currentTime: "+currentTime)
     val input = PostNodeHealthRequest(currentTime, None)
     val response = Http(URL+"/patterns/"+patid+"/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
@@ -1574,7 +1574,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   
   test("POST /orgs/"+orgid+"/search/nodehealth - as agbot, with current time - should get no nodes") {
     //Thread.sleep(500)    // delay 0.5 seconds so no agreements will be current
-    val input = PostNodeHealthRequest(ApiTime.futureUTC(100000), None)
+    val input = PostNodeHealthRequest(Instant.now().plusSeconds(100000).toString, None)
     val response = Http(URL+"/search/nodehealth").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     //info("code: "+response.code+", response.body: "+response.body)
     info("code: " + response.code)
@@ -1595,7 +1595,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodestatus added and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
@@ -1607,7 +1607,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " can't see nodestatus changes") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -1636,7 +1636,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodestatus deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1663,7 +1663,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/" + orgid + "/changes - verify " + nodeId + " nodeerrors added and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL + "/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
@@ -1809,7 +1809,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodeerrors deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1944,7 +1944,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodepolicy added and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1978,7 +1978,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " nodepolicy deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
@@ -2038,7 +2038,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " agreement added and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -2051,7 +2051,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
 
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " agreement creation not seen by agbot") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -2258,7 +2258,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " agreement deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -2489,7 +2489,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId3 + " node deleted") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -2527,7 +2527,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " doesn't see changes from other nodes but still sees normal changes") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
@@ -2541,7 +2541,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify maxRecords works") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val testMaxRecords = 3
     val input = ResourceChangesRequest(0L, Some(time), testMaxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -2587,7 +2587,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " all agreements deleted") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -2662,7 +2662,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " msg added and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -2673,7 +2673,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " doesn't see nodemsgs") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -2782,7 +2782,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.DELETED.intValue)
 
     info("POST /orgs/"+orgid+"/changes - verify " + nodeId2 + " msg deleted and not stored")
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     response = Http(URL+"/changes").postData(write(resInput)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -2815,7 +2815,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " msg added and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -2926,7 +2926,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.DELETED.intValue)
 
     info("POST /orgs/"+orgid+"/changes - verify " + agbotId2 + " msg deleted and not stored")
-    var time = ApiTime.pastUTC(secondsAgo)
+    var time = Instant.now().minusSeconds(secondsAgo).toString
     var resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     response = Http(URL+"/changes").postData(write(resInput)).method("POST").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -2936,7 +2936,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
     assert(!parsedBody.changes.exists(y => {(y.id == agbotId2) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotmsgs")}))
 
     info("POST /orgs/"+orgid+"/changes - verify " + agbotId2 + " msg deletion not seen by agbots in changes table")
-    time = ApiTime.pastUTC(secondsAgo)
+    time = Instant.now().minusSeconds(secondsAgo).toString
     resInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     response = Http(URL+"/changes").postData(write(resInput)).method("POST").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
@@ -3493,7 +3493,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   } */
 
   test("POST /orgs/"+orgid+"/changes - verify " + nodeId + " was deleted and logged as deleted also that node error change is there") {
-    val time = ApiTime.pastUTC(60)
+    val time = Instant.now().minusSeconds(60).toString
     val input = ResourceChangesRequest(0L, Some(time), 1000, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code)
@@ -3512,7 +3512,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify response when no new changes in db") {
-    val time = ApiTime.futureUTC(30)
+    val time = Instant.now().plusSeconds(30).toString
     val input = ResourceChangesRequest(0L, Some(time), 1000, None)
     val response = Http(URL+"/changes").postData(write(input)).method("POST").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code)

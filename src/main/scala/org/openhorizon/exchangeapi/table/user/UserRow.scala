@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.table.user
 
-import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
@@ -8,24 +7,24 @@ import java.time.Instant
 import scala.jdk.OptionConverters._
 import java.util.UUID
 
-case class UserRow(createdAt: java.sql.Timestamp,
+case class UserRow(createdAt: Instant,
                    email: Option[String] = None,
                    identityProvider: String = "Open Horizon",
                    isHubAdmin: Boolean = false,
                    isOrgAdmin: Boolean = false,
-                   modifiedAt: java.sql.Timestamp,
+                   modifiedAt: Instant,
                    modified_by: Option[UUID] = None,
                    organization: String,
                    password: Option[String] = None,
                    user: UUID = UUID.randomUUID(),
                    username: String,
                    externalId: Option[String] = None) {
-  def this(tuple: (java.sql.Timestamp,
+  def this(tuple: (Instant,
                    Option[String],
                    String,
                    Boolean,
                    Boolean,
-                   java.sql.Timestamp,
+                   Instant,
                    Option[UUID],
                    String,
                    UUID,

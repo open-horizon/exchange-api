@@ -1,6 +1,5 @@
 package org.openhorizon.exchangeapi.route.nodegroup
 
-import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization
 import org.json4s.native.Serialization.write
@@ -19,8 +18,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
-import java.sql.Timestamp
-import java.time.ZoneId
+import java.time.{Instant, ZoneId}
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 import scala.math.Ordered.orderingToOrdered
@@ -41,11 +39,8 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
   private val NODETOKEN = "nodetoken"
   private val AGBOTTOKEN = "agbottoken"
   
-  private val INITIALTIMESTAMP: Timestamp = ApiTime.nowUTCTimestamp
-  private val INITIALTIMESTAMPSTRING: String = fixFormatting(INITIALTIMESTAMP.toInstant
-                                                                             .atZone(ZoneId.of("UTC"))
-                                                                             .withZoneSameInstant(ZoneId.of("UTC"))
-                                                                             .toString)
+  private val INITIALTIMESTAMP: Instant = ApiTime.nowUTCTimestamp
+  private val INITIALTIMESTAMPSTRING: String = INITIALTIMESTAMP.toString
   
   private val TESTORGS: Seq[OrgRow] =
     Seq(OrgRow(heartbeatIntervals = "",

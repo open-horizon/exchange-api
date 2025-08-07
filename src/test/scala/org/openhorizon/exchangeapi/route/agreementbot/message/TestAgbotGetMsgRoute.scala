@@ -17,6 +17,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -30,7 +31,7 @@ class TestAgbotGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   private val TESTUSERS: Seq[UserRow] =
     Seq(UserRow(createdAt    = TIMESTAMP,
@@ -55,7 +56,7 @@ class TestAgbotGetMsgRoute extends AnyFunSuite with BeforeAndAfterAll {
                     msgId       = -1,
                     nodeId      = "TestAgbotGetMsgRoute/n1",
                     nodePubKey  = "",
-                    timeExpires = ApiTime.futureUTC(1080),
+                    timeExpires = Instant.now().plusSeconds(1080).toString,
                     timeSent    = ApiTime.nowUTC))
   private val TESTNODES: Seq[NodeRow] =
     Seq(NodeRow(arch               = "",

@@ -20,6 +20,7 @@ import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
@@ -183,12 +184,15 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       reqBody =>
         logger.debug(s"POST /orgs/$organization - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem(reqBody.limits.getOrElse(OrgLimits(0)).maxNodes)) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               db.run(reqBody.toOrgRow(organization).insert.asTry.flatMap({
                 case Success(n) =>
                   // Add the resource to the resourcechanges table
                   logger.debug(s"POST /orgs/$organization result: $n")
-                  ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.CREATED).insert.asTry
+                  ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.CREATED, INSTANT).insert.asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(n) =>
@@ -249,6 +253,8 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
                       @Parameter(hidden = true) reqBody: PostPutOrgRequest): Route =
     {
       logger.debug(s"PUT /orgs/$organization - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
      
       validateWithMsg(reqBody.getAnyProblem(reqBody.limits.getOrElse(OrgLimits(0)).maxNodes)) {
         complete({
@@ -257,7 +263,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug(s"PUT /orgs/$organization result: $n")
               if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
-                ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization))).asTry
               }
@@ -323,6 +329,9 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       logger.debug(s"PATCH /orgs/$organization - By ${identity.resource}:${identity.role}")
       
       validateWithMsg(reqBody.getAnyProblem(reqBody.limits.getOrElse(OrgLimits(0)).maxNodes)) {
+        
+        val INSTANT: Instant = Instant.now()
+        
         complete({
           val (action, attrName) = reqBody.getDbUpdate(organization)
           if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
@@ -331,7 +340,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
               // Add the resource to the resourcechanges table
               logger.debug(s"PATCH /orgs/$organization result: $n")
               if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
-                ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.MODIFIED).insert.asTry
+                ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
               } else {
                 DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization))).asTry
               }
@@ -367,6 +376,9 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
       logger.debug(s"DELETE /orgs/$organization - By ${identity.resource}:${identity.role}")
       
       validate(organization != "root", ExchMsg.translate("cannot.delete.root.org")) {
+        
+        val INSTANT: Instant = Instant.now()
+        
         complete({
           // DB actions to get the user/agbot/node id's in this org
           var getResourceIds = DBIO.sequence(Seq(UsersTQ.map(_.username).result, AgbotsTQ.getAllAgbotsId(organization).result, NodesTQ.getAllNodesId(organization).result))
@@ -383,7 +395,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               logger.debug(s"DELETE /orgs/$organization result: $v")
               if (v > 0) { // there were no db errors, but determine if it actually found it or not
-                ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.DELETED).insert.asTry
+                ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.DELETED, INSTANT).insert.asTry
               } else {
                 orgFound = false
                 DBIO.successful("no update in resourcechanges table").asTry // just give a success to get us to the next step, but notify that it wasn't added to the resourcechanges table

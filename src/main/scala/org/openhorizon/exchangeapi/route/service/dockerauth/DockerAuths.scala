@@ -22,6 +22,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configurat
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -52,6 +53,9 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
                         @Parameter(hidden = true) service: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/${organization}/services/${service}/dockauths - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         var storedPublicField = false
         db.run(ServicesTQ.getPublic(resource).result.asTry.flatMap({
@@ -69,7 +73,7 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
             logger.debug("POST /orgs/" + organization + "/services result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-              ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.dockauths.found.for.service", resource))).asTry
             }
@@ -208,6 +212,9 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"POST /orgs/${organization}/services/${service}/dockauths - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem(None)) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val dockAuthId = 0 // the db will choose a new id on insert
               var resultNum: Int = -1
@@ -230,7 +237,7 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
                   logger.debug("POST /orgs/" + organization + "/services/" + service + "/dockauths public field: " + public)
                   if (public.nonEmpty) {
                     val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-                    ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.CREATED).insert.asTry
+                    ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.CREATED, INSTANT).insert.asTry
                   } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({

@@ -22,7 +22,6 @@ import slick.jdbc.PostgresProfile.api._
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 import scala.concurrent.ExecutionContext.Implicits.global
 import _root_.org.openhorizon.exchangeapi.utility.{HttpCode,ApiTime}
-import java.sql.Timestamp
 import java.util.UUID
 
 class TestDeleteApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {

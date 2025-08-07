@@ -16,13 +16,11 @@ import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeOperation, ResourceChangeRow, ResourceChanges, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import org.openhorizon.exchangeapi.ExchangeApi
-import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled
 
-import java.sql.Timestamp
-import java.time.{ZoneId, ZonedDateTime}
+import java.time.{Instant, ZonedDateTime}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
@@ -51,7 +49,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
     val changesMap: scala.collection.mutable.Map[String, ChangeEntry] = scala.collection.mutable.Map[String, ChangeEntry]() //using a Map allows us to avoid having a loop in a loop when searching the map for the resource id
     // fill in changesMap
     for (entry <- inputList) { // looping through every single ResourceChangeRow in inputList, given that we apply `.take(maxRecords)` in the query, this should never be over maxRecords, so no more need to break
-      val resChange: ResourceChangesInnerObject = ResourceChangesInnerObject(entry.changeId, ApiTime.fixFormatting(entry.lastUpdated.toInstant.atZone(ZoneId.of("UTC")).withZoneSameInstant(ZoneId.of("UTC")).toString))
+      val resChange: ResourceChangesInnerObject = ResourceChangesInnerObject(entry.changeId, entry.lastUpdated.toString)
       changesMap.get(entry.orgId + "_" + entry.id + "_" + entry.resource) match { // using the map allows for better searching and entry
         case Some(change) =>
           // inputList is already sorted by changeId from the query so we know this change happened later
@@ -163,12 +161,12 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
       logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - changeId to search:              $reqChangeId")
       
       // Convert strigified timestamp into a Timestamp
-      val reqLastUpdate: Option[java.sql.Timestamp] =
+      val reqLastUpdate: Option[Instant] =
         (reqBody.lastUpdated, reqChangeId) match {
           case (Some(""), _) => None  // Empty timestamp
           case (None, _) => None      // Empty timestamp
           case (_, Some(_)) => None   // Some(ChangeId), take over timestamp
-          case (_, None) => Option(java.sql.Timestamp.from(ZonedDateTime.parse(reqBody.lastUpdated.get).toInstant.minusMillis(50)))  // Some(timestamp).  // Roll back time to catch any records that were added after we last queried. Timestamp only.
+          case (_, None) => Option(ZonedDateTime.parse(reqBody.lastUpdated.get).toInstant.minusMillis(10000)) // Some(timestamp).  // Roll back time to catch any records that were added after we last queried. Timestamp only.
         }
       logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - timestamp to search:             $reqLastUpdate")
       
@@ -179,13 +177,13 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
         else
           None
       
-      def allChanges(queryEarlierTimestamp: Option[Timestamp]): Query[ResourceChanges, ResourceChangeRow, Seq] =
+      def allChanges(queryEarlierTimestamp: Option[Instant]): Query[ResourceChanges, ResourceChangeRow, Seq] =
         ResourceChangesTQ.filterOpt(organizationRestriction)((change, _) => (change.orgId === organization || change.public === "true"))
                          .filterOpt(if (queryEarlierTimestamp.isDefined) None else reqChangeId)((change, changeId) => change.changeId >= changeId)
                          .filterOpt(reqLastUpdate)((change, timestamp) => change.lastUpdated >= timestamp)
                          .filterOpt(queryEarlierTimestamp)((change, timestamp) => (change.changeId >= reqChangeId.get || change.lastUpdated >= timestamp))
       
-      def changesWithAuth(queryEarlierTimestamp: Option[Timestamp]): PostgresProfile.api.Query[ResourceChanges, ResourceChangeRow, Seq] =
+      def changesWithAuth(queryEarlierTimestamp: Option[Instant]): PostgresProfile.api.Query[ResourceChanges, ResourceChangeRow, Seq] =
         identity.role match {
           case AuthRoles.Node =>
             logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - User Arch:                       Node")
@@ -223,7 +221,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
           
           queryEarlierTimestamp =
             try
-              Option(Timestamp.from(changeIdTimestamp.get.toInstant.minusSeconds(2)))
+              Option(changeIdTimestamp.get.minusSeconds(2))
             catch { case _: Throwable => None }
           
           _ = Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Converted timestamp to query on: ${changeIdTimestamp.getOrElse("None")}") }

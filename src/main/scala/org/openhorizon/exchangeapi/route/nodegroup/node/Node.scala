@@ -17,12 +17,10 @@ import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignm
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroup, NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, HttpCode}
-import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.postgresql.util.PSQLException
 import slick.jdbc.PostgresProfile.api._
 
-import java.sql.Timestamp
-import java.time.ZoneId
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
@@ -64,7 +62,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
     delete {
       logger.debug(s"DELETE /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - By ${identity.resource}:${identity.role}")
       complete({
-        val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
+        val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
         val nodeGroupQuery: Query[NodeGroup, NodeGroupRow, Seq] =
           NodeGroupTQ.filter(_.name === highAvailabilityGroup)
                      .filter(_.organization === organization)
@@ -99,10 +97,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 
             nodeGroupsUpdated <-
               Compiled(nodeGroupQuery.map(_.lastUpdated))
-                                     .update(fixFormatting(changeTimestamp.toInstant
-                                                                          .atZone(ZoneId.of("UTC"))
-                                                                          .withZoneSameInstant(ZoneId.of("UTC"))
-                                                                          .toString))
+                                     .update(changeTimestamp.toString)
             
             _ <-
               if (nodeGroupsUpdated.equals(0))
@@ -170,7 +165,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
     post {
       logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - By ${identity.resource}:${identity.role}")
       complete({
-        val changeTimestamp: Timestamp = ApiTime.nowUTCTimestamp
+        val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
         val nodesQuery: Query[org.openhorizon.exchangeapi.table.node.Nodes, NodeRow, Seq] =
           if (identity.isOrgAdmin ||
               identity.isSuperUser ||
@@ -251,10 +246,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
             nodeGroupsUpdated <-
               Compiled(nodeGroupQuery.filterIf(!identity.isOrgAdmin && !identity.isSuperUser)(_.admin === false)
                                      .map(_.lastUpdated))
-                                     .update(fixFormatting(changeTimestamp.toInstant
-                                                                          .atZone(ZoneId.of("UTC"))
-                                                                          .withZoneSameInstant(ZoneId.of("UTC"))
-                                                                          .toString))
+                                     .update(changeTimestamp.toString)
             
             _ <-
               if (nodeGroupsUpdated.equals(0))

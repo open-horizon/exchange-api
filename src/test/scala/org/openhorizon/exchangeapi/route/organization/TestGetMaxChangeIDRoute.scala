@@ -18,6 +18,8 @@ import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
+
 class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT = ("Accept","application/json")
@@ -27,7 +29,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
 
   private val NODETOKEN = "nodetoken"
   private val AGBOTTOKEN = "agbottoken"

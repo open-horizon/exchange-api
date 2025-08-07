@@ -6,15 +6,18 @@ import org.openhorizon.exchangeapi.table.resourcechange.ResChangeResource.ResCha
 import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.DBIO
 
+import java.time.Instant
+
 final case class ResourceChange(changeId: Long,
                                 orgId: String,
                                 id: String,
                                 category: ResChangeCategory,
                                 public: Boolean,
                                 resource: ResChangeResource,
-                                operation: ResChangeOperation) {
+                                operation: ResChangeOperation,
+                                lastUpdated: Instant = Instant.now()) {
 
-  def toResourceChangeRow = ResourceChangeRow(changeId, orgId, id, category.toString, public.toString, resource.toString, operation.toString, ApiTime.nowUTCTimestamp)
+  def toResourceChangeRow = ResourceChangeRow(changeId, orgId, id, category.toString, public.toString, resource.toString, operation.toString, lastUpdated)
 
   // update returns a DB action to update this row
   //def update: DBIO[_] = toResourceChangeRow.update

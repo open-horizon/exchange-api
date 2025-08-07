@@ -20,6 +20,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configurat
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -52,6 +53,8 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
                                   @Parameter(hidden = true) organization: String,
                                   @Parameter(hidden = true) resource: String): Route =
     {
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         var storedPublicField = false
         db.run(PatternsTQ.getPublic(resource).result.asTry.flatMap({
@@ -68,7 +71,7 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /patterns/" + deploymentPattern + "/keys result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.pattern.keys.found", resource))).asTry
             }

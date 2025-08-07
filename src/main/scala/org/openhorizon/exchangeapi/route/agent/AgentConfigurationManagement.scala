@@ -21,8 +21,7 @@ import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResC
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
-import java.sql.Timestamp
-import java.time.ZoneId
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
@@ -61,8 +60,7 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                 for {
                   certificate <- AgentCertificateVersionsTQ.delete
                   
-                  timestamp: Timestamp = ApiTime.nowUTCTimestamp
-
+                  timestamp: Instant = ApiTime.nowUTCTimestamp
 
                   checkAgentVersionsResult <- AgentVersionsChangedTQ.getChanged("IBM").result
 
@@ -150,7 +148,7 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
         orgId match {
           case "IBM" =>
             db.run({
-              val versions: DBIOAction[(Seq[String], Seq[Timestamp], Seq[String], Seq[String]), NoStream, Effect.Read] =
+              val versions: DBIOAction[(Seq[String], Seq[Instant], Seq[String], Seq[String]), NoStream, Effect.Read] =
                 for {
                 certificate <- AgentCertificateVersionsTQ.sortBy(_.priority.asc.nullsLast).filter(_.organization === "IBM").map(_.certificateVersion).result
                 changed <- AgentVersionsChangedTQ.getChanged("IBM").sortBy(_.desc).result
@@ -165,7 +163,7 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                   (HttpCode.OK, AgentVersionsResponse(agentCertVersions = result._1,
                                                       agentConfigVersions = result._3,
                                                       agentSoftwareVersions = result._4,
-                                                      lastUpdated = result._2.head.toLocalDateTime.atZone(ZoneId.of("UTC")).toString))
+                                                      lastUpdated = result._2.head.toString))
                 else
                   (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
               case Failure(t) =>
@@ -223,6 +221,9 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
       entity(as[AgentVersionsRequest]) {
         reqBody =>
           logger.debug(s"PUT /orgs/$organization/AgentFileVersion - By ${identity.resource}:${identity.role}")
+          
+          val INSTANT: Instant = Instant.now()
+          
           complete({
             organization match {
              case "IBM" =>
@@ -236,6 +237,7 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                       (resourcechange.ResourceChange(category = ResChangeCategory.ORG,
                                                      changeId = 0L,
                                                      id = organization,
+                                                     lastUpdated = INSTANT,
                                                      operation = ResChangeOperation.MODIFIED,
                                                      orgId = organization,
                                                      public = true,

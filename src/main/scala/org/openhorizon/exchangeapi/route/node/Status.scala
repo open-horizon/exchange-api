@@ -20,6 +20,7 @@ import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -182,12 +183,15 @@ trait Status extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"PUT /orgs/${organization}/nodes/${node}/status - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               db.run(reqBody.toNodeStatusRow(resource).upsert.asTry.flatMap({
                 case Success(v) =>
                   // Add the resource to the resourcechanges table
                   logger.debug("PUT /orgs/" + organization + "/nodes/" + node + "/status - result: " + v)
-                  ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODESTATUS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                  ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODESTATUS, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(v) =>
@@ -222,13 +226,16 @@ trait Status extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/status - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         db.run(NodeStatusTQ.getNodeStatus(resource).delete.asTry.flatMap({
           case Success(v) =>
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + organization + "/nodes/" + node + "/status result: " + v)
             if (v > 0) {
-              ResourceChange(0L, organization, node, ResChangeCategory.NODE, false, ResChangeResource.NODESTATUS, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, organization, node, ResChangeCategory.NODE, false, ResChangeResource.NODESTATUS, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.status.not.found", resource))).asTry
             }

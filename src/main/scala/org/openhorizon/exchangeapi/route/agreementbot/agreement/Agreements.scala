@@ -21,6 +21,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configurat
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -54,6 +55,9 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String): Route = {
     logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/agreements - By ${identity.resource}:${identity.role}")
+    
+    val INSTANT: Instant = Instant.now()
+    
       complete({
         // remove does *not* throw an exception if the key does not exist
         db.run(AgbotAgreementsTQ.getAgreements(resource)
@@ -64,7 +68,7 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
                                     if (0 < v) { // there were no db errors, but determine if it actually found it or not
                                       // Add the resource to the resourcechanges table
                                       logger.debug("DELETE /agbots/" + agreementBot + "/agreements result: " + v)
-                                      resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
+                                      resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTAGREEMENTS, ResChangeOperation.DELETED, INSTANT).insert.asTry
                                     }
                                     else
                                       DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.agreements.found.for.agbot", resource))).asTry

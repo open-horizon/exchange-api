@@ -17,6 +17,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -37,7 +38,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORG1ADMINPASSWORD = "org1adminpassword"
@@ -465,7 +466,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
       assert(newUser.username === TESTUSERS(2).username)
       assert(newUser.organization === TESTORGS(0).orgId)
       assert(newUser.modified_by === Option(TESTUSERS(1).user)) //updated by org admin
-      assert(newUser.modifiedAt.after(TESTUSERS(2).modifiedAt))
+      assert(newUser.modifiedAt.isAfter(TESTUSERS(2).modifiedAt))
       assertUsersEqual(requestBody, newUser)
     }
   }
@@ -491,7 +492,7 @@ class TestPutUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
       assert(newUser.username === TESTUSERS(2).username)
       assert(newUser.organization === TESTORGS(0).orgId)
       assert(newUser.modified_by === Option(TESTUSERS(2).user)) //updated by self
-      assert(newUser.modifiedAt.after(TESTUSERS(2).modifiedAt))
+      assert(newUser.modifiedAt.isAfter(TESTUSERS(2).modifiedAt))
       assertUsersEqual(normalRequestBody, newUser)
     }
   }

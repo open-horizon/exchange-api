@@ -21,6 +21,7 @@ import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -54,13 +55,16 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/{organization}/nodes/{node}/policy - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         db.run(NodePolicyTQ.getNodePolicy(resource).delete.asTry.flatMap({
           case Success(v) =>
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /orgs/" + organization + "/nodes/" + node + "/policy result: " + v)
             if (v > 0) {
-              ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODEPOLICIES, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODEPOLICIES, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.policy.not.found", resource))).asTry
             }
@@ -218,6 +222,9 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
             reqBody =>
               logger.debug(s"PUT /orgs/{organization}/nodes/{node}/policy?noheartbeat=${noheartbeat.getOrElse("None")} - By ${identity.resource}:${identity.role}")
               validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
+                
+                val INSTANT: Instant = Instant.now()
+                
                 complete({
                   val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
                   db.run(reqBody.toNodePolicyRow(resource).upsert.asTry.flatMap({
@@ -238,7 +245,7 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
                       try {
                         val numUpdated: Int = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
                         if (numUpdated > 0) {
-                          ResourceChange(0L, organization, node, ResChangeCategory.NODE, false, ResChangeResource.NODEPOLICIES, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                          ResourceChange(0L, organization, node, ResChangeCategory.NODE, false, ResChangeResource.NODEPOLICIES, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                         } else {
                           DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource))).asTry
                         }

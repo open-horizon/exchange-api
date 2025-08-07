@@ -1067,14 +1067,6 @@ object ExchangeApiApp extends App
             userMetaData.head
           }
           
-         /* def c(a: String, b: Int) = {
-            val z = SSLContext.getDefault.createSSLEngine(uri, 1010)
-            
-            z.setUseClientMode(true)
-            z
-          }
-          val v = ConnectionContext.httpsClient(c _)*/
-          
           def queryUserInfo(method: HttpMethod = HttpMethods.GET, token: String, uri: String): Future[HttpResponse] = {
             Http().singleRequest(HttpRequest(method = method,
                                              uri = uri,

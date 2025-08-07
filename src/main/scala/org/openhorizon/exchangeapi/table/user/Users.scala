@@ -5,17 +5,17 @@ import slick.jdbc.PostgresProfile.api._
 import slick.lifted.MappedToBase.mappedToIsomorphism
 import slick.lifted.{BaseColumnExtensionMethods, MappedProjection, ProvenShape, ShapedValue}
 
-import java.sql.Timestamp
+import java.time.Instant
 import java.util.UUID
 
 
 class Users(tag: Tag) extends Table[UserRow](tag, "users") {
-  def createdAt = column[java.sql.Timestamp]("created_at")
+  def createdAt = column[Instant]("created_at")
   def email = column[Option[String]]("email")
   def identityProvider = column[String]("identity_provider", O.Default("Open Horizon"))
   def isHubAdmin = column[Boolean]("is_hub_admin", O.Default(false))
   def isOrgAdmin = column[Boolean]("is_org_admin", O.Default(false))
-  def modifiedAt = column[java.sql.Timestamp]("modified_at")
+  def modifiedAt = column[Instant]("modified_at")
   def modifiedBy = column[Option[UUID]]("modified_by")
   def organization = column[String]("organization")
   def password = column[Option[String]]("password")

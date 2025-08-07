@@ -18,14 +18,12 @@ import org.openhorizon.exchangeapi.route.node.{GetNodeMsgsResponse, PostNodesMsg
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.message.{NodeMsg, NodeMsgRow, NodeMsgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange, ResourceChangeRow, ResourceChangesTQ}
-import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
-import java.sql.Timestamp
-import java.time.ZoneId
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -154,23 +152,15 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
           val maxMessagesInMailbox: Int = Configuration.getConfig.getInt("api.limits.maxMessagesInMailbox")
           
           // This is a high performance, high through-put, concurrent system. Unification of Timestamps is a requirement.
-          val timestamp: Timestamp = ApiTime.nowUTCTimestamp
-          val timestampString: String =
-            fixFormatting(timestamp.toInstant
-                                   .atZone(ZoneId.of("UTC"))
-                                   .withZoneSameInstant(ZoneId.of("UTC"))
-                                   .toString)
+          val timestamp: Instant = ApiTime.nowUTCTimestamp
+          val timestampString: String = timestamp.toString
           
           val createNodeMessage =
             for {
               // Make additional room if possible.
               numMsgsDeleted <-
                 Compiled(NodeMsgsTQ.filter(_.nodeId === resource)
-                                   .filter(_.timeExpires < (fixFormatting(timestamp.toInstant
-                                                                                   .minusMillis(5)  // Allow a little grace for concurrent messages coming from multiple Exchange instances.
-                                                                                   .atZone(ZoneId.of("UTC"))
-                                                                                   .withZoneSameInstant(ZoneId.of("UTC"))
-                                                                                   .toString))))
+                                   .filter(_.timeExpires < (timestamp.minusMillis(500).toString)))
                   .delete
               
               _ = Future { logger.debug(s"POST /orgs/${organization}/nodes/${node}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Expired messages deleted:   ${numMsgsDeleted}") }
@@ -220,12 +210,7 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
               _ = Future { logger.debug(s"POST /orgs/${organization}/nodes/${node}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Created change identifier:  ${createdChange}") }
               _ = Future { logger.debug(s"POST /orgs/${organization}/nodes/${node}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Created change:             ${timestamp}") }
               
-              timeExpires =
-                fixFormatting(timestamp.toInstant
-                                       .plusSeconds(reqBody.ttl.toLong)
-                                       .atZone(ZoneId.of("UTC"))
-                                       .withZoneSameInstant(ZoneId.of("UTC"))
-                                       .toString)
+              timeExpires = timestamp.plusSeconds(reqBody.ttl.toLong).toString
               
               createdMsgForNode <-
                 (NodeMsgsTQ returning NodeMsgsTQ.map(_.msgId)) +=

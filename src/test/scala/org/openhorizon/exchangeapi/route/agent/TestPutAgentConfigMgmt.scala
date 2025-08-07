@@ -25,6 +25,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -40,7 +41,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
   
   private implicit val formats: Formats = DefaultFormats.withLong
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   private val TESTORGANIZATIONS: Seq[OrgRow] =
     Seq(OrgRow(heartbeatIntervals = "",
@@ -149,7 +150,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
   }
   
   // Users that are dynamically needed, specific to the test case.
-  def fixtureVersionsChanged(testCode: Seq[(java.sql.Timestamp, String)] => Any, testData: Seq[(java.sql.Timestamp, String)]): Any = {
+  def fixtureVersionsChanged(testCode: Seq[(Instant, String)] => Any, testData: Seq[(Instant, String)]): Any = {
     try {
       Await.result(DBCONNECTION.run(AgentVersionsChangedTQ ++= testData), AWAITDURATION)
       testCode(testData)
@@ -163,7 +164,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     val TESTCERT: Seq[String] = Seq("1.1.1", "IBM")
     val TESTCONFIG: Seq[String] = Seq("2.2.2", "IBM")
     val TESTSOFT: Seq[String] = Seq("IBM", "3.3.3")
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] = Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] = Seq((ApiTime.nowUTCTimestamp, "IBM"))
     
     val requestBody: AgentVersionsRequest =
       AgentVersionsRequest(agentCertVersions = TESTCERT,
@@ -187,7 +188,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
         agentConfigVersions = TESTCONFIG,
         agentSoftwareVersions = TESTSOFT)
     
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] = Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] = Seq((ApiTime.nowUTCTimestamp, "IBM"))
     val TESTUSERS: Seq[UserRow] = {
       Seq(UserRow(createdAt    = TIMESTAMP,
                   isHubAdmin   = false,
@@ -218,7 +219,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                            agentConfigVersions = TESTCONFIG,
                            agentSoftwareVersions = TESTSOFT)
     
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] = Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] = Seq((ApiTime.nowUTCTimestamp, "IBM"))
     
     val request: HttpResponse[String] = Http(URL + "IBM/AgentFileVersion").put(write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("TestPutAgentConfigMgmt/admin1:admin1pw"))).asString
     info("code: " + request.code)
@@ -246,7 +247,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     val versions: AgentVersionsRequest = parse(request.body).extract[AgentVersionsRequest]
     
     val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentCertificateVersionsTQ.sortBy(_.priority.asc.nullsLast).result), AWAITDURATION)
-    val changed: Seq[(java.sql.Timestamp, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
+    val changed: Seq[(Instant, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
     val configurations: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentConfigurationVersionsTQ.sortBy(_.priority.asc.nullsLast).result), AWAITDURATION)
     val resource: Seq[ResourceChangeRow] =
       Await.result(
@@ -324,7 +325,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     assert(request.code === HttpCode.PUT_OK.intValue)
     
     val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
-    val changed: Seq[(java.sql.Timestamp, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
+    val changed: Seq[(Instant, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
     val configurations: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
     val resource: Seq[ResourceChangeRow] =
       Await.result(
@@ -385,7 +386,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
         val versions: AgentVersionsRequest = parse(request.body).extract[AgentVersionsRequest]
   
         val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
-        val changed: Seq[(java.sql.Timestamp, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
+        val changed: Seq[(Instant, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
         val configurations: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentConfigurationVersionsTQ.result), AWAITDURATION)
         val software: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentSoftwareVersionsTQ.result), AWAITDURATION)
   
@@ -415,7 +416,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                            agentConfigVersions = TESTCONFIG,
                            agentSoftwareVersions = TESTSOFT)
     
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] = Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] = Seq((ApiTime.nowUTCTimestamp, "IBM"))
     val TESTUSERS: Seq[UserRow] = {
       Seq(UserRow(createdAt    = TIMESTAMP,
                   isHubAdmin   = false,
@@ -446,7 +447,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
                            agentConfigVersions = TESTCONFIG,
                            agentSoftwareVersions = TESTSOFT)
     
-    val TESTCHG: Seq[(java.sql.Timestamp, String)] = Seq((ApiTime.nowTimestamp, "IBM"))
+    val TESTCHG: Seq[(Instant, String)] = Seq((ApiTime.nowUTCTimestamp, "IBM"))
     
     val request: HttpResponse[String] = Http(URL + "IBM/AgentFileVersion").put(write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(("Authorization","Basic " + ApiUtils.encode("TestPutAgentConfigMgmt/a1:a1tok"))).asString
     info("code: " + request.code)

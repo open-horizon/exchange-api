@@ -21,6 +21,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configurat
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -94,6 +95,9 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"PUT /orgs/${organization}/services/${service}/dockauths/${dockerAuth} - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem(Some(dockerAuth))) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val dockAuthId: Int = dockerAuth.toInt  // already checked that it is a valid int in validateWithMsg()
               db.run(reqBody.toServiceDockAuthRow(resource, dockAuthId).update.asTry.flatMap({
@@ -110,7 +114,7 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
                   logger.debug("PUT /orgs/" + organization + "/services/" + service + "/dockauths/" + dockAuthId + " public field: " + public)
                   if (public.nonEmpty) {
                     val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-                    ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                    ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                   } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({

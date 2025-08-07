@@ -28,6 +28,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, C
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.collection.immutable._
 import scala.concurrent.duration.DurationInt
@@ -62,6 +63,9 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                              @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/$organization/business/policies/$deploymentPolicy - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         db.run(BusinessPoliciesTQ.getBusinessPolicy(resource).delete.transactionally.asTry.flatMap({
           case Success(v) =>
@@ -70,7 +74,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               // TODO: AuthCache.removeBusinessOwner(resource)
               // TODO: AuthCache.removeBusinessIsPublic(resource)
-              resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.DELETED).insert.asTry
+              resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
             }
@@ -351,6 +355,9 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
           logger.debug(s"PATCH /orgs/$organization/business/policies/$deploymentPolicy - By ${identity.resource}:${identity.role}")
           
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val (action, attrName) = reqBody.getDbUpdate(resource, organization)
               if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.buspol.attribute.specified")))
@@ -384,7 +391,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                     logger.debug("PATCH /orgs/" + organization + "/business/policies/" + deploymentPolicy + " result: " + n)
                     val numUpdated: Int = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
                     if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
-                      resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.MODIFIED).insert.asTry
+                      resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
                     } else {
                       DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
                     }
@@ -537,6 +544,9 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
           logger.debug(s"POST /orgs/${organization}/business/policies/${deploymentPolicy} - By ${identity.resource}:${identity.role}")
       
       validateWithMsg(reqBody.getAnyProblem) {
+        
+        val INSTANT: Instant = Instant.now()
+        
         complete({
           val owner: Option[UUID] = identity.identifier
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
@@ -573,7 +583,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
             case Success(v) =>
               // Add the resource to the resourcechanges table
               logger.debug("POST /orgs/" + organization + "/business/policies/" + deploymentPolicy + " result: " + v)
-              ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATED).insert.asTry
+              ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATED, INSTANT).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
@@ -697,6 +707,9 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
           logger.debug(s"PUT /orgs/${organization}/business/policies/${deploymentPolicy} - By ${identity.resource}:${identity.role}")
           
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val owner: Option[UUID] = identity.identifier
               val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
@@ -727,7 +740,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                   if (numUpdated > 0) {
                     // TODO: if (owner.isDefined) AuthCache.putBusinessOwner(resource, owner.get) // currently only users are allowed to update business policy resources, so owner should never be blank
                     // TODO: AuthCache.putBusinessIsPublic(resource, isPublic = false)
-                    resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                    resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                   } else {
                     DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
                   }

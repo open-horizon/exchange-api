@@ -18,6 +18,8 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.sql.Timestamp
+import java.time.{Instant, ZoneId, ZonedDateTime}
 import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -35,8 +37,11 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
-
+  val INSTANT = Instant.now()
+  val TIMESTAMPSTR: String = INSTANT.toString
+  val TIMESTAMPPAST60: String = INSTANT.minusSeconds(60).toString
+  val TIMESTAMPPAST600: String = INSTANT.minusSeconds(600).toString
+  val TIMESTAMPFUTURE600: String = INSTANT.plusSeconds(600).toString
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORG1USERPASSWORD = "org1userpassword"
   private val ORG2USERPASSWORD = "org2userpassword"
@@ -55,7 +60,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         orgType            = "",
         label              = "testPostOrgChangesRouteOrg",
         description        = "Test Organization 1",
-        lastUpdated        = ApiTime.nowUTC,
+        lastUpdated        = TIMESTAMPSTR,
         tags               = None,
         limits             = "",
         heartbeatIntervals = ""),
@@ -64,7 +69,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         orgType            = "",
         label              = "testPostOrgChangesRouteOrg",
         description        = "Test Organization 2",
-        lastUpdated        = ApiTime.nowUTC,
+        lastUpdated        = TIMESTAMPSTR,
         tags               = None,
         limits             = "",
         heartbeatIntervals = ""
@@ -72,24 +77,24 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     )
 
   private val TESTUSERS: Seq[UserRow] = {
-    Seq(UserRow(createdAt    = TIMESTAMP,
+    Seq(UserRow(createdAt    = INSTANT,
                 isHubAdmin   = true,
                 isOrgAdmin   = false,
-                modifiedAt   = TIMESTAMP,
+                modifiedAt   = INSTANT,
                 organization = "root",
                 password     = Option(Password.hash(HUBADMINPASSWORD)),
                 username     = "testPostOrgChangesRouteHubAdmin"),
-        UserRow(createdAt    = TIMESTAMP,
+        UserRow(createdAt    = INSTANT,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
-                modifiedAt   = TIMESTAMP,
+                modifiedAt   = INSTANT,
                 organization = TESTORGS(0).orgId,
                 password     = Option(Password.hash(ORG1USERPASSWORD)),
                 username     = "org1user"),
-        UserRow(createdAt    = TIMESTAMP,
+        UserRow(createdAt    = INSTANT,
                 isHubAdmin   = false,
                 isOrgAdmin   = false,
-                modifiedAt   = TIMESTAMP,
+                modifiedAt   = INSTANT,
                 organization = TESTORGS(1).orgId,
                 password     = Option(Password.hash(ORG2USERPASSWORD)),
                 username     = "org2user"))
@@ -101,8 +106,8 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         arch               = "",
         id                 = TESTORGS(0).orgId + "/org1node",
         heartbeatIntervals = "",
-        lastHeartbeat      = Some(ApiTime.nowUTC),
-        lastUpdated        = ApiTime.nowUTC,
+        lastHeartbeat      = Some(TIMESTAMPSTR),
+        lastUpdated        = TIMESTAMPSTR,
         msgEndPoint        = "",
         name               = "",
         nodeType           = "",
@@ -119,8 +124,8 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         arch               = "",
         id                 = TESTORGS(1).orgId + "/org2node",
         heartbeatIntervals = "",
-        lastHeartbeat      = Some(ApiTime.nowUTC),
-        lastUpdated        = ApiTime.nowUTC,
+        lastHeartbeat      = Some(TIMESTAMPSTR),
+        lastUpdated        = TIMESTAMPSTR,
         msgEndPoint        = "",
         name               = "",
         nodeType           = "",
@@ -143,7 +148,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
       name          = "",
       owner         = TESTUSERS(1).user, //org 1 user
       msgEndPoint   = "",
-      lastHeartbeat = ApiTime.nowUTC,
+      lastHeartbeat = TIMESTAMPSTR,
       publicKey     = ""
     ),
       AgbotRow(
@@ -153,7 +158,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         name          = "",
         owner         = TESTUSERS(2).user, //org 2 user
         msgEndPoint   = "",
-        lastHeartbeat = ApiTime.nowUTC,
+        lastHeartbeat = TIMESTAMPSTR,
         publicKey     = ""
       ),
       AgbotRow(
@@ -163,7 +168,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         name          = "",
         owner         = rootUser,
         msgEndPoint   = "",
-        lastHeartbeat = ApiTime.nowUTC,
+        lastHeartbeat = TIMESTAMPSTR,
         publicKey     = ""
       )
     )
@@ -187,7 +192,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "true",
                       resource = "org",
                       operation = "created",
-                      lastUpdated = ApiTime.pastUTCTimestamp(3600)), //1 hour ago
+                      lastUpdated = INSTANT.minusSeconds(3600)), //1 hour ago
     // other org, not public -- 1
     ResourceChangeRow(changeId = 0L,
                       orgId = TESTORGS(1).orgId,
@@ -196,7 +201,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "false",
                       resource = "agbot",
                       operation = "created",
-                      lastUpdated = ApiTime.nowUTCTimestamp),
+                      lastUpdated = INSTANT),
     // node category, id of other node -- 2
     ResourceChangeRow(changeId = 0L,
                       orgId = TESTORGS(0).orgId,
@@ -205,7 +210,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "false",
                       resource = "agbotagreements",
                       operation = "deleted",
-                      lastUpdated = ApiTime.nowUTCTimestamp),
+                      lastUpdated = INSTANT),
     // mgmtpolicy -- 3
     ResourceChangeRow(changeId = 0L,
                       orgId = TESTORGS(0).orgId,
@@ -214,7 +219,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "false",
                       resource = "nodeagreements",
                       operation = "deleted",
-                      lastUpdated = ApiTime.nowUTCTimestamp),
+                      lastUpdated = INSTANT),
     // other org, public -- 4
     ResourceChangeRow(changeId = 0L,
                       orgId = TESTORGS(1).orgId,
@@ -223,7 +228,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "true",
                       resource = "node",
                       operation = "deleted",
-                      lastUpdated = ApiTime.nowUTCTimestamp),
+                      lastUpdated = INSTANT),
     // resource nodemsgs -- 5
     ResourceChangeRow(changeId = 0L,
                       orgId = TESTORGS(1).orgId,
@@ -232,7 +237,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "true",
                       resource = "nodemsgs",
                       operation = "deleted",
-                      lastUpdated = ApiTime.nowUTCTimestamp),
+                      lastUpdated = INSTANT),
     // resource nodestatus ... 6
     ResourceChangeRow(changeId = 0L,
                       orgId = TESTORGS(1).orgId,
@@ -241,7 +246,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "false",
                       resource = "nodestatus",
                       operation = "deleted",
-                      lastUpdated = ApiTime.nowUTCTimestamp),
+                      lastUpdated = INSTANT),
     // resource nodeagreements + op createdmodified -- 7
     ResourceChangeRow(changeId = 0L,
                       orgId = TESTORGS(0).orgId,
@@ -250,7 +255,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "true",
                       resource = "nodeagreements",
                       operation = "created/modified",
-                      lastUpdated = ApiTime.nowUTCTimestamp),
+                      lastUpdated = INSTANT),
     // resource agbotagreements + op createdmodified -- 8
     ResourceChangeRow(changeId = 0L,
                       orgId = TESTORGS(0).orgId,
@@ -259,7 +264,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "true",
                       resource = "agbotagreements",
                       operation = "created/modified",
-                      lastUpdated = ApiTime.nowUTCTimestamp),
+                      lastUpdated = INSTANT),
     // agbot success -- 9
     ResourceChangeRow(changeId = 0L,
                       orgId = TESTORGS(0).orgId,
@@ -268,7 +273,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "false",
                       resource = "org",
                       operation = "created",
-                      lastUpdated = ApiTime.nowUTCTimestamp),
+                      lastUpdated = INSTANT),
     // 10
     ResourceChangeRow(changeId = 0L,
                       orgId = TESTORGS(0).orgId,
@@ -277,7 +282,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
                       public = "false",
                       resource = "ha_group",
                       operation = "modified",
-                      lastUpdated = ApiTime.nowUTCTimestamp)
+                      lastUpdated = INSTANT)
   )
 
   var lastChangeId: Long = 0L //will be set in beforeAll()
@@ -339,7 +344,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
 
   private val defaultTimeRequest: ResourceChangesRequest = ResourceChangesRequest(
     changeId = 0L, // <- 0 means don't use
-    lastUpdated = Some(ApiTime.pastUTC(600)), //10 min ago, should get everything added with ApiTime.nowUTC
+    lastUpdated = Some(TIMESTAMPPAST600), //10 min ago, should get everything added with ApiTime.nowUTC
     maxRecords = 100,
     orgList = None
   )
@@ -408,7 +413,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- both changeId and lastUpdated provided -- success, uses lastUpdated") {
     val request: ResourceChangesRequest =
       ResourceChangesRequest(changeId = lastChangeId, //will ensure that at least the final RC added will be returned
-                             lastUpdated = Option(ApiTime.futureUTC(600)), //if this were to be used, none of the TESTRCs would be included
+                             lastUpdated = Option(TIMESTAMPFUTURE600), //if this were to be used, none of the TESTRCs would be included
                              maxRecords = 100,
                              orgList = None)
     info("request.lastUpdated:  " + request.lastUpdated)
@@ -438,7 +443,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   ignore("POST /orgs/" + TESTORGS(1).orgId + ROUTE + " -- " + TESTORGS(1).orgId + " not in orgList, should be automatically added -- success") {
     val request: ResourceChangesRequest = ResourceChangesRequest(
       changeId = 0,
-      lastUpdated = Some(ApiTime.pastUTC(60)), //should get most TESTRCs
+      lastUpdated = Some(TIMESTAMPPAST600), //should get most TESTRCs
       maxRecords = 100,
       orgList = Some(List.empty)
     )
@@ -459,7 +464,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- " + TESTORGS(0).orgId + " wildcard '*' -- success") {
     val request: ResourceChangesRequest = ResourceChangesRequest(
       changeId = 0,
-      lastUpdated = Some(ApiTime.pastUTC(60)), //should get most TESTRCs
+      lastUpdated = Some(TIMESTAMPPAST60), //should get most TESTRCs
       maxRecords = 100,
       orgList = Some(List("*"))
     )
@@ -482,7 +487,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- " + TESTORGS(0).orgId + " wildcard '' (empty string) -- success") {
     val request: ResourceChangesRequest =
       ResourceChangesRequest(changeId = 0,
-                             lastUpdated = Some(ApiTime.pastUTC(60)), //should get most TESTRCs
+                             lastUpdated = Some(TIMESTAMPPAST60), //should get most TESTRCs
                              maxRecords = 100,
                              orgList = Some(List("*")))
     
@@ -615,7 +620,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- insure changing maxRecords cuts down return size -- success") {
     val request: ResourceChangesRequest = ResourceChangesRequest(
       changeId = 0L, // <- 0 means don't use
-      lastUpdated = Some(ApiTime.pastUTC(600)), //should get everything added with ApiTime.nowUTC
+      lastUpdated = Some(TIMESTAMPPAST600), //should get everything added with ApiTime.nowUTC
       maxRecords = 2,
       orgList = None
     )
@@ -639,7 +644,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
       public = "true",
       resource = "org",
       operation = "deleted",
-      lastUpdated = ApiTime.nowUTCTimestamp
+      lastUpdated = INSTANT
     )
     fixtureResourceChange(
       _ =>{

@@ -1,0 +1,256 @@
+# Name of the workflow
+name: E2E-test
+
+# Workflow triggers -- When a pull request is made for the listed branches
+on:
+  workflow_dispatch:
+    inputs:
+      agentContainerTag:
+        description: "Version tag for the agent."
+        required: false
+        default: 'testing'
+        type: choice
+        options:
+          - testing
+          - testing_v2.31
+          - testing_v2.30
+          - latest
+  pull_request:
+    branches:
+      - master
+
+env:
+  DEBIAN_FRONTEND: noninteractive
+  DOCKER_NETWORK: exchange-api-network
+  DOCKER_REGISTRY: openhorizon
+  EXCHANGE_DB_NAME: exchange
+  # ((Core Count * 2) + Spindle Count); Default is 20
+  EXCHANGE_DB_NUMTHREADS: 9
+  EXCHANGE_DB_PORT: 5432
+  EXCHANGE_DB_USER: admin
+  EXCHANGE_LOG_LEVEL: ${EXCHANGE_LOG_LEVEL:-DEBUG}
+  EXCHANGE_LOG_SCALACACHE_CAFFEINE: ${EXCHANGE_LOG_SCALACACHE_CAFFEINE:-INFO}
+  EXCHANGE_PEKKO_LOGLEVEL: ${EXCHANGE_PEKKO_LOGLEVEL:-DEBUG}
+  EXCHANGE_ROOT_PW: ci-password
+  GOPATH: /home/runner/work/exchange-api/exchange-api/go
+  DOCKER_CONFIG: /home/runner/.docker-config
+
+# Jobs executed when workflow is triggered
+jobs:
+  test-policies:
+    continue-on-error: true
+    runs-on: ubuntu-latest
+
+    # Strategy allows specifying matrix axis(es) that will run for the test
+    strategy:
+      matrix:
+        tests: ["NOLOOP=1"]
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: coursier/cache-action@v6
+
+      # Prepares the environment by setting up golang
+      - name: Set up golang 1.23
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          check-latest: true
+
+      # Setup Scala
+      # Comes from open source action: https://github.com/coursier/setup-action
+      - name: Setup Scala
+        uses: coursier/setup-action@v1
+        with:
+          apps: sbt
+          jvm: temurin:1.21
+
+      - name: Checkout Exchange
+        uses: actions/checkout@v4
+
+      - name: Checkout Anax
+        uses: actions/checkout@v4
+        with:
+          path: go/src/github.com/open-horizon/anax
+          ref: issue-4345
+          repository: naphelps/anax
+
+      - name: Verify Base Path
+        run: pwd
+
+      - name: Verify Java Version
+        run: java -version
+
+      - name: Verify Docker version
+        run: docker --version
+
+      - name: Set Exchange Version
+        run: |
+          echo "DOCKER_EXCH_TAG=$(head -n 1 src/main/resources/version.txt)" >> $GITHUB_ENV
+          echo "EXCHANGE_IMAGE_TAG=$(head -n 1 src/main/resources/version.txt)" >> $GITHUB_ENV
+
+      - name: Build Exchange Container Image
+        run: sbt Docker/publishLocal
+
+      - name: Build Anax Binaries
+        run: cd ${GOPATH}/src/github.com/open-horizon/anax && make
+
+      - name: Build the E2E-Dev Container Image
+        run: cd ${GOPATH}/src/github.com/open-horizon/anax && make -C test build-remote
+
+      - name: Verify Built Container Images
+        run: docker images
+
+      - name: E2E Development Test NOLOOP=1
+        id: test-runner
+        run: cd ${GOPATH}/src/github.com/open-horizon/anax && make -C test test-no-clean TEST_VARS=${{matrix.tests}}
+
+      - name: Test Failure Catch - Check Docker Containers
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: docker ps -a
+
+      - name: Test Failure Catch - Check Agbot Docker Log
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: docker logs agbot
+
+      - name: Test Failure Catch - Check Exchange Docker Log
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: docker logs exchange-api
+
+      - name: Test Failure Catch - Check k8s Pods
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: sudo -E snap run microk8s kubectl get pods -n agent-namespace -o wide
+
+      - name: Test Failure Catch - Check k8s Pods Description
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: sudo -E snap run microk8s kubectl describe pods -n agent-namespace
+
+      - name: Test Failure Catch - Check k8s Services
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: sudo -E snap run microk8s kubectl get services -n agent-namespace -o wide
+
+      - name: Test Failure Catch - Check k8s Nodes
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: sudo -E snap run microk8s kubectl get nodes -n agent-namespace -o wide
+
+      - name: Test Failure Catch - Check k8s Pod Logs
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: sudo -E snap run microk8s kubectl logs -l app=agent --all-pods=true --all-containers=true -n agent-namespace
+
+  test-patterns:
+    continue-on-error: true
+    runs-on: ubuntu-latest
+
+    # Strategy allows specifying matrix axis(es) that will run for the test
+    strategy:
+      matrix:
+        tests: ["NOLOOP=1 TEST_PATTERNS=sall"]
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+      # Checks-out your repository under $GITHUB_WORKSPACE, so your job can access it
+      - uses: coursier/cache-action@v6
+
+      # Prepares the environment by setting up golang
+      - name: Set up golang 1.23
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+          check-latest: true
+
+      # Setup Scala
+      # Comes from open source action: https://github.com/coursier/setup-action
+      - name: Setup Scala
+        uses: coursier/setup-action@v1
+        with:
+          apps: sbt
+          jvm: temurin:1.21
+
+      - name: Checkout Exchange
+        uses: actions/checkout@v4
+
+      - name: Checkout Anax
+        uses: actions/checkout@v4
+        with:
+          path: go/src/github.com/open-horizon/anax
+          ref: issue-4345
+          repository: naphelps/anax
+
+      - name: Verify Base Path
+        run: pwd
+
+      - name: Verify Java Version
+        run: java -version
+
+      - name: Verify Docker version
+        run: docker --version
+
+      - name: Set Exchange Version
+        run: |
+          echo "DOCKER_EXCH_TAG=$(head -n 1 src/main/resources/version.txt)" >> $GITHUB_ENV
+          echo "EXCHANGE_IMAGE_TAG=$(head -n 1 src/main/resources/version.txt)" >> $GITHUB_ENV
+
+      - name: Build Exchange Container Image
+        run: sbt Docker/publishLocal
+
+      - name: Build Anax Binaries
+        run: cd ${GOPATH}/src/github.com/open-horizon/anax && make
+
+      - name: Build the E2E-Dev Container Image
+        run: cd ${GOPATH}/src/github.com/open-horizon/anax && make -C test build-remote
+
+      - name: Verify Built Container Images
+        run: docker images
+
+      - name: E2E Development Test NOLOOP=1
+        id: test-runner
+        run: cd ${GOPATH}/src/github.com/open-horizon/anax && make -C test test-no-clean TEST_VARS=${{matrix.tests}}
+
+      - name: Test Failure Catch - Check Docker Containers
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: docker ps -a
+
+      - name: Test Failure Catch - Check Agbot Docker Log
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: docker logs agbot
+
+      - name: Test Failure Catch - Check Exchange Docker Log
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: docker logs exchange-api
+
+      - name: Test Failure Catch - Check k8s Pods
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: sudo -E snap run microk8s kubectl get pods -n agent-namespace -o wide
+
+      - name: Test Failure Catch - Check k8s Pods Description
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: sudo -E snap run microk8s kubectl describe pods -n agent-namespace
+
+      - name: Test Failure Catch - Check k8s Services
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: sudo -E snap run microk8s kubectl get services -n agent-namespace -o wide
+
+      - name: Test Failure Catch - Check k8s Nodes
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: sudo -E snap run microk8s kubectl get nodes -n agent-namespace -o wide
+
+      - name: Test Failure Catch - Check k8s Pod Logs
+        continue-on-error: true
+        if: ${{ failure() && steps.test-runner.conclusion == 'failure' }}
+        run: sudo -E snap run microk8s kubectl logs -l app=agent --all-pods=true --all-containers=true -n agent-namespace

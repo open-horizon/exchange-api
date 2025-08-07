@@ -18,19 +18,18 @@ import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership}
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthRoles, AuthenticationSupport, BadInputException, IUser, Identity, Identity2, OrgAndId, Password, Role, TUser}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ, User => UserTable}
-import org.openhorizon.exchangeapi.table.apikey.{ApiKeyRow, ApiKeys, ApiKeysTQ,ApiKeyMetadata}
+import org.openhorizon.exchangeapi.table.apikey.{ApiKeyMetadata, ApiKeyRow, ApiKeys, ApiKeysTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, StrConstants}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{CompiledStreamingExecutable, MappedProjection}
 
-import java.lang.ClassNotFoundException
-import java.sql.Timestamp
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import scalacache.modes.scalaFuture._
-import scala.concurrent.Future
+
+import java.time.Instant
 
 
 @Path("/v1/orgs/{organization}/users/{username}")
@@ -99,7 +98,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
     get {
       logger.debug(s"GET /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
       
-      val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Timestamp], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)])] =
+      val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Instant, Option[String], String, Boolean, Boolean, Instant, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Instant], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])] =
         for {
           users <-
             Compiled((UsersTQ.filter(user => (user.organization === organization &&
@@ -293,7 +292,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                             Option(ExchMsg.translate("hub.admins.only.write.admins"))
                           else
                             None) {
-            val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+            val timestamp: Instant = ApiTime.nowUTCTimestamp
             val uuid: java.util.UUID          = UUID.randomUUID()        // version 4
             
             val createUser: DBIOAction[Int, NoStream, Effect.Write] =
@@ -449,7 +448,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                           else
                             None) {
               
-              val timestamp: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+              val timestamp: Instant = ApiTime.nowUTCTimestamp
               val uuid: java.util.UUID          = UUID.randomUUID()        // version 4
               
               // Extract common query filters
@@ -667,7 +666,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                             else
                               None) {
               
-              val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+              val timestamp: Instant = ApiTime.nowUTCTimestamp
               
               val modifyUserAttribute: DBIOAction[Int, NoStream, Effect.Write with Effect] =
                 for {

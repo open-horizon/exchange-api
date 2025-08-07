@@ -18,6 +18,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -32,7 +33,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val ORG1USERPASSWORD = "org1userpassword"
@@ -136,7 +137,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
         arch               = "",
         id                 = TESTORGS(0).orgId + "/deadusernode",
         heartbeatIntervals = "",
-        lastHeartbeat      = Some(ApiTime.pastUTC(600)), //long time ago
+        lastHeartbeat      = Some(Instant.now().minusSeconds(600).toString), //long time ago
         lastUpdated        = ApiTime.nowUTC,
         msgEndPoint        = "",
         name               = "",
@@ -272,7 +273,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
              .filter(_.username startsWith "TestPostNodeHealthRouteHubAdmin").delete), AWAITDURATION)
   }
 
-  private val oneMinuteAgo: PostNodeHealthRequest = PostNodeHealthRequest(ApiTime.pastUTC(60), None) //not sure what nodeOrgIds is for... it is never referenced in the Route
+  private val oneMinuteAgo: PostNodeHealthRequest = PostNodeHealthRequest(Instant.now().minusSeconds(60).toString, None) //not sure what nodeOrgIds is for... it is never referenced in the Route
 
   test("POST /orgs/doesNotExist" + ROUTE + " -- 404 not found -- empty return") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
@@ -322,7 +323,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- very old time -- success, all nodes with no patterns returned") {
-    val requestBody: PostNodeHealthRequest = PostNodeHealthRequest(ApiTime.pastUTC(3600), None)
+    val requestBody: PostNodeHealthRequest = PostNodeHealthRequest(Instant.now().minusSeconds(3600).toString, None)
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)

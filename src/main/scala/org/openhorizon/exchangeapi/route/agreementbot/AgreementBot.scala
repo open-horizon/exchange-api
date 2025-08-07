@@ -24,6 +24,7 @@ import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.MappedProjection
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -209,6 +210,9 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val owner: Option[UUID] = identity.identifier
               val hashedTok: String = Password.hash(reqBody.token)
@@ -233,7 +237,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                              .flatMap({
                                case Success(v) => // Add the resource to the resourcechanges table
                                  logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot result: $v")
-                                 resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                                 resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                                case Failure(t) => DBIO.failed(t).asTry}))
                 .map({
                   case Success(v) =>
@@ -297,6 +301,9 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - By ${identity.resource}:${identity.role}")
             validateWithMsg(reqBody.getAnyProblem) {
+              
+              val INSTANT: Instant = Instant.now()
+              
               complete({
                 val hashedTok: String =
                   if (reqBody.token.isDefined)
@@ -316,7 +323,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                                      if (reqBody.token.isDefined) {
                                        // TODO: AuthCache.putAgbot(resource, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner}
                                      }
-                                     resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.MODIFIED).insert.asTry
+                                     resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
                                    }
                                    else
                                      DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", resource))).asTry

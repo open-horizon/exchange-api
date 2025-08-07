@@ -4,6 +4,8 @@ import org.json4s.{DefaultFormats, Formats}
 import slick.jdbc.PostgresProfile.api._
 import slick.dbio.DBIO
 
+import java.time.Instant
+
 final case class ResourceChangeRow(changeId: Long = 0L,
                                    orgId: String,
                                    id: String,
@@ -11,7 +13,8 @@ final case class ResourceChangeRow(changeId: Long = 0L,
                                    public: String,
                                    resource: String,
                                    operation: String,
-                                   lastUpdated: java.sql.Timestamp) {
+                                   lastUpdated: Instant,
+                                   testcolumn: Option[Instant] = None) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   //def toResourceChange: ResourceChange = ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)

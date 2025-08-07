@@ -22,6 +22,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configurat
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -287,6 +288,9 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"POST /orgs/${organization}/managementpolicies/${managementPolicy} - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val owner: Option[UUID] = identity.identifier
               db.run(ManagementPoliciesTQ.getNumOwned(owner.get).result.asTry.flatMap({
@@ -303,7 +307,7 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
                 case Success(v) =>
                   // Add the resource to the resourcechanges table
                   logger.debug("POST /orgs/" + organization + "/managementpolicies/" + managementPolicy + " result: " + v)
-                  ResourceChange(0L, organization, managementPolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.CREATED).insert.asTry
+                  ResourceChange(0L, organization, managementPolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.CREATED, INSTANT).insert.asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(v) =>
@@ -413,13 +417,16 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val owner: Option[UUID] = identity.identifier
               db.run(reqBody.getDbUpdate(resource, organization, owner.get).asTry.flatMap({
                 case Success(v) =>
                   // Add the resource to the resourcechanges table
                   logger.debug("PUT /orgs/" + organization + "/managementpolicies/" + managementPolicy + " result: " + v)
-                  ResourceChange(0L, organization, managementPolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.MODIFIED).insert.asTry
+                  ResourceChange(0L, organization, managementPolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(v) =>
@@ -457,6 +464,9 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
                              @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/$organization/managementpolicies/$managementPolicy - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         db.run(ManagementPoliciesTQ.getManagementPolicy(resource).delete.transactionally.asTry.flatMap({
           case Success(v) =>
@@ -465,7 +475,7 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               // TODO: AuthCache.removeManagementPolicyOwner(resource)
               // TODO: AuthCache.removeManagementPolicyIsPublic(resource)
-              ResourceChange(0L, organization, managementPolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, organization, managementPolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.not.found", resource))).asTry
             }

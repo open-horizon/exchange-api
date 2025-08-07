@@ -8,7 +8,6 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{User, UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.ApiTime.fixFormatting
 import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode, StrConstants}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
@@ -16,7 +15,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
-import java.time.ZoneId
+import java.time.{Instant, ZoneId}
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -30,7 +29,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORG1ADMINPASSWORD = "org1adminpassword"

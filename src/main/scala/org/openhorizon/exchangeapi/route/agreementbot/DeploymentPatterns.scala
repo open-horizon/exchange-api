@@ -20,6 +20,7 @@ import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResC
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}
 
@@ -52,6 +53,9 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
                                        @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({ // remove does *not* throw an exception if the key does not exist
         db.run(AgbotPatternsTQ.getPatterns(resource)
                               .delete
@@ -61,7 +65,7 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
                                   if (v > 0) { // there were no db errors, but determine if it actually found it or not
                                     // Add the resource to the resourcechanges table
                                     logger.debug("DELETE /agbots/" + agreementBot + "/patterns result: " + v)
-                                    resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.DELETED).insert.asTry
+                                    resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.DELETED, INSTANT).insert.asTry
                                   }
                                   else
                                     DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("patterns.not.found", resource))).asTry
@@ -171,6 +175,9 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/patterns - By ${identity.resource}:${identity.role}")
             validateWithMsg(reqBody.getAnyProblem) {
+              
+              val INSTANT: Instant = Instant.now()
+              
               complete({
                 val deploymentPattern: String = reqBody.formId
                 db.run(PatternsTQ.getPattern(OrgAndId(reqBody.patternOrgid, reqBody.pattern).toString).length.result.asTry
@@ -187,7 +194,7 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
                                  .flatMap({
                                    case Success(v) => // Add the resource to the resourcechanges table
                                      logger.debug("POST /orgs/" + organization + "/agbots/" + agreementBot + "/patterns result: " + v)
-                                     resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.CREATED).insert.asTry
+                                     resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.CREATED, INSTANT).insert.asTry
                                    case Failure(t) =>
                                      DBIO.failed(t).asTry}))
                   .map({

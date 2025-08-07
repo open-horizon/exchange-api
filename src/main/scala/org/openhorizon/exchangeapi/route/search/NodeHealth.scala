@@ -17,6 +17,7 @@ import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.utility.{ApiTime, HttpCode, RouteUtils}
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.ExecutionContext
 
 @Path("/v1/orgs/{organization}/search/nodehealth")
@@ -117,8 +118,9 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
             val lastTime: String =
               if (reqBody.lastTime != "")
                 reqBody.lastTime
-              else
-                ApiTime.beginningUTC
+              else {
+                Instant.MIN.toString
+              }
             
             val q =
               for {

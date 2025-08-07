@@ -32,7 +32,6 @@ import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.MappedToBase.mappedToIsomorphism
 
-import java.sql.Timestamp
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Await
@@ -103,7 +102,7 @@ class BusinessSuite extends AnyFunSuite with BeforeAndAfterAll {
   val orgsList = new ListBuffer[String]()
   val AWAITDURATION: Duration = 15.seconds
   val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
-  val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+  val timestamp: Instant = ApiTime.nowUTCTimestamp
 
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
 
@@ -308,7 +307,7 @@ class BusinessSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was created and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -389,7 +388,7 @@ class BusinessSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy3 + " was deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -442,7 +441,7 @@ class BusinessSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was updated and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -630,7 +629,7 @@ class BusinessSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + businessPolicy + " was updated and stored via PATCH") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)

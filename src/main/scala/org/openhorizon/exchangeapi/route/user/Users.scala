@@ -14,18 +14,16 @@ import org.apache.pekko.http.scaladsl.server.Directives.{Segment, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthRoles, AuthenticationSupport, IUser, Identity, Identity2, OrgAndId, Password, Role, TUser}
 import org.openhorizon.exchangeapi.table.user.{User, UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.table.apikey.{ApiKeys, ApiKeyRow, ApiKeysTQ,ApiKeyMetadata}
+import org.openhorizon.exchangeapi.table.apikey.{ApiKeyMetadata, ApiKeyRow, ApiKeys, ApiKeysTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, StrConstants}
 import slick.lifted.{CompiledStreamingExecutable, MappedProjection}
 
-import java.sql.Timestamp
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.Future
 
-//import org.openhorizon.exchangeapi.AuthenticationSupport._
 import org.json4s._
 import org.openhorizon.exchangeapi.auth.BadInputException
-import org.openhorizon.exchangeapi.table._
 import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
@@ -117,7 +115,7 @@ trait Users extends JacksonSupport with AuthenticationSupport {
     {
       logger.debug(s"GET /orgs/$organization/users - By ${identity.resource}:${identity.role}")
       
-      val getUsersWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Timestamp], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Timestamp, UUID)])] =
+      val getUsersWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Instant, Option[String], String, Boolean, Boolean, Instant, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Instant], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])] =
         for {
           users <-
             Compiled((UsersTQ.filter(user => (user.organization === organization))
@@ -289,7 +287,7 @@ trait Users extends JacksonSupport with AuthenticationSupport {
       else{
         logger.debug(s"GET /orgs/$organization/users/$pathSegment - By ${identity.resource}:${identity.role}")
         
-        val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Timestamp, Option[String], String, Boolean, Boolean, Timestamp, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
+        val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Instant, Option[String], String, Boolean, Boolean, Instant, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
           for {
             users <-
               Compiled((UsersTQ.filter(user => (user.organization === organization &&

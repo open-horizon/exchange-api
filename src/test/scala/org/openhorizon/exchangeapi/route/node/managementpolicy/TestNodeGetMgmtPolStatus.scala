@@ -16,6 +16,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -31,7 +32,7 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
   val managementPolicy1: String = "pol1"
   val managementPolicy2: String = "pol2"
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   private val TESTUSER: UserRow =
     UserRow(createdAt    = TIMESTAMP,

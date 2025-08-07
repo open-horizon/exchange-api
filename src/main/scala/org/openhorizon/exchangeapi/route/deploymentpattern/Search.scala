@@ -19,6 +19,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, E
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.control.Breaks.{break, breakable}
@@ -167,7 +168,7 @@ trait Search extends JacksonSupport with AuthenticationSupport {
                   
                   NodesTQ
                     .filterOpt(optArchSet)((node, archs) => node.arch inSet(archs))
-                    .filterOpt(secondsStaleOpt)((node, secondsStale) => !(node.lastHeartbeat < ApiTime.pastUTC(secondsStale)))
+                    .filterOpt(secondsStaleOpt)((node, secondsStale) => !(node.lastHeartbeat < Instant.now().minusSeconds(secondsStale).toString))
                     .filter(_.lastHeartbeat.isDefined)
                     .filter(_.orgid inSet(nodeOrgids))
                     .filter(_.pattern === resource)

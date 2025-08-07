@@ -30,6 +30,7 @@ import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
 import java.net.{MalformedURLException, URL}
+import java.time.Instant
 import java.util.UUID
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
@@ -328,6 +329,9 @@ trait Services extends JacksonSupport with AuthenticationSupport {
       reqBody =>
         Future { logger.debug(s"POST /orgs/$organization/services - By ${identity.resource}(${identity.identifier.getOrElse(identity.owner.getOrElse("None"))}):${identity.role}") }
         validateWithMsg(reqBody.getAnyProblem(organization, null)) {
+          
+          val INSTANT: Instant = Instant.now()
+          
           complete({
             val service: String = reqBody.formId(organization)
             val owner: Option[UUID] = identity.identifier   // currently only users are allowed to create/update services, so owner will never be blank
@@ -386,7 +390,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                 // Add the resource to the resourcechanges table
                 Future { logger.debug(s"POST /orgs/$organization/services - result: $v") }
                 val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
-                ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, reqBody.public, ResChangeResource.SERVICE, ResChangeOperation.CREATED).insert.asTry
+                ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, reqBody.public, ResChangeResource.SERVICE, ResChangeOperation.CREATED, INSTANT).insert.asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
               case Success(v) =>

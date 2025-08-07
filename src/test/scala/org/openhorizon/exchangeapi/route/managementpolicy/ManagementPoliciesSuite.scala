@@ -21,6 +21,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.Await
@@ -66,7 +67,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   
   private val AWAITDURATION: Duration = 15.seconds
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   val rootUser: UUID = Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === "root" && users.username === "root").map(_.user).result.head), AWAITDURATION)
   

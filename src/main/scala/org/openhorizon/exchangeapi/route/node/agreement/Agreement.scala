@@ -23,6 +23,7 @@ import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -180,6 +181,9 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
             reqBody =>
               logger.debug(s"PUT /orgs/${organization}/nodes/${node}/agreements/${agreement}?noheartbeat=${noheartbeat.getOrElse("None")} - By ${identity.resource}:${identity.role}")
               validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
+                
+                val INSTANT: Instant = Instant.now()
+                
                 complete({
                   val noHB = if (noheartbeat.isEmpty) false else if (noheartbeat.get.toLowerCase == "true") true else false
                   val maxAgreements: Int = Configuration.getConfig.getInt("api.limits.maxAgreements")
@@ -205,7 +209,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                     case Success(v) =>
                       // Add the resource to the resourcechanges table
                       if (!noHB) logger.debug("Update /orgs/" + organization + "/nodes/" + node + " lastHeartbeat result: " + v)
-                      ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODEAGREEMENTS, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                      ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODEAGREEMENTS, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                     case Failure(t) => DBIO.failed(t).asTry
                   })).map({
                     case Success(n) =>
@@ -252,13 +256,16 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                           @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/agreements/${agreement} - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         db.run(NodeAgreementsTQ.getAgreement(resource,agreement).delete.asTry.flatMap({
           case Success(v) =>
             // Add the resource to the resourcechanges table
             logger.debug("DELETE /nodes/" + node + "/agreements/" + agreement + " result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
-              ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODEAGREEMENTS, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODEAGREEMENTS, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agreement, resource))).asTry
             }

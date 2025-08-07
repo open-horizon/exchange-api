@@ -21,6 +21,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, E
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled
 
+import java.time.Instant
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
@@ -135,7 +136,7 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
     // Figure out what our offset is going to be in this DB query.
     def getOffset(currentOffset: Option[String], currentSession: Option[String]): Option[String] =
       if (currentOffset.isEmpty && 0L < reqBody.changedSince) // New workflow for abgot and policy, use the changedSince they passed in
-        Option(ApiTime.thenUTC(reqBody.changedSince))
+        Option(Instant.ofEpochSecond(reqBody.changedSince).toString)
       else if (currentOffset.isDefined &&
                currentSession.isDefined &&
                reqBody.session.isDefined &&

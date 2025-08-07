@@ -5,7 +5,7 @@ import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 import slick.sql.FixedSqlAction
 
-import java.sql.Timestamp
+import java.time.Instant
 
 // Instance to access the ResourceChanges table
 object ResourceChangesTQ extends TableQuery(new ResourceChanges(_)) {
@@ -16,8 +16,8 @@ object ResourceChangesTQ extends TableQuery(new ResourceChanges(_)) {
   def getPublic(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.public)
   def getResource(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.resource)
   def getOperation(changeid: Long): Query[Rep[String], String, Seq] = this.filter(_.changeId === changeid).map(_.operation)
-  def getLastUpdated(changeid: Long): Query[Rep[Timestamp], Timestamp, Seq] = this.filter(_.changeId === changeid).map(_.lastUpdated)
-  def getRowsExpired(timeExpired: java.sql.Timestamp): Query[ResourceChanges, ResourceChangeRow, Seq] = this.filter(_.lastUpdated < timeExpired)
+  def getLastUpdated(changeid: Long): Query[Rep[Instant], Instant, Seq] = this.filter(_.changeId === changeid).map(_.lastUpdated)
+  def getRowsExpired(timeExpired: Instant): Query[ResourceChanges, ResourceChangeRow, Seq] = this.filter(_.lastUpdated < timeExpired)
 
   /** Returns a query for the specified org attribute value. Returns null if an invalid attribute name is given. */
   def getAttribute(changeid: Long, attrName: String): Query[_,_,Seq] = {

@@ -19,6 +19,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -40,7 +41,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORG1ADMINPASSWORD = "org1adminpassword"
@@ -318,7 +319,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
       assert(newUser.isOrgAdmin === TESTUSERS(2).isOrgAdmin)
       assert(newUser.isHubAdmin === TESTUSERS(2).isHubAdmin)
       assert(newUser.email === TESTUSERS(2).email)
-      assert(newUser.modifiedAt.after(TESTUSERS(2).modifiedAt))
+      assert(newUser.modifiedAt.isAfter(TESTUSERS(2).modifiedAt))
     }
   }
 
@@ -343,7 +344,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
       assert(newUser.isOrgAdmin === TESTUSERS(2).isOrgAdmin)
       assert(newUser.isHubAdmin === TESTUSERS(2).isHubAdmin)
       assert(newUser.email === TESTUSERS(2).email)
-      assert(newUser.modifiedAt.after(TESTUSERS(2).modifiedAt))
+      assert(newUser.modifiedAt.isAfter(TESTUSERS(2).modifiedAt))
     }
   }
 
@@ -422,7 +423,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
       assert(newUser.isOrgAdmin === TESTUSERS(0).isOrgAdmin)
       assert(newUser.isHubAdmin === requestBody.hubAdmin.get)
       assert(newUser.email === TESTUSERS(0).email)
-      assert(newUser.modifiedAt.after(TESTUSERS(0).modifiedAt))
+      assert(newUser.modifiedAt.isAfter(TESTUSERS(0).modifiedAt))
     }
   }
 
@@ -447,7 +448,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
       assert(newUser.isOrgAdmin === requestBody.admin.get)
       assert(newUser.isHubAdmin === TESTUSERS(1).isHubAdmin)
       assert(newUser.email === TESTUSERS(1).email)
-      assert(newUser.modifiedAt.after(TESTUSERS(1).modifiedAt))
+      assert(newUser.modifiedAt.isAfter(TESTUSERS(1).modifiedAt))
     }
   }
 
@@ -489,7 +490,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
       assert(newUser.isOrgAdmin === requestBody.admin.get)
       assert(newUser.isHubAdmin === TESTUSERS(4).isHubAdmin)
       assert(newUser.email === TESTUSERS(4).email)
-      assert(newUser.modifiedAt.after(TESTUSERS(4).modifiedAt))
+      assert(newUser.modifiedAt.isAfter(TESTUSERS(4).modifiedAt))
     }
   }
 
@@ -518,7 +519,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
       assert(newUser.isOrgAdmin === TESTUSERS(2).isOrgAdmin)
       assert(newUser.isHubAdmin === TESTUSERS(2).isHubAdmin)
       assert(newUser.email === TESTUSERS(2).email)
-      assert(newUser.modifiedAt.after(TESTUSERS(2).modifiedAt))
+      assert(newUser.modifiedAt.isAfter(TESTUSERS(2).modifiedAt))
     }
   }
 
@@ -589,7 +590,7 @@ class TestPatchUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
       assert(newUser.isOrgAdmin === TESTUSERS(2).isOrgAdmin)
       assert(newUser.isHubAdmin === TESTUSERS(2).isHubAdmin)
       assert(newUser.email === requestBody.email)
-      assert(newUser.modifiedAt.after(TESTUSERS(2).modifiedAt))
+      assert(newUser.modifiedAt.isAfter(TESTUSERS(2).modifiedAt))
     }
   }
 

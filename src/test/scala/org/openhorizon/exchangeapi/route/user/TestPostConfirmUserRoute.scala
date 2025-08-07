@@ -14,6 +14,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -28,7 +29,7 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "hubadminpassword"
   private val ORGADMINPASSWORD = "orgadminpassword"

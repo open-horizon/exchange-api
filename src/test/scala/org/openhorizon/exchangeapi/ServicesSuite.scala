@@ -150,7 +150,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   private val AWAITDURATION: Duration = 15.seconds
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   val rootUser: UUID = Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === "root" && users.username === "root").map(_.user).result.head), AWAITDURATION)
 
@@ -384,7 +384,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was created and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -477,7 +477,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was updated and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -751,7 +751,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was updated via PATCH and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     Thread.sleep(1000)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
@@ -908,7 +908,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " policy was created and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -936,7 +936,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " policy was deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -969,7 +969,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " key was created and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1012,7 +1012,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " key was deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1041,7 +1041,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " all keys were deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1083,7 +1083,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + "dockauth was created and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1133,7 +1133,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     assert(response.code === HttpCode.PUT_OK.intValue)
 
     info("POST /orgs/"+orgid+"/changes - verify " + service + "dockauth was created and stored")
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val anotherInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     response = Http(URL+"/changes").postData(write(anotherInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1169,7 +1169,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + "dockauth was deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1186,7 +1186,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " all dockauths were deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
@@ -1213,7 +1213,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was deleted and stored") {
-    val time = ApiTime.pastUTC(secondsAgo)
+    val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)

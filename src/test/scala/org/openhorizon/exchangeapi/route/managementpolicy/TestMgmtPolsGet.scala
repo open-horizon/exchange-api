@@ -14,6 +14,7 @@ import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -26,7 +27,7 @@ class TestMgmtPolsGet extends AnyFunSuite with BeforeAndAfterAll {
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   private val TESTUSERS: Seq[UserRow] =
     Seq(UserRow(createdAt    = TIMESTAMP,

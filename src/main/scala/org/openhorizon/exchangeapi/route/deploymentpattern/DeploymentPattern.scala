@@ -24,6 +24,7 @@ import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -57,6 +58,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                               @Parameter(hidden = true) resource: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/$organization/patterns/$deploymentPattern - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         // remove does *not* throw an exception if the key does not exist
         var storedPublicField = false
@@ -76,7 +80,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               // TODO: AuthCache.removePatternOwner(resource)
               // TODO: AuthCache.removePatternIsPublic(resource)
-              ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERN, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERN, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
             }
@@ -404,6 +408,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"PATCH /orgs/$organization/patterns/$deploymentPattern - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val (action, attrName) = reqBody.getDbUpdate(resource, organization)
               var storedPatternPublic = false
@@ -471,7 +478,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                       else {
                         publicField = storedPatternPublic
                       }
-                      ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.MODIFIED).insert.asTry
+                      ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
                     } else {
                       DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.attribute.not.update", attrName, resource))).asTry
                     }
@@ -639,6 +646,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
         logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - By ${identity.resource}:${identity.role}")
         
         validateWithMsg(reqBody.getAnyProblem) {
+          
+          val INSTANT: Instant = Instant.now()
+          
           complete({
             val owner: Option[UUID] = identity.identifier
             // Get optional agbots that should be updated with this new pattern
@@ -687,7 +697,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                 // Add the resource to the resourcechanges table
                 logger.debug("POST /orgs/" + organization + "/patterns/" + deploymentPattern + " result: " + v)
                 val publicField: Boolean = reqBody.public.getOrElse(false)
-                ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.CREATED).insert.asTry
+                ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.CREATED, INSTANT).insert.asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
               case Success(v) =>
@@ -823,6 +833,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
           logger.debug(s"PUT /orgs/$organization/patterns/$deploymentPattern - By ${identity.resource}:${identity.role}")
           
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               val owner: Option[UUID] = identity.identifier
               var storedPatternPublic = false
@@ -885,7 +898,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                     else {
                       publicField = storedPatternPublic
                     }
-                    ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                    ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                   } else {
                     DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
                   }

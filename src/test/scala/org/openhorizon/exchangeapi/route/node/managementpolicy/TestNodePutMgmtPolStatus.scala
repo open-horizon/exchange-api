@@ -1,24 +1,23 @@
-package org.openhorizon.exchangeapi.route.node
+package org.openhorizon.exchangeapi.route.node.managementpolicy
 
-import org.openhorizon.exchangeapi
-import org.checkerframework.checker.units.qual.s
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization.write
 import org.openhorizon.exchangeapi.auth.{Password, Role}
-import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, BusinessPolicyRow}
-import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPolicies, ManagementPoliciesTQ, ManagementPolicyRow}
+import org.openhorizon.exchangeapi.route.node.{NodeMangementPolicyStatus, PutNodeMgmtPolStatusRequest, UpgradedVersions}
+import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicyRow}
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{NodeMgmtPolStatusRow, NodeMgmtPolStatuses}
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
-import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 
@@ -36,7 +35,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   
   private val TESTUSER: UserRow =
     UserRow(createdAt    = TIMESTAMP,
@@ -151,7 +150,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
     assert(change.head.id        === "n1")
     assert(change.head.category  === ResChangeCategory.NODE.toString)
     assert(0           <= change.head.changeId)
-    assert(0L          <= change.head.lastUpdated.getTime)
+    assert(0L          <= change.head.lastUpdated.getEpochSecond)
     assert(change.head.orgId     === TESTORGANIZATION.orgId)
     assert(change.head.operation === ResChangeOperation.CREATEDMODIFIED.toString)
     assert(change.head.public    === "false")
@@ -160,17 +159,17 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
   
   test("PUT /orgs/" + TESTORGANIZATION.orgId + "/nodes/n1/managementStatus/pol1 -- 201 Ok - Update") {
     val mgmtPolStatus: NodeMgmtPolStatusRow =
-      NodeMgmtPolStatusRow(actualStartTime = Option(ApiTime.pastUTC(120)),
+      NodeMgmtPolStatusRow(actualStartTime = Option(Instant.now().minusSeconds(120).toString),
                            certificateVersion   = Option("0.0.1"),
                            configurationVersion = Option("0.0.2"),
-                           endTime              = Option(ApiTime.pastUTC(120)),
+                           endTime              = Option(Instant.now().minusSeconds(120).toString),
                            errorMessage         = Option("an error message"),
                            node                 = TESTNODE.id,
                            policy               = TESTMANAGEMENTPOLICY.managementPolicy,
-                           scheduledStartTime   = ApiTime.pastUTC(120),
+                           scheduledStartTime   = Instant.now().minusSeconds(120).toString,
                            softwareVersion      = Option("0.0.3"),
                            status               = Option("in progress"),
-                           updated              = ApiTime.pastUTC(120))
+                           updated              = Instant.now().minusSeconds(120).toString)
     
     Await.ready(DBCONNECTION.run(NodeMgmtPolStatuses += mgmtPolStatus), AWAITDURATION)
   
@@ -214,7 +213,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
     assert(change.head.id        === "n1")
     assert(change.head.category  === ResChangeCategory.NODE.toString)
     assert(0           <= change.head.changeId)
-    assert(0L          <= change.head.lastUpdated.getTime)
+    assert(0L          <= change.head.lastUpdated.getEpochSecond)
     assert(change.head.orgId     === TESTORGANIZATION.orgId)
     assert(change.head.operation === ResChangeOperation.CREATEDMODIFIED.toString)
     assert(change.head.public    === "false")

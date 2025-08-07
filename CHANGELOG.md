@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## [2.143.0](https://github.com/open-horizon/exchange-api/pull/805) - 2025-08-07
+- Issue 804: All time and date data is now generated correctly from Greenwich Mean Time.
+
 ## [2.142.1](https://github.com/open-horizon/exchange-api/pull/803) - 2025-07-25
 - Swagger document updates.
 - Swagger UI 5.22.0 -> 5.27.0

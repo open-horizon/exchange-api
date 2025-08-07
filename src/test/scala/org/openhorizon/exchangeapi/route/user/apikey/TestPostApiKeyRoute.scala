@@ -26,7 +26,6 @@ import scala.concurrent.ExecutionContext.Implicits.global
 import _root_.org.openhorizon.exchangeapi.utility.{ApiTime, HttpCode}
 import org.openhorizon.exchangeapi.route.user.apikey.PostApiKeyResponse
 
-import java.sql.Timestamp
 import java.util.UUID
 
 class TestPostApiKeyRoute extends AnyFunSuite with BeforeAndAfterAll {

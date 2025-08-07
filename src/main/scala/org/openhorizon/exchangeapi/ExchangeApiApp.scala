@@ -83,6 +83,7 @@ import slick.jdbc.TransactionIsolation.Serializable
 import java.io.{File, FileInputStream, InputStream}
 import java.security.{KeyStore, SecureRandom}
 import java.sql.Timestamp
+import java.time.Instant
 import java.util
 import java.util.concurrent.TimeUnit
 import java.util.{Map, Optional, UUID}
@@ -671,7 +672,7 @@ object ExchangeApiApp extends App
           def getUserIdentityGeneric(userMetadata: (String, List[String], String, String, String)): Future[Option[Identity2]] = {
             import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
             
-            val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+            val timestamp: Instant = ApiTime.nowUTCTimestamp
             
             val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
               for {
@@ -736,7 +737,7 @@ object ExchangeApiApp extends App
           def getUserIdentityIBMCloud(userMetadata: (String, String, String, String, String)): Future[Option[Identity2]] = {
             import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
   
-            val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+            val timestamp: Instant = ApiTime.nowUTCTimestamp
             
             val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
               for {
@@ -957,7 +958,7 @@ object ExchangeApiApp extends App
           def getUserIdentityGeneric(userMetadata: (String, List[String], String, String, String)): Future[Option[Identity2]] = {
             import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
             
-            val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+            val timestamp: Instant = ApiTime.nowUTCTimestamp
             
             val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
               for {
@@ -988,7 +989,7 @@ object ExchangeApiApp extends App
           def getUserIdentityIBMCloud(userMetadata: (String, String, String, String, String)): Future[Option[Identity2]] = {
             import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
   
-            val timestamp: Timestamp = ApiTime.nowUTCTimestamp
+            val timestamp: Instant = ApiTime.nowUTCTimestamp
             
             val getIdentity: DBIOAction[Option[Identity2], NoStream, Effect.Read with Effect with Effect.Write] =
               for {
@@ -1065,6 +1066,14 @@ object ExchangeApiApp extends App
             
             userMetaData.head
           }
+          
+         /* def c(a: String, b: Int) = {
+            val z = SSLContext.getDefault.createSSLEngine(uri, 1010)
+            
+            z.setUseClientMode(true)
+            z
+          }
+          val v = ConnectionContext.httpsClient(c _)*/
           
           def queryUserInfo(method: HttpMethod = HttpMethods.GET, token: String, uri: String): Future[HttpResponse] = {
             Http().singleRequest(HttpRequest(method = method,
@@ -1262,7 +1271,7 @@ object ExchangeApiApp extends App
   /** Task for trimming `resourcechanges` table */
   def trimResourceChanges(): Unit ={
     // Get the time for trimming rows from the table
-    val timeExpires: Timestamp = ApiTime.pastUTCTimestamp(system.settings.config.getInt("api.resourceChanges.ttl"))
+    val timeExpires: Instant = Instant.now().minusSeconds(system.settings.config.getInt("api.resourceChanges.ttl").toLong)
     db.run(Compiled(ResourceChangesTQ.getRowsExpired(timeExpires)).delete.asTry).map({
       case Success(v) =>
         if (v <= 0) logger.debug("No resource changes to trim")
@@ -1339,6 +1348,7 @@ object ExchangeApiApp extends App
     val keyManager: KeyManagerFactory = KeyManagerFactory.getInstance("PKIX")
     val sslContext: SSLContext = SSLContext.getInstance("TLSv1.3")
     val trustManager: TrustManagerFactory = TrustManagerFactory.getInstance("PKIX")
+    trustManager
     
     try {
       keyStore.load(new FileInputStream(truststore.get),

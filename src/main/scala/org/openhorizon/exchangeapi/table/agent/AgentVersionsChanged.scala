@@ -1,13 +1,16 @@
 package org.openhorizon.exchangeapi.table.agent
 
-import org.openhorizon.exchangeapi.table.organization.OrgsTQ
+import org.openhorizon.exchangeapi.table.organization.{OrgRow, Orgs, OrgsTQ}
 import slick.jdbc.PostgresProfile.api._
+import slick.lifted.{ForeignKeyQuery, ProvenShape}
 import slick.model.ForeignKeyAction
 
-class AgentVersionsChanged(tag: Tag) extends Table[(java.sql.Timestamp, String)](tag, "agent_version_last_updated") {
-  def changed = column[java.sql.Timestamp]("changed")
-  def organization = column[String]("organization", O.PrimaryKey, O.Default("IBM"))
+import java.time.Instant
+
+class AgentVersionsChanged(tag: Tag) extends Table[(Instant, String)](tag, "agent_version_last_updated") {
+  def changed: Rep[Instant] = column[Instant]("changed")
+  def organization: Rep[String] = column[String]("organization", O.PrimaryKey, O.Default("IBM"))
   
-  def * = (changed, organization)
-  def fkOrg = foreignKey("fk_org", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def * : ProvenShape[(Instant, String)] = (changed, organization)
+  def fkOrg: ForeignKeyQuery[Orgs, OrgRow] = foreignKey("fk_org", organization, OrgsTQ)(_.orgid, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
 }

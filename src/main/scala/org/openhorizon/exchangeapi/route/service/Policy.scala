@@ -20,6 +20,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configurat
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
 import java.util.UUID
 import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -138,6 +139,9 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - By ${identity.resource}:${identity.role}")
           validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
             complete({
               db.run(reqBody.toServicePolicyRow(resource).upsert.asTry.flatMap({
                 case Success(v) =>
@@ -151,7 +155,7 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
                   logger.debug("PUT /orgs/" + organization + "/services/" + service + "/policy public field: " + public)
                   if (public.nonEmpty) {
                     val serviceId: String = resource.substring(resource.indexOf("/") + 1, resource.length)
-                    ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEPOLICIES, ResChangeOperation.CREATEDMODIFIED).insert.asTry
+                    ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEPOLICIES, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                   } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
@@ -187,6 +191,9 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
                           @Parameter(hidden = true) service: String): Route =
     delete {
       logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - By ${identity.resource}:${identity.role}")
+      
+      val INSTANT: Instant = Instant.now()
+      
       complete({
         var storedPublicField = false
         db.run(ServicesTQ.getPublic(resource).result.asTry.flatMap({
@@ -204,7 +211,7 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
             logger.debug("DELETE /orgs/" + organization + "/services/" + service + "/policy result: " + v)
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               val serviceId: String = resource.substring(resource.indexOf("/") + 1, resource.length)
-              ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEPOLICIES, ResChangeOperation.DELETED).insert.asTry
+              ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEPOLICIES, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
               DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.policy.not.found", resource))).asTry
             }

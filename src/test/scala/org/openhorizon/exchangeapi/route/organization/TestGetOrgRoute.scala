@@ -18,6 +18,8 @@ import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
 import slick.jdbc.PostgresProfile.api._
 
+import java.time.Instant
+
 class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
@@ -26,7 +28,7 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private implicit val formats: DefaultFormats.type = DefaultFormats
   
-  val TIMESTAMP: java.sql.Timestamp = ApiTime.nowUTCTimestamp
+  val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
 
   private val HUBADMINPASSWORD = "adminpassword"
   private val USER1PASSWORD = "user1password"

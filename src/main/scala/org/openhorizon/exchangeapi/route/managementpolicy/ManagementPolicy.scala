@@ -15,7 +15,8 @@ import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, Identity2, OrgAndId, TManagementPolicy}
-import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicy => MgmtPolicy}
+import org.openhorizon.exchangeapi.table.managementpolicy
+import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicyRow, ManagementPolicy => MgmtPolicy}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
@@ -96,6 +97,13 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
         attribute =>
           logger.debug(s"GET /orgs/${organization}/managementpolicies/${managementPolicy}?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
           
+          def managementPolicyQuery: Query[managementpolicy.ManagementPolicies, ManagementPolicyRow, Seq] = {
+            ManagementPoliciesTQ.filter(management_policies =>
+                                          management_policies.managementPolicy === resource &&
+                                          management_policies.orgid === organization)
+                                .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
+          }
+          
           attribute match {
             case Some(attribute) =>  // Only returning 1 attr of the managementPolicy
               val getManagementPolicyAtrribute: Query[Rep[String], String, Seq] =
@@ -103,31 +111,23 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
                   managementPolicyAttribute: Rep[String] <-
                     if (attribute.toLowerCase == "allowdowngrade" ||
                         attribute.toLowerCase == "enabled")
-                      ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
-                                          .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
-                                          .take(1)
-                                          .map(management_policies =>
+                      managementPolicyQuery.take(1)
+                                           .map(management_policies =>
                                                  attribute.toLowerCase match {
                                                    case "allowdowngrade" => management_policies.allowDowngrade.toString()
                                                    case "enabled" => management_policies.enabled.toString()
                                                  })
                     else if (attribute.toLowerCase == "owner")
-                      ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
-                                          .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
-                                          .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
-                                          .on(_.owner === _._2)
-                                          .take(1)
-                                          .map(management_policies => (management_policies._2._1 ++ "/" ++ management_policies._2._3))
+                      managementPolicyQuery.join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                           .on(_.owner === _._2)
+                                           .take(1)
+                                           .map(management_policies => (management_policies._2._1 ++ "/" ++ management_policies._2._3))
                     else if (attribute.toLowerCase == "startwindow")
-                      ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
-                                          .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
-                                          .take(1)
-                                          .map(management_policies => management_policies.startWindow.toString())
+                      managementPolicyQuery.take(1)
+                                           .map(management_policies => management_policies.startWindow.toString())
                     else
-                      ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
-                                          .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
-                                          .take(1)
-                                          .map(management_policies =>
+                      managementPolicyQuery.take(1)
+                                           .map(management_policies =>
                                                  attribute.toLowerCase match {
                                                    case "constraints" => management_policies.constraints
                                                    case "created" => management_policies.created
@@ -162,27 +162,25 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
               val getManagementPolicy: Query[((Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Long]), Rep[String]), ((Boolean, String, String, String, Boolean, String, String, String, String, String, String, String, Long), String), Seq] =
                 for{
                   managementPolicy: ((Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Long]), Rep[String]) <-
-                    ManagementPoliciesTQ.filter(management_policies => management_policies.orgid === organization)
-                                        .filterIf(!identity.isSuperUser && !identity.isMultiTenantAgbot)(management_policies => management_policies.orgid === identity.organization)
-                                        .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
-                                        .on(_.owner === _._2)
-                                        .take(1)
-                                        .map(management_policies =>
-                                               ((management_policies._1.allowDowngrade,
-                                                 management_policies._1.constraints,
-                                                 management_policies._1.created,
-                                                 management_policies._1.description,
-                                                 management_policies._1.enabled,
-                                                 management_policies._1.label,
-                                                 management_policies._1.lastUpdated,
-                                                 management_policies._1.manifest,
-                                                 //management_policies._1.orgid,
-                                                 (management_policies._2._1 ++ "/" ++ management_policies._2._3),
-                                                 management_policies._1.patterns,
-                                                 management_policies._1.properties,
-                                                 management_policies._1.start,
-                                                 management_policies._1.startWindow),
-                                                management_policies._1.managementPolicy))
+                    managementPolicyQuery.join(UsersTQ.map(users => (users.organization, users.user, users.username)))
+                                         .on(_.owner === _._2)
+                                         .take(1)
+                                         .map(management_policies =>
+                                                 ((management_policies._1.allowDowngrade,
+                                                   management_policies._1.constraints,
+                                                   management_policies._1.created,
+                                                   management_policies._1.description,
+                                                   management_policies._1.enabled,
+                                                   management_policies._1.label,
+                                                   management_policies._1.lastUpdated,
+                                                   management_policies._1.manifest,
+                                                   //management_policies._1.orgid,
+                                                   (management_policies._2._1 ++ "/" ++ management_policies._2._3),
+                                                   management_policies._1.patterns,
+                                                   management_policies._1.properties,
+                                                   management_policies._1.start,
+                                                   management_policies._1.startWindow),
+                                                  management_policies._1.managementPolicy))
                 } yield managementPolicy
               
               complete {

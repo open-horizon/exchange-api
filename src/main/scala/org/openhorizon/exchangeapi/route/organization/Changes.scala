@@ -221,7 +221,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
           
           queryEarlierTimestamp =
             try
-              Option(changeIdTimestamp.get.minusSeconds(2))
+              Option(changeIdTimestamp.get.minusSeconds(system.settings.config.getInt("api.resourceChanges.contentionDuration")))
             catch { case _: Throwable => None }
           
           _ = Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Converted timestamp to query on: ${changeIdTimestamp.getOrElse("None")}") }

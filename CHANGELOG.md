@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
-## [2.145.0](https://github.com/open-horizon/exchange-api/pull/809) - 2025-08-12
+## [2.145.0](https://github.com/open-horizon/exchange-api/pull/808) - 2025-08-12
 - Added new GitHub workflows for releasing containers.
   - Added support for Alpine Linux as a base image.
   - Added support for multi-platform builds.

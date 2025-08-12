@@ -1,0 +1,68 @@
+name: Checkout & Compile
+
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  checkout-and-compile:
+    runs-on: ubuntu-latest
+    steps:
+      # Cache the entire project directory, Corsair dependency cache, and deliverables.
+      - name: Cache Project Directories and Files
+        id: cache-project
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/work/*
+            !~/work/exchange-api/exchange-api/.github
+            !~/work/exchange-api/exchange-api/target
+          key: checkout-and-compile-project-${{ github.sha }}
+
+      - name: Cache GitHub Workflows
+        id: cache-workflow
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/work/exchange-api/exchange-api/.git
+            ~/work/exchange-api/exchange-api/.github
+            ~/work/exchange-api/exchange-api/src/main/resources/version.txt
+          key: checkout-and-compile-workflow-${{ github.sha }}
+
+      # On cache hit, nothing will need to be downloaded.
+      # By not downloading and overwriting our project directories anf files, SBT will need to not rebuild.
+      # Based on directory and file system change timestamps.
+      - name: Checkout Github Repository
+        if: steps.cache.outputs.cache-hit != 'true'
+        uses: actions/checkout@v3
+        with:
+          clean: false
+
+      - name: Cache Dependency Directories and Files
+        id: cache-dependency
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.ivy2/cache
+            ~/.sbt
+            ~/.cache/coursier/cache
+          key: checkout-and-compile-dependency-${{ hashFiles('**/build.sbt') }}
+          restore-keys: checkout-and-compile-dependency-
+
+      - name: Setup Scala
+        uses: coursier/setup-action@v1
+        with:
+          apps: sbt
+          jvm: temurin:1.21
+
+      - name: Cache Build Deliverables
+        id: cache-deliverable
+        uses: actions/cache@v4
+        with:
+          path: ~/work/exchange-api/exchange-api/target
+          key: checkout-and-compile-deliverable-${{ github.sha }}
+
+      # On cache hit, project has already been compiled, packaged, and staged. Nothing to do.
+      - name: Compile, Package, and Stage Dockerfile
+        run: |
+          sbt Docker/stage

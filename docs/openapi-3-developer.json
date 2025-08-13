@@ -8,7 +8,7 @@
       "name" : "Apache License Version 2.0",
       "url" : "https://www.apache.org/licenses/LICENSE-2.0"
     },
-    "version" : "2.121.0"
+    "version" : "2.121.1"
   },
   "externalDocs" : {
     "description" : "Open-horizon ExchangeAPI",
@@ -9460,7 +9460,7 @@
             }
           },
           "constraints" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "string"
             }
@@ -9509,7 +9509,7 @@
             "type" : "string"
           },
           "patterns" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "string"
             }
@@ -9529,7 +9529,7 @@
             }
           },
           "constraints" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "string"
             }
@@ -9675,7 +9675,7 @@
             }
           },
           "constraints" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "string"
             }
@@ -10243,7 +10243,7 @@
             "type" : "boolean"
           },
           "agreementProtocols" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "object",
               "additionalProperties" : {
@@ -10333,7 +10333,7 @@
             "$ref" : "#/components/schemas/Formats"
           },
           "userInput" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "object",
               "additionalProperties" : {
@@ -10365,7 +10365,7 @@
             "type" : "string"
           },
           "nodeOrgids" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "string"
             }
@@ -10405,7 +10405,7 @@
         "type" : "object",
         "properties" : {
           "members" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "string"
             }
@@ -10858,7 +10858,7 @@
             }
           },
           "constraints" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "string"
             }
@@ -10980,7 +10980,7 @@
             "type" : "string"
           },
           "nodeOrgids" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "string"
             }
@@ -11203,7 +11203,7 @@
             }
           },
           "constraints" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "string"
             }
@@ -11414,11 +11414,11 @@
                   "type" : "integer",
                   "format" : "int32"
                 },
-                "nativeMethod" : {
-                  "type" : "boolean"
-                },
                 "className" : {
                   "type" : "string"
+                },
+                "nativeMethod" : {
+                  "type" : "boolean"
                 }
               }
             }
@@ -11453,64 +11453,17 @@
                       "type" : "integer",
                       "format" : "int32"
                     },
-                    "nativeMethod" : {
-                      "type" : "boolean"
-                    },
                     "className" : {
                       "type" : "string"
+                    },
+                    "nativeMethod" : {
+                      "type" : "boolean"
                     }
                   }
                 }
               },
               "message" : {
                 "type" : "string"
-              },
-              "suppressed" : {
-                "type" : "array",
-                "items" : {
-                  "type" : "object",
-                  "properties" : {
-                    "stackTrace" : {
-                      "type" : "array",
-                      "items" : {
-                        "type" : "object",
-                        "properties" : {
-                          "classLoaderName" : {
-                            "type" : "string"
-                          },
-                          "moduleName" : {
-                            "type" : "string"
-                          },
-                          "moduleVersion" : {
-                            "type" : "string"
-                          },
-                          "methodName" : {
-                            "type" : "string"
-                          },
-                          "fileName" : {
-                            "type" : "string"
-                          },
-                          "lineNumber" : {
-                            "type" : "integer",
-                            "format" : "int32"
-                          },
-                          "nativeMethod" : {
-                            "type" : "boolean"
-                          },
-                          "className" : {
-                            "type" : "string"
-                          }
-                        }
-                      }
-                    },
-                    "message" : {
-                      "type" : "string"
-                    },
-                    "localizedMessage" : {
-                      "type" : "string"
-                    }
-                  }
-                }
               },
               "localizedMessage" : {
                 "type" : "string"
@@ -11984,7 +11937,7 @@
             }
           },
           "userInput" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "object",
               "additionalProperties" : {
@@ -12125,7 +12078,7 @@
             "type" : "boolean"
           },
           "agreementProtocols" : {
-            "type" : "string",
+            "type" : "array",
             "items" : {
               "type" : "object",
               "additionalProperties" : {

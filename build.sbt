@@ -56,9 +56,9 @@ lazy val root = (project in file("."))
       "org.json4s" %% "json4s-native" % "4.0.6",
       "org.json4s" %% "json4s-jackson" % "4.0.6",
       
-      "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0,)",
+      "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[4.0.0,)",
       "com.github.swagger-akka-http" %% "swagger-akka-http" % "[2.6.0]",      // Deprecated in v2.8.0 due to Akka license change to BSL v1.1
-      "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.11.0,)",
+      "com.github.swagger-akka-http" %% "swagger-scala-module" % "[2.14.0,)",
       "io.swagger.core.v3" % "swagger-core-jakarta" % "[2.1.12]",             // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
       "io.swagger.core.v3" % "swagger-jaxrs2-jakarta" % "[2.1.12]",           // Version 2.1.13+ requires newer versions of slick and slick-hikaricp
       
@@ -66,17 +66,17 @@ lazy val root = (project in file("."))
       "com.typesafe.slick" %% "slick-hikaricp" % "[3.3.3]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
       // "com.github.tminglei" %% "slick-pg" % "[0.20.4]",        // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
       "com.github.tminglei" %% "slick-pg_json4s" % "[0.20.4]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
-      "org.postgresql" % "postgresql" % "[42.6.0,)",
+      "org.postgresql" % "postgresql" % "[42.7.7,)",
       // "com.zaxxer" % "HikariCP" % "[3.4.5,)",
       // "org.slf4j" % "slf4j-simple" % "[1.7.25]",               // Version 1.7.35+ requires newer versions of slick and slick-hikaricp
       // "ch.qos.logback" % "logback-classic" % "1.3.0-alpha5",
-      "com.mchange" % "c3p0" % "[0.9.5.5,)",
+      "com.mchange" % "c3p0" % "[0.11.2,)",
       "org.scalaj" %% "scalaj-http" % "[2.4.2]",                  // Deprecated as of April 2022, in v2.4.2
       "com.typesafe" % "config" % "[1.4.0,)",
       "org.mindrot" % "jbcrypt" % "[0.4,)",                       // Last version (v0.4) release February 13, 2017
       "com.pauldijou" %% "jwt-core" % "[5.0.0,)",
       "com.github.cb372" %% "scalacache-guava" % "[0.28.0,)",
-      "com.osinka.i18n" %% "scala-i18n" % "[1.0.3,)",
+      "com.osinka.i18n" %% "scala-i18n" % "[1.1.0,)",
       
       "com.typesafe.akka" %% "akka-http-testkit"    % akkaHttpVersion.value  % Test,
       "com.typesafe.akka" %% "akka-testkit"         % akkaVersion.value      % Test,
@@ -134,9 +134,9 @@ lazy val root = (project in file("."))
                                     Cmd("LABEL", "summary=" ++ summary.value),
                                     Cmd("LABEL", "vendor=" ++ vendor.value),
                                     Cmd("LABEL", "version=" ++ version.value),
-                                    Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update -y --nodocs 1>/dev/null 2>&1 && microdnf install -y --nodocs shadow-utils gettext java-17-openjdk openssl 1>/dev/null 2>&1 && microdnf clean all"),
+                                    Cmd("RUN", "mkdir -p /run/user/$UID && microdnf update --nodocs --refresh -y 1>/dev/null 2>&1 && microdnf install --nodocs -y shadow-utils gettext java-17-openjdk openssl 1>/dev/null 2>&1 && microdnf clean all"),
                                     Cmd("USER", "root"),
-                                    Cmd("RUN", "id -u " ++ (Docker / daemonUser).value ++ " 1>/dev/null 2>&1 || ((getent group 1001 1>/dev/null 2>&1 || (type groupadd 1>/dev/null 2>&1 && groupadd -g 1001 " ++ (Docker / daemonGroup).value ++ " || addgroup -g 1001 -S " ++ (Docker / daemonGroup).value ++ ")) && (type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 1001 " ++ (Docker / daemonUser).value ++ " || adduser -S -u 1001 -G " ++ (Docker / daemonGroup).value ++ " " ++ (Docker / daemonUser).value ++ "))"),
+                                    Cmd("RUN", "id -u " ++ (Docker / daemonUser).value ++ " 1>/dev/null 2>&1 || ((getent group 1001 1>/dev/null 2>&1 || (type groupadd 1>/dev/null 2>&1 && groupadd -g 1001 " ++ (Docker / daemonGroup).value ++ " || addgroup -g 1001 -S " ++ (Docker / daemonGroup).value ++ ")) && (type useradd 1>/dev/null 2>&1 && useradd --system --create-home --uid 1001 --gid 1001 " ++ (Docker / daemonUser).value ++ " || adduser -S -u 1001 -G " ++ (Docker / daemonGroup).value ++ " " ++ (Docker / daemonUser).value ++ ")); microdnf rm -y shadow-utils 1>/dev/null 2>&1 && microdnf clean all"),
                                     Cmd("WORKDIR", "/etc/horizon/exchange"),
                                     Cmd("COPY --from=stage0 --chown=" ++ (Docker / daemonUser).value ++ ":" ++ (Docker / daemonGroup).value, "/2/etc/horizon/exchange /etc/horizon/exchange"),
                                     Cmd("WORKDIR", "/licenses"),

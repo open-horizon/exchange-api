@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.121.1] - 2025-08-13
+- Added cache invalidation to Dockerfile.
+- Dependency Updates
+  - com.github.sbt.sbt-native-packager                 1.9.13  -> 1.11.1
+  - com.github.swagger-akka-http.swagger-scala-module  2.11.0  -> 2.14.0
+  - com.mchange.c3p0                                   0.9.5.5 -> 0.11.2
+  - com.osinka.i18n.scala-i18n                         1.0.3   -> 1.1.0
+  - io.spray.sbt-revolver                              0.9.1   -> 0.10.0
+  - jakarta.ws.rs.jakarta.ws.rs-api                    3.1.0   -> 4.0.0
+  - org.postgresql.postgresql                          42.6.0  -> 42.7.7
+  - org.scoverage.sbt-scoverage                        2.0.6   -> 2.3.1
+  - SBT                                                1.9.6   -> 1.11.0
+  - Swagger UI                                         5.1.0   -> 5.27.1
+
 ## [2.121.0] - 2023-11-16
 - Restructured the source for Catalog, Deployment Patterns and Policies, Management Policies, Nodes, Node Groups, and Services.
 

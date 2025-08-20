@@ -7,7 +7,7 @@ on:
   push:
     branches:
       - master
-      - v2.143
+      - v2.144
       - v2.124
       - v2.122
       - v2.110

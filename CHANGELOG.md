@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 
+## [2.145.0](https://github.com/open-horizon/exchange-api/pull/808) - 2025-08-12
+- Added new GitHub workflows for releasing containers.
+  - Added support for Alpine Linux as a base image.
+  - Added support for multi-platform builds.
+  - Added support for releasing images to GitHub Container Registry and Quay.io.
+  - Added support for OCI's annotation specification.
+
 ## [2.144.0](https://github.com/open-horizon/exchange-api/pull/807) - 2025-08-08
 - Issue 806: Get Management Policy route now correctly returns only the request resource, not a random one from the Organization.
 - Added a configuration option for controlling and accounting for timeline contention in the change record log.

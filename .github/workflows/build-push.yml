@@ -127,7 +127,7 @@ jobs:
       # Push Docker images to Dockerhub
       - name: Publish Image to Dockerhub
         run: |
-          docker tag openhorizon/amd64_exchange-api:${IMAGE_VERSION} ${IMAGE_REPO}/amd64_exchange-api:testing
+          docker tag openhorizon/exchange-ubi:${IMAGE_VERSION} ${IMAGE_REPO}/amd64_exchange-api:testing
           if [[ "$GITHUB_REF" == 'refs/heads/master' ]]; then
             docker push ${IMAGE_REPO}/amd64_exchange-api:testing
             docker tag ${IMAGE_REPO}/amd64_exchange-api:testing ${GITHUB_CONTAINER_REGISTRY}/amd64_exchange-api:testing

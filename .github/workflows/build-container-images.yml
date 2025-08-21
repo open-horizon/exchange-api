@@ -88,24 +88,30 @@ jobs:
     if: always()
     needs: [checkout-and-compile, set-matrix-build-targets]
     env:
-      RED_HAT_VERSION:             ${{ vars.RED_HAT_VERSION || '10' }}
-      RED_HAT_UBI_TYPE:            ${{ vars.RED_HAT_UBI_TYPE  || 'minimal' }}
-      BASE_IMAGE_NAME_ALPINE:      ${{ vars.BASE_IMAGE_NAME_ALPINE || 'alpine' }}
-      BASE_IMAGE_NAME_UBI:         ${{ vars.BASE_IMAGE_NAME_UBI || format('ubi{0}-{1}', (vars.RED_HAT_VERSION || '10'), (vars.RED_HAT_UBI_TYPE || 'minimal')) }}
-      BASE_IMAGE_TAG_ALPINE:       ${{ vars.BASE_IMAGE_TAG_ALPINE || 'latest' }}
-      BASE_IMAGE_TAG_UBI:          ${{ vars.BASE_IMAGE_TAG_UBI || 'latest' }}
-      BASE_IMAGE_REGISTERY_ALPINE: ${{ vars.BASE_IMAGE_REGISTERY_ALPINE || 'docker.io' }}
-      BASE_IMAGE_REGISTERY_UBI:    ${{ vars.BASE_IMAGE_REGISTERY_UBI || 'registry.access.redhat.com' }}
-      BASE_IMAGE_FROM_ALPINE:      ${{ vars.BASE_IMAGE_FROM_ALPINE || format('{0}/{1}:{2}', (vars.BASE_IMAGE_REGISTERY_ALPINE || 'docker.io' ), (vars.BASE_IMAGE_NAME_ALPINE || 'alpine'), (vars.BASE_IMAGE_TAG_ALPINE || 'latest')) }}
-      BASE_IMAGE_FROM_UBI:         ${{ vars.BASE_IMAGE_FROM_UBI || format('{0}/{1}:{2}', (vars.BASE_IMAGE_REGISTERY_UBI || 'registry.access.redhat.com' ), (vars.BASE_IMAGE_NAME_UBI || format('ubi{0}-{1}', (vars.RED_HAT_VERSION || '10'), (vars.RED_HAT_UBI_TYPE || 'minimal'))), (vars.BASE_IMAGE_TAG_UBI || 'latest')) }}
-      IMAGE_AUTHORS:               ${{ vars.IMAGE_AUTHORS || 'Open Horizon <open-horizon@lists.lfedge.org>' }}
-      IMAGE_DESCRIPTION:           ${{ vars.IMAGE_DESCRIPTION || 'Open Horizon''s Exchange Server and REST API' }}
-      IMAGE_DOCUMENTATION:         ${{ vars.IMAGE_DOCUMENTATION || 'https://open-horizon.github.io/' }}
-      IMAGE_LICENSES:              ${{ vars.IMAGE_LICENSES || 'Apache-2.0' }}
-      IMAGE_PLATFORMS:             ${{ github.event_name == 'push' && (vars.IMAGE_PLATFORMS || 'linux/amd64,linux/arm64,linux/ppc64le,linux/s390x') || inputs.image-platforms }}
-      IMAGE_SOURCE:                ${{ vars.IMAGE_SOURCE || github.repositoryUrl }}
-      IMAGE_TITLE:                 ${{ vars.IMAGE_TITLE || 'Exchange' }}
-      IMAGE_VENDOR:                ${{ vars.IMAGE_VENDOR || 'Open Horizon' }}
+      RED_HAT_VERSION:                      ${{ vars.RED_HAT_VERSION || '10' }}
+      RED_HAT_UBI_TYPE:                     ${{ vars.RED_HAT_UBI_TYPE  || 'minimal' }}
+      BASE_IMAGE_NAME_ALPINE:               ${{ vars.BASE_IMAGE_NAME_ALPINE || 'alpine' }}
+      BASE_IMAGE_NAME_UBI:                  ${{ vars.BASE_IMAGE_NAME_UBI || format('ubi{0}-{1}', (vars.RED_HAT_VERSION || '10'), (vars.RED_HAT_UBI_TYPE || 'minimal')) }}
+      BASE_IMAGE_TAG_ALPINE:                ${{ vars.BASE_IMAGE_TAG_ALPINE || 'latest' }}
+      BASE_IMAGE_TAG_UBI:                   ${{ vars.BASE_IMAGE_TAG_UBI || 'latest' }}
+      BASE_IMAGE_REGISTERY_ALPINE:          ${{ vars.BASE_IMAGE_REGISTERY_ALPINE || 'docker.io' }}
+      BASE_IMAGE_REGISTERY_UBI:             ${{ vars.BASE_IMAGE_REGISTERY_UBI || 'registry.access.redhat.com' }}
+      BASE_IMAGE_FROM_ALPINE:               ${{ vars.BASE_IMAGE_FROM_ALPINE || format('{0}/{1}:{2}', (vars.BASE_IMAGE_REGISTERY_ALPINE || 'docker.io' ), (vars.BASE_IMAGE_NAME_ALPINE || 'alpine'), (vars.BASE_IMAGE_TAG_ALPINE || 'latest')) }}
+      BASE_IMAGE_FROM_UBI:                  ${{ vars.BASE_IMAGE_FROM_UBI || format('{0}/{1}:{2}', (vars.BASE_IMAGE_REGISTERY_UBI || 'registry.access.redhat.com' ), (vars.BASE_IMAGE_NAME_UBI || format('ubi{0}-{1}', (vars.RED_HAT_VERSION || '10'), (vars.RED_HAT_UBI_TYPE || 'minimal'))), (vars.BASE_IMAGE_TAG_UBI || 'latest')) }}
+      IMAGE_AUTHORS:                        ${{ vars.IMAGE_AUTHORS || 'Open Horizon <open-horizon@lists.lfedge.org>' }}
+      IMAGE_DESCRIPTION:                    ${{ vars.IMAGE_DESCRIPTION || 'Open Horizon''s Exchange Server and REST API' }}
+      IMAGE_DOCUMENTATION:                  ${{ vars.IMAGE_DOCUMENTATION || 'https://open-horizon.github.io/' }}
+      IMAGE_LICENSES:                       ${{ vars.IMAGE_LICENSES || 'Apache-2.0' }}
+      IMAGE_PLATFORMS:                      ${{ github.event_name == 'push' && (vars.IMAGE_PLATFORMS || 'linux/amd64,linux/arm64,linux/ppc64le,linux/s390x') || inputs.image-platforms }}
+      IMAGE_SOURCE:                         ${{ vars.IMAGE_SOURCE || github.repositoryUrl }}
+      IMAGE_TITLE:                          ${{ vars.IMAGE_TITLE || 'Exchange' }}
+      IMAGE_VENDOR:                         ${{ vars.IMAGE_VENDOR || 'Open Horizon' }}
+      REGISTRY_DOCKERHUB_ENABLE:            ${{ vars.REGISTRY_DOCKERHUB_ENABLE && github.event_name == 'push' || inputs.registry-dockerhub-enabled) }}
+      REGISTRY_DOCKERHUB_ORGANIZATION_NAME: ${{ vars.REGISTRY_DOCKERHUB_NAME || github.repository_owner }}
+      REGISTRY_GHCR_ENABLE:                 ${{ vars.REGISTRY_GHCR_ENABLE && github.event_name == 'push' || inputs.registry-ghcr-enabled) }}
+      REGISTRY_GHCR_ORGANIZATION_NAME:      ${{ VARS.REGISTRY_GHCR_NAME || github.repository_owner }}
+      REGISTRY_QUAY_ENABLE:                 ${{ vars.REGISTRY_QUAY_ENABLE && github.event_name == 'push' || inputs.registry-quay-enabled) }}
+      REGISTRY_QUAY_ORGANIZATION_NAME:      ${{ vars.REGISTRY_QUAY_NAME || github.repository_owner }}
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -163,7 +169,8 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # Authenticate Docker Hub
-      - name: Login to Docker Hub's Container Registry
+      - if: ${{ env.REGISTRY_DOCKERHUB_ENABLE == 'true' }}
+        name: Login to Docker Hub's Container Registry
         uses: docker/login-action@v3
         with:
           registry: docker.io
@@ -171,7 +178,8 @@ jobs:
           password: ${{ secrets.DOCKER_TOKEN }}
 
       # Authenticate GHCR
-      - name: Login to Github Container Registry
+      - if: ${{ env.REGISTRY_GHCR_ENABLE == 'true' }}
+        name: Login to Github Container Registry
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
@@ -179,7 +187,8 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # Authenticate Quay
-      - name: Login to Quay.io's Container Registry
+      - if: ${{ env.REGISTRY_QUAY_ENABLE == 'true' }}
+        name: Login to Quay.io's Container Registry
         uses: docker/login-action@v3
         with:
           registry: quay.io
@@ -224,19 +233,16 @@ jobs:
             ${{ vars.ANNOTATIONS || env.DEFAULT_ANNOTATIONS }}
 
       - env:
-          BUILD_TARGET: ${{ github.event_name == 'push' && (vars.BUILD_TARGET || 'exchange-ubi') || inputs.build-target }}
-          DOMAIN_DOCKERHUB: docker.io
-          DOMAIN_GHCR: ghcr.io
-          DOMAIN_QUAY: quay.io
-          IMAGE_NAME: ${{ vars.IMAGE_NAME || matrix.build-targets }}
-          REGISTRY_DOCKERHUB_ENABLE: ${{ github.event_name == 'push' && 'true' || inputs.registry-dockerhub-enabled }}
-          REGISTRY_GHCR_ENABLE: ${{ github.event_name == 'push' && 'true' || inputs.registry-ghcr-enabled }}
-          REGISTRY_QUAY_ENABLE: ${{ github.event_name == 'push' && 'true' || inputs.registry-quay-enabled }}
-          TAG_LATEST_ENABLE: ${{ github.event_name == 'push' && 'false' || inputs.tag-latest-enabled }}
-          TAG_SYNTAX: '{0}/{1}/{2}:{3}{4}'
-          TAG_TEST_SUFFIX: ${{ (github.event_name == 'push' && 'true' || inputs.tag-test-enabled) && '-testing' || '' }}
+          BUILD_TARGET:        ${{ github.event_name == 'push' && (vars.BUILD_TARGET || 'exchange-ubi') || inputs.build-target }}
+          DOMAIN_DOCKERHUB:    docker.io
+          DOMAIN_GHCR:         ghcr.io
+          DOMAIN_QUAY:         quay.io
+          IMAGE_NAME:          ${{ vars.IMAGE_NAME || matrix.build-targets }}
+          TAG_LATEST_ENABLE:   ${{ github.event_name == 'push' && 'false' || inputs.tag-latest-enabled }}
+          TAG_SYNTAX:          '{0}/{1}/{2}:{3}{4}'
+          TAG_TEST_SUFFIX:     ${{ (github.event_name == 'push' && 'true' || inputs.tag-test-enabled) && '-testing' || '' }}
           TAG_CREATION_SUFFIX: ${{ format('-{0}', steps.image-creation.outputs.creation-prerelease-tag) }}
-          TAG_TESTING_ENABLE: ${{ github.event_name == 'push' && 'true' || inputs.tag-test-enabled }}
+          TAG_TESTING_ENABLE:  ${{ github.event_name == 'push' && 'true' || inputs.tag-test-enabled }}
         name: Build & Push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -259,22 +265,22 @@ jobs:
           push: true
           sbom: true
           tags: |
-            ${{ env.REGISTRY_DOCKERHUB_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version-major, env.TAG_TEST_SUFFIX) || '' }}
-            ${{ env.REGISTRY_DOCKERHUB_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version-less-patch, env.TAG_TEST_SUFFIX) || '' }}
-            ${{ env.REGISTRY_DOCKERHUB_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version, env.TAG_TEST_SUFFIX) || '' }}
-            ${{ env.REGISTRY_DOCKERHUB_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version, format('{0}{1}', env.TAG_CREATION_SUFFIX, env.TAG_TEST_SUFFIX)) || '' }}
-            ${{ (env.REGISTRY_DOCKERHUB_ENABLE == 'true' && env.TAG_LATEST_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, github.repository_owner, matrix.build-targets, 'latest', '') || '' }}
-            ${{ (env.REGISTRY_DOCKERHUB_ENABLE == 'true' && env.TAG_TESTING_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, github.repository_owner, matrix.build-targets, 'testing', '') || '' }}
-            ${{ env.REGISTRY_GHCR_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version-major, env.TAG_TEST_SUFFIX) || '' }}
-            ${{ env.REGISTRY_GHCR_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version-less-patch, env.TAG_TEST_SUFFIX) || '' }}
-            ${{ env.REGISTRY_GHCR_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version, env.TAG_TEST_SUFFIX) || '' }}
-            ${{ env.REGISTRY_GHCR_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version, format('{0}{1}', env.TAG_CREATION_SUFFIX, env.TAG_TEST_SUFFIX)) || '' }}
-            ${{ (env.REGISTRY_GHCR_ENABLE == 'true' && env.TAG_LATEST_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, github.repository_owner, matrix.build-targets, 'latest', '') || '' }}
-            ${{ (env.REGISTRY_GHCR_ENABLE == 'true' && env.TAG_TESTING_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, github.repository_owner, matrix.build-targets, 'testing', '') || '' }}
-            ${{ env.REGISTRY_QUAY_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version-major, env.TAG_TEST_SUFFIX) || '' }}
-            ${{ env.REGISTRY_QUAY_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version-less-patch, env.TAG_TEST_SUFFIX) || '' }}
-            ${{ env.REGISTRY_QUAY_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version, env.TAG_TEST_SUFFIX) || '' }}
-            ${{ env.REGISTRY_QUAY_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, github.repository_owner, matrix.build-targets, steps.exchange-version.outputs.version, format('{0}{1}', env.TAG_CREATION_SUFFIX, env.TAG_TEST_SUFFIX)) || '' }}
-            ${{ (env.REGISTRY_QUAY_ENABLE == 'true' && env.TAG_LATEST_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, github.repository_owner, matrix.build-targets, 'latest', '') || '' }}
-            ${{ (env.REGISTRY_QUAY_ENABLE == 'true' && env.TAG_TESTING_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, github.repository_owner, matrix.build-targets, 'testing', '') || '' }}
+            ${{ env.REGISTRY_DOCKERHUB_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, env.REGISTRY_DOCKERHUB_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version-major, env.TAG_TEST_SUFFIX) || '' }}
+            ${{ env.REGISTRY_DOCKERHUB_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, env.REGISTRY_DOCKERHUB_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version-less-patch, env.TAG_TEST_SUFFIX) || '' }}
+            ${{ env.REGISTRY_DOCKERHUB_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, env.REGISTRY_DOCKERHUB_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version, env.TAG_TEST_SUFFIX) || '' }}
+            ${{ env.REGISTRY_DOCKERHUB_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, env.REGISTRY_DOCKERHUB_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version, format('{0}{1}', env.TAG_CREATION_SUFFIX, env.TAG_TEST_SUFFIX)) || '' }}
+            ${{ (env.REGISTRY_DOCKERHUB_ENABLE == 'true' && env.TAG_LATEST_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, env.REGISTRY_DOCKERHUB_ORGANIZATION_NAME, matrix.build-targets, 'latest', '') || '' }}
+            ${{ (env.REGISTRY_DOCKERHUB_ENABLE == 'true' && env.TAG_TESTING_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_DOCKERHUB, env.REGISTRY_DOCKERHUB_ORGANIZATION_NAME, matrix.build-targets, 'testing', '') || '' }}
+            ${{ env.REGISTRY_GHCR_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, env.REGISTRY_GHCR_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version-major, env.TAG_TEST_SUFFIX) || '' }}
+            ${{ env.REGISTRY_GHCR_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, env.REGISTRY_GHCR_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version-less-patch, env.TAG_TEST_SUFFIX) || '' }}
+            ${{ env.REGISTRY_GHCR_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, env.REGISTRY_GHCR_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version, env.TAG_TEST_SUFFIX) || '' }}
+            ${{ env.REGISTRY_GHCR_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, env.REGISTRY_GHCR_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version, format('{0}{1}', env.TAG_CREATION_SUFFIX, env.TAG_TEST_SUFFIX)) || '' }}
+            ${{ (env.REGISTRY_GHCR_ENABLE == 'true' && env.TAG_LATEST_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, env.REGISTRY_GHCR_ORGANIZATION_NAME, matrix.build-targets, 'latest', '') || '' }}
+            ${{ (env.REGISTRY_GHCR_ENABLE == 'true' && env.TAG_TESTING_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_GHCR, env.REGISTRY_GHCR_ORGANIZATION_NAME, matrix.build-targets, 'testing', '') || '' }}
+            ${{ env.REGISTRY_QUAY_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, env.REGISTRY_QUAY_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version-major, env.TAG_TEST_SUFFIX) || '' }}
+            ${{ env.REGISTRY_QUAY_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, env.REGISTRY_QUAY_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version-less-patch, env.TAG_TEST_SUFFIX) || '' }}
+            ${{ env.REGISTRY_QUAY_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, env.REGISTRY_QUAY_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version, env.TAG_TEST_SUFFIX) || '' }}
+            ${{ env.REGISTRY_QUAY_ENABLE == 'true' && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, env.REGISTRY_QUAY_ORGANIZATION_NAME, matrix.build-targets, steps.exchange-version.outputs.version, format('{0}{1}', env.TAG_CREATION_SUFFIX, env.TAG_TEST_SUFFIX)) || '' }}
+            ${{ (env.REGISTRY_QUAY_ENABLE == 'true' && env.TAG_LATEST_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, env.REGISTRY_QUAY_ORGANIZATION_NAME, matrix.build-targets, 'latest', '') || '' }}
+            ${{ (env.REGISTRY_QUAY_ENABLE == 'true' && env.TAG_TESTING_ENABLE == 'true') && format(env.TAG_SYNTAX, env.DOMAIN_QUAY, env.REGISTRY_QUAY_ORGANIZATION_NAME, matrix.build-targets, 'testing', '') || '' }}
           target: ${{ matrix.build-targets }}

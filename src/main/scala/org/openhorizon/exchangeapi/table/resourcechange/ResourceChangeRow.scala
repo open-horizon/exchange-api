@@ -13,8 +13,7 @@ final case class ResourceChangeRow(changeId: Long = 0L,
                                    public: String,
                                    resource: String,
                                    operation: String,
-                                   lastUpdated: Instant,
-                                   testcolumn: Option[Instant] = None) {
+                                   lastUpdated: Instant) {
   protected implicit val jsonFormats: Formats = DefaultFormats
 
   //def toResourceChange: ResourceChange = ResourceChange(changeId, orgId, id, category, public, resource, operation, lastUpdated)

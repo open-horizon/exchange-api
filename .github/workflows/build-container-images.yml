@@ -106,12 +106,12 @@ jobs:
       IMAGE_SOURCE:                         ${{ vars.IMAGE_SOURCE || github.repositoryUrl }}
       IMAGE_TITLE:                          ${{ vars.IMAGE_TITLE || 'Exchange' }}
       IMAGE_VENDOR:                         ${{ vars.IMAGE_VENDOR || 'Open Horizon' }}
-      REGISTRY_DOCKERHUB_ENABLE:            ${{ vars.REGISTRY_DOCKERHUB_ENABLE && github.event_name == 'push' || inputs.registry-dockerhub-enabled }}
-      REGISTRY_DOCKERHUB_ORGANIZATION_NAME: ${{ vars.REGISTRY_DOCKERHUB_NAME || github.repository_owner }}
-      REGISTRY_GHCR_ENABLE:                 ${{ vars.REGISTRY_GHCR_ENABLE && github.event_name == 'push' || inputs.registry-ghcr-enabled }}
-      REGISTRY_GHCR_ORGANIZATION_NAME:      ${{ VARS.REGISTRY_GHCR_NAME || github.repository_owner }}
-      REGISTRY_QUAY_ENABLE:                 ${{ vars.REGISTRY_QUAY_ENABLE && github.event_name == 'push' || inputs.registry-quay-enabled }}
-      REGISTRY_QUAY_ORGANIZATION_NAME:      ${{ vars.REGISTRY_QUAY_NAME || github.repository_owner }}
+      REGISTRY_DOCKERHUB_ENABLE:            ${{ github.event_name == 'push' && (vars.REGISTRY_DOCKERHUB_ENABLE || 'true') || inputs.registry-dockerhub-enabled }}
+      REGISTRY_DOCKERHUB_ORGANIZATION_NAME: ${{ vars.REGISTRY_DOCKERHUB_ORGANIZATION_NAME || github.repository_owner }}
+      REGISTRY_GHCR_ENABLE:                 ${{ github.event_name == 'push' && (vars.REGISTRY_GHCR_ENABLE || 'true') || inputs.registry-ghcr-enabled }}
+      REGISTRY_GHCR_ORGANIZATION_NAME:      ${{ VARS.REGISTRY_GHCR_ORGANIZATION_NAME || github.repository_owner }}
+      REGISTRY_QUAY_ENABLE:                 ${{ github.event_name == 'push' && (vars.REGISTRY_QUAY_ENABLE || 'true') || inputs.registry-quay-enabled }}
+      REGISTRY_QUAY_ORGANIZATION_NAME:      ${{ vars.REGISTRY_QUAY_ORGANIZATION_NAME || github.repository_owner }}
     runs-on: ubuntu-latest
     strategy:
       matrix:

@@ -14,10 +14,9 @@ class ResourceChanges(tag: Tag) extends Table[ResourceChangeRow](tag, "resourcec
   def resource = column[String]("resource")
   def operation = column[String]("operation")
   def lastUpdated = column[Instant]("lastupdated")
-  def testcolumn = column[Option[Instant]]("epoch")
   
   // this describes what you get back when you return rows from a query
-  def * = (changeId, orgId, id, category, public, resource, operation, lastUpdated, testcolumn).<>(ResourceChangeRow.tupled, ResourceChangeRow.unapply)
+  def * = (changeId, orgId, id, category, public, resource, operation, lastUpdated).<>(ResourceChangeRow.tupled, ResourceChangeRow.unapply)
   def orgIndex = index("org_index", orgId)
   def idIndex = index("id_index", id)
   def catIndex = index("cat_index", category)

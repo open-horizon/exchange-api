@@ -112,6 +112,8 @@ jobs:
       REGISTRY_GHCR_ORGANIZATION_NAME:      ${{ VARS.REGISTRY_GHCR_ORGANIZATION_NAME || github.repository_owner }}
       REGISTRY_QUAY_ENABLE:                 ${{ github.event_name == 'push' && (vars.REGISTRY_QUAY_ENABLE || 'true') || inputs.registry-quay-enabled }}
       REGISTRY_QUAY_ORGANIZATION_NAME:      ${{ vars.REGISTRY_QUAY_ORGANIZATION_NAME || github.repository_owner }}
+    permissions:
+      packages: write
     runs-on: ubuntu-latest
     strategy:
       matrix:

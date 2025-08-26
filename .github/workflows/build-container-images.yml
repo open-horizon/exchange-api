@@ -113,6 +113,8 @@ jobs:
       REGISTRY_QUAY_ENABLE:                 ${{ github.event_name == 'push' && (vars.REGISTRY_QUAY_ENABLE || 'true') || inputs.registry-quay-enabled }}
       REGISTRY_QUAY_ORGANIZATION_NAME:      ${{ vars.REGISTRY_QUAY_ORGANIZATION_NAME || github.repository_owner }}
     permissions:
+      actions: write
+      attestations: write
       packages: write
     runs-on: ubuntu-latest
     strategy:

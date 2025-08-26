@@ -4,6 +4,11 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  actions: write
+  attestations: write
+  contents: read
+
 jobs:
   checkout-and-compile:
     runs-on: ubuntu-latest

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.147.1](https://github.com/open-horizon/exchange-api/pull/818) - 2025-08-27
+- Fixed OCI label prefix typo.
+
 ## [2.147.0](https://github.com/open-horizon/exchange-api/pull/815) - 2025-08-25
 - Created cache loading bots for the authentication cache.
   - All resources that can authenticate with the Exchange are loaded on startup.

@@ -12,6 +12,12 @@ on:
       - v2.122
       - v2.110
       - v2.87
+    paths:
+      - .github/workflows/build-push.yml
+      - project/**
+      - src/main/**
+      - build.sbt
+      - LICENSE.txt
 
 # Variables available to all jobs
 env:

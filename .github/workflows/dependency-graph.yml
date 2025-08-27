@@ -9,6 +9,11 @@ on:
       - v2.122
       - v2.110
       - v2.87
+    paths:
+      - .github/workflows/dependency-graph.yml
+      - project/**
+      - src/main/resources/version.txt
+      - build.sbt
 jobs:
   dependency-graph:
     name: Update Dependency Graph

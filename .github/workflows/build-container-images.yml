@@ -47,6 +47,13 @@ on:
       - v2.122
       - v2.110
       - v2.87
+    paths:
+      - .github/workflows/build-container-images.yml
+      - .github/workflows/checkout-and-compile.yml
+      - project/**
+      - src/main/**
+      - build.sbt
+      - LICENSE.txt
 
 jobs:
   cache-restore-check:

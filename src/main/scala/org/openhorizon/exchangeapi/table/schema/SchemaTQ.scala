@@ -471,6 +471,10 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
                  SET description = NULL
                  WHERE description = '';
               """)
+      case 60 => // 2.144.1
+        DBIO.seq(
+          sqlu"""ALTER TABLE IF EXISTS public.resourcechanges DROP COLUMN IF EXISTS epoch;"""
+        )
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }

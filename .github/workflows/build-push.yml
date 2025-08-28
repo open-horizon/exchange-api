@@ -7,11 +7,17 @@ on:
   push:
     branches:
       - master
-      - v2.143
+      - v2.144
       - v2.124
       - v2.122
       - v2.110
       - v2.87
+    paths:
+      - .github/workflows/build-push.yml
+      - project/**
+      - src/main/**
+      - build.sbt
+      - LICENSE.txt
 
 # Variables available to all jobs
 env:

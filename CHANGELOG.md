@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.144.1](https://github.com/open-horizon/exchange-api/pull/819) 2025-08-28
+- Back-porting version `2.146.0` to this branch.
+- Back-porting some of the GitHub workflow changes from pull-request [#817](https://github.com/open-horizon/exchange-api/pull/817).
 
 ## [2.144.0](https://github.com/open-horizon/exchange-api/pull/807) - 2025-08-08
 - Issue 806: Get Management Policy route now correctly returns only the request resource, not a random one from the Organization.

@@ -5,11 +5,16 @@ on:
   pull_request:
     branches:
       - master
-      - v2.143
+      - v2.144
       - v2.124
       - v2.122
       - v2.110
       - v2.87
+    paths:
+      - .github/workflows/run-tests.yml
+      - project/**
+      - src/main/**
+      - build.sbt
 
 # A workflow run is made up of one or more jobs that can run sequentially or in parallel
 jobs:

@@ -229,15 +229,16 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
         DBIO.seq(SearchServiceTQ.schema.create)
       case 55 => // v2.116.0
         DBIO.seq(sqlu"ALTER TABLE public.nodes ADD is_namespace_scoped bool NOT NULL DEFAULT false;")
-      case 56 => // v2.127.0
+      case 56 => // v2.127.0, v2.148.0
         DBIO.seq(
           // Add new User primary key columns to downstream tables for reference.
-          sqlu"ALTER TABLE public.agbots ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
-          sqlu"ALTER TABLE public.businesspolicies ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
-          sqlu"ALTER TABLE public.managementpolicies ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
-          sqlu"ALTER TABLE public.nodes ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
-          sqlu"ALTER TABLE public.patterns ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
-          sqlu"ALTER TABLE public.services ADD COLUMN IF NOT EXISTS owner_uuid UUID NOT NULL;",
+          // v2.148.0 - Moved NOT NULL constraint to post migration.
+          sqlu"ALTER TABLE public.agbots ADD COLUMN IF NOT EXISTS owner_uuid UUID NULL;",
+          sqlu"ALTER TABLE public.businesspolicies ADD COLUMN IF NOT EXISTS owner_uuid UUID NULL;",
+          sqlu"ALTER TABLE public.managementpolicies ADD COLUMN IF NOT EXISTS owner_uuid UUID NULL;",
+          sqlu"ALTER TABLE public.nodes ADD COLUMN IF NOT EXISTS owner_uuid UUID NULL;",
+          sqlu"ALTER TABLE public.patterns ADD COLUMN IF NOT EXISTS owner_uuid UUID NULL;",
+          sqlu"ALTER TABLE public.services ADD COLUMN IF NOT EXISTS owner_uuid UUID NULL;",
           
           // Add new columns to our existing Users table. These need to be nullable here.
           sqlu"ALTER TABLE public.users ADD COLUMN IF NOT EXISTS modified_at TIMESTAMP NULL;",
@@ -343,6 +344,15 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
           sqlu"ALTER TABLE public.nodes RENAME COLUMN owner_uuid TO owner;",
           sqlu"ALTER TABLE public.patterns RENAME COLUMN owner_uuid TO owner;",
           sqlu"ALTER TABLE public.services RENAME COLUMN owner_uuid TO owner;",
+          
+          // Add not null constraints to owner columns post migration
+          // v2.148.0
+          sqlu"ALTER TABLE public.agbots ALTER COLUMN owner SET NOT NULL;",
+          sqlu"ALTER TABLE public.businesspolicies ALTER COLUMN owner SET NOT NULL;",
+          sqlu"ALTER TABLE public.managementpolicies ALTER COLUMN owner SET NOT NULL;",
+          sqlu"ALTER TABLE public.nodes ALTER COLUMN owner SET NOT NULL;",
+          sqlu"ALTER TABLE public.patterns ALTER COLUMN owner SET NOT NULL;",
+          sqlu"ALTER TABLE public.services ALTER COLUMN owner SET NOT NULL;",
           
           // Create our new Users table
           sqlu"""

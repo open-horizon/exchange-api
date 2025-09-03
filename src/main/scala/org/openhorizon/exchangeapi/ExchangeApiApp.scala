@@ -413,10 +413,6 @@ object ExchangeApiApp extends App
   }
   
   def getAllUserIdentitiesAndPasswords(timerInterval: Option[FiniteDuration] = None): Future[Seq[(Identity2, String)]] = {
-    logger.debug(s"${(timerInterval.getOrElse(0.seconds)._1 + 1L).toString}")
-    logger.debug(s"${timerInterval.getOrElse(0.seconds)._2.toChronoUnit}")
-    logger.debug(s"${Instant.now().minus((timerInterval.getOrElse(0.seconds)._1 + 1L), timerInterval.getOrElse(0.seconds)._2.toChronoUnit)}")
-    
     val getIdentityQuery: Query[((Rep[String], (Rep[Boolean], Rep[Option[UUID]], Rep[Boolean], Rep[Option[UUID]], ConstColumn[Int]), Rep[String]), Rep[String]), ((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String), Seq] =
       for {
         useridentities: ((Rep[String], (Rep[Boolean], Rep[Option[UUID]], Rep[Boolean], Rep[Option[UUID]], ConstColumn[Int]), Rep[String]), Rep[String]) <-
@@ -1526,8 +1522,8 @@ object ExchangeApiApp extends App
     }
     
     override def receive: Receive = {
-      case "loadAuthCache" => loadAuthCacheUser(Option(timerInterval)); logger.info(s"here")
-      case "loadAuthCacheOnStart" => loadAuthCacheUser(); logger.info(s"there")
+      case "loadAuthCache" => loadAuthCacheUser(Option(timerInterval))
+      case "loadAuthCacheOnStart" => loadAuthCacheUser()
       case _ => logger.debug(s"invalid Actor Message sent to AuthenticationCacheLoaderActorUser")
     }
     

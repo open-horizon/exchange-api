@@ -367,12 +367,10 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
                    modified_by UUID NULL,
                    organization VARCHAR NOT NULL,
                    password VARCHAR NULL,
-                   "user" UUID NOT NULL,
+                   "user" UUID CONSTRAINT users_pk PRIMARY KEY,
                    username VARCHAR NOT NULL,
-                   CONSTRAINT users_pk PRIMARY KEY ("user"),
                    CONSTRAINT users_uk UNIQUE (organization, username),
                    CONSTRAINT users_org_fk FOREIGN KEY (organization) REFERENCES public.orgs(orgid) ON DELETE CASCADE ON UPDATE CASCADE,
-                   CONSTRAINT users_usr_fk FOREIGN KEY (modified_by) REFERENCES public.users("user") ON DELETE SET NULL ON UPDATE CASCADE INITIALLY DEFERRED,
                    CONSTRAINT users_root_check CHECK (((organization = 'root') AND (username = 'root')) OR (NOT (is_hub_admin AND is_org_admin))));
               """,
           
@@ -406,6 +404,10 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
           
           // Rename new User table
           sqlu"ALTER TABLE IF EXISTS public.users_schema_56 RENAME TO users;",
+          
+          // Add self-referenced foreign key
+          // v2.148.0 - Moved this here from table creation.
+          sqlu"""ALTER TABLE IF EXISTS public.users ADD CONSTRAINT users_usr_fk FOREIGN KEY (modified_by) REFERENCES public.users("user") ON DELETE SET NULL ON UPDATE CASCADE;""",
           
           // Recreate foreign key references
           sqlu"""ALTER TABLE IF EXISTS public.agbots ADD CONSTRAINT agbots_user_fk FOREIGN KEY (owner) REFERENCES public.users("user");""",
@@ -492,7 +494,7 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
     }
   }
 
-  val latestSchemaVersion: Int = 56    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 60    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

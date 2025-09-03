@@ -424,7 +424,7 @@ object ExchangeApiTables {
            AgentVersionsChangedTQ.schema ++
            NodeGroupTQ.schema ++
            NodeGroupAssignmentTQ.schema ++
-           SearchServiceTQ.schema).create
+           SearchServiceTQ.schema).create.transactionally
         
           _ <- SchemaTQ.getSetVersionAction
       } yield()

@@ -93,7 +93,7 @@ object ExchangeApiTables {
       ++ NodeGroupAssignmentTQ.schema
       ++ SearchServiceTQ.schema
       ++ ApiKeysTQ.schema
-    ).createIfNotExists.transactionally,
+    ).create.transactionally,
     SchemaTQ.getSetVersionAction)
 
   // Delete all of the current tables - the tables that are depended on need to be last in this list - used in /admin/dropdb
@@ -424,7 +424,7 @@ object ExchangeApiTables {
            AgentVersionsChangedTQ.schema ++
            NodeGroupTQ.schema ++
            NodeGroupAssignmentTQ.schema ++
-           SearchServiceTQ.schema).createIfNotExists
+           SearchServiceTQ.schema).create.transactionally
         
           _ <- SchemaTQ.getSetVersionAction
       } yield()

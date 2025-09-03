@@ -15,7 +15,7 @@ import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configu
 import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat}
 import org.openhorizon.exchangeapi.table
 import org.openhorizon.exchangeapi.table.{ExchangeApiTables, ExchangePostgresProfile}
-import com.typesafe.config.{ConfigFactory, ConfigParseOptions, ConfigSyntax, ConfigValue}
+import com.typesafe.config.{ConfigFactory, ConfigParseOptions, ConfigRenderOptions, ConfigSyntax, ConfigValue}
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import org.apache.pekko.Done
 import org.apache.pekko.actor.{Actor, ActorRef, ActorSystem, CoordinatedShutdown, Props, Timers}
@@ -79,6 +79,7 @@ import org.json4s.jackson.{JsonMethods, Serialization}
 import org.openhorizon.exchangeapi.route.user.apikey.UserApiKeys
 import org.springframework.security.crypto.bcrypt.BCrypt
 import slick.jdbc.TransactionIsolation.Serializable
+import slick.lifted.{CompiledStreamingExecutable, MappedProjection}
 
 import java.io.{File, FileInputStream, InputStream}
 import java.security.{KeyStore, SecureRandom}
@@ -92,6 +93,7 @@ import scala.concurrent.duration._
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.io.{BufferedSource, Source}
 import scala.jdk.CollectionConverters.CollectionHasAsScala
+import scala.jdk.DurationConverters.JavaDurationOps
 import scala.util.matching.Regex
 import scala.util.Properties
 
@@ -221,11 +223,13 @@ object ExchangeApiApp extends App
   
   //AuthCache.createRootInCache()
   
+  Future { logger.debug(s"Exchange version: ${ExchangeApi.adminVersion()}") }
+  
   // Check common overwritten pekko configuration parameters
-  Future { logger.debug("pekko.corrdinated-shutdown:  " + system.settings.config.getConfig("pekko.coordinated-shutdown").toString) }
-  Future { logger.debug("pekko.loglevel: " + system.settings.config.getString("pekko.loglevel")) }
-  Future { logger.debug("pekko.http.parsing: " + system.settings.config.getConfig("pekko.http.parsing").toString) }
-  Future { logger.debug("pekko.http.server: " + system.settings.config.getConfig("pekko.http.server").toString) }
+  Future { logger.debug(s"\npekko.coordinated-shutdown ${system.settings.config.getConfig("pekko.coordinated-shutdown").root().render(ConfigRenderOptions.defaults().setComments(false).setOriginComments(false))}") }
+  Future { logger.debug(s"pekko.loglevel:   ${system.settings.config.getString("pekko.loglevel")}") }
+  Future { logger.debug(s"\npekko.http.parsing ${system.settings.config.getConfig("pekko.http.parsing").root().render(ConfigRenderOptions.defaults().setComments(false).setOriginComments(false))}") }
+  Future { logger.debug(s"\npekko.http.server ${system.settings.config.getConfig("pekko.http.server").root().render(ConfigRenderOptions.defaults().setComments(false).setOriginComments(false))}") }
   
   // Set a custom exception handler. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/exception-handling.html#exception-handling
   implicit def myExceptionHandler: ExceptionHandler =
@@ -347,19 +351,21 @@ object ExchangeApiApp extends App
       for {
         nodeIdentities <-
           NodesTQ.filter(nodes => nodes.orgid === organization &&
-                                            nodes.id === (organization ++ "/" ++ username))
+                                  nodes.id === (organization ++ "/" ++ username))
             .map(nodes => ((false, Rep.None[UUID], false, nodes.owner.?, 0), nodes.token))
             .take(1)
             .result
             
         agbotIdentities <-
-          AgbotsTQ.filter(agbots => agbots.orgid === organization && agbots.id === (organization ++ "/" ++ username))
+          AgbotsTQ.filter(agbots => agbots.orgid === organization &&
+                                    agbots.id === (organization ++ "/" ++ username))
              .map(agbots => ((false, Rep.None[UUID], false, agbots.owner.?, 1), agbots.token))
             .take(1)
             .result
         
         useridentities <-
-          UsersTQ.filter(users => users.organization === organization && users.username === username)
+          UsersTQ.filter(users => users.organization === organization &&
+                                  users.username === username)
              .map(users => ((users.isHubAdmin, users.user.?, users.isOrgAdmin, Rep.None[UUID], 2), users.password.getOrElse("")))
             .take(1)
             .result
@@ -367,6 +373,67 @@ object ExchangeApiApp extends App
     
     db.run(getIdentityQuery.transactionally)
   }
+  
+  def getAllAgreementBotIdentitiesAndPasswords(timerInterval: Option[FiniteDuration] = None): Future[Seq[(Identity2, String)]] = {
+    val getIdentityQuery: CompiledStreamingExecutable[Query[((Rep[String], (ConstColumn[Boolean], Rep[Option[UUID]], ConstColumn[Boolean], Rep[Option[UUID]], ConstColumn[Int]), Rep[String]), Rep[String]), ((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String), Seq], Seq[((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String)], ((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String)] =
+      for {
+        agbotIdentities <-
+          Compiled(AgbotsTQ.join(ResourceChangesTQ.filterOpt(timerInterval)((changes, timerInterval) => (changes.lastUpdated >= Instant.now().minus((timerInterval._1 + 1L), timerInterval._2.toChronoUnit)))
+                                                  .map(changes => (changes.orgId ++ "/" ++ changes.id))
+                                                  .distinct)
+                            .on(_.id === _)
+                            .map(agreementBots => ((agreementBots._1.orgid, (false, Rep.None[UUID], false, Rep.Some(agreementBots._1.owner), 1), agreementBots._1.id.replace(agreementBots._1.orgid ++ "/", "")), agreementBots._1.token)))
+      } yield agbotIdentities
+    
+    db.run(getIdentityQuery.result.transactionally)
+      .flatMap{
+        resultSet =>
+          Future {
+            resultSet.map {
+              resource: ((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String) => (new Identity2(resource._1._1, resource._1._2, resource._1._3), resource._2)
+            }
+          }
+      }
+  }
+  
+  def getAllNodeIdentitiesAndPasswords(timerInterval: Option[FiniteDuration] = None): Future[Seq[(Identity2, String)]] = {
+    val getIdentityQuery: CompiledStreamingExecutable[Query[((Rep[String], (ConstColumn[Boolean], Rep[Option[UUID]], ConstColumn[Boolean], Rep[Option[UUID]], ConstColumn[Int]), Rep[String]), Rep[String]), ((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String), Seq], Seq[((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String)], ((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String)] =
+      for {
+        nodeIdentities <-
+          Compiled(NodesTQ.filterOpt(timerInterval)((nodes, timerInterval) => (nodes.lastUpdated >= Instant.now().minus((timerInterval._1 + 1L), timerInterval._2.toChronoUnit).toString))
+                          .map(nodes => ((nodes.orgid, (false, Rep.None[UUID], false, Rep.Some(nodes.owner), 0), nodes.id.replace(nodes.orgid ++ "/", "")), nodes.token)))
+      } yield nodeIdentities
+    
+    db.run(getIdentityQuery.result.transactionally)
+      .flatMap{
+        resultSet =>
+          Future {
+            resultSet.map {
+              resource: ((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String) => (new Identity2(resource._1._1, resource._1._2, resource._1._3), resource._2)
+            }
+          }
+      }
+  }
+  
+  def getAllUserIdentitiesAndPasswords(timerInterval: Option[FiniteDuration] = None): Future[Seq[(Identity2, String)]] = {
+    val getIdentityQuery: Query[((Rep[String], (Rep[Boolean], Rep[Option[UUID]], Rep[Boolean], Rep[Option[UUID]], ConstColumn[Int]), Rep[String]), Rep[String]), ((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String), Seq] =
+      for {
+        useridentities: ((Rep[String], (Rep[Boolean], Rep[Option[UUID]], Rep[Boolean], Rep[Option[UUID]], ConstColumn[Int]), Rep[String]), Rep[String]) <-
+          UsersTQ.filterOpt(timerInterval)((users, timerInterval) => (users.modifiedAt >= Instant.now().minus((timerInterval._1 + 1L), timerInterval._2.toChronoUnit)))
+                 .map(users => ((users.organization, (users.isHubAdmin, users.user.?, users.isOrgAdmin, Rep.None[UUID], 2), users.username), users.password.getOrElse("")))
+      } yield useridentities
+    
+    db.run(getIdentityQuery.result.transactionally)
+      .flatMap{
+        resultSet =>
+          Future {
+            resultSet.map {
+              resource: ((String, (Boolean, Option[UUID], Boolean, Option[UUID], Int), String), String) => (new Identity2(resource._1._1, resource._1._2, resource._1._3), resource._2)
+            }
+          }
+      }
+  }
+  
   
   val reg: Regex = """^(\S*?)/(\S*)$""".r
   
@@ -385,7 +452,7 @@ object ExchangeApiApp extends App
           val (organization: String,
                username: String) = {
             resource match {
-              case reg(organization: String, username) =>
+              case reg(organization: String, username: String) =>
                 (organization, username)
               case _ =>
                 ("", "")
@@ -1261,7 +1328,7 @@ object ExchangeApiApp extends App
   
 
   /** Task for trimming `resourcechanges` table */
-  def trimResourceChanges(): Unit ={
+  def trimResourceChanges(): Unit = {
     // Get the time for trimming rows from the table
     val timeExpires: Instant = Instant.now().minusSeconds(system.settings.config.getInt("api.resourceChanges.ttl").toLong)
     db.run(Compiled(ResourceChangesTQ.getRowsExpired(timeExpires)).delete.asTry).map({
@@ -1322,6 +1389,168 @@ object ExchangeApiApp extends App
   }
   val msgsCleanupActor: ActorRef = system.actorOf(Props(new MsgsCleanupActor()))
   val secondsToWait: Int = system.settings.config.getInt("api.service.shutdownWaitForRequestsToComplete") // ExchConfig.getpekkoConfig() also makes the pekko unbind phase this long
+  
+  
+  class AuthenticationCacheLoaderActorAgreementBot(timerInterval: FiniteDuration = system.settings.config.getDuration("api.cache.loader.agreementBot.interval").toScala) extends Actor with Timers {
+    private val loadAuthCache: String = "loadAuthCache"
+    private val loadAuthCacheOnStart: String = "loadAuthCacheOnStart"
+    
+    override def preStart(): Unit = {
+      /*
+       * Start immediately when the Actor is created.
+       *
+       * This is for the use-case of the Exchange restarting. The cache lives in volatile memory and is wiped
+       * on restart. Ideally this will pre-cache as many records as possible in the time between Actor creation and
+       * the application accepting in-bound requests. Extremely large environments may exceed this window.
+       */
+      timers.startSingleTimer(key = "preloadAuthenticationCacheAgreementBotOnStart", msg = loadAuthCacheOnStart, timeout = 0.seconds)
+      /*
+       * Schedule a sent message on an interval addressed to self.
+       *
+       * This is meant to cover the case where large numbers of Agreement Bot resources are changing passwords
+       * in a short period of time. This may provide a small benefit in the best-case, or nothing in the worst.
+       * This timer is not meant to be enabled and left continuously running. This should be situationally used and
+       * then disabled.
+       */
+      if (system.settings.config.getBoolean("api.cache.loader.agreementBot.enable")) {
+        timers.startTimerAtFixedRate(interval = timerInterval, key = "loadAuthenticationCacheAgreementBot", msg = loadAuthCache)
+        Future { logger.info(s"Scheduling Agreement Bot resources to be loaded into the authentication cache every ${timerInterval}") }
+      }
+      super.preStart()
+    }
+    
+    override def receive: Receive = {
+      case "loadAuthCache" => loadAuthCacheAgreementBot(Option(timerInterval))
+      case "loadAuthCacheOnStart" => loadAuthCacheAgreementBot()
+      case _ => logger.debug(s"invalid Actor Message sent to AuthenticationCacheLoaderActorAgreementBot")
+    }
+    
+    def loadAuthCacheAgreementBot(timerInterval: Option[FiniteDuration] = None): Future[Unit] = {
+      for {
+        q <- getAllAgreementBotIdentitiesAndPasswords(timerInterval)
+        s <-
+          Future {
+            q.foreach(
+              result =>
+                Future { // The cache does not have bulk operations. Mitigate with concurrency.
+                  cacheResourceIdentity.doPut(key = result._1.resource,              // organization/resource-identifier
+                                              value = (result._1, result._2, None),  // (Identity2, Resource's password hashed, Plain-text password)
+                                              ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                })
+            Future { logger.debug(s"Loaded ${q.size} Agreement Bot resource(s) into the authentication cache") }
+          }
+      } yield s
+    }
+  }
+  
+  class AuthenticationCacheLoaderActorNode(timerInterval: FiniteDuration = system.settings.config.getDuration("api.cache.loader.node.interval").toScala) extends Actor with Timers {
+    private val loadAuthCache: String = "loadAuthCache"
+    private val loadAuthCacheOnStart: String = "loadAuthCacheOnStart"
+    
+    override def preStart(): Unit = {
+      /*
+       * Start immediately when the Actor is created.
+       *
+       * This is for the use-case of the Exchange restarting. The cache lives in volatile memory and is wiped
+       * on restart. Ideally this will pre-cache as many records as possible in the time between Actor creation and
+       * the application accepting in-bound requests. Extremely large environments may exceed this window.
+       */
+      timers.startSingleTimer(key = "preloadAuthenticationCacheNodeOnStart", msg = loadAuthCacheOnStart, timeout = 0.seconds)
+      /*
+       * Schedule a sent message on an interval addressed to self.
+       *
+       * This is meant to cover the case where large numbers of Node resources are registered in short periods of time.
+       * On registration the Node will change is authentication password, thus invalidating any cached entries on
+       * any Exchange instance. This may provide a small benefit in the best-case, or nothing in the worst.
+       * This timer is not meant to be enabled and left continuously running. This should be situationally used and
+       * then disabled.
+       */
+      if (system.settings.config.getBoolean("api.cache.loader.node.enable")) {
+        timers.startTimerAtFixedRate(interval = timerInterval, key = "loadAuthenticationCacheNode", msg = loadAuthCache)
+        Future { logger.info(s"Scheduling Node resources to be loaded into the authentication cache every ${timerInterval}") }
+      }
+      super.preStart()
+    }
+    
+    override def receive: Receive = {
+      case "loadAuthCache" => loadAuthCacheNode(Option(timerInterval))
+      case "loadAuthCacheOnStart" => loadAuthCacheNode()
+      case _ => logger.info(s"invalid Actor Message sent to AuthenticationCacheLoaderActorNode")
+    }
+    
+    def loadAuthCacheNode(timerInterval: Option[FiniteDuration] = None): Future[Unit] = {
+      for {
+        q <- getAllNodeIdentitiesAndPasswords(timerInterval)
+        s <-
+          Future {
+            q.foreach(
+              result =>
+                Future { // The cache does not have bulk operations. Mitigate with concurrency.
+                  cacheResourceIdentity.doPut(key = result._1.resource,              // organization/resource-identifier
+                                              value = (result._1, result._2, None),  // (Identity2, Resource's password hashed, Plain-text password)
+                                              ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                })
+            Future { logger.debug(s"Loaded ${q.size} Node resource(s) into the authentication cache") }
+          }
+      } yield s
+    }
+  }
+  
+  class AuthenticationCacheLoaderActorUser(timerInterval: FiniteDuration = system.settings.config.getDuration("api.cache.loader.user.interval").toScala) extends Actor with Timers {
+    private val loadAuthCache: String = "loadAuthCache"
+    private val loadAuthCacheOnStart: String = "loadAuthCacheOnStart"
+    
+    override def preStart(): Unit = {
+      /*
+       * Start immediately when the Actor is created.
+       *
+       * This is for the use-case of the Exchange restarting. The cache lives in volatile memory and is wiped
+       * on restart. Ideally this will pre-cache as many records as possible in the time between Actor creation and
+       * the application accepting in-bound requests. Extremely large environments may exceed this window.
+       */
+      timers.startSingleTimer(key = "loadAuthenticationCacheUserOnStart", msg = loadAuthCacheOnStart, timeout = 0.seconds)
+      /*
+       * Schedule a sent message on an interval addressed to self.
+       *
+       * This is meant to cover the case where large numbers of Agreement Bot resources are changing passwords
+       * in a short period of time. This may provide a small benefit in the best-case, or nothing in the worst.
+       * This timer is not meant to be enabled and left continuously running. This should be situationally used and
+       * then disabled.
+       */
+      if (system.settings.config.getBoolean("api.cache.loader.user.enable")) {
+        timers.startTimerAtFixedRate(interval = timerInterval, key = "loadAuthenticationCacheUser", msg = loadAuthCache)
+        Future { logger.info(s"Scheduling User resources to be loaded into the authentication cache every ${timerInterval}") }
+      }
+      super.preStart()
+    }
+    
+    override def receive: Receive = {
+      case "loadAuthCache" => loadAuthCacheUser(Option(timerInterval))
+      case "loadAuthCacheOnStart" => loadAuthCacheUser()
+      case _ => logger.debug(s"invalid Actor Message sent to AuthenticationCacheLoaderActorUser")
+    }
+    
+    def loadAuthCacheUser(timerInterval: Option[FiniteDuration] = None): Future[Unit] = {
+      for {
+        q <- getAllUserIdentitiesAndPasswords(timerInterval)
+        s <-
+          Future {
+            q.foreach(
+              result =>
+                Future { // The cache does not have bulk operations. Mitigate with concurrency.
+                  cacheResourceIdentity.doPut(key = result._1.resource,              // organization/resource-identifier
+                    value = (result._1, result._2, None),  // (Identity2, Resource's password hashed, Plain-text password)
+                    ttl = Option(Configuration.getConfig.getInt("api.cache.idsTtlSeconds").seconds))
+                })
+            Future { logger.debug(s"Loaded ${q.size} User resource(s) into the authentication cache") }
+          }
+      } yield s
+    }
+  }
+  
+  system.actorOf(Props(new AuthenticationCacheLoaderActorAgreementBot()))
+  system.actorOf(Props(new AuthenticationCacheLoaderActorNode()))
+  system.actorOf(Props(new AuthenticationCacheLoaderActorUser()))
   
   var serverBindingHttp: Option[Http.ServerBinding] = None
   var serverBindingHttps: Option[Http.ServerBinding] = None

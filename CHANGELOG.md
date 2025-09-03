@@ -6,6 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [2.148.0](https://github.com/open-horizon/exchange-api/pull/820) - 2025-09-03
 - Fixed critical bug in database migration 56 (v2.127.0) that prevented the migration from functioning.
+- Improvements to debug logging on startup.
 
 ## [2.147.1](https://github.com/open-horizon/exchange-api/pull/818) - 2025-08-27
 - Fixed OCI label prefix typo.

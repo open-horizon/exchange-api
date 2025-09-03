@@ -15,7 +15,7 @@ import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configu
 import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat}
 import org.openhorizon.exchangeapi.table
 import org.openhorizon.exchangeapi.table.{ExchangeApiTables, ExchangePostgresProfile}
-import com.typesafe.config.{ConfigFactory, ConfigParseOptions, ConfigSyntax, ConfigValue}
+import com.typesafe.config.{ConfigFactory, ConfigParseOptions, ConfigRenderOptions, ConfigSyntax, ConfigValue}
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import org.apache.pekko.Done
 import org.apache.pekko.actor.{Actor, ActorRef, ActorSystem, CoordinatedShutdown, Props, Timers}
@@ -223,11 +223,13 @@ object ExchangeApiApp extends App
   
   //AuthCache.createRootInCache()
   
+  Future { logger.debug(s"Exchange version: ${ExchangeApi.adminVersion()}") }
+  
   // Check common overwritten pekko configuration parameters
-  Future { logger.debug("pekko.corrdinated-shutdown:  " + system.settings.config.getConfig("pekko.coordinated-shutdown").toString) }
-  Future { logger.debug("pekko.loglevel: " + system.settings.config.getString("pekko.loglevel")) }
-  Future { logger.debug("pekko.http.parsing: " + system.settings.config.getConfig("pekko.http.parsing").toString) }
-  Future { logger.debug("pekko.http.server: " + system.settings.config.getConfig("pekko.http.server").toString) }
+  Future { logger.debug(s"\npekko.coordinated-shutdown ${system.settings.config.getConfig("pekko.coordinated-shutdown").root().render(ConfigRenderOptions.defaults().setComments(false).setOriginComments(false))}") }
+  Future { logger.debug(s"pekko.loglevel:   ${system.settings.config.getString("pekko.loglevel")}") }
+  Future { logger.debug(s"\npekko.http.parsing ${system.settings.config.getConfig("pekko.http.parsing").root().render(ConfigRenderOptions.defaults().setComments(false).setOriginComments(false))}") }
+  Future { logger.debug(s"\npekko.http.server ${system.settings.config.getConfig("pekko.http.server").root().render(ConfigRenderOptions.defaults().setComments(false).setOriginComments(false))}") }
   
   // Set a custom exception handler. See https://doc.pekko.io/docs/pekko-http/current/routing-dsl/exception-handling.html#exception-handling
   implicit def myExceptionHandler: ExceptionHandler =
@@ -377,7 +379,8 @@ object ExchangeApiApp extends App
       for {
         agbotIdentities <-
           Compiled(AgbotsTQ.join(ResourceChangesTQ.filterOpt(timerInterval)((changes, timerInterval) => (changes.lastUpdated >= Instant.now().minus((timerInterval._1 + 1L), timerInterval._2.toChronoUnit)))
-                                                  .map(changes => (changes.orgId ++ "/" ++ changes.id)))
+                                                  .map(changes => (changes.orgId ++ "/" ++ changes.id))
+                                                  .distinct)
                             .on(_.id === _)
                             .map(agreementBots => ((agreementBots._1.orgid, (false, Rep.None[UUID], false, Rep.Some(agreementBots._1.owner), 1), agreementBots._1.id.replace(agreementBots._1.orgid ++ "/", "")), agreementBots._1.token)))
       } yield agbotIdentities

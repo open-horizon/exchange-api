@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.149.0](https://github.com/open-horizon/exchange-api/pull/822) - 2025-09-19
+- Correct incorrect spellings in environment variable reference names in the configuration files.
+- Fixed swapped admin flags in database migration for Exchange v2.127.0.
+- Fixed incorrect username parsing in database migration for Exchange v2.127.0.
+
 ## [2.148.0](https://github.com/open-horizon/exchange-api/pull/820) - 2025-09-03
 - Fixed critical bug in database migration 56 (v2.127.0) that prevented the migration from functioning.
 - Improvements to debug logging on startup.

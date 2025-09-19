@@ -229,7 +229,7 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
         DBIO.seq(SearchServiceTQ.schema.create)
       case 55 => // v2.116.0
         DBIO.seq(sqlu"ALTER TABLE public.nodes ADD is_namespace_scoped bool NOT NULL DEFAULT false;")
-      case 56 => // v2.127.0, v2.148.0
+      case 56 => // v2.127.0, v2.148.0, v2.149.0
         DBIO.seq(
           // Add new User primary key columns to downstream tables for reference.
           // v2.148.0 - Moved NOT NULL constraint to post migration
@@ -253,9 +253,10 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
                 SET modified_at = coalesce(to_timestamp(lastupdated, 'yyyy-MM-ddTHH24:MI:SS')::timestamptz, CURRENT_TIMESTAMP);
               """,
           // Split Organization from existing Organization/Username combination.
+          // 2.149.0 - Fixed incorrect regular expression for splitting organizations and usernames.
           sqlu"""
                 UPDATE public.users
-                SET orgid = rtrim(substring(username, '^[[:alnum:]]*/{1,1}'), '/')
+                SET orgid = (regexp_match(username, '^(\S*?)/(\S*)$$'))[1]
                 WHERE orgid IS NULL;
               """,
           // Postgresql function for generating v4 UUIDs. https://www.postgresql.org/docs/13/functions-uuid.html
@@ -266,9 +267,10 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
                 WHERE "user" IS NULL;
               """,
           // Split Username from existing Organization/Username combination.
+          // 2.149.0 - Fixed incorrect regular expression for splitting organizations and usernames.
           sqlu"""
                 UPDATE public.users
-                SET username_new = regexp_replace(username, '^[[:alnum:]]*/{1,1}', '')
+                SET username_new = (regexp_match(username, '^(\S*?)/(\S*)$$'))[2]
                 WHERE username_new IS NULL;
               """,
           // Convert User references from Org/Usr combo strings to UUIDs
@@ -375,6 +377,7 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
               """,
           
           // Database table migration
+          // v2.149.0 - Fixed reversed mapping.
           sqlu"""
                 INSERT INTO public.users_schema_56 (created_at,
                                                     email,
@@ -388,8 +391,8 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
                                                     username)
                 SELECT modified_at,
                        email,
-                       admin,
                        hubadmin,
+                       admin,
                        modified_at,
                        modified_by,
                        orgid,
@@ -488,12 +491,45 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
         DBIO.seq(
           sqlu"""ALTER TABLE IF EXISTS public.resourcechanges DROP COLUMN IF EXISTS epoch;"""
         )
+      case 61 => // 2.149.0 - fixes some botched data migrations in the original schema v56 (v2.127.0). This will correct environments that have already migrated.
+        DBIO.seq(
+          sqlu"""
+                UPDATE public.users a
+                SET is_hub_admin = b.is_org_admin,
+                    is_org_admin = b.is_hub_admin
+                FROM (SELECT is_hub_admin,
+                             is_org_admin,
+                             "user"
+                      FROM public.users u
+                      WHERE NOT (u.username LIKE u.organization || '/%') AND
+                            ((u.is_hub_admin AND
+                              NOT u.is_org_admin AND
+                              u.organization != 'root') or
+                             (NOT u.is_hub_admin AND
+                              u.is_org_admin AND
+                              u.organization = 'root'))) b
+                WHERE a."user" = b."user";
+              """,
+          sqlu"""
+                UPDATE public.users a
+                SET is_hub_admin = b.is_org_admin,
+                    is_org_admin = b.is_hub_admin,
+                    username = b.username_fixed
+                FROM (SELECT is_hub_admin,
+                             is_org_admin,
+                             "user",
+                             (regexp_match(u.username, '^(\S*?)/(\S*)$$'))[2] as username_fixed
+                      FROM public.users u
+                      WHERE (u.username LIKE u.organization || '/%')) b
+                WHERE a."user" = b."user";
+              """
+        )
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }
   }
 
-  val latestSchemaVersion: Int = 60    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 61    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

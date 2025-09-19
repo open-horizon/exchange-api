@@ -609,7 +609,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
     patch {
       entity(as[PatchUsersRequest]) {
         reqBody =>
-          logger.debug(s"PATCH /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
+          Future { logger.debug(s"PATCH /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}") }
 
           val attributeExistence: Seq[(String, Boolean)] =
             Seq(("admin",reqBody.admin.isDefined),
@@ -617,22 +617,29 @@ trait User extends JacksonSupport with AuthenticationSupport {
                 ("hubadmin", reqBody.hubAdmin.isDefined),
                 ("password", reqBody.password.isDefined))
           
+          // Future { logger.debug(s"attributeExistence: ${attributeExistence.toString()}") }
+          
           validate(((attributeExistence.filter(_._2).sizeIs == 1)), ExchMsg.translate("bad.input")) {
             // Have a single attribute to update, retrieve its name.
             val validAttribute: String =
               attributeExistence.filter(attribute => attribute._2).head._1
 
             // Check if user is external when OAuth is enabled and trying to modify password/email
-            val isOAuthEnabled = Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url")&& 
-                     !Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.url").isEmpty
+            val isOAuthEnabled: Boolean =
+              Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url") &&
+              Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.url").nonEmpty
             
             validateWithMsg(// ----- OAuth restrictions -----
-                            if (isOAuthEnabled && (validAttribute == "email" || validAttribute == "password")) {
-                              val isExternalUser = Await.result(db.run(UsersTQ.filter(user => user.organization === organization && user.username === username)
-                                .filter(_.identityProvider =!= "Open Horizon")
-                                .take(1)
-                                .length
-                                .result), 5.seconds)
+                            if (isOAuthEnabled &&
+                                (validAttribute == "email" ||
+                                 validAttribute == "password")) {
+                              val isExternalUser =
+                                Await.result(db.run(UsersTQ.filter(user => user.organization === organization &&
+                                                                           user.username === username)
+                                                           .filter(_.identityProvider =!= "Open Horizon")
+                                                           .take(1)
+                                                           .length
+                                                           .result), 5.seconds)
                               if (isExternalUser > 0)
                                 Option(ExchMsg.translate("user.attr.not.allowed.oauth", validAttribute))
                               else

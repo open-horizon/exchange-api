@@ -68,7 +68,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
                                   @Parameter(hidden = true) organization: String,
                                   @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/nodes/$node/managementStatus/$managementPolicy - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization/nodes/$node/managementStatus/$managementPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         // remove does *not* throw an exception if the key does not exist
         db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(resource, organization + "/" + managementPolicy).delete.transactionally.asTry.flatMap({
@@ -150,7 +150,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
                                @Parameter(hidden = true) organization: String,
                                @Parameter(hidden = true) resource: String): Route =
     {
-      logger.debug(s"GET /orgs/$organization/nodes/$node/managementStatus/$managementPolicy - By ${identity.resource}:${identity.role}")
+      logger.debug(s"GET /orgs/$organization/nodes/$node/managementStatus/$managementPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         db.run(NodeMgmtPolStatuses.getNodeMgmtPolStatus(resource, organization + "/" + managementPolicy).result).map({ list =>
           logger.debug(s"GET /orgs/$organization/nodes/$node/managementStatus/$managementPolicy status result size: ${list.size}")
@@ -244,7 +244,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PutNodeMgmtPolStatusRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/${organization}/nodes/${node}/managementStatus/${managementPolicy} - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PUT /orgs/${organization}/nodes/${node}/managementStatus/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           
           val INSTANT: Instant = Instant.now()
           

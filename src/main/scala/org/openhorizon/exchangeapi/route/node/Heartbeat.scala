@@ -50,7 +50,7 @@ trait Heartbeat extends JacksonSupport with AuthenticationSupport {
                         @Parameter(hidden = true) organization: String,
                         @Parameter(hidden = true) resource:String): Route =
     {
-      logger.debug(s"POST /orgs/$organization/users/$node/heartbeat - By ${identity.resource}:${identity.role}")
+      logger.debug(s"POST /orgs/$organization/users/$node/heartbeat - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         db.run(NodesTQ.getLastHeartbeat(resource).update(Some(ApiTime.nowUTC)).asTry).map({
           case Success(v) =>

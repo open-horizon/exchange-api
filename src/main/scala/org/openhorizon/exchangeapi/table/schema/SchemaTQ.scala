@@ -413,17 +413,17 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
           sqlu"""ALTER TABLE IF EXISTS public.users ADD CONSTRAINT users_usr_fk FOREIGN KEY (modified_by) REFERENCES public.users("user") ON DELETE SET NULL ON UPDATE CASCADE;""",
           
           // Recreate foreign key references
-          sqlu"""ALTER TABLE IF EXISTS public.agbots ADD CONSTRAINT agbots_user_fk FOREIGN KEY (owner) REFERENCES public.users("user");""",
-          sqlu"""ALTER TABLE IF EXISTS public.businesspolicies ADD CONSTRAINT deploypol_user_fk FOREIGN KEY (owner) REFERENCES public.users("user");""",
-          sqlu"""ALTER TABLE IF EXISTS public.managementpolicies ADD CONSTRAINT mgmtpol_user_fk FOREIGN KEY (owner) REFERENCES public.users("user");""",
-          sqlu"""ALTER TABLE IF EXISTS public.nodes ADD CONSTRAINT nodes_user_fk FOREIGN KEY (owner) REFERENCES public.users("user");""",
-          sqlu"""ALTER TABLE IF EXISTS public.patterns ADD CONSTRAINT pattrns_user_fk FOREIGN KEY (owner) REFERENCES public.users("user");""",
-          sqlu"""ALTER TABLE IF EXISTS public.services ADD CONSTRAINT svcs_user_fk FOREIGN KEY (owner) REFERENCES public.users("user");""",
+          sqlu"""ALTER TABLE IF EXISTS public.agbots ADD CONSTRAINT agbots_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.businesspolicies ADD CONSTRAINT deploypol_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.managementpolicies ADD CONSTRAINT mgmtpol_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.nodes ADD CONSTRAINT nodes_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.patterns ADD CONSTRAINT pattrns_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.services ADD CONSTRAINT svcs_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
           
           // Create missing foreign key references
-          sqlu"""ALTER TABLE public.nodepolicies ADD CONSTRAINT node_deploy_pol_fk_nodes FOREIGN KEY (nodeid) REFERENCES public.nodes("id");""",
-          sqlu"""ALTER TABLE public.nodeerror ADD CONSTRAINT node_error_fk_nodes FOREIGN KEY (nodeid) REFERENCES public.nodes("id");""",
-          sqlu"""ALTER TABLE public.management_policy_status_node ADD CONSTRAINT node_mgmt_pol_status_fk_nodes FOREIGN KEY (node) REFERENCES public.nodes("id");""",
+          sqlu"""ALTER TABLE IF EXISTS public.nodepolicies ADD CONSTRAINT node_deploy_pol_fk_nodes FOREIGN KEY (nodeid) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.nodeerror ADD CONSTRAINT node_error_fk_nodes FOREIGN KEY (nodeid) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.management_policy_status_node ADD CONSTRAINT node_mgmt_pol_status_fk_nodes FOREIGN KEY (node) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
           
           // Create missing indexes on foreign keys
           // v2.148.0 - Fixed syntax errors
@@ -524,12 +524,59 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
                 WHERE a."user" = b."user";
               """
         )
+      case 62 => // 2.150.0 - recreating foreign keys that were missing cascade rules for updates and/or deletes. FK clean-up.
+        DBIO.seq(
+          // Drop existing foreign keys. Includes a few duplicates.
+          sqlu"ALTER TABLE IF EXISTS public.agbots DROP CONSTRAINT IF EXISTS agbots_user_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.apikeys DROP CONSTRAINT IF EXISTS api_key_user_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.apikeys DROP CONSTRAINT IF EXISTS user_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.businesspolicies DROP CONSTRAINT IF EXISTS deploypol_user_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.managementpolicies DROP CONSTRAINT IF EXISTS mgmtpol_user_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.management_policy_status_node DROP CONSTRAINT IF EXISTS fk_management_policy;",
+          sqlu"ALTER TABLE IF EXISTS public.management_policy_status_node DROP CONSTRAINT IF EXISTS node_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.management_policy_status_node DROP CONSTRAINT IF EXISTS node_mgmt_pol_status_fk_mgmt_pols;",
+          sqlu"ALTER TABLE IF EXISTS public.management_policy_status_node DROP CONSTRAINT IF EXISTS node_mgmt_pol_status_fk_node;",
+          sqlu"ALTER TABLE IF EXISTS public.management_policy_status_node DROP CONSTRAINT IF EXISTS node_mgmt_pol_status_fk_nodes;",
+          sqlu"ALTER TABLE IF EXISTS public.nodeerror DROP CONSTRAINT IF EXISTS node_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.nodeerror DROP CONSTRAINT IF EXISTS node_error_fk_node;",
+          sqlu"ALTER TABLE IF EXISTS public.nodeerror DROP CONSTRAINT IF EXISTS node_error_fk_nodes;",
+          sqlu"ALTER TABLE IF EXISTS public.nodemsgs DROP CONSTRAINT IF EXISTS agbot_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.nodemsgs DROP CONSTRAINT IF EXISTS node_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.nodemsgs DROP CONSTRAINT IF EXISTS node_msg_fk_agbot;",
+          sqlu"ALTER TABLE IF EXISTS public.nodemsgs DROP CONSTRAINT IF EXISTS node_msg_fk_node;",
+          sqlu"ALTER TABLE IF EXISTS public.nodepolicies DROP CONSTRAINT IF EXISTS node_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.nodepolicies DROP CONSTRAINT IF EXISTS node_deploy_pol_fk_node;",
+          sqlu"ALTER TABLE IF EXISTS public.nodepolicies DROP CONSTRAINT IF EXISTS node_deploy_pol_fk_nodes;",
+          sqlu"ALTER TABLE IF EXISTS public.nodes DROP CONSTRAINT IF EXISTS node_user_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.nodes DROP CONSTRAINT IF EXISTS nodes_user_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.nodestatus DROP CONSTRAINT IF EXISTS node_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.nodestatus DROP CONSTRAINT IF EXISTS node_status_fk_node;",
+          sqlu"ALTER TABLE IF EXISTS public.nodestatus DROP CONSTRAINT IF EXISTS node_status_fk_nodes;",
+          sqlu"ALTER TABLE IF EXISTS public.patterns DROP CONSTRAINT IF EXISTS pattrns_user_fk;",
+          sqlu"ALTER TABLE IF EXISTS public.services DROP CONSTRAINT IF EXISTS svcs_user_fk;",
+          
+          // Recreate foreign key references
+          sqlu"""ALTER TABLE IF EXISTS public.agbots ADD CONSTRAINT agbots_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.apikeys ADD CONSTRAINT api_key_user_fk FOREIGN KEY ("user") REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.businesspolicies ADD CONSTRAINT deploypol_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.managementpolicies ADD CONSTRAINT mgmtpol_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.management_policy_status_node ADD CONSTRAINT node_mgmt_pol_status_fk_mgmt_pols FOREIGN KEY (policy) REFERENCES public.managementpolicies(managementPolicy) ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.management_policy_status_node ADD CONSTRAINT node_mgmt_pol_status_fk_node FOREIGN KEY (node) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.nodeerror ADD CONSTRAINT node_error_fk_node FOREIGN KEY (nodeid) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.nodemsgs ADD CONSTRAINT node_msg_fk_agbot FOREIGN KEY (agbotId) REFERENCES public.agbots("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.nodemsgs ADD CONSTRAINT node_msg_fk_node FOREIGN KEY (nodeid) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.nodepolicies ADD CONSTRAINT node_deploy_pol_fk_node FOREIGN KEY (nodeid) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.nodes ADD CONSTRAINT node_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.nodestatus ADD CONSTRAINT node_status_fk_node FOREIGN KEY (nodeid) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.patterns ADD CONSTRAINT pattrns_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.services ADD CONSTRAINT svcs_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
+        )
       case other => // should never get here
         logger.error("getUpgradeSchemaStep was given invalid step "+other); DBIO.seq()
     }
   }
 
-  val latestSchemaVersion: Int = 61    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
+  val latestSchemaVersion: Int = 62    // NOTE: THIS MUST BE CHANGED WHEN YOU ADD TO getUpgradeSchemaStep() above
   val latestSchemaDescription: String = ""
   // Note: if you need to manually set the schema number in the db lower: update schema set schemaversion = 12 where id = 0;
 

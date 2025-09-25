@@ -60,7 +60,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                               @Parameter(hidden = true) organization: String,
                               @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
         val nodeGroupQuery: Query[NodeGroup, NodeGroupRow, Seq] =
@@ -163,7 +163,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                           @Parameter(hidden = true) organization: String,
                           @Parameter(hidden = true) resource: String): Route =
     post {
-      logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - By ${identity.resource}:${identity.role}")
+      logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
         val nodesQuery: Query[org.openhorizon.exchangeapi.table.node.Nodes, NodeRow, Seq] =

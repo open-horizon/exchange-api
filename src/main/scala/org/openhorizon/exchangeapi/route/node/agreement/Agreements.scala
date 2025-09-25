@@ -53,7 +53,7 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
                            @Parameter(hidden = true) node: String,
                            @Parameter(hidden = true) organization: String,
                            @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/agreements - By ${identity.resource}:${identity.role}")
+    logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/agreements - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     
     val INSTANT: Instant = Instant.now()
     
@@ -133,7 +133,7 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
                         @Parameter(hidden = true) node: String,
                         @Parameter(hidden = true) organization: String,
                         @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/nodes/${node}/agreements - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/${organization}/nodes/${node}/agreements - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(NodeAgreementsTQ.getAgreements(resource).result).map({ list =>
         logger.debug(s"GET /orgs/$organization/nodes/$node/agreements result size: ${list.size}")

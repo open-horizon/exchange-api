@@ -79,7 +79,7 @@ trait Confirm extends JacksonSupport with AuthenticationSupport {
   def postConfirm(@Parameter(hidden = true) identity: Identity2,
                   @Parameter(hidden = true) orgid: String,
                   reqBody: PostAgreementsConfirmRequest): Route = {
-    logger.debug(s"POST /orgs/$orgid/agreements/confirm - By ${identity.resource}:${identity.role}")
+    logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     
     val getActiveAgreementState =
       for {

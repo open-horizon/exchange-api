@@ -99,7 +99,7 @@ trait MyOrganizations extends JacksonSupport with AuthenticationSupport {
     {
       entity(as[List[IamAccountInfo]]) {
         reqBody =>
-          logger.debug(s"POST /myorgs - By ${identity.resource}:${identity.role}")
+          logger.debug(s"POST /myorgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           
           complete({
             // getting list of accounts in req body from UI

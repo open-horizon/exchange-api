@@ -149,7 +149,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
     get {
       parameter("attribute".?) {
         attribute =>
-          logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+          logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           def isValidAttribute(attribute: String) =
             attribute match {
               case "arch" |
@@ -383,7 +383,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PostPutServiceRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/${organization}/services/${service} - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem(organization, resource)) {
             
             val INSTANT: Instant = Instant.now()
@@ -523,7 +523,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
     patch {
       entity(as[PatchServiceRequest]) {
         reqBody =>
-          logger.debug(s"PATCH /orgs/${organization}/services/${service} - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         logger.debug(s"Doing PATCH /orgs/$organization/services/$service")
           validateWithMsg(reqBody.getAnyProblem) {
             
@@ -638,7 +638,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                     @Parameter(hidden = true) resource: String,
                     @Parameter(hidden = true) service: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/services/$service - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization/services/$service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       complete({
         val findService: Query[Services, ServiceRow, Seq] =

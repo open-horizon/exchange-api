@@ -52,7 +52,7 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
                                        @Parameter(hidden = true) organization: String,
                                        @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       
@@ -119,7 +119,7 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
                                     @Parameter(hidden = true) identity: Identity2,
                                     @Parameter(hidden = true) organization: String,
                                     @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(AgbotBusinessPolsTQ.getBusinessPols(resource).result)
         .map({
@@ -180,7 +180,7 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
     post {
       entity(as[PostAgbotBusinessPolRequest]) {
         reqBody =>
-          logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/businesspols - By ${identity.resource}:${identity.role}")
+          logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/businesspols - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()

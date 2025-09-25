@@ -75,7 +75,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                       @Parameter(hidden = true) identity: Identity2,
                       @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/$organization/agbots/$agreementBot - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     
     parameter("attribute".?) {
       attribute =>
@@ -208,7 +208,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PutAgbotsRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
@@ -299,7 +299,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
     patch {
       entity(as[PatchAgbotsRequest]) {
         reqBody =>
-          logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
             validateWithMsg(reqBody.getAnyProblem) {
               
               val INSTANT: Instant = Instant.now()
@@ -366,7 +366,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                          @Parameter(hidden = true) organization: String,
                          @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({ // remove does *not* throw an exception if the key does not exist
         db.run(AgbotsTQ.getAgbot(resource)
                        .delete

@@ -54,7 +54,7 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
                     @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) resource: String,
                     @Parameter(hidden = true) service: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/services/${service}/dockauths/${dockerAuth} - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/${organization}/services/${service}/dockauths/${dockerAuth} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       Try(dockerAuth.toInt) match {
         case Success(dockauthId) =>
@@ -93,7 +93,7 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PostPutServiceDockAuthRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/${organization}/services/${service}/dockauths/${dockerAuth} - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PUT /orgs/${organization}/services/${service}/dockauths/${dockerAuth} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem(Some(dockerAuth))) {
             
             val INSTANT: Instant = Instant.now()
@@ -153,7 +153,7 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) resource: String,
                        @Parameter(hidden = true) service: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/${organization}/services/${service}/dockauths/${dockerAuth} - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/${organization}/services/${service}/dockauths/${dockerAuth} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         Try(dockerAuth.toInt) match {
           case Success(dockauthId) =>

@@ -38,7 +38,7 @@ trait Token extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def getToken(@Parameter(hidden = true) identity:Identity2): Route =
     get {
-      logger.debug(s"GET /admin/dropdb/token - By ${identity.resource}:${identity.role}")
+      logger.debug(s"GET /admin/dropdb/token - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         (HttpCode.OK, AdminDropdbTokenResponse(createToken(Role.superUser)))
       }) // end of complete

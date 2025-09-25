@@ -128,7 +128,7 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
        organization,
        owner,
        public) =>
-        logger.debug(s"GET /catalog/${if (organization.isDefined) organization.get + "/" else ""}patterns?clusterNamespace=${clusterNamespace.getOrElse("None")},description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")},public=${public.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /catalog/${if (organization.isDefined) organization.get + "/" else ""}patterns?clusterNamespace=${clusterNamespace.getOrElse("None")},description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")},public=${public.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         
         val getDeploymentPatternsAll: Query[((Rep[String], Rep[Option[String]], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, Option[String], String, String, String, String, Boolean, String, String, String), String), Seq] =
           for {

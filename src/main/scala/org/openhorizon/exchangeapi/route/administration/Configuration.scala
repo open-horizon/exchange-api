@@ -26,7 +26,7 @@ trait Configuration extends JacksonSupport with AuthenticationSupport {
   def putConfiguration(@Parameter(hidden = true) identity: Identity2): Route =
     entity (as[AdminConfigRequest]) {
       reqBody =>
-        logger.debug(s"Doing POST /admin/config - By ${identity.resource}:${identity.role}")
+        logger.debug(s"Doing POST /admin/config - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         complete({
           val props = new Properties()
           props.setProperty(reqBody.varPath, reqBody.value)

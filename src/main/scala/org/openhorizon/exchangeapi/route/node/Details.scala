@@ -201,7 +201,7 @@ trait Details extends JacksonSupport with AuthenticationSupport {
        name: Option[String],
        nodeType: Option[String],
        owner: Option[String]) =>
-        logger.debug(s"GET /orgs/{organization}/node-details?arch=${arch.getOrElse("None")},id=${id.getOrElse("None")},name=${name.getOrElse("None")},type=${nodeType.getOrElse("None")},owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /orgs/{organization}/node-details?arch=${arch.getOrElse("None")},id=${id.getOrElse("None")},name=${name.getOrElse("None")},type=${nodeType.getOrElse("None")},owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         validateWithMsg(GetNodesUtils.getNodesProblem(nodeType)) {
           complete({
             implicit val jsonFormats: Formats = DefaultFormats

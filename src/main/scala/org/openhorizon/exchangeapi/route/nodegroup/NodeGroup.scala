@@ -65,7 +65,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                       @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/hagroups/$highAvailabilityGroup - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization/hagroups/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
         val nodesQuery: Query[Nodes, NodeRow, Seq] =
@@ -204,7 +204,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                    @Parameter(hidden = true) identity: Identity2,
                    @Parameter(hidden = true) organization: String): Route =
     {
-      logger.debug(s"GET /orgs/$organization/hagroups - By ${identity.resource}:${identity.role}")
+      logger.debug(s"GET /orgs/$organization/hagroups - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         val nodesQuery: Query[Nodes, NodeRow, Seq] =
           if (identity.isOrgAdmin ||
@@ -302,7 +302,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
     {
       entity(as[PutNodeGroupsRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
             validateWithMsg(reqBody.getAnyProblem) {
               complete({
                 val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
@@ -516,7 +516,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
     post {
       entity(as[PostPutNodeGroupsRequest]) {
         reqBody =>
-          logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup - By ${identity.resource}:${identity.role}")
+          logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem) {
             complete({
               val admin: Boolean = (identity.isOrgAdmin || identity.isSuperUser)

@@ -36,7 +36,7 @@ import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util._
 import scala.util.control.Breaks._
 
-@Path("/v1/orgs/{organization}/business/policies/{policy}")
+@Path("/v1/orgs/{organization}/deployment/policies/{policy}")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment policy")
 trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -46,7 +46,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
   implicit def executionContext: ExecutionContext
   
   
-  // =========== DELETE /orgs/{organization}/business/policies/{policy} ===============================
+  // =========== DELETE /orgs/{organization}/deployment/policies/{policy} ===============================
   @DELETE
   @Operation(summary = "Deletes a business policy", description = "Deletes a business policy. Can only be run by the owning user.",
     parameters = Array(
@@ -62,7 +62,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                              @Parameter(hidden = true) organization: String,
                              @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/business/policies/$deploymentPolicy - By ${identity.resource}:${identity.role}")
+      Future { logger.debug(s"DELETE /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
       
       val INSTANT: Instant = Instant.now()
       
@@ -70,7 +70,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
         db.run(BusinessPoliciesTQ.getBusinessPolicy(resource).delete.transactionally.asTry.flatMap({
           case Success(v) =>
             // Add the resource to the resourcechanges table
-            logger.debug("DELETE /orgs/" + organization + "/business/policies/" + deploymentPolicy + " result: " + v)
+            Future { logger.debug("DELETE /orgs/" + organization + "/deployment/policies/" + deploymentPolicy + " result: " + v) }
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               // TODO: AuthCache.removeBusinessOwner(resource)
               // TODO: AuthCache.removeBusinessIsPublic(resource)
@@ -81,7 +81,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
-            Future { logger.debug("DELETE /orgs/" + organization + "/business/policies/" + deploymentPolicy + " updated in changes table: " + v) }
+            Future { logger.debug("DELETE /orgs/" + organization + "/deployment/policies/" + deploymentPolicy + " updated in changes table: " + v) }
             
             Future { cacheResourceOwnership.remove(organization, deploymentPolicy, "deployment_policy") }
             
@@ -96,7 +96,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       })
     }
   
-  /* ====== GET /orgs/{organization}/business/policies/{policy} ================================ */
+  /* ====== GET /orgs/{organization}/deployment/policies/{policy} ================================ */
   @GET
   @Operation(summary = "Returns a business policy", description = "Returns the business policy with the specified id. Can be run by a user, node, or agbot.",
     parameters = Array(
@@ -166,7 +166,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                           @Parameter(hidden = true) resource: String): Route =
     parameter("attribute".?) {
       attribute =>
-        logger.debug(s"GET /orgs/${organization}/business/policies/${deploymentPolicy}?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        Future { logger.debug(s"GET /orgs/${organization}/deployment/policies/${deploymentPolicy}?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         
         attribute match {
           case Some(attribute) =>  // Only returning 1 attr of the businessPolicy
@@ -207,7 +207,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
               else
                 db.run(Compiled(getDeploymentPolicyAttribute).result).map {
                   list =>
-                    logger.debug("GET /orgs/" + organization + "/business/policies/" + deploymentPolicy + " attribute result: " + list.toString)
+                    Future { logger.debug("GET /orgs/" + organization + "/deployment/policies/" + deploymentPolicy + " attribute result: " + list.toString) }
                     
                     if (list.nonEmpty)
                       (HttpCode.OK, GetBusinessPolicyAttributeResponse(attribute, list.head.toString))
@@ -255,7 +255,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
         }
     }
   
-  // =========== PATCH /orgs/{organization}/business/policies/{policy} ===============================
+  // =========== PATCH /orgs/{organization}/deployment/policies/{policy} ===============================
   @PATCH
   @Operation(summary = "Updates 1 attribute of a business policy", description = "Updates one attribute of a business policy. This can only be called by the user that originally created this business policy resource.",
     parameters = Array(
@@ -352,13 +352,14 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     patch {
       entity(as[PatchBusinessPolicyRequest]) {
         reqBody =>
-          logger.debug(s"PATCH /orgs/$organization/business/policies/$deploymentPolicy - By ${identity.resource}:${identity.role}")
+          Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
           
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
             
             complete({
+              implicit val formats: Formats = DefaultFormats
               val (action, attrName) = reqBody.getDbUpdate(resource, organization)
               if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.buspol.attribute.specified")))
               else {
@@ -368,7 +369,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                   else (DBIO.successful(Vector()), Vector())
                 db.run(valServiceIdActions.asTry.flatMap({
                   case Success(v) =>
-                    logger.debug("PATCH /orgs/" + organization + "/business/policies" + deploymentPolicy + " service validation: " + v)
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - service validation:       $v") }
                     var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                     breakable {
                       for ((len, index) <- v.zipWithIndex) {
@@ -388,24 +389,28 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                 }).flatMap({
                   case Success(n) =>
                     // Add the resource to the resourcechanges table
-                    logger.debug("PATCH /orgs/" + organization + "/business/policies/" + deploymentPolicy + " result: " + n)
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result:                   $n") }
                     val numUpdated: Int = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
                     if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
                       resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
-                    } else {
+                    }
+                    else {
                       DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
                     }
                   case Failure(t) => DBIO.failed(t).asTry
                 })).map({
                   case Success(v) =>
-                    logger.debug("PATCH /orgs/" + organization + "/business/policies/" + deploymentPolicy + " updated in changes table: " + v)
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
                     (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.attribute.updated", attrName, resource)))
-                  case Failure(t: DBProcessingError) =>
-                    t.toComplete
-                  case Failure(t: org.postgresql.util.PSQLException) =>
-                    ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("buspol.not.updated", resource, t.getMessage))
-                  case Failure(t) =>
-                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, t.getMessage)))
+                  case Failure(exception: DBProcessingError) =>
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(exception.toComplete)}") }
+                    exception.toComplete
+                  case Failure(exception: org.postgresql.util.PSQLException) =>
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage)))}") }
+                    ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage))
+                  case Failure(exception) =>
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage))))}") }
+                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage)))
                 })
               }
             })
@@ -413,7 +418,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       }
     }
   
-  // =========== POST /orgs/{organization}/business/policies/{policy} ===============================
+  // =========== POST /orgs/{organization}/deployment/policies/{policy} ===============================
   @POST
   @Operation(
     summary = "Adds a business policy",
@@ -541,7 +546,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     post {
       entity(as[PostPutBusinessPolicyRequest]) {
         reqBody =>
-          logger.debug(s"POST /orgs/${organization}/business/policies/${deploymentPolicy} - By ${identity.resource}:${identity.role}")
+          Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
       
       validateWithMsg(reqBody.getAnyProblem) {
         
@@ -552,7 +557,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
           db.run(valServiceIdActions.asTry.flatMap({
             case Success(v) =>
-              logger.debug("POST /orgs/" + organization + "/business/policies" + deploymentPolicy + " service validation: " + v)
+              Future { logger.debug("POST /orgs/" + organization + "/business/policies" + deploymentPolicy + " service validation: " + v) }
               var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
               breakable {
                 for ((len, index) <- v.zipWithIndex) {
@@ -571,7 +576,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
             case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
           }).flatMap({
             case Success(num) =>
-              logger.debug("POST /orgs/" + organization + "/business/policies" + deploymentPolicy + " num owned by " + owner + ": " + num)
+              Future { logger.debug("POST /orgs/" + organization + "/business/policies" + deploymentPolicy + " num owned by " + owner + ": " + num) }
               val numOwned: Int = num
               val maxBusinessPolicies: Int = Configuration.getConfig.getInt("api.limits.maxBusinessPolicies")
               if (maxBusinessPolicies == 0 || numOwned <= maxBusinessPolicies) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
@@ -582,12 +587,12 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
           }).flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
-              logger.debug("POST /orgs/" + organization + "/business/policies/" + deploymentPolicy + " result: " + v)
+              Future { logger.debug("POST /orgs/" + organization + "/deployment/policies/" + deploymentPolicy + " result: " + v) }
               ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATED, INSTANT).insert.asTry
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(v) =>
-              logger.debug("POST /orgs/" + organization + "/business/policies/" + deploymentPolicy + " updated in changes table: " + v)
+              Future { logger.debug("POST /orgs/" + organization + "/deployment/policies/" + deploymentPolicy + " updated in changes table: " + v) }
               // TODO: if (owner.isDefined) AuthCache.putBusinessOwner(resource, owner.get) // currently only users are allowed to update business policy resources, so owner should never be blank
               // TODO: AuthCache.putBusinessIsPublic(resource, isPublic = false)
               cacheResourceOwnership.put(organization, deploymentPolicy, "deployment_policy")((identity.identifier.getOrElse(identity.owner.get), false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
@@ -606,7 +611,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     }
   }
   
-  // =========== PUT /orgs/{organization}/business/policies/{policy} ===============================
+  // =========== PUT /orgs/{organization}/deployment/policies/{policy} ===============================
   @PUT
   @Operation(summary = "Updates a business policy", description = "Updates a business policy resource. This can only be called by the user that created it.",
     parameters = Array(
@@ -704,18 +709,19 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PostPutBusinessPolicyRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/${organization}/business/policies/${deploymentPolicy} - By ${identity.resource}:${identity.role}")
+          Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
           
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
             
             complete({
+              implicit val formats: Formats = DefaultFormats
               val owner: Option[UUID] = identity.identifier
               val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
               db.run(valServiceIdActions.asTry.flatMap({
                 case Success(v) =>
-                  logger.debug("POST /orgs/" + organization + "/business/policies" + deploymentPolicy + " service validation: " + v)
+                  Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - service validation:       $v") }
                   var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                   breakable {
                     for ((len, index) <- v.zipWithIndex) {
@@ -735,7 +741,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
               }).flatMap({
                 case Success(n) =>
                   // Add the resource to the resourcechanges table
-                  logger.debug("POST /orgs/" + organization + "/business/policies/" + deploymentPolicy + " result: " + n)
+                  Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result:                   $n") }
                   val numUpdated: Int = n.asInstanceOf[Int]     // i think n is an AnyRef so we have to do this to get it to an int
                   if (numUpdated > 0) {
                     // TODO: if (owner.isDefined) AuthCache.putBusinessOwner(resource, owner.get) // currently only users are allowed to update business policy resources, so owner should never be blank
@@ -747,14 +753,17 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(v) =>
-                  logger.debug("POST /orgs/" + organization + "/business/policies/" + deploymentPolicy + " updated in changes table: " + v)
+                  Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.updated", resource)))
-                case Failure(t: DBProcessingError) =>
-                  t.toComplete
-                case Failure(t: org.postgresql.util.PSQLException) =>
-                  ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("buspol.not.updated", resource, t.getMessage))
-                case Failure(t) =>
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, t.getMessage)))
+                case Failure(exception: DBProcessingError) =>
+                  Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(exception.toComplete)}") }
+                  exception.toComplete
+                case Failure(exception: org.postgresql.util.PSQLException) =>
+                  Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage)))}") }
+                  ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage))
+                case Failure(exception) =>
+                  Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage))))}") }
+                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage)))
               })
             })
           }
@@ -777,8 +786,8 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
             exchAuth(TBusiness(resource, owningResourceIdentity), Access.WRITE, validIdentity = identity) {
               _ =>
                 deleteDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
-                  patchDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
-                  putDeploymentPolicy(deploymentPolicy, identity, organization, resource)
+                patchDeploymentPolicy(deploymentPolicy, identity, organization, resource) ~
+                putDeploymentPolicy(deploymentPolicy, identity, organization, resource)
             }
           } ~
           get {

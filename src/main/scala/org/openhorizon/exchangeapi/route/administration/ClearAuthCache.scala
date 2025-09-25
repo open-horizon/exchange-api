@@ -28,7 +28,7 @@ trait ClearAuthCache extends JacksonSupport with AuthenticationSupport {
   
   // =========== POST /admin/clearauthcaches ===============================
   def postClearAuthCache(@Parameter(hidden = true) identity: Identity2): Route = {
-    logger.debug(s"POST /admin/clearauthcaches  - By ${identity.resource}:${identity.role}")
+    logger.debug(s"POST /admin/clearauthcaches  - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({ // todo: ensure other client requests are not updating the cache at the same time
     
       //AuthCache.clearAllCaches(includingIbmAuth = true)

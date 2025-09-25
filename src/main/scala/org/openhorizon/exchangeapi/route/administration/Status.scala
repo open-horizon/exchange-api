@@ -42,7 +42,7 @@ trait Status extends JacksonSupport with AuthenticationSupport {
   
   def getStatus(@Parameter(hidden = true) identity: Identity2,
                 @Parameter(hidden = true) organization: Option[String] = None): Route = { // Hides fields from being included in the swagger doc as request parameters.
-    logger.debug(s"GET /admin/status - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /admin/status - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       val metrics =
         for {

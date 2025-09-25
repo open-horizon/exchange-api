@@ -15,8 +15,8 @@ class NodeMsgs(tag: Tag) extends Table[NodeMsgRow](tag, "nodemsgs") {
   
   def * = (msgId, nodeId, agbotId, agbotPubKey, message, timeSent, timeExpires).<>(NodeMsgRow.tupled, NodeMsgRow.unapply)
   
-  def agbot = foreignKey("node_msg_fk_agbots", agbotId, AgbotsTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
-  def node = foreignKey("node_msg_fk_nodes", nodeId, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def agbot = foreignKey("node_msg_fk_agbot", agbotId, AgbotsTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def node = foreignKey("node_msg_fk_node", nodeId, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def idx_node_msg_fk_agbots = index(name = "idx_node_msg_fk_agbots", on = agbotId, unique = false)
   def idx_node_msg_fk_nodes = index(name = "idx_node_msg_fk_nodes", on = nodeId, unique = false)
 }

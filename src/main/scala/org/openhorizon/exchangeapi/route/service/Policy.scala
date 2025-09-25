@@ -51,7 +51,7 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String,
                        @Parameter(hidden = true) service: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/services/${service}/policy - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(ServicePolicyTQ.getServicePolicy(resource).result).map({
         list =>
@@ -137,7 +137,7 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PutServicePolicyRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
@@ -190,7 +190,7 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
                           @Parameter(hidden = true) resource: String,
                           @Parameter(hidden = true) service: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       

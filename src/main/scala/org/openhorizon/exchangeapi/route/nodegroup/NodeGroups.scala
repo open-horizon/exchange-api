@@ -77,7 +77,7 @@ trait NodeGroups extends JacksonSupport with AuthenticationSupport {
   def getNodeGroups(@Parameter(hidden = true) identity: Identity2,
                     @Parameter(hidden = true) organization: String): Route =
     {
-      logger.debug(s"GET /orgs/$organization/hagroups - By ${identity.resource}:${identity.role}")
+      logger.debug(s"GET /orgs/$organization/hagroups - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         val nodeGroupsQuery: Query[NodeGroup, NodeGroupRow, Seq] =
           NodeGroupTQ.getAllNodeGroups(organization).sortBy(_.name)

@@ -10,6 +10,8 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, IAgbot, INode, Identity, Identity2, TOrg}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
@@ -39,7 +41,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
                                    @Parameter(hidden = true) inputChangeId: Long,
                                    @Parameter(hidden = true) maxChangeIdOfTable: Long): ResourceChangesRespObject ={
     // Sort the rows based on the changeId. Default order is ascending, which is what we want
-    logger.debug(s"POST /orgs/{organization}/changes sorting ${inputList.size} rows")
+    logger.debug(s"POST /orgs/{organization}/changes - sorting ${inputList.size} rows")
     // val inputList = inputListUnsorted.sortBy(_.changeId)  // Note: we are doing the sorting here instead of in the db via sql, because the latter seems to use a lot of db cpu
 
     // fill in some values we can before processing
@@ -248,6 +250,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
             Compiled(changesWithAuth(queryEarlierTimestamp).sortBy(_.changeId.asc.nullsFirst).take(maxRecords)).result
         } yield((changes, currentChange))
       
+      implicit val formats: Formats = DefaultFormats
       db.run(changes.transactionally.asTry).map({
         case Success(result) =>
           if (result._1.nonEmpty) {
@@ -266,12 +269,15 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
               hitMaxRecords = false,
               exchangeVersion = ExchangeApi.adminVersion()))
           }
-        case Failure(t: IllegalCallerException) =>
+        case Failure(exception: IllegalCallerException) =>
+          Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", identity.resource))))}") }
           (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", identity.resource)))
-        case Failure(t: org.postgresql.util.PSQLException) =>
-          ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("invalid.input.message", t.getMessage))
-        case Failure(t) =>
-          (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
+        case Failure(exception: org.postgresql.util.PSQLException) =>
+          Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("invalid.input.message", exception.getMessage)))}") }
+          ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("invalid.input.message", exception.getMessage))
+        case Failure(exception) =>
+          Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage))))}") }
+          (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage)))
       })
     })
   }

@@ -96,7 +96,7 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
                          @Parameter(hidden = true) username: String): Route =
     entity(as[ChangePwRequest]) {
       reqBody =>
-        Future { logger.debug(s"POST /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}") }
+        Future { logger.debug(s"POST /orgs/$organization/users/$username - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         
         validateWithMsg(reqBody.getAnyProblem) {
           val timestamp: Instant = ApiTime.nowUTCTimestamp

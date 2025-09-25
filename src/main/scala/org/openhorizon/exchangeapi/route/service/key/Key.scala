@@ -56,7 +56,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
                     @Parameter(hidden = true) resource: String,
                     @Parameter(hidden = true) service: String): Route =
     get {
-      logger.debug(s"GET /orgs/${organization}/services/${service}/keys/${key} - By ${identity.resource}:${identity.role}")
+      logger.debug(s"GET /orgs/${organization}/services/${service}/keys/${key} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         db.run(ServiceKeysTQ.getKey(resource, key).result).map({ list =>
           logger.debug("GET /orgs/"+organization+"/services/"+service+"/keys/"+key+" result: "+list.size)
@@ -100,7 +100,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
                     @Parameter(hidden = true) resource: String,
                     @Parameter(hidden = true) service: String): Route =
     put {
-      logger.debug(s"PUT /orgs/${organization}/services/${service}/keys/${key} - By ${identity.resource}:${identity.role}")
+      logger.debug(s"PUT /orgs/${organization}/services/${service}/keys/${key} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       
@@ -158,7 +158,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) resource: String,
                        @Parameter(hidden = true) service: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/${organization}/services/${service}/keys/${key} - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/${organization}/services/${service}/keys/${key} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       

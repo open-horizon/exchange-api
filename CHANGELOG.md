@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.144.4](https://github.com/open-horizon/exchange-api/pull/825) - 2025-09-25
+- Back-porting version `2.150.0` to this branch.
+
 ## [2.144.3](https://github.com/open-horizon/exchange-api/pull/823) - 2025-09-19
 - Back-porting version `2.149.0` to this branch.
 

@@ -26,7 +26,7 @@ import slick.lifted.CompiledStreamingExecutable
 
 import java.nio.file.AccessDeniedException
 import scala.collection.immutable._
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util._
 
 @Path("/v1/orgs/{organization}/managementpolicies")
@@ -108,7 +108,7 @@ trait ManagementPolicies extends JacksonSupport with AuthenticationSupport {
        label,
        description,
        manifest) =>
-        logger.debug(s"GET /orgs/${organization}/managementpolicies?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},manifest=${manifest.getOrElse("None")},owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        Future { logger.debug(s"GET /orgs/${organization}/managementpolicies?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},manifest=${manifest.getOrElse("None")},owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         
         val getAllManagementPolicies: CompiledStreamingExecutable[Query[((Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Long]), Rep[String]), ((Boolean, String, String, String, Boolean, String, String, String, String, String, String, String, Long), String), Seq], Seq[((Boolean, String, String, String, Boolean, String, String, String, String, String, String, String, Long), String)], ((Boolean, String, String, String, Boolean, String, String, String, String, String, String, String, Long), String)] =
           for {
@@ -158,16 +158,19 @@ trait ManagementPolicies extends JacksonSupport with AuthenticationSupport {
           } yield managementPolicies
           
         complete {
+          implicit val defaultFormats: Formats = DefaultFormats.withLong
           db.run(getAllManagementPolicies.result.transactionally.asTry).map {
             case Success(managementPolicies) =>
-              logger.debug("GET /orgs/" + organization + "/managementpolicies result size: " + managementPolicies.size)
-              implicit val defaultFormats: Formats = DefaultFormats.withLong
+              Future { logger.debug(s"GET /orgs/${organization}/managementpolicies?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},manifest=${manifest.getOrElse("None")},owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: $managementPolicies.size") }
               
               if (managementPolicies.nonEmpty)
                 (StatusCodes.OK, GetManagementPoliciesResponse(managementPolicies.map(managementPolicy => managementPolicy._2 -> (new ManagementPolicy(managementPolicy._1)(defaultFormats))).toMap))
-              else
+              else {
+                Future { logger.debug(s"GET /orgs/${organization}/managementpolicies?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},manifest=${manifest.getOrElse("None")},owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - managementPolicies.nonEmpty:${managementPolicies.nonEmpty} - ${(StatusCodes.NotFound, write(GetManagementPoliciesResponse()))}") }
                 (StatusCodes.NotFound, GetManagementPoliciesResponse())
+              }
             case Failure(exception) =>
+              Future { logger.debug(s"GET /orgs/${organization}/managementpolicies?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},manifest=${manifest.getOrElse("None")},owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, write(ApiResponse(ApiRespType.INTERNAL_ERROR, exception.getMessage)))}") }
               (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, exception.getMessage))
           }
         }

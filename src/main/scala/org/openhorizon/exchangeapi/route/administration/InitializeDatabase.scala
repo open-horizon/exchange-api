@@ -39,7 +39,7 @@ trait InitializeDatabase extends JacksonSupport with AuthenticationSupport{
                      new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
                      new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def postInitializeDB(@Parameter(hidden = true) identity: Identity2): Route = {
-    logger.debug(s"POST /admin/initdb - By ${identity.resource}:${identity.role}")
+    logger.debug(s"POST /admin/initdb - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete ({
       db.run(ExchangeApiTables.initDB.transactionally.asTry)
         .map({

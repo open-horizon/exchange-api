@@ -52,7 +52,7 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
                         @Parameter(hidden = true) resource: String,
                         @Parameter(hidden = true) service: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/${organization}/services/${service}/dockauths - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/${organization}/services/${service}/dockauths - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       
@@ -129,7 +129,7 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
                      @Parameter(hidden = true) organization: String,
                      @Parameter(hidden = true) resource: String,
                      @Parameter(hidden = true) service: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/services/${service}/dockauths - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/${organization}/services/${service}/dockauths - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(ServiceDockAuthsTQ.getDockAuths(resource).result).map({
         list =>
@@ -210,7 +210,7 @@ trait DockerAuths extends JacksonSupport with AuthenticationSupport {
     post {
       entity(as[PostPutServiceDockAuthRequest]) {
         reqBody =>
-          logger.debug(s"POST /orgs/${organization}/services/${service}/dockauths - By ${identity.resource}:${identity.role}")
+          logger.debug(s"POST /orgs/${organization}/services/${service}/dockauths - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem(None)) {
             
             val INSTANT: Instant = Instant.now()

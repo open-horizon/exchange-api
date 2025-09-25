@@ -55,7 +55,7 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
                    @Parameter(hidden = true) organization: String,
                    @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/errors - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/errors - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       
@@ -101,7 +101,7 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
                 @Parameter(hidden = true) node: String,
                 @Parameter(hidden = true) organization: String,
                 @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/nodes/${node}/errors - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/${organization}/nodes/${node}/errors - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(NodeErrorTQ.getNodeError(resource).result).map({
         list =>
@@ -184,7 +184,7 @@ trait Errors extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PutNodeErrorRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/${organization}/nodes/${node}/errors - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PUT /orgs/${organization}/nodes/${node}/errors - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()

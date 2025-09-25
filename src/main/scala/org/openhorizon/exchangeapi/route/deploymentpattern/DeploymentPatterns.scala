@@ -146,7 +146,7 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
        label,
        description,
        clusterNamespace) =>
-        logger.debug(s"GET /orgs/${organization}/patterns?clusterNamespace=${clusterNamespace.getOrElse("None")}, description=${description.getOrElse("None")}, idfilter=${idfilter.getOrElse("None")}, label=${label.getOrElse("None")}, owner=${owner.getOrElse("None")}, public=${public.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /orgs/${organization}/patterns?clusterNamespace=${clusterNamespace.getOrElse("None")}, description=${description.getOrElse("None")}, idfilter=${idfilter.getOrElse("None")}, label=${label.getOrElse("None")}, owner=${owner.getOrElse("None")}, public=${public.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         implicit val formats: Formats = DefaultFormats
         val getDeploymentPatterns: Query[((Rep[String], Rep[Option[String]], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, Option[String], String, String, String, String, Boolean, String, String, String), String), Seq] =
           for {

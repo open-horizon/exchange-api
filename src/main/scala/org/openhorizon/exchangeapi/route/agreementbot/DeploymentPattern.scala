@@ -57,7 +57,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                                       @Parameter(hidden = true) identity: Identity2,
                                       @Parameter(hidden = true) organization: String,
                                       @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - By ${identity.resource}:${identity.role}")
+    logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     
     val INSTANT: Instant = Instant.now()
     
@@ -122,7 +122,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                                    @Parameter(hidden = true) identity: Identity2,
                                    @Parameter(hidden = true) organization: String,
                                    @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(AgbotPatternsTQ.getPattern(resource, deploymentPattern).result).map({
         list =>

@@ -40,7 +40,7 @@ trait OrganizationStatus extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "403", description = "access denied")),
              summary = "Returns the org-specific status of the Exchange server")
   def getOrganizationStatus(@Parameter(hidden = true) identity: Identity2): Route = { // Hides fields from being included in the swagger doc as request parameters.
-    logger.debug(s"GET /admin/status - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /admin/status - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       val metrics =
         for {

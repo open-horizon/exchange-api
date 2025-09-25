@@ -9,6 +9,8 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TNode}
@@ -66,8 +68,9 @@ trait Message extends JacksonSupport with AuthenticationSupport {
                      @Parameter(hidden = true) node: String,
                      @Parameter(hidden = true) organization: String,
                      @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs/${message} - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
+      implicit val formats: Formats = DefaultFormats
       db.run(
              NodeMsgsTQ.getMsg(nodeId = resource,
                                msgId = message.toInt)
@@ -89,10 +92,13 @@ trait Message extends JacksonSupport with AuthenticationSupport {
           case Success(message) =>
             if(message.messages.nonEmpty)
               (HttpCode.OK, message)
-            else
+            else {
+              Future { logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - message.messages.nonEmpty:${message.messages.nonEmpty} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))))}") }
               (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
-          case Failure(t) =>
-            (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
+            }
+          case Failure(exception) =>
+            Future { logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage))))}") }
+            (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage)))
         })
     })
   }
@@ -114,22 +120,31 @@ trait Message extends JacksonSupport with AuthenticationSupport {
                         @Parameter(hidden = true) node: String,
                         @Parameter(hidden = true) organization: String,
                         @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - By ${identity.resource}:${identity.role}")
+    logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
+      implicit val formats: Formats = DefaultFormats
       try {
         val msgId: Int = message.toInt   // this can throw an exception, that's why this whole section is in a try/catch
         db.run(NodeMsgsTQ.getMsg(resource,msgId).delete.asTry).map({
           case Success(v) =>
-            logger.debug("DELETE /nodes/" + node + "/msgs/" + msgId + " updated in changes table: " + v)
+            Future { logger.debug(s"DELETE /nodes/$node/msgs/$msgId - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")} - updated in changes table: $v") }
             (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.deleted")))
-          case Failure(t: DBProcessingError) =>
-            t.toComplete
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.msg.not.deleted", msgId, resource, t.toString))
-          case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, resource, t.toString)))
+          case Failure(exception: DBProcessingError) =>
+            Future { logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+            exception.toComplete
+          case Failure(exception: org.postgresql.util.PSQLException) =>
+            Future { logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.msg.not.deleted", msgId, resource, exception.toString)))}") }
+            ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.msg.not.deleted", msgId, resource, exception.toString))
+          case Failure(exception) =>
+            Future { logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, resource, exception.toString))))}") }
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, resource, exception.toString)))
         })
-      } catch { case e: Exception => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e))) }    // the specific exception is NumberFormatException
+      }
+      catch {
+        case e: Exception =>
+          Future { logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${e.toString} - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e))))}") }
+          (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e)))
+      }    // the specific exception is NumberFormatException
     })
   }
   

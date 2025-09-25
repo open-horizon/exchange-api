@@ -105,7 +105,7 @@ trait NodeService extends JacksonSupport with AuthenticationSupport {
                             @Parameter(hidden = true) organization: String): Route =
     entity(as[PostServiceSearchRequest]) {
       reqBody =>
-        logger.debug(s"POST /orgs/$organization/search/nodes/service - By ${identity.resource}:${identity.role}")
+        logger.debug(s"POST /orgs/$organization/search/nodes/service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         
         validateWithMsg(reqBody.getAnyProblem) {
           complete({

@@ -11,6 +11,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, path, post, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.jackson.Serialization
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
@@ -95,7 +96,7 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
     get {
       parameter("attribute".?) {
         attribute =>
-          logger.debug(s"GET /orgs/${organization}/managementpolicies/${managementPolicy}?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+          logger.debug(s"GET /orgs/${organization}/managementpolicies/${managementPolicy}?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           
           def managementPolicyQuery: Query[managementpolicy.ManagementPolicies, ManagementPolicyRow, Seq] = {
             ManagementPoliciesTQ.filter(management_policies =>
@@ -284,7 +285,7 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
     post {
       entity(as[PostPutManagementPolicyRequest]) {
         reqBody =>
-          logger.debug(s"POST /orgs/${organization}/managementpolicies/${managementPolicy} - By ${identity.resource}:${identity.role}")
+          logger.debug(s"POST /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
@@ -413,32 +414,41 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PostPutManagementPolicyRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - By ${identity.resource}:${identity.role}")
+          Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
             
             complete({
+              implicit val formats: Formats = DefaultFormats
               val owner: Option[UUID] = identity.identifier
               db.run(reqBody.getDbUpdate(resource, organization, owner.get).asTry.flatMap({
                 case Success(v) =>
                   // Add the resource to the resourcechanges table
-                  logger.debug("PUT /orgs/" + organization + "/managementpolicies/" + managementPolicy + " result: " + v)
+                  Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result:                   $v") }
                   ResourceChange(0L, organization, managementPolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(v) =>
-                  logger.debug("PUT /orgs/" + organization + "/managementpolicies/" + managementPolicy + " updated in changes table: " + v)
+                  Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
                   // TODO: if (owner.isDefined) AuthCache.putManagementPolicyOwner(resource, owner) // currently only users are allowed to update management policy resources, so owner should never be blank
                   // TODO: AuthCache.putManagementPolicyIsPublic(resource, isPublic = false)
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("mgmtpol.updated", resource)))
-                case Failure(t: DBProcessingError) =>
-                  t.toComplete
-                case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("mgmtpol.already.exists", resource, t.getMessage)))
-                  else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("mgmtpol.not.created", resource, t.getMessage))
-                case Failure(t) =>
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.not.created", resource, t.getMessage)))
+                case Failure(exception: DBProcessingError) =>
+                  Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+                  exception.toComplete
+                case Failure(exception: org.postgresql.util.PSQLException) =>
+                  if (ExchangePosgtresErrorHandling.isDuplicateKeyError(exception)) {
+                    Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.ALREADY_EXISTS, Serialization.write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("mgmtpol.already.exists", resource, exception.getMessage))))}") }
+                    (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("mgmtpol.already.exists", resource, exception.getMessage)))
+                  }
+                  else {
+                    Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("mgmtpol.not.created", resource, exception.getMessage)))}") }
+                    ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("mgmtpol.not.created", resource, exception.getMessage))
+                  }
+                case Failure(exception) =>
+                  Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.not.created", resource, exception.getMessage))))}") }
+                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.not.created", resource, exception.getMessage)))
               })
             })
           }
@@ -461,7 +471,7 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
                              @Parameter(hidden = true) organization: String,
                              @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/managementpolicies/$managementPolicy - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization/managementpolicies/$managementPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       

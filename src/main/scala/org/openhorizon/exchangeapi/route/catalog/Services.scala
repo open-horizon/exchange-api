@@ -143,7 +143,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
        arch,
        nodetype,
        requiredurl) =>
-        logger.debug(s"GET /catalog/services?arch=${arch.getOrElse("None")},nodetype=${nodetype.getOrElse("None")},organization=${organization.getOrElse("None")},owner=${owner.getOrElse("None")},public=${"None"},requiredurl=${requiredurl.getOrElse("None")},url=${url.getOrElse("None")},version=${version.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /catalog/services?arch=${arch.getOrElse("None")},nodetype=${nodetype.getOrElse("None")},organization=${organization.getOrElse("None")},owner=${owner.getOrElse("None")},public=${"None"},requiredurl=${requiredurl.getOrElse("None")},url=${url.getOrElse("None")},version=${version.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         implicit val jsonFormats: Formats = DefaultFormats
         
         val device: Option[Boolean] =

@@ -107,7 +107,7 @@ trait ConfigurationState extends JacksonSupport with AuthenticationSupport {
                              @Parameter(hidden = true) resource: String): Route =
     entity(as[PostNodeConfigStateRequest]) {
       reqBody =>
-        logger.debug(s"POST /orgs/${organization}/nodes/${node}/services_configstate - By ${identity.resource}:${identity.role}")
+        logger.debug(s"POST /orgs/${organization}/nodes/${node}/services_configstate - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       validateWithMsg(reqBody.getAnyProblem) {
         
         val INSTANT: Instant = Instant.now()

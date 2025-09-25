@@ -130,7 +130,7 @@ trait OrganizationDeploymentPatterns extends JacksonSupport with AuthenticationS
        public,
        label,
        description) =>
-        logger.debug(s"GET /catalog/${organization}/patterns?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")},public=${public.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /catalog/${organization}/patterns?description=${description.getOrElse("None")},idfilter=${idfilter.getOrElse("None")},label=${label.getOrElse("None")},owner=${owner.getOrElse("None")},public=${public.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         validate(public.isEmpty || (public.get.toLowerCase == "true" || public.get.toLowerCase == "false"), ExchMsg.translate("bad.public.param")) {
           complete({
             logger.debug("ORGID: "+ organization)

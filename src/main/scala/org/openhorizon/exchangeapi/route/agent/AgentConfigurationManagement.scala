@@ -22,7 +22,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, E
 import slick.jdbc.PostgresProfile.api._
 
 import java.time.Instant
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 /** Implementation for all of the /orgs/{org}/AgentFileVersion routes */
@@ -51,7 +51,7 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
   def deleteAgentConfigMgmt(@Parameter(hidden = true) identity: Identity2,
                             @Parameter(hidden = true) organization: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/AgentFileVersion - By ${identity.resource}:${identity.role}")
+      Future { logger.debug(s"DELETE /orgs/$organization/AgentFileVersion - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
       complete({
         organization match {
           case "IBM" =>
@@ -85,11 +85,11 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
               versions.transactionally.asTry}).map({
               
               case Success(result) =>
-                logger.debug("DELETE /v1/orgs/" + "IBM" + "/AgentFileVersions - Certificate Versions: " + result._1)
-                logger.debug("DELETE /v1/orgs/" + "IBM" + "/AgentFileVersions - Changed Timestamp: " + result._2)
-                logger.debug("DELETE /v1/orgs/" + "IBM" + "/AgentFileVersions - Configuration Versions: " + result._3)
-                logger.debug("DELETE /v1/orgs/" + "IBM" + "/AgentFileVersions - Resource Changes: " + result._4)
-                logger.debug("DELETE /v1/orgs/" + "IBM" + "/AgentFileVersions - Software Versions: " + result._5)
+                Future { logger.debug(s"DELETE /v1/orgs/IBM/AgentFileVersions - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Certificate Versions:   ${result._1}") }
+                Future { logger.debug(s"DELETE /v1/orgs/IBM/AgentFileVersions - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changed Timestamp:      ${result._2}") }
+                Future { logger.debug(s"DELETE /v1/orgs/IBM/AgentFileVersions - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Configuration Versions: ${result._3}") }
+                Future { logger.debug(s"DELETE /v1/orgs/IBM/AgentFileVersions - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Resource Changes:       ${result._4}") }
+                Future { logger.debug(s"DELETE /v1/orgs/IBM/AgentFileVersions - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Software Versions:      ${result._5}") }
                 
                 if((0 <= result._1 ||
                     0 <= result._3 ||
@@ -143,7 +143,7 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
   def getAgentConfigMgmt(@Parameter(hidden = true) identity: Identity2,
                          @Parameter(hidden = true) orgId: String): Route =
     {
-      logger.debug(s"GET /orgs/$orgId/AgentFileVersion - By ${identity.resource}:${identity.role}")
+      Future { logger.debug(s"GET /orgs/$orgId/AgentFileVersion - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
       complete({
         orgId match {
           case "IBM" =>
@@ -220,7 +220,7 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
     put {
       entity(as[AgentVersionsRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/$organization/AgentFileVersion - By ${identity.resource}:${identity.role}")
+          Future { logger.debug(s"PUT /orgs/$organization/AgentFileVersion - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
           
           val INSTANT: Instant = Instant.now()
           
@@ -244,8 +244,8 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                                                      resource = ResChangeResource.AGENTFILEVERSION).insert)
                         .transactionally.asTry.map({
                           case Success(v) =>
-                            logger.debug("PUT /orgs/" + organization + "/AgentFileVersion result: " + v)
-                            logger.debug("PUT /orgs/" + organization + "/AgentFileVersion updating resource status table: " + v)
+                            Future { logger.debug("PUT /orgs/" + organization + "/AgentFileVersion result: " + v) }
+                            Future { logger.debug("PUT /orgs/" + organization + "/AgentFileVersion updating resource status table: " + v) }
         
                             (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", "AgentFileVersion" ,organization)))
                           case Failure(t: org.postgresql.util.PSQLException) =>

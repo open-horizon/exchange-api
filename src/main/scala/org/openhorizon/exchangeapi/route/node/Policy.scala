@@ -54,7 +54,7 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/{organization}/nodes/{node}/policy - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/{organization}/nodes/{node}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       
@@ -105,7 +105,7 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
                     @Parameter(hidden = true) node: String,
                     @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/{organization}/nodes/{node}/policy - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/{organization}/nodes/{node}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(NodePolicyTQ.getNodePolicy(resource).result).map({ list =>
         logger.debug("GET /orgs/"+organization+"/nodes/"+node+"/policy result size: "+list.size)
@@ -220,7 +220,7 @@ trait Policy extends JacksonSupport with AuthenticationSupport {
         noheartbeat =>
           entity(as[PutNodePolicyRequest]) {
             reqBody =>
-              logger.debug(s"PUT /orgs/{organization}/nodes/{node}/policy?noheartbeat=${noheartbeat.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+              logger.debug(s"PUT /orgs/{organization}/nodes/{node}/policy?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
               validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
                 
                 val INSTANT: Instant = Instant.now()

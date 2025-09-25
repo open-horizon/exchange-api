@@ -552,6 +552,11 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
           sqlu"ALTER TABLE IF EXISTS public.nodestatus DROP CONSTRAINT IF EXISTS node_fk;",
           sqlu"ALTER TABLE IF EXISTS public.nodestatus DROP CONSTRAINT IF EXISTS node_status_fk_node;",
           sqlu"ALTER TABLE IF EXISTS public.nodestatus DROP CONSTRAINT IF EXISTS node_status_fk_nodes;",
+          sqlu"ALTER TABLE IF EXISTS public.node_group_assignment DROP CONSTRAINT IF EXISTS fk_group;",
+          sqlu"ALTER TABLE IF EXISTS public.node_group_assignment DROP CONSTRAINT IF EXISTS fk_node;",
+          sqlu"ALTER TABLE IF EXISTS public.node_group_assignment DROP CONSTRAINT IF EXISTS node_grp_assgn_fk_node;",
+          sqlu"ALTER TABLE IF EXISTS public.node_group_assignment DROP CONSTRAINT IF EXISTS node_grp_assgn_fk_nodes;",
+          sqlu"ALTER TABLE IF EXISTS public.node_group_assignment DROP CONSTRAINT IF EXISTS node_grp_assgn_fk_node_grps;",
           sqlu"ALTER TABLE IF EXISTS public.patterns DROP CONSTRAINT IF EXISTS pattrns_user_fk;",
           sqlu"ALTER TABLE IF EXISTS public.services DROP CONSTRAINT IF EXISTS svcs_user_fk;",
           
@@ -568,6 +573,8 @@ object SchemaTQ extends TableQuery(new SchemaTable(_)){
           sqlu"""ALTER TABLE IF EXISTS public.nodepolicies ADD CONSTRAINT node_deploy_pol_fk_node FOREIGN KEY (nodeid) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
           sqlu"""ALTER TABLE IF EXISTS public.nodes ADD CONSTRAINT node_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
           sqlu"""ALTER TABLE IF EXISTS public.nodestatus ADD CONSTRAINT node_status_fk_node FOREIGN KEY (nodeid) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.node_group_assignment ADD CONSTRAINT node_grp_assgn_fk_node FOREIGN KEY (node) REFERENCES public.nodes("id") ON UPDATE CASCADE ON DELETE CASCADE;""",
+          sqlu"""ALTER TABLE IF EXISTS public.node_group_assignment ADD CONSTRAINT node_grp_assgn_fk_node_grps FOREIGN KEY ("group") REFERENCES public.node_group("group") ON UPDATE CASCADE ON DELETE CASCADE;""",
           sqlu"""ALTER TABLE IF EXISTS public.patterns ADD CONSTRAINT pattrns_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
           sqlu"""ALTER TABLE IF EXISTS public.services ADD CONSTRAINT svcs_user_fk FOREIGN KEY (owner) REFERENCES public.users("user") ON UPDATE CASCADE ON DELETE CASCADE;""",
         )

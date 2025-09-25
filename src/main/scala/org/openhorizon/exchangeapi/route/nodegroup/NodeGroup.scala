@@ -11,6 +11,8 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.path
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, post, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthRoles, AuthenticationSupport, BadInputException, Identity, Identity2, OrgAndId, ResourceNotFoundException, TNode}
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroupRow, NodeGroupTQ}
@@ -29,7 +31,7 @@ import java.time.Instant
 import java.util.UUID
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.DurationInt
-import scala.concurrent.{Await, ExecutionContext}
+import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.language.postfixOps
 import scala.util.{Failure, Success}
 
@@ -302,7 +304,7 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
     {
       entity(as[PutNodeGroupsRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+          Future { logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
             validateWithMsg(reqBody.getAnyProblem) {
               complete({
                 val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
@@ -439,29 +441,43 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                         DBIO.successful(())
                 } yield (assignedNodes, changesInserted, nodesChanged, nodesToBeReplaced)  // Yielding these for debugging, no functional reason.
                 
+                implicit val formats: Formats = DefaultFormats
                 db.run(syncNodeGroup.transactionally.asTry).map({
                   case Success(result) =>
                     logger.debug(s"PUT /orgs/$organization/hagroups/$highAvailabilityGroup update successful")
                     (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.updated.successfully", highAvailabilityGroup, organization)))
-                  case Failure(t: ResourceNotFoundException) =>
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, t.getMessage))
-                  case Failure(t: BadInputException) =>
-                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, t.getMessage))
-                  case Failure(t: auth.AlreadyExistsException) =>
-                    (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, t.getMessage))
-                  case Failure(t: AccessDeniedException) =>
-                    (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, t.getMessage))
-                  case Failure(e: PSQLException) =>
-                    if (e.getServerErrorMessage.getConstraint.equals("node_group_idx"))
+                  case Failure(exception: ResourceNotFoundException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString}  - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, exception.getMessage)))}") }
+                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, exception.getMessage))
+                  case Failure(exception: BadInputException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString}  - ${(HttpCode.BAD_INPUT,  Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, exception.getMessage)))}") }
+                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, exception.getMessage))
+                  case Failure(exception: auth.AlreadyExistsException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString}  - ${(HttpCode.ALREADY_EXISTS2,  Serialization.write(ApiResponse(ApiRespType.ALREADY_EXISTS, exception.getMessage)))}") }
+                    (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, exception.getMessage))
+                  case Failure(exception: AccessDeniedException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString}  - ${(HttpCode.ACCESS_DENIED,  Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, exception.getMessage)))}") }
+                    (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, exception.getMessage))
+                  case Failure(exception: PSQLException) =>
+                    if (exception.getServerErrorMessage.getConstraint.equals(NodeGroupTQ.baseTableRow.nodeGroupIdx.name)) {
+                      Future { logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString}  - ${(HttpCode.ALREADY_EXISTS2, Serialization.write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.already.exists", (organization + "/" + highAvailabilityGroup)))))}") }
                       (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.already.exists", (organization + "/" + highAvailabilityGroup))))
-                    else if (e.getServerErrorMessage.getConstraint.equals("fk_organization"))
+                    }
+                    else if (exception.getServerErrorMessage.getConstraint.equals(NodeGroupTQ.baseTableRow.fkOrg.fks(0).name)) {
+                      Future { logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString}  - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization))))}") }
                       (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization)))
-                    else if (e.getServerErrorMessage.getConstraint.equals("pk_node_group_assignment"))
+                    }
+                    else if (exception.getServerErrorMessage.getConstraint.equals(NodeGroupAssignmentTQ.baseTableRow.pkNodeGroup.name)) {
+                      Future { logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString}  - ${(HttpCode.ALREADY_EXISTS2, Serialization.write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.conflict"))))}") }
                       (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.conflict")))
-                    else
-                      (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.updated", (organization + "/" + highAvailabilityGroup), e.toString)))
-                  case Failure(t) =>
-                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.not.updated", highAvailabilityGroup, organization, t.getMessage)))
+                    }
+                    else {
+                      Future { logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString}  - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.not.updated", (organization + "/" + highAvailabilityGroup), exception.toString))))}") }
+                      (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.not.updated", (organization + "/" + highAvailabilityGroup), exception.toString)))
+                    }
+                  case Failure(exception) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/users/$highAvailabilityGroup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString}  - ${(HttpCode.INTERNAL_ERROR,  Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.not.updated", highAvailabilityGroup, organization, exception.getMessage))))}") }
+                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.not.updated", highAvailabilityGroup, organization, exception.getMessage)))
                 })
               })
             }
@@ -622,11 +638,11 @@ trait NodeGroup extends JacksonSupport with AuthenticationSupport {
                 case Failure(e: IllegalStateException) =>
                   (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("db.records.not.inserted")))
                 case Failure(e: PSQLException) =>
-                  if (e.getServerErrorMessage.getConstraint.equals("node_group_idx"))
+                  if (e.getServerErrorMessage.getConstraint.equals(NodeGroupTQ.baseTableRow.nodeGroupIdx.name))
                     (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.already.exists", (organization + "/" + highAvailabilityGroup))))
-                  else if (e.getServerErrorMessage.getConstraint.equals("fk_organization"))
+                  else if (e.getServerErrorMessage.getConstraint.equals(NodeGroupTQ.baseTableRow.fkOrg.fks(0).name))
                     (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization)))
-                  else if (e.getServerErrorMessage.getConstraint.equals("pk_node_group_assignment"))
+                  else if (e.getServerErrorMessage.getConstraint.equals(NodeGroupAssignmentTQ.baseTableRow.pkNodeGroup.name))
                     (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.conflict")))
                   else
                     (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.inserted", resource, e.toString)))

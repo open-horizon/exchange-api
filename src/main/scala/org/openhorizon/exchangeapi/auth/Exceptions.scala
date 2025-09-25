@@ -9,7 +9,7 @@ import javax.security.auth.login.LoginException
 // See also case class AuthRejection in ApiUtils.scala that can turn any exception into a rejection
 //todo: make all of these final case classes
 class AuthException(var httpCode: StatusCode, var apiResponse: String, msg: String) extends LoginException(msg) {
-  def toComplete = (httpCode, ApiResponse(apiResponse, getMessage))
+  def toComplete: (StatusCode, ApiResponse) = (httpCode, ApiResponse(apiResponse, getMessage))
 }
 
 // These error msgs are matched by UsersSuite.scala, so change them there if you change them here

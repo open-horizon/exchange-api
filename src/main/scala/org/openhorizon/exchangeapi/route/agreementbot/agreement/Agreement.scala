@@ -57,7 +57,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                       @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot/agreements/$agreement - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot/agreements/$agreement - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       
@@ -129,7 +129,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                    @Parameter(hidden = true) identity: Identity2,
                    @Parameter(hidden = true) organization: String,
                    @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/agreements/$agreement - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/$organization/agbots/$agreementBot/agreements/$agreement - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(AgbotAgreementsTQ.getAgreement(resource, agreement).result)
         .map({
@@ -198,7 +198,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PutAgbotAgreementRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot/agreements/$agreement - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot/agreements/$agreement - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()

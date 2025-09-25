@@ -9,19 +9,22 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AlreadyExistsException, AuthRoles, AuthenticationSupport, Identity, Identity2, OrgAndId, ResourceNotFoundException, TNode}
 import org.openhorizon.exchangeapi.route.node.Nodes
 import org.openhorizon.exchangeapi.table.node.Nodes
 import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
-import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ}
+import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignment, NodeGroupAssignmentRow, NodeGroupAssignmentTQ}
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroup, NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, HttpCode}
 import org.postgresql.util.PSQLException
 import slick.jdbc.PostgresProfile.api._
+import slick.lifted.Aliases
 
 import java.time.Instant
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{org}/hagroups/{hagroup}/nodes/{node}")
@@ -60,7 +63,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                               @Parameter(hidden = true) organization: String,
                               @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
         val nodeGroupQuery: Query[NodeGroup, NodeGroupRow, Seq] =
@@ -163,7 +166,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                           @Parameter(hidden = true) organization: String,
                           @Parameter(hidden = true) resource: String): Route =
     post {
-      logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - By ${identity.resource}:${identity.role}")
+      Future { logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
       complete({
         val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
         val nodesQuery: Query[org.openhorizon.exchangeapi.table.node.Nodes, NodeRow, Seq] =
@@ -268,25 +271,35 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 DBIO.successful(())
           } yield (changeRecordsInserted, nodeAssignmentsInserted, nodeGroupID, nodeGroupsUpdated, priorAssignment) // Yielding these for debugging, no functional reason.
         
+        implicit val formats: Formats = DefaultFormats
         db.run(insertNodeAssignment.transactionally.asTry).map({
           case Success(result) =>
-            logger.debug("DELETE /orgs/" + organization + "/hagroups/" + highAvailabilityGroup + "/nodes/" + node + " updated in changes table: " + result._1.getOrElse(-1))
+            Future { logger.debug("DELETE /orgs/" + organization + "/hagroups/" + highAvailabilityGroup + "/nodes/" + node + " updated in changes table: " + result._1.getOrElse(-1)) }
             (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.group.node.inserted")))
-          case Failure(e: AccessDeniedException) =>
+          case Failure(exception: AccessDeniedException) =>
+            Future { logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.ACCESS_DENIED, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.group.access.denied"))))}") }
             (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.group.access.denied")))
-          case Failure(e: AlreadyExistsException) =>
+          case Failure(exception: AlreadyExistsException) =>
+            Future { logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.ALREADY_EXISTS2, Serialization.write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.node.conflict", (organization + "/" + node)))))}") }
             (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("node.group.node.conflict", (organization + "/" + node))))
-          case Failure(e: IllegalStateException) =>
+          case Failure(exception: IllegalStateException) =>
+            Future { logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("changes.not.created", (organization + "/" + highAvailabilityGroup + "/" + node)))))}") }
             (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("changes.not.created", (organization + "/" + highAvailabilityGroup + "/" + node))))
-          case Failure(e: ResourceNotFoundException) =>
+          case Failure(exception: ResourceNotFoundException) =>
+            Future { logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.group.not.found", (organization + "/" + highAvailabilityGroup)))))}") }
             (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.group.not.found", (organization + "/" + highAvailabilityGroup))))
-          case Failure(e: PSQLException) =>
-            if (e.getServerErrorMessage.getConstraint.equals("node_grp_assgn_fk_nodes"))
+          case Failure(exception: PSQLException) =>
+            if (exception.getServerErrorMessage.getConstraint.equals(NodeGroupAssignmentTQ.baseTableRow.fkNode.fks(0).name)) {
+              Future { logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource))))}") }
               (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource)))
-            else
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.inserted", resource, e.toString)))
-          case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.inserted", resource, t.toString)))
+            }
+            else {
+              Future { logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.inserted", resource, exception.toString))))}") }
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.inserted", resource, exception.toString)))
+            }
+          case Failure(exception) =>
+            Future { logger.debug(s"POST /orgs/$organization/hagroups/$highAvailabilityGroup/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.inserted", resource, exception.toString))))}") }
+            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.group.node.not.inserted", resource, exception.toString)))
         })
       })
     }

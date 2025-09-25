@@ -45,7 +45,7 @@ trait Reload extends JacksonSupport with AuthenticationSupport {
              summary = "Tells the exchange reread its config file")
   //val postReload: Route = (path("admin" / "reload") & post) {
   def postReload(@Parameter(hidden = true) identity: Identity2): Route = {
-    logger.debug(s"POST /admin/reload - By ${identity.resource}:${identity.role}")
+    logger.debug(s"POST /admin/reload - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         Configuration.reload()
         (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("reload.successful")))

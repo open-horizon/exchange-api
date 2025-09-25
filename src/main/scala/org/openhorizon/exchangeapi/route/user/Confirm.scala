@@ -43,7 +43,7 @@ trait Confirm extends JacksonSupport with AuthenticationSupport  {
                   @Parameter(hidden = true) organization: String,
                   @Parameter(hidden = true) username: String): Route =
     {
-      Future { logger.debug(s"POST /orgs/$organization/users/$username/confirm - By ${identity.resource}:${identity.role}") }
+      Future { logger.debug(s"POST /orgs/$organization/users/$username/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
       
       complete {
         // if we get here, the user/pw has been confirmed

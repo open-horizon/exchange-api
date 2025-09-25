@@ -11,6 +11,8 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, get, parameter, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity, Identity2, OrgAndId, TNode}
@@ -62,7 +64,7 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
                       @Parameter(hidden = true) resource: String): Route =
     parameter("maxmsgs".?) {
       maxmsgsStrOpt =>
-        logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs?maxmsgs=${maxmsgsStrOpt.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs?maxmsgs=${maxmsgsStrOpt.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         
         validate(Try(maxmsgsStrOpt.map(_.toInt)).isSuccess, ExchMsg.translate("invalid.int.for.name", maxmsgsStrOpt.getOrElse(""), "maxmsgs")) {
           complete({
@@ -228,21 +230,32 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
             } yield (createdMsgForNode)
         
           complete {
+            implicit val formats: Formats = DefaultFormats
             db.run(createNodeMessage.transactionally.asTry)
               .map {
                 case Success(msgNum) =>
                   (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.inserted", msgNum)))
-                case Failure(t: DBProcessingError) =>
-                  t.toComplete
-                case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isKeyNotFoundError(t)) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.nodeid.not.found", resource, t.getMessage)))
-                  else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.msg.not.inserted", resource, t.toString))
-                case Failure(_: ClassNotFoundException) =>
+                case Failure(exception: DBProcessingError) =>
+                  Future { logger.debug(s"POST /orgs/${organization}/nodes/${node}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+                  exception.toComplete
+                case Failure(exception: org.postgresql.util.PSQLException) =>
+                  if (ExchangePosgtresErrorHandling.isKeyNotFoundError(exception)) {
+                    Future { logger.debug(s"POST /orgs/${organization}/nodes/${node}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.nodeid.not.found", resource, exception.getMessage))))}") }
+                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.msg.nodeid.not.found", resource, exception.getMessage)))
+                  }
+                  else {
+                    Future { logger.debug(s"POST /orgs/${organization}/nodes/${node}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.msg.not.inserted", resource, exception.toString)))}") }
+                    ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.msg.not.inserted", resource, exception.toString))
+                  }
+                case Failure(exception: ClassNotFoundException) =>
+                  Future { logger.debug(s"POST /orgs/${organization}/nodes/${node}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.agbot.not.found", identity.resource))))}") }
                   (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.agbot.not.found", identity.resource)))
-                case Failure(_: ArrayIndexOutOfBoundsException) =>
+                case Failure(exception: ArrayIndexOutOfBoundsException) =>
+                  Future { logger.debug(s"POST /orgs/${organization}/nodes/${node}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadGateway, Serialization.write(ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("node.mailbox.full", resource, maxMessagesInMailbox))))}") }
                   (StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("node.mailbox.full", resource, maxMessagesInMailbox)))
-                case Failure(t) =>
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.inserted", resource, t.toString)))
+                case Failure(exception) =>
+                  Future { logger.debug(s"POST /orgs/${organization}/nodes/${node}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.inserted", resource, exception.toString))))}") }
+                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.inserted", resource, exception.toString)))
               }
           }
     }

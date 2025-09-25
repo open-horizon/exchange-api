@@ -11,7 +11,7 @@ import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
 import org.json4s.DefaultFormats
-import org.json4s.jackson.JsonMethods
+import org.json4s.jackson.{JsonMethods, Serialization}
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.search.{SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ}
@@ -106,8 +106,8 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
                                  @Parameter(hidden = true) organization: String,
                                  @Parameter(hidden = true) resource: String,
                                  @Parameter(hidden = true) reqBody: PostBusinessPolicySearchRequest): Route = {
-    Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - By ${identity.resource}:${identity.role}") }
-    Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - request-body: ${reqBody.toString}") }
+    Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+    Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - request-body: ${reqBody.toString}") }
     
     implicit val formats: DefaultFormats.type = DefaultFormats
     val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(organization)).toSet
@@ -294,7 +294,7 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
     complete({
       db.run(pagination.transactionally.asTry).map({
         case Success(results) =>
-          Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - result: ${results._1}") }
+          Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: ${results._1}") }
           if(results._1.nonEmpty) { // results.nodesWoAgreements.nonEmpty.
             (HttpCode.POST_OK,
               PostBusinessPolicySearchResponse(
@@ -309,13 +309,18 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
                       node._4)),                            // node.publicKey
                 results._2)) // results.isOffsetUpdated
           }
-          else
-            (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2)) // results.isOffsetUpdated
+          else {
+            Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - results._1.nonEmpty:${results._1.nonEmpty} - ${(HttpCode.NOT_FOUND, Serialization.write(PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2)))}") }
+            (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2))
+          } // results.isOffsetUpdated
         case Failure(exception: PolicySearchResponseDesync) =>
+          Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.ALREADY_EXISTS2, Serialization.write(exception))}") }
           (HttpCode.ALREADY_EXISTS2, exception) // Throw Http code 409 - Conflict, return no results.
         case Failure(exception: org.postgresql.util.PSQLException) =>
+          Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("invalid.input.message", exception.getMessage)))}") }
           ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("invalid.input.message", exception.getMessage))
         case Failure(exception) =>
+          Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage))))}") }
           (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage)))
       })
     })

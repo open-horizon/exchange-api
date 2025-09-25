@@ -98,7 +98,7 @@ trait Search extends JacksonSupport with AuthenticationSupport {
                      @Parameter(hidden = true) resource: String): Route =
     entity(as[PostPatternSearchRequest]) {
       reqBody =>
-        Future { logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/search - By ${identity.resource}:${identity.role}") }
+        Future { logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         Future { logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/search - request-body: ${reqBody.toString}") }
         
         validateWithMsg(if(!(reqBody.secondsStale.isEmpty || !(reqBody.secondsStale.get < 0)) && reqBody.serviceUrl.nonEmpty) Some(ExchMsg.translate("bad.input")) else None) {

@@ -65,7 +65,7 @@ trait AgreementBots extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) organization: String): Route = {
     parameter("idfilter".?, "name".?, "owner".?) {
       (idfilter, name, owner) =>
-        logger.debug(s"GET /orgs/$organization/agbots - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /orgs/$organization/agbots - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         
         val getAgbots =
           for {

@@ -69,7 +69,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                  @Parameter(hidden = true) organization: String,
                  @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/nodes/$node - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       validateWithMsg(None) {
         val modified_at: Instant = ApiTime.nowUTCTimestamp
@@ -113,23 +113,30 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                    numNodesDeleted)
         
         complete({
+          implicit val formats: Formats = DefaultFormats
+          
           db.run(deleteNode.transactionally.asTry).map {
             case Success(result) =>
-              Future { logger.debug(s"DELETE /orgs/$organization/nodes/$node - Deleted:${result._2}, Resource Changes:${result._1}") }
+              Future { logger.debug(s"DELETE /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Deleted:${result._2}, Resource Changes:${result._1}") }
               
               Future { cacheResourceIdentity.remove(resource) }
               Future { cacheResourceOwnership.remove(organization, node, "node") }
               
               (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.deleted")))
             case Failure(exception: AccessDeniedException) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.ACCESS_DENIED, write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied"))))}") }
               (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied")))
             case Failure(exception: ClassNotFoundException) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.NOT_FOUND, write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource))))}") }
               (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource)))
             case Failure(exception: ArithmeticException) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.deleted", resource, exception.toString))))}") }
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.deleted", resource, exception.toString)))
             case Failure(exception: org.postgresql.util.PSQLException) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.not.deleted", resource, exception.toString)))}") }
               ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.not.deleted", resource, exception.toString))
             case Failure(exception) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.deleted", resource, exception.getMessage))))}") }
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.deleted", resource, exception.getMessage)))
           }
         })
@@ -242,7 +249,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
     get {
       parameter ("attribute".?) {
         attribute =>
-          Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - By ${identity.resource}:${identity.role}") }
+          Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
           
               val nodes =
                 NodesTQ.filter(nodes => nodes.id === resource &&
@@ -330,7 +337,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   complete {
                     db.run(Compiled(filteredNodeAttribute).result.transactionally).map {
                       result =>
-                        Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - ${result.toString()}") }
+                        Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${result.toString()}") }
                         if (result.length == 1)
                           (HttpCode.OK, GetNodeAttributeResponse(result.head._1, result.head._2))
                         else
@@ -339,7 +346,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   }
                 
                 case _ => // Return the whole node
-                  Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - $attribute did not match any valid attribute") }
+                  Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - $attribute did not match any valid attribute") }
                   val filteredNode =
                     for {
                       node <-
@@ -370,11 +377,14 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   complete {
                     db.run(Compiled(filteredNode).result.transactionally).map{
                       result =>
-                        Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - ${result.toString()}") }
+                        Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${result.toString()}") }
                         if (result.length == 1)
                           (HttpCode.OK, GetNodesResponse((result.map(node => node._1 -> new NodeTable(node._2)).toMap), 0))
-                        else
+                        else {
+                          implicit val formats: Formats = DefaultFormats
+                          Future { logger.debug(s"GET /orgs/$organization/nodes/$node?attribute=$attribute - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${(HttpCode.NOT_FOUND, write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))))}") }
                           (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))) // validateAccessToNode() will return ApiRespType.NOT_FOUND to the client so do that here for consistency
+                        }
                     }
                   }
               }
@@ -488,7 +498,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
               val validAttribute: String =
                 attributeExistence.filter(attribute => attribute._2).head._1
                 
-              logger.debug(s"PATCH /orgs/$organization/nodes/$node - attribute=$validAttribute"    /*request-body: ${reqBody.toString}"*/)
+              logger.debug(s"PATCH /orgs/$organization/nodes/$node - attribute=$validAttribute - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})"    /*request-body: ${reqBody.toString}"*/)
                 // Synchronize the timestamps of the records we are changing. This helps debugging/troubleshooting from the records and logs.
                 val changeTimestamp: Instant = ApiTime.nowUTCTimestamp
                 implicit val formats: DefaultFormats.type = DefaultFormats
@@ -732,14 +742,18 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       }
                       
                       (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.attribute.updated", validAttribute, resource)))
-                    case Failure(t: org.postgresql.util.PSQLException) =>
-                      ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.not.inserted.or.updated", resource, t.getMessage))
-                    case Failure(t: AccessDeniedException) =>
-                      (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, t.getMessage))
-                    case Failure(t: ResourceNotFoundException) =>
-                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, t.getMessage))
-                    case Failure(t) =>
-                      (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", resource, t.getMessage)))
+                    case Failure(exception: org.postgresql.util.PSQLException) =>
+                      Future { logger.debug(s"PATCH /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.not.inserted.or.updated", resource, exception.getMessage)))}") }
+                      ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.not.inserted.or.updated", resource, exception.getMessage))
+                    case Failure(exception: AccessDeniedException) =>
+                      Future { logger.debug(s"PATCH /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.ACCESS_DENIED, write(ApiResponse(ApiRespType.ACCESS_DENIED, exception.getMessage)))}") }
+                      (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, exception.getMessage))
+                    case Failure(exception: ResourceNotFoundException) =>
+                      Future { logger.debug(s"PATCH /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.NOT_FOUND, write(ApiResponse(ApiRespType.NOT_FOUND, exception.getMessage)))}") }
+                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, exception.getMessage))
+                    case Failure(exception) =>
+                      Future { logger.debug(s"PATCH /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", resource, exception.getMessage))))}") }
+                      (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("node.not.inserted.or.updated", resource, exception.getMessage)))
                   }
               }
             }
@@ -866,7 +880,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
         noheartbeat =>
         entity (as[PutNodesRequest]) {
           reqBody =>
-            Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - By ${identity.resource}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}):${identity.role}") }
+            Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
             
             /**
               * The Node will update itself to remove its set token(password) and set a public key it self-initializes.
@@ -955,7 +969,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   })
               }))
               
-              Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - Completed request body input validation") }
+              Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Completed request body input validation") }
               
               implicit val defaultFormats: DefaultFormats = DefaultFormats
               val modified_at: Instant = ApiTime.nowUTCTimestamp
@@ -1335,7 +1349,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
               complete({
                 db.run(createOrUpdateNode.transactionally.asTry).map({
                   case Success(v) => // Check creation/update of node, and other errors
-                    Future { logger.debug(s"PUT /orgs/$organization/nodes/$node - result: numNodesCreated: ${v._1}, numNodesInOrg: ${v._2}, numNodesModified: ${v._3}, numNodesOwnedByUser: ${v._4}, numResourceChanges: ${v._5}, orgNodeLimit: ${v._6}") }
+                    Future { logger.debug(s"PUT /orgs/$organization/nodes/$node - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: numNodesCreated: ${v._1}, numNodesInOrg: ${v._2}, numNodesModified: ${v._3}, numNodesOwnedByUser: ${v._4}, numResourceChanges: ${v._5}, orgNodeLimit: ${v._6}") }
                     
                     Future {
                         if (v._1 == 1) {
@@ -1373,22 +1387,31 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("num.nodes.near.org.limit", organization, maximumNumOwnedNodesPerUser)))
                     else if (v._1 == 1)
                       (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
-                    else
+                    else {
+                      Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - \"\" - ${(StatusCodes.InternalServerError, write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", resource, ""))))}") }
                       (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", resource, "")))
+                    }
                   case Failure(exception: AccessDeniedException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, write(ApiResponse(ApiRespType.ACCESS_DENIED, exception.summary)))}") }
                     (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, exception.summary))
                   case Failure(exception: BadInputException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, write(ApiResponse(ApiRespType.BAD_INPUT, exception.summary)))}") }
                     (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, exception.summary))
                   case Failure(exception: IllegalArgumentException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, write(ApiResponse(ApiRespType.BAD_INPUT, exception.getMessage)))}") }
                     (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, exception.getMessage))
                   case Failure(exception: ArrayIndexOutOfBoundsException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", resource, ""))))}") }
                     (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", resource, "")))
                   case Failure(exception: ResourceNotFoundException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", resource, ""))))}") }
                     (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", resource, "")))
-                  case Failure(t: org.postgresql.util.PSQLException) =>
-                    ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.not.inserted.or.updated", resource, t.getServerErrorMessage))
-                  case Failure(t) =>
-                    (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", resource, t.getMessage)))
+                  case Failure(exception: org.postgresql.util.PSQLException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.not.inserted.or.updated", resource, exception.getServerErrorMessage)))}") }
+                    ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.not.inserted.or.updated", resource, exception.getServerErrorMessage))
+                  case Failure(exception) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", resource, exception.getMessage))))}") }
+                    (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.not.inserted.or.updated", resource, exception.getMessage)))
                 })
               })
             }

@@ -117,7 +117,7 @@ trait Organizations extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) organization: Option[String],
                        @Parameter(hidden = true) orgType: Option[String]): Route =
     {
-      logger.debug(s"GET /orgs?label=${label.getOrElse("None")},organization=${organization.getOrElse("None")},orgtype=${orgType.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+      logger.debug(s"GET /orgs?label=${label.getOrElse("None")},organization=${organization.getOrElse("None")},orgtype=${orgType.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       validate(orgType.isEmpty || orgType.get == "IBM", ExchMsg.translate("org.get.orgtype")) {
         val getOrgsAll: CompiledStreamingExecutable[Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Option[JValue]]), Rep[String]), ((String, String, String, String, String, String, Option[JValue]), String), Seq], Seq[((String, String, String, String, String, String, Option[JValue]), String)], ((String, String, String, String, String, String, Option[JValue]), String)] =

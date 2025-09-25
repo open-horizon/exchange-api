@@ -111,7 +111,7 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
                      @Parameter(hidden = true) organization: String): Route =
     entity(as[PostNodeHealthRequest]) {
       reqBody =>
-        logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/nodehealth - By ${identity.resource}:${identity.role}")
+        logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/nodehealth - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         
         validateWithMsg(reqBody.getAnyProblem) {
           complete({

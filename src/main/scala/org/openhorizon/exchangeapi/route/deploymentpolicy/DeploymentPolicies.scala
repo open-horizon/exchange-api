@@ -10,6 +10,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, parameter, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.jackson.Serialization
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TBusiness}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, BusinessPolicy}
@@ -18,7 +19,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, H
 import slick.jdbc.PostgresProfile.api._
 
 import scala.annotation.unused
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 
@@ -104,7 +105,7 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
        owner,
        label,
        description) =>
-        logger.debug(s"GET /orgs/${organization}/business/policies?description=${description.getOrElse("None")}, idfilter=${idfilter.getOrElse("None")}, label=${label.getOrElse("None")}, owner=${owner.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        Future { logger.debug(s"GET /orgs/${organization}/business/policies?description=${description.getOrElse("None")}, idfilter=${idfilter.getOrElse("None")}, label=${label.getOrElse("None")}, owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         
         val getAllDeployPolicies: Query[((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, String, String, String, String, String, String, String, String, String), String), Seq] =
           for {
@@ -132,17 +133,19 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
           } yield deployPolicies
         
         complete({
+          implicit val defaultFormats: Formats = DefaultFormats
           db.run(Compiled(getAllDeployPolicies).result.transactionally.asTry).map {
             case Success(deployPolRecords) =>
-              logger.debug("GET /orgs/" + organization + "/business/policies result size: " + deployPolRecords.size)
-              val defaultFormats: Formats = DefaultFormats
+              Future { logger.debug(s"GET /orgs/${organization}/business/policies?description=${description.getOrElse("None")}, idfilter=${idfilter.getOrElse("None")}, label=${label.getOrElse("None")}, owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: ${deployPolRecords.size}") }
               
               if (deployPolRecords.nonEmpty)
                 (StatusCodes.OK, GetBusinessPoliciesResponse(deployPolRecords.map(results => results._2 -> new BusinessPolicy(results._1)(defaultFormats)).toMap))
-              else
+              else {
+                Future { logger.debug(s"GET /orgs/${organization}/business/policies?description=${description.getOrElse("None")}, idfilter=${idfilter.getOrElse("None")}, label=${label.getOrElse("None")}, owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - deployPolRecords.nonEmpty:${deployPolRecords.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(GetBusinessPoliciesResponse()))}") }
                 (StatusCodes.NotFound, GetBusinessPoliciesResponse())
+              }
             case Failure(exception) =>
-              logger.error(cause = exception, message = "GET /orgs/" + organization + "/business/policies")
+              Future { logger.debug(s"GET /orgs/${organization}/business/policies?description=${description.getOrElse("None")}, idfilter=${idfilter.getOrElse("None")}, label=${label.getOrElse("None")}, owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error"))))}") }
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
           }
         })

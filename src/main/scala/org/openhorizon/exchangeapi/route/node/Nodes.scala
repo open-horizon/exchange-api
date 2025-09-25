@@ -143,14 +143,14 @@ trait Nodes extends JacksonSupport with AuthenticationSupport {
                 "clusternamespace".?,
                 "isNamespaceScoped".as[Boolean].?) {
         (idfilter, name, owner, arch, nodetype, clusterNamespace, isNamespaceScoped) =>
-          logger.debug(s"GET /orgs/$organization/nodes - By ${identity.resource}:${identity.role}")
+          logger.debug(s"GET /orgs/$organization/nodes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           
               validateWithMsg(if (nodetype.isDefined && !NodeType.containsString(nodetype.get.toLowerCase))
                                 Option(ExchMsg.translate("invalid.node.type2", NodeType.valuesAsString))
                               else
                                 None) {
                 complete({
-                  logger.debug(s"GET /orgs/$organization/nodes - By ${identity.resource}:${identity.role}") // can't display the whole ident object, because that contains the pw/token
+                  logger.debug(s"GET /orgs/$organization/nodes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") // can't display the whole ident object, because that contains the pw/token
                   implicit val jsonFormats: Formats = DefaultFormats
                   
                   val nodes =

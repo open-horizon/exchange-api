@@ -40,7 +40,7 @@ trait NodeErrors extends JacksonSupport with AuthenticationSupport {
       new responses.ApiResponse(responseCode = "404", description = "not found")))
   def getNodeErrorsSearch(@Parameter(hidden = true) identity: Identity2,
                           @Parameter(hidden = true) organization: String): Route = {
-    logger.debug(s"GET /orgs/$organization/search/nodes/error/all - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/$organization/search/nodes/error/all - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     
     val searchNodeErrors =
       for {

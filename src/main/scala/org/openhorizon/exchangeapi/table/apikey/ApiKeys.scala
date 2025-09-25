@@ -4,6 +4,7 @@ import java.util.UUID
 import org.openhorizon.exchangeapi.table.user.{UserRow, Users, UsersTQ}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.{ForeignKeyQuery, Index, ProvenShape}
+import slick.model.ForeignKeyAction.Cascade
 
 import java.time.Instant
 
@@ -21,7 +22,7 @@ class ApiKeys(tag: Tag) extends Table[ApiKeyRow](tag, "apikeys") {
 
   def * : ProvenShape[ApiKeyRow] = (createdAt, createdBy, description, hashedKey, id, modifiedAt, modifiedBy, orgid, user, label).<>(ApiKeyRow.tupled, ApiKeyRow.unapply)
 
-  def userFk: ForeignKeyQuery[Users, UserRow] = foreignKey("user_fk", user, UsersTQ)(_.user, onDelete = ForeignKeyAction.Cascade)
+  def userFk: ForeignKeyQuery[Users, UserRow] = foreignKey("api_key_user_fk", user, UsersTQ)(_.user, onDelete = ForeignKeyAction.Cascade, onUpdate = Cascade)
   
   def hashIndex: Index = index("apikey_hash_idx", hashedKey, unique = true)
   def orgidIndex: Index = index("orgid_index", orgid, unique = false)

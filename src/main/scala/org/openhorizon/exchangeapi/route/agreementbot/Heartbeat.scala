@@ -51,7 +51,7 @@ trait Heartbeat extends JacksonSupport with AuthenticationSupport {
                     @Parameter(hidden = true) identity: Identity2,
                     @Parameter(hidden = true) organization: String,
                     @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"POST /orgs/$organization/users/$agreementBot/heartbeat - By ${identity.resource}:${identity.role}")
+    logger.debug(s"POST /orgs/$organization/users/$agreementBot/heartbeat - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(AgbotsTQ.getLastHeartbeat(resource).update(ApiTime.nowUTC).asTry)
         .map({

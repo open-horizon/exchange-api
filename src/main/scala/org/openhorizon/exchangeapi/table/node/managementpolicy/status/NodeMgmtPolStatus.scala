@@ -31,7 +31,7 @@ class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "mana
            updated).<>(NodeMgmtPolStatusRow.tupled, NodeMgmtPolStatusRow.unapply)
   
   def pkNodeMgmtPolStatus = primaryKey("pk_management_policy_status_node", (node, policy))
-  def fkNode = foreignKey("node_mgmt_pol_status_fk_nodes", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
+  def fkNode = foreignKey("node_mgmt_pol_status_fk_node", node, NodesTQ)(_.id, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def fkManagementPolicy = foreignKey("node_mgmt_pol_status_fk_mgmt_pols", policy, ManagementPoliciesTQ)(_.managementPolicy, onUpdate=ForeignKeyAction.Cascade, onDelete=ForeignKeyAction.Cascade)
   def idx_node_mgmt_pol_stat_fk_mgmt_pols = index(name = "idx_node_mgmt_pol_stat_fk_mgmt_pols", on = policy, unique = false)
   def idx_node_mgmt_pol_stat_fk_nodes = index(name = "idx_node_mgmt_pol_stat_fk_nodes", on = node, unique = false)

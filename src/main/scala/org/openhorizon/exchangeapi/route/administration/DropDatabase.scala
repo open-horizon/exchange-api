@@ -41,7 +41,7 @@ trait DropDatabase extends JacksonSupport with AuthenticationSupport {
             new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
             new responses.ApiResponse(responseCode = "403", description = "access denied")))
   def postDropDB(@Parameter(hidden = true) identity: Identity2): Route = {
-    logger.debug(s"POST /admin/dropdb - By ${identity.resource}:${identity.role}")
+    logger.debug(s"POST /admin/dropdb - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(ExchangeApiTables.dropDB.transactionally.asTry)
         .map({

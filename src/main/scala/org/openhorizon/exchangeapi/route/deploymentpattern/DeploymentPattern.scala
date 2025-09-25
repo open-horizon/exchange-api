@@ -57,7 +57,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                               @Parameter(hidden = true) organization: String,
                               @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/patterns/$deploymentPattern - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       
@@ -192,7 +192,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                            @Parameter(hidden = true) resource: String): Route =
     parameter("attribute".?) {
       attribute =>
-        logger.debug(s"GET /orgs/$organization/patterns/$deploymentPattern?attribute=${attribute.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+        logger.debug(s"GET /orgs/$organization/patterns/$deploymentPattern?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         
         attribute match {
           case Some(attribute) => // Only returning 1 attr of the pattern
@@ -406,7 +406,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
     patch {
       entity(as[PatchPatternRequest]) {
         reqBody =>
-          logger.debug(s"PATCH /orgs/$organization/patterns/$deploymentPattern - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PATCH /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
@@ -643,7 +643,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                             @Parameter(hidden = true) resource: String): Route =
     entity(as[PostPutPatternRequest]) {
       reqBody =>
-        logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - By ${identity.resource}:${identity.role}")
+        logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         
         validateWithMsg(reqBody.getAnyProblem) {
           
@@ -830,7 +830,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PostPutPatternRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/$organization/patterns/$deploymentPattern - By ${identity.resource}:${identity.role}")
+          logger.debug(s"PUT /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           
           validateWithMsg(reqBody.getAnyProblem) {
             

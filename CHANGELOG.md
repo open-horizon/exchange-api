@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.150.0](https://github.com/open-horizon/exchange-api/pull/824) - 2025-09-25
+- Database foreign key cleanup. Removing a few duplicate keys, correcting cascade rules, and renaming a few more.
+- Improvements to debug logging.
+
 ## [2.149.0](https://github.com/open-horizon/exchange-api/pull/822) - 2025-09-19
 - Correct incorrect spellings in environment variable reference names in the configuration files.
 - Fixed swapped admin flags in database migration for Exchange v2.127.0.

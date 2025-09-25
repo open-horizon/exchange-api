@@ -96,7 +96,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
               @Parameter(hidden = true) resource: String,
               @Parameter(hidden = true) username: String): Route =
     get {
-      logger.debug(s"GET /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
+      logger.debug(s"GET /orgs/$organization/users/$username - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Instant, Option[String], String, Boolean, Boolean, Instant, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Instant], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])] =
         for {
@@ -256,7 +256,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
     post {
       entity(as[PostPutUsersRequest]) {
         reqBody =>
-          logger.debug(s"POST /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}")
+          logger.debug(s"POST /orgs/$organization/users/$username - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           
           validateWithMsg(if(Option(reqBody.password).isEmpty || Option(reqBody.email).isEmpty || reqBody.password == null || reqBody.email == null)
                             Option(ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
@@ -396,7 +396,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PostPutUsersRequest]) {
         reqBody =>
-          Future { logger.debug(s"PUT /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}") }
+          Future { logger.debug(s"PUT /orgs/$organization/users/$username - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
           val isOAuthEnabled = Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url")&& 
                       !Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.url").isEmpty
           
@@ -609,7 +609,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
     patch {
       entity(as[PatchUsersRequest]) {
         reqBody =>
-          Future { logger.debug(s"PATCH /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}") }
+          Future { logger.debug(s"PATCH /orgs/$organization/users/$username - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
 
           val attributeExistence: Seq[(String, Boolean)] =
             Seq(("admin",reqBody.admin.isDefined),
@@ -786,7 +786,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                  @Parameter(hidden = true) resource: String,
                  @Parameter(hidden = true) username: String): Route =
     delete {
-      Future { logger.debug(s"DELETE /orgs/$organization/users/$username - By ${identity.resource}:${identity.role}") }
+      Future { logger.debug(s"DELETE /orgs/$organization/users/$username - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
       
       validate(organization + "/" + username != Role.superUser, ExchMsg.translate("cannot.delete.root.user")) {
         
@@ -830,8 +830,8 @@ trait User extends JacksonSupport with AuthenticationSupport {
     }
 
   def oauthEnabledCheck: Directive0 = {
-    if (Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url")&& 
-                     !Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.url").isEmpty)  {
+    if (Configuration.getConfig.hasPath("api.authentication.oauth.provider.user_info.url")&&
+        Configuration.getConfig.getString("api.authentication.oauth.provider.user_info.url").nonEmpty)  {
       complete(StatusCodes.MethodNotAllowed -> ApiResponse(ApiRespType.METHOD_NOT_ALLOWED, ExchMsg.translate("api.endpoint.disabled.oauth")))
     } else pass
   }

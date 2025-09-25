@@ -39,7 +39,7 @@ trait Cleanup extends JacksonSupport with AuthenticationSupport {
                     @Parameter(hidden = true) organization: String): Route =
     entity(as[DeleteOrgChangesRequest]) {
       reqBody =>
-        logger.debug(s"POST /orgs/$organization/changes/cleanup - By ${identity.resource}:${identity.role}")
+        logger.debug(s"POST /orgs/$organization/changes/cleanup - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         validateWithMsg(reqBody.getAnyProblem) {
           complete({
             val resourcesSet: Set[String] = reqBody.resources.toSet

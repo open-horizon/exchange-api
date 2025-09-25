@@ -12,6 +12,6 @@ class NodeErrors(tag: Tag) extends Table[NodeErrorRow](tag, "nodeerror") {
   
   def * : ProvenShape[NodeErrorRow] = (nodeId, errors, lastUpdated).mapTo[NodeErrorRow]
   
-  def node_error_fk: ForeignKeyQuery[Nodes, NodeRow] = foreignKey("node_error_fk_nodes", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
+  def node_error_fk: ForeignKeyQuery[Nodes, NodeRow] = foreignKey("node_error_fk_node", nodeId, NodesTQ)(_.id, onUpdate = ForeignKeyAction.Cascade, onDelete = ForeignKeyAction.Cascade)
   def idx_node_error_fk_nodes = index(name = "idx_node_error_fk_nodes", on = nodeId, unique = false)
 }

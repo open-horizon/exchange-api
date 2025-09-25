@@ -84,7 +84,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) node: String,
                        @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/nodes/${node}/agreements/${agreement} - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/${organization}/nodes/${node}/agreements/${agreement} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       db.run(NodeAgreementsTQ.getAgreement(resource, agreement).result).map({ list =>
         logger.debug(s"GET /orgs/$organization/nodes/$node/agreements/$agreement result size: ${list.size}")
@@ -179,7 +179,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
         noheartbeat =>
           entity(as[PutNodeAgreementRequest]) {
             reqBody =>
-              logger.debug(s"PUT /orgs/${organization}/nodes/${node}/agreements/${agreement}?noheartbeat=${noheartbeat.getOrElse("None")} - By ${identity.resource}:${identity.role}")
+              logger.debug(s"PUT /orgs/${organization}/nodes/${node}/agreements/${agreement}?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
               validateWithMsg(reqBody.getAnyProblem(noheartbeat)) {
                 
                 val INSTANT: Instant = Instant.now()
@@ -255,7 +255,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                           @Parameter(hidden = true) organization: String,
                           @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/agreements/${agreement} - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/agreements/${agreement} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
       

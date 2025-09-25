@@ -84,7 +84,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
         attribute =>
           exchAuth(TOrg(organization), Access.READ, validIdentity = identity) {
             _ =>
-            logger.debug(s"GET /orgs/$organization - By ${identity.resource}:${identity.role}")
+            logger.debug(s"GET /orgs/$organization - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
             complete({
               attribute match {
                 case Some(attr) => // Only returning 1 attr of the org
@@ -182,7 +182,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) organization: String): Route =
     entity(as[PostPutOrgRequest]) {
       reqBody =>
-        logger.debug(s"POST /orgs/$organization - By ${identity.resource}:${identity.role}")
+        logger.debug(s"POST /orgs/$organization - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
           validateWithMsg(reqBody.getAnyProblem(reqBody.limits.getOrElse(OrgLimits(0)).maxNodes)) {
             
             val INSTANT: Instant = Instant.now()
@@ -252,7 +252,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
                       @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) reqBody: PostPutOrgRequest): Route =
     {
-      logger.debug(s"PUT /orgs/$organization - By ${identity.resource}:${identity.role}")
+      logger.debug(s"PUT /orgs/$organization - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       val INSTANT: Instant = Instant.now()
      
@@ -326,7 +326,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
                         @Parameter(hidden = true) organization: String,
                         @Parameter(hidden = true) reqBody: PatchOrgRequest): Route =
     {
-      logger.debug(s"PATCH /orgs/$organization - By ${identity.resource}:${identity.role}")
+      logger.debug(s"PATCH /orgs/$organization - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       validateWithMsg(reqBody.getAnyProblem(reqBody.limits.getOrElse(OrgLimits(0)).maxNodes)) {
         
@@ -373,7 +373,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
   def deleteOrganization(@Parameter(hidden = true) identity: Identity2,
                          @Parameter(hidden = true) organization: String): Route =
     {
-      logger.debug(s"DELETE /orgs/$organization - By ${identity.resource}:${identity.role}")
+      logger.debug(s"DELETE /orgs/$organization - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
       validate(organization != "root", ExchMsg.translate("cannot.delete.root.org")) {
         

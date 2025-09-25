@@ -96,7 +96,7 @@ trait Statuses extends JacksonSupport with AuthenticationSupport {
   def getStatusManagementPolicies(@Parameter(hidden = true) identity: Identity2,
                                   @Parameter(hidden = true) node: String,
                                   @Parameter(hidden = true) organization: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/nodes/${node}/managementStatus - By ${identity.resource}:${identity.role}")
+    logger.debug(s"GET /orgs/${organization}/nodes/${node}/managementStatus - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
     complete({
       var q = NodeMgmtPolStatuses.getNodeMgmtPolStatuses(organization + "/" + node).sortBy(_.policy.asc.nullsFirst)
       db.run(q.result).map({ list =>

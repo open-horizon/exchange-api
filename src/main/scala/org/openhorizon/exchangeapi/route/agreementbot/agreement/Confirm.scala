@@ -10,6 +10,8 @@ import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmRequest
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
@@ -17,7 +19,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsT
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Path("/v1/orgs/{organization}/agreements/confirm")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "organization")
@@ -79,7 +81,8 @@ trait Confirm extends JacksonSupport with AuthenticationSupport {
   def postConfirm(@Parameter(hidden = true) identity: Identity2,
                   @Parameter(hidden = true) orgid: String,
                   reqBody: PostAgreementsConfirmRequest): Route = {
-    logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+    Future { logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+    Future { logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Request { agreementId:${reqBody.agreementId} }") }
     
     val getActiveAgreementState =
       for {
@@ -95,17 +98,23 @@ trait Confirm extends JacksonSupport with AuthenticationSupport {
       } yield agreementState
     
     complete {
-      if (identity.isNode)
+      implicit val formats: Formats = DefaultFormats
+      
+      if (identity.isNode) {
+        Future { logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - identity.isNode:${identity.isNode} - ${(HttpCode.ACCESS_DENIED, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied"))))}") }
         (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied")))
+      }
       else
         db.run(getActiveAgreementState.result.transactionally).map {
           state =>
-            logger.debug(s"POST /agreements/confirm of ${reqBody.agreementId} - result: list.toString")
+            Future { logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - agreement state: ${state.headOption.getOrElse("-")}") }
             
             if (state.nonEmpty)
               (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
-            else
+            else {
+              Future { logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - state.nonEmpty:${state.nonEmpty} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active"))))}") }
               (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
+            }
         }
     }
   }

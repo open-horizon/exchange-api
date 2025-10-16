@@ -159,7 +159,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                   @Parameter(hidden = true) organization: String): Route =
     parameter("owner".?, "public".as[Boolean].optional, "url".?, "version".?, "arch".?, "nodetype".?, "requiredurl".?) {
       (owner, public, url, version, arch, nodetype, requiredurl) =>
-        logger.debug(s"GET /orgs/${organization}/services?arch=${arch.getOrElse("None")}, nodetype=${nodetype.getOrElse("None")}, owner=${owner.getOrElse("None")}, public=${"None"}, requiredurl=${requiredurl.getOrElse("None")}, url=${url.getOrElse("None")}, version=${version.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+        Future { logger.debug(s"GET /orgs/${organization}/services?arch=${arch.getOrElse("None")}&nodetype=${nodetype.getOrElse("None")}&owner=${owner.getOrElse("None")}&public=${"None"}&requiredurl=${requiredurl.getOrElse("None")}&url=${url.getOrElse("None")}&version=${version.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         
         validateWithMsg(if (version.isDefined && !Version(version.get).isValid)
                           Option(ExchMsg.translate("version.not.valid.format", version.get))
@@ -229,12 +229,14 @@ trait Services extends JacksonSupport with AuthenticationSupport {
           complete {
             db.run(Compiled(getServices).result).map {
               serviceRecords =>
-                logger.debug("GET /orgs/"+organization+"/services result size: " + serviceRecords.size)
+                Future { logger.debug(s"GET /orgs/${organization}/services?arch=${arch.getOrElse("None")}&nodetype=${nodetype.getOrElse("None")}&owner=${owner.getOrElse("None")}&public=${"None"}&requiredurl=${requiredurl.getOrElse("None")}&url=${url.getOrElse("None")}&version=${version.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Service Definitions: ${serviceRecords.size}") }
                 
                 if (serviceRecords.nonEmpty)
                   (StatusCodes.OK, GetServicesResponse(serviceRecords.map(records => records._2 -> new Service(records._1)).toMap))
-                else
+                else {
+                  Future { logger.debug(s"GET /orgs/${organization}/services?arch=${arch.getOrElse("None")}&nodetype=${nodetype.getOrElse("None")}&owner=${owner.getOrElse("None")}&public=${"None"}&requiredurl=${requiredurl.getOrElse("None")}&url=${url.getOrElse("None")}&version=${version.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - serviceRecords.nonEmpty: ${serviceRecords.nonEmpty} - ${(StatusCodes.NotFound, write(GetServicesResponse()))}") }
                   (StatusCodes.NotFound, GetServicesResponse())
+                }
             }
           }
         }
@@ -327,12 +329,13 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                    @Parameter(hidden = true) organization: String): Route =
     entity(as[PostPutServiceRequest]) {
       reqBody =>
-        Future { logger.debug(s"POST /orgs/$organization/services - By ${identity.resource}(${identity.identifier.getOrElse(identity.owner.getOrElse("None"))}):${identity.role}") }
+        Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         validateWithMsg(reqBody.getAnyProblem(organization, null)) {
           
           val INSTANT: Instant = Instant.now()
           
           complete({
+            implicit val formats: Formats = DefaultFormats
             val service: String = reqBody.formId(organization)
             val owner: Option[UUID] = identity.identifier   // currently only users are allowed to create/update services, so owner will never be blank
             
@@ -347,7 +350,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
             
             db.run(svcAction.asTry.flatMap({
               case Success(rows) =>
-                Future { logger.debug(s"POST /orgs/$organization/services - requiredServices validation: $rows") }
+                Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Matched Services:            ${rows}") }
                 var invalidIndex: Int = -1
                 var invalidSvcRef: ServiceRef = ServiceRef("", "", Some(""), Some(""), "")
                 // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
@@ -376,9 +379,9 @@ trait Services extends JacksonSupport with AuthenticationSupport {
               case Failure(t) => DBIO.failed(t).asTry
             }).flatMap({
               case Success(num) =>
-                Future { logger.debug(s"POST /orgs/$organization/services - number of services owned by $owner: $num") }
-                val numOwned: Int = num
                 val maxServices: Int = Configuration.getConfig.getInt("api.limits.maxServices")
+                Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Service Definition Capacity: ${num}:${if (maxServices == 0) "infinite" else maxServices}") }
+                val numOwned: Int = num
                 if (maxServices == 0 || maxServices >= numOwned) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                   //logger.error(s"POST /orgs/$organization /services - L394 owner: ${owner.isDefined},    ${owner.getOrElse("None")}")
                   reqBody.toServiceRow(service, organization, identity.identifier.getOrElse(identity.owner.get)).insert.asTry
@@ -388,24 +391,32 @@ trait Services extends JacksonSupport with AuthenticationSupport {
             }).flatMap({
               case Success(v) =>
                 // Add the resource to the resourcechanges table
-                Future { logger.debug(s"POST /orgs/$organization/services - result: $v") }
+                Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Service Definitions Created: ${v}") }
                 val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
                 ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, reqBody.public, ResChangeResource.SERVICE, ResChangeOperation.CREATED, INSTANT).insert.asTry
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
               case Success(v) =>
-                Future { logger.debug(s"POST /orgs/$organization/services - added to changes table: $v") }
+                Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changes Logged:              ${v}") }
                 
                 Future { cacheResourceOwnership.put(organization, service, "service")((identity.identifier.getOrElse(identity.owner.get), reqBody.public), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) }
                 
                 (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.created", service)))
-              case Failure(t: DBProcessingError) =>
-                t.toComplete
-              case Failure(t: org.postgresql.util.PSQLException) =>
-                if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, t.getMessage)))
-                else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.not.created", service, t.getMessage))
-              case Failure(t) =>
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.created", service, t.getMessage)))
+              case Failure(exception: DBProcessingError) =>
+                Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(exception.toComplete)}") }
+                exception.toComplete
+              case Failure(exception: org.postgresql.util.PSQLException) =>
+                if (ExchangePosgtresErrorHandling.isDuplicateKeyError(exception)) {
+                  Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.ALREADY_EXISTS, write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, exception.getMessage))))}") }
+                  (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, exception.getMessage)))
+                }
+                else {
+                  Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.not.created", service, exception.getMessage)))}") }
+                  ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.not.created", service, exception.getMessage))
+                }
+              case Failure(exception) =>
+                Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.created", service, exception.getMessage))))}") }
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.created", service, exception.getMessage)))
             })
           })
         }

@@ -14,7 +14,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity
 import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api.actionBasedSQLInterpolation
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Path("/v1")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "organization")
@@ -40,7 +40,7 @@ trait MaxChangeId extends JacksonSupport with AuthenticationSupport{
       db.run(sql"SELECT last_value FROM public.resourcechanges_changeid_seq;".as[(Long)].headOption)
         .map({
           currentChange =>
-            logger.debug("GET /changes/maxchangeid result: " + currentChange)
+            Future { logger.debug(s"GET /changes/maxchangeid - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - maxChangeId: ${currentChange.getOrElse("None")}") }
             (StatusCodes.OK, MaxChangeIdResponse(currentChange.getOrElse(0)))
         })
     })
@@ -49,7 +49,7 @@ trait MaxChangeId extends JacksonSupport with AuthenticationSupport{
   def maxChangeId(identity: Identity2): Route =
     path("changes" / "maxchangeid") {
       get {
-        logger.debug("Doing GET /changes/maxchangeid")
+        Future { logger.debug(s"GET /changes/maxchangeid - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         exchAuth(TAction(), Access.MAXCHANGEID, validIdentity = identity) {
           _ =>
             getMaxChangeId(identity)

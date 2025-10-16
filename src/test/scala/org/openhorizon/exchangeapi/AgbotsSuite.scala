@@ -598,6 +598,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/patterns").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
+    info("body: " + response.body)
     // info("code: "+response.code+", response.body: "+response.body)
     assert(response.code === HttpCode.OK.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotPatternsResponse]

@@ -9,7 +9,11 @@ final case class AgbotBusinessPolRow(busPolId: String,
                                      businessPol: String,
                                      nodeOrgid: String,
                                      lastUpdated: String) {
-  def toAgbotBusinessPol: AgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid, lastUpdated)
+  def toAgbotBusinessPol: AgbotBusinessPol =
+    AgbotBusinessPol(businessPolOrgid = businessPolOrgid,
+                     businessPol      = businessPol,
+                     lastUpdated      = lastUpdated,
+                     nodeOrgid        = nodeOrgid)
   
   def upsert: DBIO[_] = AgbotBusinessPolsTQ.insertOrUpdate(this)
   

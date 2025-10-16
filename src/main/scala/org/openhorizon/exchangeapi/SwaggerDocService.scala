@@ -11,8 +11,10 @@ import io.swagger.v3.oas.models.ExternalDocumentation
 import org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
 import org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
 import org.openhorizon.exchangeapi.route.agreementbot.agreement.{Agreement, Agreements, Confirm}
+import org.openhorizon.exchangeapi.route.agreementbot.deploymentpattern.{DeploymentPattern, DeploymentPatterns}
+import org.openhorizon.exchangeapi.route.agreementbot.deploymentpolicy.{DeploymentPolicies, DeploymentPolicy}
 import org.openhorizon.exchangeapi.route.agreementbot.message.{Message, Messages}
-import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat}
+import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, Heartbeat}
 import org.openhorizon.exchangeapi.route.user.apikey.UserApiKeys
 //import org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns
 import org.openhorizon.exchangeapi.route.deploymentpattern.{DeploymentPatterns, Search}
@@ -50,21 +52,19 @@ object SwaggerDocService extends SwaggerHttpService {
         classOf[org.openhorizon.exchangeapi.route.administration.Status],
         classOf[org.openhorizon.exchangeapi.route.administration.Version],
         classOf[org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.agreement.Agreement],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.agreement.Agreements],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.agreement.Confirm],
-        classOf[Agreement],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.AgreementBot],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.AgreementBots],
-        classOf[Agreements],
-        classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPattern],
-        classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPatterns],
-        classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPolicies],
-        classOf[org.openhorizon.exchangeapi.route.agreementbot.DeploymentPolicy],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.deploymentpattern.DeploymentPattern],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.deploymentpattern.DeploymentPatterns],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.deploymentpolicy.DeploymentPolicies],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.deploymentpolicy.DeploymentPolicy],
         classOf[org.openhorizon.exchangeapi.route.agreementbot.Heartbeat],
-        classOf[Message],
-        classOf[Messages],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.message.Message],
+        classOf[org.openhorizon.exchangeapi.route.agreementbot.message.Messages],
         classOf[org.openhorizon.exchangeapi.route.catalog.DeploymentPatterns],
-        //classOf[org.openhorizon.exchangeapi.route.catalog.OrganizationDeploymentPatterns],
-        // classOf[org.openhorizon.exchangeapi.route.catalog.OrganizationServices],
         classOf[org.openhorizon.exchangeapi.route.catalog.Services],
         classOf[org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPattern],
         classOf[org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPatterns],

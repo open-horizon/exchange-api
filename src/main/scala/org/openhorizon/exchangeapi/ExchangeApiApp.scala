@@ -12,7 +12,7 @@ import slick.jdbc.PostgresProfile.api._
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 import org.openhorizon.exchangeapi.route.administration.{ClearAuthCache, Configuration, DropDatabase, InitializeDatabase, OrganizationStatus, Reload, Status, Version}
-import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, DeploymentPattern, DeploymentPatterns, DeploymentPolicies, DeploymentPolicy, Heartbeat}
+import org.openhorizon.exchangeapi.route.agreementbot.{AgreementBot, AgreementBots, Heartbeat}
 import org.openhorizon.exchangeapi.table
 import org.openhorizon.exchangeapi.table.{ExchangeApiTables, ExchangePostgresProfile}
 import com.typesafe.config.{ConfigFactory, ConfigParseOptions, ConfigRenderOptions, ConfigSyntax, ConfigValue}
@@ -76,6 +76,8 @@ import org.apache.pekko.pattern.BackoffOpts.onFailure
 import org.apache.pekko.routing.NoRouter
 import org.apache.pekko.util.ByteString
 import org.json4s.jackson.{JsonMethods, Serialization}
+import org.openhorizon.exchangeapi.route.agreementbot.deploymentpattern.{DeploymentPattern, DeploymentPatterns}
+import org.openhorizon.exchangeapi.route.agreementbot.deploymentpolicy.{DeploymentPolicies, DeploymentPolicy}
 import org.openhorizon.exchangeapi.route.user.apikey.UserApiKeys
 import org.springframework.security.crypto.bcrypt.BCrypt
 import slick.jdbc.TransactionIsolation.Serializable
@@ -116,83 +118,82 @@ object ExchangeApi {
  * Main pekko server for the Exchange REST API.
  */
 object ExchangeApiApp extends App
-  with AgentConfigurationManagement
-  with Agreement
-  with org.openhorizon.exchangeapi.route.node.agreement.Agreement
-  with AgreementBot
-  with AgreementBots
-  with Agreements
-  with org.openhorizon.exchangeapi.route.node.agreement.Agreements
-  with ChangePassword
-  with Changes
-  with Cleanup
-  with ClearAuthCache
-  with org.openhorizon.exchangeapi.route.agreementbot.agreement.Confirm
-  with org.openhorizon.exchangeapi.route.user.Confirm
-  with Configuration
-  with ConfigurationState
-  with org.openhorizon.exchangeapi.route.agreementbot.DeploymentPattern
-  with org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPattern
-  with org.openhorizon.exchangeapi.route.agreementbot.DeploymentPatterns
-  with org.openhorizon.exchangeapi.route.catalog.DeploymentPatterns
-  with org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPatterns
-  with org.openhorizon.exchangeapi.route.agreementbot.DeploymentPolicy
-  with org.openhorizon.exchangeapi.route.deploymentpolicy.DeploymentPolicy
-  with org.openhorizon.exchangeapi.route.agreementbot.DeploymentPolicies
-  with org.openhorizon.exchangeapi.route.deploymentpolicy.DeploymentPolicies
-  with DeploymentPolicySearch
-  with Details
-  with DockerAuth
-  with DockerAuths
-  with DropDatabase
-  with Errors
-  with org.openhorizon.exchangeapi.route.agreementbot.Heartbeat
-  with org.openhorizon.exchangeapi.route.node.Heartbeat
-  with InitializeDatabase
-  with org.openhorizon.exchangeapi.route.deploymentpattern.key.Key
-  with org.openhorizon.exchangeapi.route.service.key.Key
-  with org.openhorizon.exchangeapi.route.deploymentpattern.key.Keys
-  with org.openhorizon.exchangeapi.route.service.key.Keys
-  with ManagementPolicies
-  with ManagementPolicy
-  with MaxChangeId
-  with Message
-  with org.openhorizon.exchangeapi.route.node.message.Message
-  with Messages
-  with org.openhorizon.exchangeapi.route.node.message.Messages
-  with MyOrganizations
-  with Node
-  with org.openhorizon.exchangeapi.route.nodegroup.node.Node
-  with NodeError
-  with NodeErrors
-  with org.openhorizon.exchangeapi.route.deploymentpattern.NodeHealth
-  with org.openhorizon.exchangeapi.route.search.NodeHealth
-  with Nodes
-  with NodeService
-  with NodeGroup
-  with NodeGroups
-  with Organization
-  with Organizations
-  // with OrganizationServices
-  with OrganizationStatus
-  with org.openhorizon.exchangeapi.route.node.Policy
-  with org.openhorizon.exchangeapi.route.service.Policy
-  with Reload
-  with Search
-  with Service
-  with org.openhorizon.exchangeapi.route.catalog.Services
-  with org.openhorizon.exchangeapi.route.service.Services
+  with org.openhorizon.exchangeapi.route.administration.ClearAuthCache
+  with org.openhorizon.exchangeapi.route.administration.Configuration
+  with org.openhorizon.exchangeapi.route.administration.dropdatabase.Token
+  with org.openhorizon.exchangeapi.route.administration.DropDatabase
+  with org.openhorizon.exchangeapi.route.administration.InitializeDatabase
+  with org.openhorizon.exchangeapi.route.administration.OrganizationStatus
+  with org.openhorizon.exchangeapi.route.administration.Reload
   with org.openhorizon.exchangeapi.route.administration.Status
+  with org.openhorizon.exchangeapi.route.administration.Version
+  with org.openhorizon.exchangeapi.route.agent.AgentConfigurationManagement
+  with org.openhorizon.exchangeapi.route.agreementbot.agreement.Agreement
+  with org.openhorizon.exchangeapi.route.agreementbot.agreement.Agreements
+  with org.openhorizon.exchangeapi.route.agreementbot.agreement.Confirm
+  with org.openhorizon.exchangeapi.route.agreementbot.AgreementBot
+  with org.openhorizon.exchangeapi.route.agreementbot.AgreementBots
+  with org.openhorizon.exchangeapi.route.agreementbot.deploymentpattern.DeploymentPattern
+  with org.openhorizon.exchangeapi.route.agreementbot.deploymentpattern.DeploymentPatterns
+  with org.openhorizon.exchangeapi.route.agreementbot.deploymentpolicy.DeploymentPolicies
+  with org.openhorizon.exchangeapi.route.agreementbot.deploymentpolicy.DeploymentPolicy
+  with org.openhorizon.exchangeapi.route.agreementbot.Heartbeat
+  with org.openhorizon.exchangeapi.route.agreementbot.message.Message
+  with org.openhorizon.exchangeapi.route.agreementbot.message.Messages
+  with org.openhorizon.exchangeapi.route.catalog.DeploymentPatterns
+  with org.openhorizon.exchangeapi.route.catalog.Services
+  with org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPattern
+  with org.openhorizon.exchangeapi.route.deploymentpattern.DeploymentPatterns
+  with org.openhorizon.exchangeapi.route.deploymentpattern.key.Key
+  with org.openhorizon.exchangeapi.route.deploymentpattern.key.Keys
+  with org.openhorizon.exchangeapi.route.deploymentpattern.NodeHealth
+  with org.openhorizon.exchangeapi.route.deploymentpattern.Search
+  with org.openhorizon.exchangeapi.route.deploymentpolicy.DeploymentPolicies
+  with org.openhorizon.exchangeapi.route.deploymentpolicy.DeploymentPolicy
+  with org.openhorizon.exchangeapi.route.deploymentpolicy.DeploymentPolicySearch
+  with org.openhorizon.exchangeapi.route.service.key.Key
+  with org.openhorizon.exchangeapi.route.service.key.Keys
+  with org.openhorizon.exchangeapi.route.managementpolicy.ManagementPolicies
+  with org.openhorizon.exchangeapi.route.managementpolicy.ManagementPolicy
+  with org.openhorizon.exchangeapi.route.node.agreement.Agreement
+  with org.openhorizon.exchangeapi.route.node.agreement.Agreements
+  with org.openhorizon.exchangeapi.route.node.ConfigurationState
+  with org.openhorizon.exchangeapi.route.node.Details
+  with org.openhorizon.exchangeapi.route.node.Errors
+  with org.openhorizon.exchangeapi.route.node.Heartbeat
   with org.openhorizon.exchangeapi.route.node.managementpolicy.Status
+  with org.openhorizon.exchangeapi.route.node.managementpolicy.Statuses
+  with org.openhorizon.exchangeapi.route.node.message.Message
+  with org.openhorizon.exchangeapi.route.node.message.Messages
+  with org.openhorizon.exchangeapi.route.node.Node
+  with org.openhorizon.exchangeapi.route.node.Nodes
+  with org.openhorizon.exchangeapi.route.node.Policy
   with org.openhorizon.exchangeapi.route.node.Status
+  with org.openhorizon.exchangeapi.route.nodegroup.node.Node
+  with org.openhorizon.exchangeapi.route.nodegroup.NodeGroup
+  with org.openhorizon.exchangeapi.route.nodegroup.NodeGroups
+  with org.openhorizon.exchangeapi.route.organization.Changes
+  with org.openhorizon.exchangeapi.route.organization.Cleanup
+  with org.openhorizon.exchangeapi.route.organization.MaxChangeId
+  with org.openhorizon.exchangeapi.route.organization.MyOrganizations
+  with org.openhorizon.exchangeapi.route.organization.Organization
+  with org.openhorizon.exchangeapi.route.organization.Organizations
   with org.openhorizon.exchangeapi.route.organization.Status
-  with Statuses
-  with SwaggerUiService
-  with Token
-  with User
-  with Users
-  with UserApiKeys
-  with Version {
+  with org.openhorizon.exchangeapi.route.search.NodeError
+  with org.openhorizon.exchangeapi.route.search.NodeErrors
+  with org.openhorizon.exchangeapi.route.search.NodeHealth
+  with org.openhorizon.exchangeapi.route.search.NodeService
+  with org.openhorizon.exchangeapi.route.service.dockerauth.DockerAuth
+  with org.openhorizon.exchangeapi.route.service.dockerauth.DockerAuths
+  with org.openhorizon.exchangeapi.route.service.Policy
+  with org.openhorizon.exchangeapi.route.service.Service
+  with org.openhorizon.exchangeapi.route.service.Services
+  with org.openhorizon.exchangeapi.route.user.apikey.UserApiKeys
+  with org.openhorizon.exchangeapi.route.user.ChangePassword
+  with org.openhorizon.exchangeapi.route.user.Confirm
+  with org.openhorizon.exchangeapi.route.user.User
+  with org.openhorizon.exchangeapi.route.user.Users
+  with org.openhorizon.exchangeapi.SwaggerUiService {
   
   // An example of using Spray to marshal/unmarshal json. We chose not to use it because it requires an implicit be defined for every class that needs marshalling
   //protected implicit val jsonFormats: Formats = DefaultFormats

@@ -1,9 +1,14 @@
 package org.openhorizon.exchangeapi.auth
 
-import com.typesafe.config.ConfigValue
-import org.apache.pekko.event.LoggingAdapter
+import com.typesafe.config.{ConfigRenderOptions, ConfigValue}
+import org.apache.pekko.actor.{ActorLogging, ActorSystem}
+import org.apache.pekko.event.{Logging, LoggingAdapter}
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
+import org.openhorizon.exchangeapi.ExchangeApiApp.{logger, system}
 import org.openhorizon.exchangeapi.auth.Access.Access
 import org.openhorizon.exchangeapi.utility.Configuration
+import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.mutable.{HashMap => MutableHashMap}
 import scala.jdk.CollectionConverters.{CollectionHasAsScala, MapHasAsScala}
@@ -11,6 +16,8 @@ import scala.language.postfixOps
 
 /** Who is allowed to do what. */
 object Role {
+  implicit val logger: LoggingAdapter = Logging(system = (if (system == null) ActorSystem() else system), "Exchange")
+  
   // the list of roles and their permissions are in config.json
   type AccessList = Set[String]
   //case class AccessList extends Set[String]
@@ -29,7 +36,7 @@ object Role {
     val roles: MutableHashMap[String, AccessList] = loadRoles()
     
     if (!AuthRoles.requiredRoles.subsetOf(roles.keySet))
-      println("Error: at least these roles must be set in the config file: " + AuthRoles.requiredRoles.mkString(", "))
+      logger.error("Error: at least these roles must be set in the config file: " + AuthRoles.requiredRoles.mkString(", "))
     
     roles
   }
@@ -49,23 +56,24 @@ object Role {
         if (accessList.contains(Access.ALL_IN_ORG.toString) && !AccessGroups.CROSS_ORG_ACCESS.contains(access) ) return true // org admin
         accessList.contains(access.toString)
       case None =>
-        logger.error (s"Role.hasAuthorization: role $role does not exist")
+        logger.error(s"Error: Role.hasAuthorization - role $role does not exist")
         false
     }
   }
   
-  def loadRoles(): MutableHashMap[String, AccessList] = {
+  def loadRoles()(implicit logger: LoggingAdapter): MutableHashMap[String, AccessList] = {
     // Read the ACLs and set them in our Role object
     val RoleMap = new MutableHashMap[String, AccessList]
     for ((role, _) <- Configuration.getConfig.getObject("api.acls").asScala.toMap) {
       val accessSet: Set[String] = Configuration.getConfig.getStringList("api.acls." + role).asScala.toSet
       if (!isValidAcessValues(accessSet))
-        println("Error: invalid value in ACLs in config file for role " + role)
+        logger.error(s"Error: invalid value in ACLs in config file for role $role")
       else
         RoleMap.put(role, accessSet)
     }
     
-    println(s"Roles: ${RoleMap}")
+    implicit val formats: Formats = DefaultFormats
+    logger.debug(s"\napi.acls ${Configuration.getConfig.getObject("api.acls").toConfig.root().render(ConfigRenderOptions.defaults().setComments(false).setOriginComments(false))}")
     
     RoleMap
   }

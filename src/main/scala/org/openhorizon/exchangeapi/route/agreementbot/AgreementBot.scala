@@ -11,6 +11,8 @@ import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PATCH, PUT, Path}
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, DBProcessingError, IUser, Identity, Identity2, OrgAndId, Password, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotRow, Agbots, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange
@@ -75,10 +77,9 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                       @Parameter(hidden = true) identity: Identity2,
                       @Parameter(hidden = true) organization: String,
                       @Parameter(hidden = true) resource: String): Route = {
-    logger.debug(s"GET /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
-    
     parameter("attribute".?) {
       attribute =>
+        Future { logger.debug(s"GET /orgs/$organization/agbots/$agreementBot?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         
         def isValidAttribute(attribute: String): Boolean =
           attribute match {
@@ -99,7 +100,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                             !identity.isHubAdmin &&
                             !identity.isMultiTenantAgbot)(agbots => agbots.orgid === identity.organization ||
                                                                     agbots.orgid === "IBM")
-        
+        implicit val formats: Formats = DefaultFormats
         attribute match {
           case Some(attribute) if attribute.nonEmpty && isValidAttribute(attribute.toLowerCase) =>
             val getAgbotAttribute: Query[MappedProjection[GetAgbotAttributeResponse, (String, String)], GetAgbotAttributeResponse, Seq] =
@@ -127,12 +128,16 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                 case Success(agbotAtrribute) =>
                   if (agbotAtrribute.size == 1)
                     (HttpCode.OK, agbotAtrribute.head)
-                  else if (agbotAtrribute.isEmpty)
+                  else if (agbotAtrribute.isEmpty) {
+                    Future { logger.debug(s"GET /orgs/$organization/agbots/$agreementBot?attribute=${attribute} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - agbotAtrribute.isEmpty: ${agbotAtrribute.isEmpty} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))))}") }
                     (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
-                  else
+                  }
+                  else {
+                    Future { logger.debug(s"GET /orgs/$organization/agbots/$agreementBot?attribute=${attribute} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - agbotAtrribute.isEmpty: ${agbotAtrribute.isEmpty} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.agbot.not.found", resource))))}") }
                     (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.agbot.not.found", resource)))
+                  }
                 case Failure(exception) =>
-                  logger.error(cause = exception, message = s"GET /orgs/$organization/agbots/$agreementBot?attribute=${attribute}")
+                  Future { logger.debug(s"GET /orgs/$organization/agbots/$agreementBot?attribute=${attribute} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error"))))}") }
                   (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
               }
             })
@@ -159,12 +164,16 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                 case Success(agbot) =>
                   if (agbot.size == 1)
                     (HttpCode.OK, GetAgbotsResponse(agbot.map(agreement_bots => agreement_bots.id -> agreement_bots).toMap))
-                  else if (agbot.isEmpty)
+                  else if (agbot.isEmpty) {
+                    Future { logger.debug(s"GET /orgs/$organization/agbots/$agreementBot?attribute=None - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - agbot.isEmpty: ${agbot.isEmpty} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))))}") }
                     (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
-                  else
+                  }
+                  else {
+                    Future { logger.debug(s"GET /orgs/$organization/agbots/$agreementBot?attribute=None - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - agbot.isEmpty: ${agbot.isEmpty} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.agbot.not.found", resource))))}") }
                     (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.agbot.not.found", resource)))
+                  }
                 case Failure(exception) =>
-                  logger.error(cause = exception, message = s"GET /orgs/$organization/agbots/$agreementBot")
+                  Future { logger.debug(s"GET /orgs/$organization/agbots/$agreementBot?attribute=None - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error"))))}") }
                   (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
               }
             })
@@ -208,21 +217,22 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PutAgbotsRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+          Future { logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
             
             complete({
+              implicit val formats: Formats = DefaultFormats
               val owner: Option[UUID] = identity.identifier
               val hashedTok: String = Password.hash(reqBody.token)
               db.run(AgbotsTQ.getNumOwned(identity.identifier.getOrElse(identity.owner.get))
                              .result
                              .flatMap({
                                xs =>
-                                 logger.debug("PUT /orgs/" + organization + "/agbots/" + agreementBot + " num owned: " + xs)
-                                 val numOwned: Int = xs
                                  val maxAgbots: Int = Configuration.getConfig.getInt("api.limits.maxAgbots")
+                                 Future { logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Agreement Bot Capacity:          ${xs}:${if (maxAgbots == 0) "infinite" else maxAgbots}") }
+                                 val numOwned: Int = xs
                                  if (maxAgbots == 0 ||
                                      numOwned <= maxAgbots ||
                                      owner.isEmpty) { // when owner=="" we know it is only an update, otherwise we are not sure, but if they are already over the limit, stop them anyway
@@ -236,23 +246,26 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                                    DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.of.agbots", maxAgbots))).asTry})
                              .flatMap({
                                case Success(v) => // Add the resource to the resourcechanges table
-                                 logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot result: $v")
+                                 Future { logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Agreement Bots Created/Modified: ${v}") }
                                  resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOT, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                                case Failure(t) => DBIO.failed(t).asTry}))
                 .map({
                   case Success(v) =>
-                    logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot updated in changes table: $v")
+                    Future { logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changes Logged:                  ${v}") }
                     //TODO: AuthCache.putAgbotAndOwner(resource, hashedTok, reqBody.token, owner.get)
                     
                     Future { cacheResourceIdentity.remove(resource) }
                     
                     (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.added.updated")))
-                  case Failure(t: DBProcessingError) =>
-                    t.toComplete
-                  case Failure(t: org.postgresql.util.PSQLException) =>
-                    ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("agbot.not.inserted.or.updated", resource, t.toString))
-                  case Failure(t) =>
-                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", resource, t.toString)))
+                  case Failure(exception: DBProcessingError) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+                    exception.toComplete
+                  case Failure(exception: org.postgresql.util.PSQLException) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.not.inserted.or.updated", resource, exception.toString)))}") }
+                    ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.not.inserted.or.updated", resource, exception.toString))
+                  case Failure(exception) =>
+                    Future { logger.debug(s"PUT /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", resource, exception.toString))))}") }
+                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", resource, exception.toString)))
                 })
             })
           }
@@ -299,26 +312,29 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
     patch {
       entity(as[PatchAgbotsRequest]) {
         reqBody =>
-          logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
-            validateWithMsg(reqBody.getAnyProblem) {
-              
-              val INSTANT: Instant = Instant.now()
-              
-              complete({
-                val hashedTok: String =
-                  if (reqBody.token.isDefined)
-                    Password.hash(reqBody.token.get)
-                  else
-                    "" // hash the token if that is what is being updated
-                val (action, attrName) = reqBody.getDbUpdate(resource, organization, hashedTok)
-                if (action == null)
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attribute.specified")))
+          Future { logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+          validateWithMsg(reqBody.getAnyProblem) {
+            
+            val INSTANT: Instant = Instant.now()
+            
+            complete({
+              implicit val formats: Formats = DefaultFormats
+              val hashedTok: String =
+                if (reqBody.token.isDefined)
+                  Password.hash(reqBody.token.get)
                 else
-                  db.run(action.transactionally
+                  "" // hash the token if that is what is being updated
+              val (action, attrName) = reqBody.getDbUpdate(resource, organization, hashedTok)
+              if (action == null) {
+                Future { logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - action: null - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attribute.specified"))))}") }
+                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.agbot.attribute.specified")))
+              }
+              else
+                db.run(action.transactionally
                                .asTry
                                .flatMap({
                                  case Success(v) => // Add the resource to the resourcechanges table
-                                   logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot result: $v")
+                                   Future { logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Agreement Bots Patched: ${v}") }
                                    if (v.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
                                      if (reqBody.token.isDefined) {
                                        // TODO: AuthCache.putAgbot(resource, hashedTok, reqBody.token.get) // We do not need to run putOwner because patch does not change the owner}
@@ -331,20 +347,23 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                                    DBIO.failed(t).asTry}))
                     .map({
                       case Success(v) =>
-                        Future { logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot updated in changes table: $v") }
+                        Future { logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changes Logged:         ${v}") }
                         
                         Future { cacheResourceIdentity.remove(resource) }
                         
                         (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.attribute.updated", attrName, resource)))
-                      case Failure(t: DBProcessingError) =>
-                        t.toComplete
-                      case Failure(t: org.postgresql.util.PSQLException) =>
-                        ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("agbot.not.inserted.or.updated", resource, t.toString))
-                      case Failure(t) =>
-                        (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", resource, t.toString)))
+                      case Failure(exception: DBProcessingError) =>
+                        Future { logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+                        exception.toComplete
+                      case Failure(exception: org.postgresql.util.PSQLException) =>
+                        Future { logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.not.inserted.or.updated", resource, exception.toString)))}") }
+                        ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.not.inserted.or.updated", resource, exception.toString))
+                      case Failure(exception) =>
+                        Future { logger.debug(s"PATCH /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", resource, exception.toString))))}") }
+                        (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.inserted.or.updated", resource, exception.toString)))
                     })
-              })
-            }
+            })
+          }
       }
     }
   
@@ -366,8 +385,9 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                          @Parameter(hidden = true) organization: String,
                          @Parameter(hidden = true) resource: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+      Future { logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
       complete({ // remove does *not* throw an exception if the key does not exist
+        implicit val formats: Formats = DefaultFormats
         db.run(AgbotsTQ.getAgbot(resource)
                        .delete
                        .transactionally
@@ -375,7 +395,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                        .flatMap({
                          case Success(v) =>
                            if (v > 0) { // there were no db errors, but determine if it actually found it or not
-                             logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot result: $v")
+                             Future { logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Agreement Bots Deleted: ${v}") }
                              // TODO: AuthCache.removeAgbotAndOwner(resource)
                              resourcechange.ResourceChange(0L,
                                             organization,
@@ -391,18 +411,21 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
                            DBIO.failed(t).asTry}))
           .map({
             case Success(v) =>
-              Future { logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot updated in changes table: $v") }
+              Future { logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changes Logged:         ${v}") }
               
               Future { cacheResourceIdentity.remove(resource) }
               Future { cacheResourceOwnership.remove(organization, agreementBot, "agreement_bot") }
               
               (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.deleted")))
-            case Failure(t: DBProcessingError) =>
-              t.toComplete
-            case Failure(t: org.postgresql.util.PSQLException) =>
-              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("agbot.not.deleted", resource, t.toString))
-            case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.deleted", resource, t.toString)))
+            case Failure(exception: DBProcessingError) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+              exception.toComplete
+            case Failure(exception: org.postgresql.util.PSQLException) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.not.deleted", resource, exception.toString)))}") }
+              ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.not.deleted", resource, exception.toString))
+            case Failure(exception) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.deleted", resource, exception.toString))))}") }
+              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.deleted", resource, exception.toString)))
           })
       })
     }

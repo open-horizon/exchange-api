@@ -6,7 +6,9 @@ import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 /** Input format for POST /orgs/{organization}/agbots/{id}/businesspols */
 final case class PostAgbotBusinessPolRequest(businessPolOrgid: String, businessPol: String, nodeOrgid: Option[String]) {
   require(businessPolOrgid!=null && businessPol!=null)
-  def toAgbotBusinessPol: AgbotBusinessPol = AgbotBusinessPol(businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)
+  def toAgbotBusinessPol: AgbotBusinessPol =
+    AgbotBusinessPol(businessPolOrgid = businessPolOrgid, businessPol = businessPol, lastUpdated = ApiTime.nowUTC, nodeOrgid = nodeOrgid.getOrElse(businessPolOrgid))
+    
   def toAgbotBusinessPolRow(agbotId: String, busPolId: String): AgbotBusinessPolRow = AgbotBusinessPolRow(busPolId, agbotId, businessPolOrgid, businessPol, nodeOrgid.getOrElse(businessPolOrgid), ApiTime.nowUTC)
   def formId: String = businessPolOrgid + "_" + businessPol + "_" + nodeOrgid.getOrElse(businessPolOrgid)
   def getAnyProblem: Option[String] = {

@@ -10,13 +10,15 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
 import slick.jdbc.PostgresProfile.api._
 
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 @Path("/v1/orgs/{organization}/agbots")
@@ -65,7 +67,7 @@ trait AgreementBots extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) organization: String): Route = {
     parameter("idfilter".?, "name".?, "owner".?) {
       (idfilter, name, owner) =>
-        logger.debug(s"GET /orgs/$organization/agbots - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+        Future { logger.debug(s"GET /orgs/$organization/agbots?idfilter=${idfilter.getOrElse("None")}&name=${name.getOrElse("None")}&owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         
         val getAgbots =
           for {
@@ -102,13 +104,21 @@ trait AgreementBots extends JacksonSupport with AuthenticationSupport {
           } yield agbots.mapTo[Agbot]
         
         complete({
+          implicit val formats: Formats = DefaultFormats
           db.run(Compiled(getAgbots).result.transactionally.asTry).map({
             case Success(agbots) =>
-                logger.debug(s"GET /orgs/$organization/agbots result size: ${agbots.size}")
-                val agbotMap: Map[String, Agbot] = agbots.map(agbot => agbot.id -> agbot).toMap
+              Future { logger.debug(s"GET /orgs/$organization/agbots?idfilter=${idfilter.getOrElse("None")}&name=${name.getOrElse("None")}&owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Agreement Bots: ${agbots.size}") }
+              val agbotMap: Map[String, Agbot] = agbots.map(agbot => agbot.id -> agbot).toMap
               
-              ((if (agbotMap.isEmpty) StatusCodes.NotFound else StatusCodes.OK), GetAgbotsResponse(agbotMap, 0))
-            case Failure(t) =>
+              ((if (agbotMap.isEmpty) {
+                  Future { logger.debug(s"GET /orgs/$organization/agbots?idfilter=${idfilter.getOrElse("None")}&name=${name.getOrElse("None")}&owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - agbotMap.isEmpty: ${agbotMap.isEmpty} - ${(StatusCodes.NotFound, Serialization.write(GetAgbotsResponse(Map.empty[String, Agbot])))}") }
+                  StatusCodes.NotFound
+                }
+                else
+                  StatusCodes.OK
+               ), GetAgbotsResponse(agbotMap, 0))
+            case Failure(exception) =>
+              Future { logger.debug(s"GET /orgs/$organization/agbots?idfilter=${idfilter.getOrElse("None")}&name=${name.getOrElse("None")}&owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unknown.error.invalid.creds"))))}") }
               (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unknown.error.invalid.creds")))
             })
         })

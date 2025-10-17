@@ -10,8 +10,12 @@ final case class AgbotPatternRow(patId: String,
                                  pattern: String,
                                  nodeOrgid: String,
                                  lastUpdated: String) {
-  def toAgbotPattern: AgbotPattern = AgbotPattern(patternOrgid, pattern, nodeOrgid, lastUpdated)
-
+  def toAgbotPattern: AgbotPattern =
+    AgbotPattern(lastUpdated  = lastUpdated,
+                 nodeOrgid    = nodeOrgid,
+                 pattern      = pattern,
+                 patternOrgid = patternOrgid)
+  
   def upsert: DBIO[_] = AgbotPatternsTQ.insertOrUpdate(this)
   def insert: DBIO[_] = AgbotPatternsTQ += this
 }

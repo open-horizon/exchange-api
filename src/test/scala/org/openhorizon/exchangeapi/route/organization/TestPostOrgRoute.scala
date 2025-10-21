@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -8,7 +9,7 @@ import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -131,7 +132,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     val request: HttpResponse[String] = Http(URL + orgId).postData(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assert(Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
@@ -149,7 +150,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     val request: HttpResponse[String] = Http(URL + orgId).postData(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assert(Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
@@ -168,7 +169,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     val request: HttpResponse[String] = Http(URL + orgId).postData(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assert(Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
@@ -187,7 +188,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     val request: HttpResponse[String] = Http(URL + orgId).postData(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assert(Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).isEmpty) //make sure org didn't actually get added to DB
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === orgId).result), AWAITDURATION).isEmpty)
@@ -197,7 +198,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     val request: HttpResponse[String] = Http(URL + orgId).postData(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val newOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === orgId).take(1).result), AWAITDURATION).head
     assert(newOrg.orgId === orgId)
     assertOrgsEqual(normalRequestBody, newOrg)
@@ -208,7 +209,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     val request: HttpResponse[String] = Http(URL + orgId).postData(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val newOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === orgId).take(1).result), AWAITDURATION).head
     assert(newOrg.orgId === orgId)
     assertOrgsEqual(normalRequestBody, newOrg)
@@ -219,7 +220,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     val request: HttpResponse[String] = Http(URL + orgId).postData(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(USER1AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(request.code === StatusCodes.Forbidden.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(orgId).result), AWAITDURATION).length
     assert(numOrgs === 0) //make sure org didn't actually get added to DB
     //insure nothing was added to resource changes table
@@ -230,7 +231,7 @@ class TestPostOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.ALREADY_EXISTS2.intValue)
+    assert(request.code === StatusCodes.Conflict.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.getOrgid(TESTORGS(0).orgId).result), AWAITDURATION).length
     assert(numOrgs === 1)
     //insure nothing was added to resource changes table

@@ -8,7 +8,8 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{POST, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
-import org.apache.pekko.http.scaladsl.server.Directives.{complete, path, post, _}
+import org.apache.pekko.http.scaladsl.model.StatusCodes
+import org.apache.pekko.http.scaladsl.server.Directives.{complete, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization
@@ -16,7 +17,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity
 import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmRequest
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -101,8 +102,8 @@ trait Confirm extends JacksonSupport with AuthenticationSupport {
       implicit val formats: Formats = DefaultFormats
       
       if (identity.isNode) {
-        Future { logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - identity.isNode:${identity.isNode} - ${(HttpCode.ACCESS_DENIED, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied"))))}") }
-        (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied")))
+        Future { logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - identity.isNode:${identity.isNode} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied"))))}") }
+        (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("access.denied")))
       }
       else
         db.run(getActiveAgreementState.result.transactionally).map {
@@ -110,10 +111,10 @@ trait Confirm extends JacksonSupport with AuthenticationSupport {
             Future { logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - agreement state: ${state.headOption.getOrElse("-")}") }
             
             if (state.nonEmpty)
-              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
+              (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("agreement.active")))
             else {
-              Future { logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - state.nonEmpty:${state.nonEmpty} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active"))))}") }
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
+              Future { logger.debug(s"POST /orgs/$orgid/agreements/confirm - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - state.nonEmpty:${state.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active"))))}") }
+              (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agreement.not.found.not.active")))
             }
         }
     }

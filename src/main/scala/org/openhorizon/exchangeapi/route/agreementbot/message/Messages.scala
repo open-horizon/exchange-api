@@ -21,7 +21,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMs
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -218,14 +218,14 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
             db.run(createAgbotMessage.transactionally.asTry)
               .map {
                 case Success(msgNum) =>
-                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.message.inserted", msgNum)))
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.message.inserted", msgNum)))
                 case Failure(exception: DBProcessingError) =>
                   Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
                   exception.toComplete
                 case Failure(exception: org.postgresql.util.PSQLException) =>
                   if (ExchangePosgtresErrorHandling.isKeyNotFoundError(exception)) {
-                    Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.agbotid.not.found", resource, exception.getMessage))))}") }
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.agbotid.not.found", resource, exception.getMessage)))
+                    Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.NotFound, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.agbotid.not.found", resource, exception.getMessage))))}") }
+                    (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.message.agbotid.not.found", resource, exception.getMessage)))
                   }
                   else {
                     Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.message.not.inserted", resource, exception.toString)))}") }
@@ -238,8 +238,8 @@ trait Messages extends JacksonSupport with AuthenticationSupport {
                   Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadGateway, Serialization.write(ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("node.mailbox.full", resource, maxMessagesInMailbox))))}") }
                   (StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, ExchMsg.translate("node.mailbox.full", resource, maxMessagesInMailbox)))
                 case Failure(exception) =>
-                  Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", resource, exception.toString))))}") }
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", resource, exception.toString)))
+                  Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/msgs - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", resource, exception.toString))))}") }
+                  (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.inserted", resource, exception.toString)))
               }
           }
     }

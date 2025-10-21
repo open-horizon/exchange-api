@@ -260,7 +260,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
 
     val responseBody = JsonMethods.parse(response.body)
     assert((responseBody \ "description").extract[String] === "TestGetUserApiKeyRoute Test API Key 2")
@@ -275,7 +275,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   // Org admin tries to access another user's API key - Expected: 200
@@ -286,7 +286,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
 
     val responseBody = JsonMethods.parse(response.body)
     assert((responseBody \ "description").extract[String] === "TestGetUserApiKeyRoute Test API Key 2")
@@ -301,7 +301,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   // Org Admin tries to access API key from another org - Expected: 403
@@ -312,7 +312,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   // No auth header provided - Expected: 401
@@ -323,7 +323,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BADCREDS.intValue)
+    assert(response.code === StatusCodes.Unauthorized.intValue)
   }
 
   // Hub admin gets their own API key - Expected: 200
@@ -334,7 +334,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
 
     val responseBody = JsonMethods.parse(response.body)
     assert((responseBody \ "description").extract[String] === "TestGetUserApiKeyRoute Test API Key HubAdmin")
@@ -349,7 +349,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
 
     val responseBody = JsonMethods.parse(response.body)
     assert((responseBody \ "description").extract[String] === "TestGetUserApiKeyRoute Test API Key 1")
@@ -365,7 +365,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   // Root user gets their own API key - Expected: 200
@@ -376,7 +376,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
 
     val responseBody = JsonMethods.parse(response.body)
     assert((responseBody \ "description").extract[String] === "TestGetUserApiKeyRoute Root Own")
@@ -392,7 +392,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
 
     val responseBody = JsonMethods.parse(response.body)
     assert((responseBody \ "description").extract[String] === "TestGetUserApiKeyRoute For Root Get Admin")
@@ -407,7 +407,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
 
     val responseBody = JsonMethods.parse(response.body)
     assert((responseBody \ "description").extract[String] === "TestGetUserApiKeyRoute For Root Get User")
@@ -422,7 +422,7 @@ private val TESTORGS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
 
     val responseBody = JsonMethods.parse(response.body)
     assert((responseBody \ "description").extract[String] === "TestGetUserApiKeyRoute For Root Get HubAdmin")

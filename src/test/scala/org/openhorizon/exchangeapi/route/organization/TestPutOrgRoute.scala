@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -8,7 +9,7 @@ import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
 import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -199,7 +200,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + "doesNotExist").put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.NOT_FOUND.intValue)
+    assert(request.code === StatusCodes.NotFound.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === "doesNotExist").result), AWAITDURATION).length
     assert(numOrgs === 0) //insure org is not added
     //insure nothing was added to resource changes table
@@ -211,7 +212,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -229,7 +230,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -247,7 +248,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -266,7 +267,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -276,7 +277,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.PUT_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     assertOrg1Updated(normalRequestBody)
     assertCreatedModifiedEntryExists(TESTORGS(0).orgId)
   }
@@ -289,7 +290,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(requestBody)).headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.PUT_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val dbOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === "")
     assert(dbOrg.tags.isEmpty)
@@ -306,7 +307,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.PUT_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     assertOrg1Updated(normalRequestBody)
     assertCreatedModifiedEntryExists(TESTORGS(0).orgId)
   }
@@ -315,7 +316,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ORGADMIN1AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.PUT_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     assertOrg1Updated(normalRequestBody)
     assertCreatedModifiedEntryExists(TESTORGS(0).orgId)
   }
@@ -324,7 +325,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(USER1AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(request.code === StatusCodes.Forbidden.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -334,7 +335,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(ORGADMIN2AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(request.code === StatusCodes.Forbidden.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -344,7 +345,7 @@ class TestPutOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAndA
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).put(Serialization.write(normalRequestBody)).headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(request.code === StatusCodes.Forbidden.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)

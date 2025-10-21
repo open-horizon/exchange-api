@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.nodegroup
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization
 import org.json4s.native.Serialization.write
@@ -11,7 +12,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -299,14 +300,14 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE + TESTNODEGROUPS(1).name).put(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("PUT /orgs/" + TESTORGS.head.orgId + ROUTE  + "doesNotExist -- 404 not found - bad node group - root") {
     val response: HttpResponse[String] = Http(URL + TESTORGS.head.orgId + ROUTE + "doesNotExist").put(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("PUT /orgs/" + TESTORGS.head.orgId + ROUTE + TESTNODEGROUPS.head.name + " -- 403 access denied - hub administrator") {
@@ -315,7 +316,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
   
   test("PUT /orgs/" + TESTORGS.head.orgId + ROUTE + TESTNODEGROUPS.head.name + " -- 403 access denied - node") {
@@ -324,7 +325,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
   
   test("PUT /orgs/" + TESTORGS.head.orgId + ROUTE + TESTNODEGROUPS.head.name + " -- 403 access denied - agbot") {
@@ -333,7 +334,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
   
   test("PUT /orgs/" + TESTORGS.head.orgId + ROUTE + TESTNODEGROUPS(1).name + " -- 400 bad input - invalid request body - root") {
@@ -341,7 +342,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
   
   test("PUT /orgs/" + TESTORGS.head.orgId + ROUTE + TESTNODEGROUPS(1).name + " -- 400 bad input - invalid type of members - root") {
@@ -349,7 +350,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
   
   test("PUT /orgs/" + TESTORGS.head.orgId + ROUTE + TESTNODEGROUPS(1).name + " -- 400 bad input - invalid type of description - root") {
@@ -357,7 +358,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
   
   test("PUT /orgs/" + TESTORGS.head.orgId + ROUTE + "TestPutNodeGroup_ng0" + " -- 403 access denied - update a node group without ownership - user") {
@@ -380,7 +381,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         info("code: " + response.code)
         info("body: " + response.body)
   
-        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+        assert(response.code === StatusCodes.Forbidden.intValue)
       }, TESTNODEGROUP)
   }
   
@@ -405,7 +406,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+        assert(response.code === StatusCodes.Forbidden.intValue)
       }, TESTNODEGROUP)
   }
   
@@ -427,7 +428,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+        assert(response.code === StatusCodes.Forbidden.intValue)
       }, TESTNODEGROUP)
   }
   
@@ -449,7 +450,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+        assert(response.code === StatusCodes.Forbidden.intValue)
       }, TESTNODEGROUP)
   }
   
@@ -478,7 +479,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+        assert(response.code === StatusCodes.Forbidden.intValue)
     }, TESTNODEGROUP)
   }
   
@@ -509,7 +510,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.ALREADY_EXISTS2.intValue)
+        assert(response.code === StatusCodes.Conflict.intValue)
       }, TESTNODEGROUP)
   }
   
@@ -531,7 +532,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.PUT_OK.intValue)
+        assert(response.code === StatusCodes.Created.intValue)
         
         val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).filter(_.name === TESTNODEGROUP.head.name).result), AWAITDURATION)
         assert(nodeGroup.sizeIs == 1)
@@ -583,7 +584,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
       info("code: " + response.code)
       info("body: " + response.body)
       
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       
       val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).filter(_.name === TESTNODEGROUP.head.name).result), AWAITDURATION)
       assert(nodeGroup.sizeIs == 1)
@@ -663,7 +664,7 @@ class TestPutNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAnd
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.PUT_OK.intValue)
+        assert(response.code === StatusCodes.Created.intValue)
         
         val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).filter(_.name === TESTNODEGROUP.head.name).result), AWAITDURATION)
         assert(nodeGroup.sizeIs == 1)

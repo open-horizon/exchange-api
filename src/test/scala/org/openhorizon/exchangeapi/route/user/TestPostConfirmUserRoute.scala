@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.user
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
@@ -7,7 +8,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -166,7 +167,7 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   //this should fail
@@ -174,70 +175,70 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "doesNotExist" + ROUTE2).postForm.headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("POST /orgs/" + "doesNotExist" + ROUTE1 + "doesNotExist" + ROUTE2 + " -- as org admin -- 404 NOT FOUND") {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE1 + "doesNotExist" + ROUTE2).postForm.headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2 + " -- as root -- 201 OK") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2 + " -- as hub admin -- 201 OK") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2 + " -- as org admin -- 201 OK") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + "orgUser2" + ROUTE2 + " -- as user -- 403 ACCESS DENIED") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "orgUser2" + ROUTE2).postForm.headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2 + " -- as self -- 201 OK") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(1).orgId + ROUTE1 + defaultUsername + ROUTE2 + " -- as org admin -- 403 ACCESS DENIED") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2 + " -- as agbot -- 403 ACCESS DENIED") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2 + " -- as node -- 403 ACCESS DENIED") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(NODEAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2 + " -- bad auth -- 401 INVALID CREDENTIALS") {
@@ -245,6 +246,6 @@ class TestPostConfirmUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + defaultUsername + ROUTE2).postForm.headers(ACCEPT).headers(auth).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BADCREDS.intValue)
+    assert(response.code === StatusCodes.Unauthorized.intValue)
   }
 }

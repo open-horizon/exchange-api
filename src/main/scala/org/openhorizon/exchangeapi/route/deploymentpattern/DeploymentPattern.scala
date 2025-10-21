@@ -11,6 +11,8 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, path, post, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.jackson.Serialization
+import org.json4s.jackson.Serialization.writePretty
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
@@ -32,7 +34,7 @@ import scala.util.control.Breaks.{break, breakable}
 import scala.util.{Failure, Success}
 
 
-@Path("/v1/orgs/{organization}/patterns/{pattern}")
+@Path("/v1/orgs/{organization}/deployment/patterns/{pattern}")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
 trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -41,7 +43,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // =========== DELETE /orgs/{organization}/patterns/{pattern} ===============================
+  // =========== DELETE /orgs/{organization}/deployment/patterns/{pattern} ===============================
   @DELETE
   @Operation(summary = "Deletes a pattern", description = "Deletes a pattern. Can only be run by the owning user.",
     parameters = Array(
@@ -71,7 +73,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
             if (public.nonEmpty) {
               storedPublicField = public.head
               PatternsTQ.getPattern(resource).delete.transactionally.asTry
-            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
+            } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -82,7 +84,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
               // TODO: AuthCache.removePatternIsPublic(resource)
               ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERN, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
+              DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
@@ -91,18 +93,18 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
             
             Future { cacheResourceOwnership.remove(organization, deploymentPattern, "deployment_pattern") }
             
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.deleted")))
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.id.not.deleted", resource, t.toString))
           case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.id.not.deleted", resource, t.toString)))
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.id.not.deleted", resource, t.toString)))
         })
       })
     }
   
-  /* ====== GET /orgs/{organization}/patterns/{pattern} ================================ */
+  /* ====== GET /orgs/{organization}/deployment/patterns/{pattern} ================================ */
   @GET
   @Operation(summary = "Returns a pattern", description = "Returns the pattern with the specified id. Can be run by a user, node, or agbot.",
     parameters = Array(
@@ -192,7 +194,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                            @Parameter(hidden = true) resource: String): Route =
     parameter("attribute".?) {
       attribute =>
-        logger.debug(s"GET /orgs/$organization/patterns/$deploymentPattern?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+        Future { logger.debug(s"GET /orgs/$organization/deployment/patterns/$deploymentPattern?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         
         attribute match {
           case Some(attribute) => // Only returning 1 attr of the pattern
@@ -240,15 +242,15 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                 
             complete {
               if (getPatternAttribute == null)
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.attr.not.in.pattern", attribute)))
+                (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.attr.not.in.pattern", attribute)))
               else
                 db.run(Compiled(getPatternAttribute).result).map {
                   list =>
                     logger.debug("GET /orgs/" + organization + "/patterns/" + deploymentPattern + " attribute result: " + list.toString)
                     if (list.nonEmpty)
-                      (HttpCode.OK, GetPatternAttributeResponse(attribute, list.head))
+                      (StatusCodes.OK, GetPatternAttributeResponse(attribute, list.head))
                     else
-                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                      (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
                     
                 }
             }
@@ -295,7 +297,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
         }
     }
   
-  // =========== PATCH /orgs/{organization}/patterns/{pattern} ===============================
+  // =========== PATCH /orgs/{organization}/deployment/patterns/{pattern} ===============================
   @PATCH
   @Operation(summary = "Updates 1 attribute of a pattern", description = "Updates one attribute of a pattern. This can only be called by the user that originally created this pattern resource.",
     parameters = Array(
@@ -406,22 +408,24 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
     patch {
       entity(as[PatchPatternRequest]) {
         reqBody =>
-          logger.debug(s"PATCH /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+          implicit val formats: Formats = DefaultFormats
+          Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+          Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - \nRequest: ${writePretty(reqBody)}") }
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
             
-            complete({
+            complete {
               val (action, attrName) = reqBody.getDbUpdate(resource, organization)
               var storedPatternPublic = false
-              if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.pattern.attribute.specified")))
+              if (action == null) (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.pattern.attribute.specified")))
               else {
                 val (valServiceIdActions, svcRefs) = if (attrName == "services") PatternsTQ.validateServiceIds(reqBody.services.get, List())
                 else if (attrName == "userInput") PatternsTQ.validateServiceIds(List(), reqBody.userInput.get)
                 else (DBIO.successful(Vector()), Vector())
                 db.run(valServiceIdActions.asTry.flatMap({
                   case Success(v) =>
-                    logger.debug("PATCH /orgs/" + organization + "/patterns" + deploymentPattern + " service validation: " + v)
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - service validation: $v") }
                     var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                     breakable {
                       for ((len, index) <- v.zipWithIndex) {
@@ -440,7 +444,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                   case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
                 }).flatMap({
                   case Success(patternPublic) =>
-                    logger.debug("PATCH /orgs/" + organization + "/patterns" + deploymentPattern + " checking public field of " + resource + ": " + patternPublic)
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - checking public field of $resource: $patternPublic") }
                     val public: Seq[Boolean] = patternPublic
                     if (public.nonEmpty) {
                       val publicField: Boolean = reqBody.public.getOrElse(false)
@@ -456,7 +460,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                   case Failure(t) => DBIO.failed(t).asTry
                 }).flatMap({
                   case Success(patternOrg) =>
-                    logger.debug("PATCH /orgs/" + organization + "/patterns" + deploymentPattern + " checking orgType of " + organization + ": " + patternOrg)
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - checking orgType of $organization: $patternOrg") }
                     if (patternOrg.head == "IBM") { // only patterns of orgType "IBM" can be public
                       action.transactionally.asTry
                     }
@@ -467,7 +471,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                 }).flatMap({
                   case Success(v) =>
                     // Add the resource to the resourcechanges table
-                    logger.debug("PATCH /orgs/" + organization + "/patterns/" + deploymentPattern + " result: " + v)
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: $v") }
                     val numUpdated: Int = v.asInstanceOf[Int] // v comes to us as type Any
                     if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
                       // TODO: if (attrName == "public") AuthCache.putPatternIsPublic(resource, reqBody.public.getOrElse(false))
@@ -480,29 +484,33 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                       }
                       ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
                     } else {
-                      DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.attribute.not.update", attrName, resource))).asTry
+                      DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.attribute.not.update", attrName, resource))).asTry
                     }
-                  case Failure(t) => DBIO.failed(t).asTry
-                })).map({
+                  case Failure(exception) => DBIO.failed(exception).asTry
+                })).map {
                   case Success(v) =>
-                    logger.debug("PATCH /orgs/" + organization + "/patterns/" + deploymentPattern + " updated in changes table: " + v)
-                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.attribute.not.update", attrName, resource)))
-                  case Failure(t: DBProcessingError) =>
-                    t.toComplete
-                  case Failure(_: ResourceNotFoundException) =>
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource)))
-                  case Failure(t: org.postgresql.util.PSQLException) =>
-                    ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.not.updated", resource, t.getMessage))
-                  case Failure(t) =>
-                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", resource, t.getMessage)))
-                })
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
+                    (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.attribute.not.update", attrName, resource)))
+                  case Failure(exception: DBProcessingError) =>
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+                    exception.toComplete
+                  case Failure(exception: ResourceNotFoundException) =>
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.NotFound, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))))}") }
+                    (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource)))
+                  case Failure(exception: org.postgresql.util.PSQLException) =>
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("pattern.not.updated", resource, exception.getMessage)))}") }
+                    ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("pattern.not.updated", resource, exception.getMessage))
+                  case Failure(exception) =>
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", resource, exception.getMessage))))}") }
+                    (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", resource, exception.getMessage)))
+                }
               }
-            })
+            }
           }
       }
     }
   
-  // =========== POST /orgs/{organization}/patterns/{pattern} ===============================
+  // =========== POST /orgs/{organization}/deployment/patterns/{pattern} ===============================
   @POST
   @Operation(
     summary = "Adds a pattern",
@@ -643,19 +651,21 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                             @Parameter(hidden = true) resource: String): Route =
     entity(as[PostPutPatternRequest]) {
       reqBody =>
-        logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+        implicit val formats: Formats = DefaultFormats
+        Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+        Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - \nRequest: ${writePretty(reqBody)}") }
         
         validateWithMsg(reqBody.getAnyProblem) {
           
           val INSTANT: Instant = Instant.now()
           
-          complete({
+          complete {
             val owner: Option[UUID] = identity.identifier
             // Get optional agbots that should be updated with this new pattern
             val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
             db.run(valServiceIdActions.asTry.flatMap({
               case Success(v) =>
-                logger.debug("POST /orgs/" + organization + "/patterns" + deploymentPattern + " service validation: " + v)
+                Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - service validation: $v") }
                 var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                 breakable {
                   for ((len, index) <- v.zipWithIndex) {
@@ -674,7 +684,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
               case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
             }).flatMap({
               case Success(orgName) =>
-                logger.debug("POST /orgs/" + organization + "/patterns" + deploymentPattern + " checking public field and orgType of " + resource + ": " + orgName)
+                Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - checking public field and orgType of $resource: $orgName") }
                 val orgType: Seq[Any] = orgName
                 val publicField: Boolean = reqBody.public.getOrElse(false)
                 if ((publicField && orgType.head == "IBM") || !publicField) { // pattern is public and owner is IBM so ok, or pattern isn't public at all so ok
@@ -684,42 +694,49 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
               case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
             }).flatMap({
               case Success(num) =>
-                logger.debug("POST /orgs/" + organization + "/patterns" + deploymentPattern + " num owned by " + owner + ": " + num)
+                Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - num owned: $num") }
                 val numOwned: Int = num
                 val maxPatterns: Int = Configuration.getConfig.getInt("api.limits.maxPatterns")
                 if (maxPatterns == 0 || numOwned <= maxPatterns) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                   reqBody.toPatternRow(resource, organization, identity.identifier.getOrElse(identity.owner.get)).insert.asTry
                 }
-                else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.limit.of.max.patterns", maxPatterns))).asTry
+                else DBIO.failed(new DBProcessingError(StatusCodes.Forbidden, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.limit.of.max.patterns", maxPatterns))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             }).flatMap({
               case Success(v) =>
                 // Add the resource to the resourcechanges table
-                logger.debug("POST /orgs/" + organization + "/patterns/" + deploymentPattern + " result: " + v)
+                Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: $v") }
                 val publicField: Boolean = reqBody.public.getOrElse(false)
                 ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.CREATED, INSTANT).insert.asTry
-              case Failure(t) => DBIO.failed(t).asTry
-            })).map({
+              case Failure(exception) => DBIO.failed(exception).asTry
+            })).map {
               case Success(v) =>
-                logger.debug("POST /orgs/" + organization + "/patterns/" + deploymentPattern + " updated in changes table: " + v)
+                Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
                 //if (owner.isDefined) AuthCache.putPatternOwner(resource, owner) // currently only users are allowed to update pattern resources, so owner should never be blank
                 //AuthCache.putPatternIsPublic(resource, reqBody.public.getOrElse(false))
                 cacheResourceOwnership.put(organization, deploymentPattern, "deployment_pattern")((identity.identifier.getOrElse(identity.owner.get), reqBody.public.getOrElse(false)), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
                 
-                (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.created", resource)))
-              case Failure(t: DBProcessingError) =>
-                t.toComplete
-              case Failure(t: org.postgresql.util.PSQLException) =>
-                if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("pattern.already.exists", resource, t.getMessage)))
-                else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.not.created", resource, t.getMessage))
-              case Failure(t) =>
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.created", resource, t.getMessage)))
-            })
-          })
+                (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.created", resource)))
+              case Failure(exception: DBProcessingError) =>
+                exception.toComplete
+              case Failure(exception: org.postgresql.util.PSQLException) =>
+                if (ExchangePosgtresErrorHandling.isDuplicateKeyError(exception)) {
+                  Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("pattern.already.exists", resource, exception.getMessage))))}") }
+                  (StatusCodes.Forbidden, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("pattern.already.exists", resource, exception.getMessage)))
+                }
+                else {
+                  Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("pattern.not.created", resource, exception.getMessage)))}") }
+                  ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("pattern.not.created", resource, exception.getMessage))
+                }
+              case Failure(exception) =>
+                Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.created", resource, exception.getMessage))))}") }
+                (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.created", resource, exception.getMessage)))
+            }
+          }
         }
     }
   
-  // =========== PUT /orgs/{organization}/patterns/{pattern} ===============================
+  // =========== PUT /orgs/{organization}/deployment/patterns/{pattern} ===============================
   @PUT
   @Operation(summary = "Adds a pattern", description = "Creates a pattern resource. A pattern resource specifies all of the services that should be deployed for a type of node. When a node registers with Horizon, it can specify a pattern name to quickly tell Horizon what should be deployed on it. This can only be called by a user.",
     parameters = Array(
@@ -830,7 +847,9 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PostPutPatternRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/$organization/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+          implicit val formats: Formats = DefaultFormats
+          Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+          Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - \nRequest: ${writePretty(reqBody)}") }
           
           validateWithMsg(reqBody.getAnyProblem) {
             
@@ -842,7 +861,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
               val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
               db.run(valServiceIdActions.asTry.flatMap({
                 case Success(v) =>
-                  logger.debug("PUT /orgs/" + organization + "/patterns" + deploymentPattern + " service validation: " + v)
+                  Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - service validation: $v") }
                   var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
                   breakable {
                     for ((len, index) <- v.zipWithIndex) {
@@ -860,7 +879,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                   }
                 case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
               }).flatMap({ xs =>
-                logger.debug("PUT /orgs/"+organization+"/patterns"+deploymentPattern+" checking public field of "+resource+": "+xs)
+                Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - checking public field $xs") }
                 xs match {
                   case Success(patternPublic) => val public: Seq[Boolean] = patternPublic
                     if(public.nonEmpty){
@@ -877,7 +896,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                 }
               }).flatMap({
                 case Success(orgTypes) =>
-                  logger.debug("PUT /orgs/" + organization + "/patterns" + deploymentPattern + " checking orgType of " + organization + ": " + orgTypes)
+                  Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - checking orgType: $orgTypes") }
                   if (orgTypes.head == "IBM") { // only patterns of orgType "IBM" can be public
                     reqBody.toPatternRow(resource, organization, identity.identifier.getOrElse(identity.owner.get)).update.asTry
                   } else {
@@ -887,7 +906,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
               }).flatMap({
                 case Success(n) =>
                   // Add the resource to the resourcechanges table
-                  logger.debug("PUT /orgs/" + organization + "/patterns/" + deploymentPattern + " result: " + n)
+                  Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: $n") }
                   val numUpdated: Int = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
                   if (numUpdated > 0) {
                     var publicField = false
@@ -900,21 +919,25 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                     }
                     ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERN, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                   } else {
-                    DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
+                    DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
                   }
-                case Failure(t) => DBIO.failed(t).asTry
+                case Failure(exception) => DBIO.failed(exception).asTry
               })).map({
                 case Success(v) =>
-                  logger.debug("PUT /orgs/" + organization + "/patterns/" + deploymentPattern + " updated in changes table: " + v)
-                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.updated")))
-                case Failure(t: DBProcessingError) =>
-                  t.toComplete
-                case Failure(t: ResourceNotFoundException) =>
-                  t.toComplete
-                case Failure(t: org.postgresql.util.PSQLException) =>
-                  ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.not.updated", resource, t.getMessage))
-                case Failure(t) =>
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", resource, t.getMessage)))
+                  Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.updated")))
+                case Failure(exception: DBProcessingError) =>
+                  Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+                  exception.toComplete
+                case Failure(exception: ResourceNotFoundException) =>
+                  Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+                  exception.toComplete
+                case Failure(exception: org.postgresql.util.PSQLException) =>
+                  Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("pattern.not.updated", resource, exception.getMessage)))}") }
+                  ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("pattern.not.updated", resource, exception.getMessage))
+                case Failure(exception) =>
+                  Future { logger.debug(s"PUT /orgs/$organization/deployment/patterns/$deploymentPattern - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", resource, exception.getMessage))))}") }
+                  (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.updated", resource, exception.getMessage)))
               })
             })
           }

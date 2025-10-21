@@ -13,7 +13,7 @@ import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, patch, path, post, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.jackson.JsonMethods
-import org.json4s.jackson.Serialization.{read, write}
+import org.json4s.jackson.Serialization.{read, write, writePretty}
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
@@ -48,10 +48,10 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
   
   // =========== DELETE /orgs/{organization}/deployment/policies/{policy} ===============================
   @DELETE
-  @Operation(summary = "Deletes a business policy", description = "Deletes a business policy. Can only be run by the owning user.",
+  @Operation(summary = "Deletes a deployment policy", description = "Deletes a deployment policy. Can only be run by the owning user.",
     parameters = Array(
       new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
+      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Deployment Policy name.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "204", description = "deleted"),
       new responses.ApiResponse(responseCode = "401", description = "invalid credentials"),
@@ -66,43 +66,47 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       
       val INSTANT: Instant = Instant.now()
       
-      complete({
+      complete {
+        implicit val formats: Formats = DefaultFormats
         db.run(BusinessPoliciesTQ.getBusinessPolicy(resource).delete.transactionally.asTry.flatMap({
           case Success(v) =>
             // Add the resource to the resourcechanges table
-            Future { logger.debug("DELETE /orgs/" + organization + "/deployment/policies/" + deploymentPolicy + " result: " + v) }
+            Future { logger.debug(s"DELETE /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: $v") }
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               // TODO: AuthCache.removeBusinessOwner(resource)
               // TODO: AuthCache.removeBusinessIsPublic(resource)
               resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
+              DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
             }
-          case Failure(t) => DBIO.failed(t).asTry
-        })).map({
+          case Failure(exception) => DBIO.failed(exception).asTry
+        })).map {
           case Success(v) =>
-            Future { logger.debug("DELETE /orgs/" + organization + "/deployment/policies/" + deploymentPolicy + " updated in changes table: " + v) }
+            Future { logger.debug(s"DELETE /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
             
             Future { cacheResourceOwnership.remove(organization, deploymentPolicy, "deployment_policy") }
             
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("business.policy.deleted")))
-          case Failure(t: DBProcessingError) =>
-            t.toComplete
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("business.policy.not.deleted", resource, t.toString))
-          case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("business.policy.not.deleted", resource, t.toString)))
-        })
-      })
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("business.policy.deleted")))
+          case Failure(exception: DBProcessingError) =>
+            Future { logger.debug(s"DELETE /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(exception.toComplete)}") }
+            exception.toComplete
+          case Failure(exception: org.postgresql.util.PSQLException) =>
+            Future { logger.debug(s"DELETE /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("business.policy.not.deleted", resource, exception.toString)))}") }
+            ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("business.policy.not.deleted", resource, exception.toString))
+          case Failure(exception) =>
+            Future { logger.debug(s"DELETE /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("business.policy.not.deleted", resource, exception.toString))))}") }
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("business.policy.not.deleted", resource, exception.toString)))
+        }
+      }
     }
   
   /* ====== GET /orgs/{organization}/deployment/policies/{policy} ================================ */
   @GET
-  @Operation(summary = "Returns a business policy", description = "Returns the business policy with the specified id. Can be run by a user, node, or agbot.",
+  @Operation(summary = "Returns a deployment policy", description = "Returns the deployment policy with the specified id. Can be run by a user, node, or agbot.",
     parameters = Array(
       new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
-      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name."),
-      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire business policy resource will be returned.")),
+      new Parameter(name = "policy", in = ParameterIn.PATH, description = "Deployment Policy name."),
+      new Parameter(name = "description", in = ParameterIn.QUERY, required = false, description = "Which attribute value should be returned. Only 1 attribute can be specified. If not specified, the entire deployment policy resource will be returned.")),
     responses = Array(
       new responses.ApiResponse(responseCode = "200", description = "response body",
         content = Array(
@@ -202,17 +206,22 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                 } yield deploymentPolicyAttribute
             
             complete {
-              if (getDeploymentPolicyAttribute == null)
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.wrong.attribute", attribute)))
+              implicit val formats: Formats = DefaultFormats
+              if (getDeploymentPolicyAttribute == null) {
+                Future { logger.debug(s"GET /orgs/${organization}/deployment/policies/${deploymentPolicy}?attribute=${attribute} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - (getDeploymentPolicyAttribute == null): true - ${(StatusCodes.BadRequest, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.wrong.attribute", attribute))))}") }
+                (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.wrong.attribute", attribute)))
+              }
               else
                 db.run(Compiled(getDeploymentPolicyAttribute).result).map {
                   list =>
-                    Future { logger.debug("GET /orgs/" + organization + "/deployment/policies/" + deploymentPolicy + " attribute result: " + list.toString) }
+                    Future { logger.debug(s"GET /orgs/${organization}/deployment/policies/${deploymentPolicy}?attribute=${attribute} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: ${list.toString()}") }
                     
                     if (list.nonEmpty)
-                      (HttpCode.OK, GetBusinessPolicyAttributeResponse(attribute, list.head.toString))
-                    else
-                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                      (StatusCodes.OK, GetBusinessPolicyAttributeResponse(attribute, list.head.toString))
+                    else {
+                      Future { logger.debug(s"GET /orgs/${organization}/deployment/policies/${deploymentPolicy}?attribute=${attribute} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - list.nonEmpty: ${list.nonEmpty} - ${(StatusCodes.NotFound, write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))))}") }
+                      (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                    }
                 }
             }
           
@@ -257,7 +266,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
   
   // =========== PATCH /orgs/{organization}/deployment/policies/{policy} ===============================
   @PATCH
-  @Operation(summary = "Updates 1 attribute of a business policy", description = "Updates one attribute of a business policy. This can only be called by the user that originally created this business policy resource.",
+  @Operation(summary = "Updates 1 attribute of a deployment policy", description = "Updates one attribute of a deployment policy. This can only be called by the user that originally created this deployment policy resource.",
     parameters = Array(
       new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
@@ -267,7 +276,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
           new ExampleObject(
             value =
               """{
-  "label": "name of the business policy",
+  "label": "name of the deployment policy",
   "description": "descriptive text",
   "service": {
     "name": "mydomain.com.weather",
@@ -352,16 +361,17 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     patch {
       entity(as[PatchBusinessPolicyRequest]) {
         reqBody =>
+          implicit val formats: Formats = DefaultFormats
           Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+          Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - \nRequest ${writePretty(reqBody)}") }
           
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
             
-            complete({
-              implicit val formats: Formats = DefaultFormats
+            complete {
               val (action, attrName) = reqBody.getDbUpdate(resource, organization)
-              if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.buspol.attribute.specified")))
+              if (action == null) (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.buspol.attribute.specified")))
               else {
                 val (valServiceIdActions, svcRefs) =
                   if (attrName == "service") BusinessPoliciesTQ.validateServiceIds(reqBody.service.get, List())
@@ -395,13 +405,13 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                       resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
                     }
                     else {
-                      DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
+                      DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
                     }
-                  case Failure(t) => DBIO.failed(t).asTry
-                })).map({
+                  case Failure(exception) => DBIO.failed(exception).asTry
+                })).map {
                   case Success(v) =>
                     Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
-                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.attribute.updated", attrName, resource)))
+                    (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.attribute.updated", attrName, resource)))
                   case Failure(exception: DBProcessingError) =>
                     Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(exception.toComplete)}") }
                     exception.toComplete
@@ -409,11 +419,11 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                     Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage)))}") }
                     ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage))
                   case Failure(exception) =>
-                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage))))}") }
-                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage)))
-                })
+                    Future { logger.debug(s"PATCH /orgs/$organization/deployment/policies/$deploymentPolicy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage))))}") }
+                    (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage)))
+                }
               }
-            })
+            }
           }
       }
     }
@@ -421,8 +431,8 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
   // =========== POST /orgs/{organization}/deployment/policies/{policy} ===============================
   @POST
   @Operation(
-    summary = "Adds a business policy",
-    description = "Creates a business policy resource. A business policy resource specifies the service that should be deployed based on the specified properties and constraints. This can only be called by a user.",
+    summary = "Adds a deployment policy",
+    description = "Creates a deployment policy resource. A deployment policy resource specifies the service that should be deployed based on the specified properties and constraints. This can only be called by a user.",
     parameters = Array(
       new Parameter(
         name = "organization",
@@ -432,7 +442,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       new Parameter(
         name = "policy",
         in = ParameterIn.PATH,
-        description = "Business Policy name."
+        description = "Deployment Policy name."
       )
     ),
     requestBody = new RequestBody(
@@ -441,7 +451,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
           examples = Array(
             new ExampleObject(
               value = """{
-  "label": "name of the business policy",
+  "label": "name of the deployment policy",
   "description": "descriptive text",
   "service": {
     "name": "mydomain.com.weather",
@@ -546,18 +556,20 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     post {
       entity(as[PostPutBusinessPolicyRequest]) {
         reqBody =>
+          implicit val formats: Formats = DefaultFormats
           Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+          Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - \nRequest: ${writePretty(reqBody)}") }
       
       validateWithMsg(reqBody.getAnyProblem) {
         
         val INSTANT: Instant = Instant.now()
         
-        complete({
+        complete {
           val owner: Option[UUID] = identity.identifier
           val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
           db.run(valServiceIdActions.asTry.flatMap({
             case Success(v) =>
-              Future { logger.debug("POST /orgs/" + organization + "/business/policies" + deploymentPolicy + " service validation: " + v) }
+              Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - service validation: $v") }
               var invalidIndex: Int = -1 // v is a vector of Int (the length of each service query). If any are zero we should error out.
               breakable {
                 for ((len, index) <- v.zipWithIndex) {
@@ -576,54 +588,62 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
             case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
           }).flatMap({
             case Success(num) =>
-              Future { logger.debug("POST /orgs/" + organization + "/business/policies" + deploymentPolicy + " num owned by " + owner + ": " + num) }
+              Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - num owned: $num") }
               val numOwned: Int = num
               val maxBusinessPolicies: Int = Configuration.getConfig.getInt("api.limits.maxBusinessPolicies")
               if (maxBusinessPolicies == 0 || numOwned <= maxBusinessPolicies) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                 reqBody.getDbInsert(resource, organization, owner.get).asTry
               }
-              else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.buspols", maxBusinessPolicies))).asTry
+              else DBIO.failed(new DBProcessingError(StatusCodes.Forbidden, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.buspols", maxBusinessPolicies))).asTry
             case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
           }).flatMap({
             case Success(v) =>
               // Add the resource to the resourcechanges table
-              Future { logger.debug("POST /orgs/" + organization + "/deployment/policies/" + deploymentPolicy + " result: " + v) }
+              Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: $v") }
               ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATED, INSTANT).insert.asTry
-            case Failure(t) => DBIO.failed(t).asTry
-          })).map({
+            case Failure(exception) => DBIO.failed(exception).asTry
+          })).map {
             case Success(v) =>
-              Future { logger.debug("POST /orgs/" + organization + "/deployment/policies/" + deploymentPolicy + " updated in changes table: " + v) }
+              Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
               // TODO: if (owner.isDefined) AuthCache.putBusinessOwner(resource, owner.get) // currently only users are allowed to update business policy resources, so owner should never be blank
               // TODO: AuthCache.putBusinessIsPublic(resource, isPublic = false)
               cacheResourceOwnership.put(organization, deploymentPolicy, "deployment_policy")((identity.identifier.getOrElse(identity.owner.get), false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
               
-              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.created", resource)))
-            case Failure(t: DBProcessingError) =>
-              t.toComplete
-            case Failure(t: org.postgresql.util.PSQLException) =>
-              if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.already.exists", resource, t.getMessage)))
-              else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("buspol.not.created", resource, t.getMessage))
-            case Failure(t) =>
-              (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", resource, t.getMessage)))
-          })
-        })
+              (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.created", resource)))
+            case Failure(exception: DBProcessingError) =>
+              Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(exception.toComplete)}") }
+              exception.toComplete
+            case Failure(exception: org.postgresql.util.PSQLException) =>
+              if (ExchangePosgtresErrorHandling.isDuplicateKeyError(exception)) {
+                Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.already.exists", resource, exception.getMessage))))}") }
+                (StatusCodes.Forbidden, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.already.exists", resource, exception.getMessage)))
+              }
+              else {
+                Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.created", resource, exception.getMessage)))}") }
+                ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.created", resource, exception.getMessage))
+              }
+            case Failure(exception) =>
+              Future { logger.debug(s"POST /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", resource, exception.getMessage))))}") }
+              (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.created", resource, exception.getMessage)))
+          }
+        }
       }
     }
   }
   
   // =========== PUT /orgs/{organization}/deployment/policies/{policy} ===============================
   @PUT
-  @Operation(summary = "Updates a business policy", description = "Updates a business policy resource. This can only be called by the user that created it.",
+  @Operation(summary = "Updates a deployment policy", description = "Updates a deployment policy resource. This can only be called by the user that created it.",
     parameters = Array(
       new Parameter(name = "organization", in = ParameterIn.PATH, description = "Organization id."),
       new Parameter(name = "policy", in = ParameterIn.PATH, description = "Business Policy name.")),
-    requestBody = new RequestBody(description = "Business Policy object that needs to be updated. See details in the POST route above.", required = true, content = Array(
+    requestBody = new RequestBody(description = "Deployment Policy object that needs to be updated. See details in the POST route above.", required = true, content = Array(
       new Content(
         examples = Array(
           new ExampleObject(
             value = """
 {
-  "label": "name of the business policy",
+  "label": "name of the deployment policy",
   "description": "descriptive text",
   "service": {
     "name": "mydomain.com.weather",
@@ -709,14 +729,15 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PostPutBusinessPolicyRequest]) {
         reqBody =>
+          implicit val formats: Formats = DefaultFormats
           Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+          Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - \nRequest ${writePretty(reqBody)}") }
           
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
             
-            complete({
-              implicit val formats: Formats = DefaultFormats
+            complete {
               val owner: Option[UUID] = identity.identifier
               val (valServiceIdActions, svcRefs) = reqBody.validateServiceIds  // to check that the services referenced exist
               db.run(valServiceIdActions.asTry.flatMap({
@@ -748,13 +769,13 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                     // TODO: AuthCache.putBusinessIsPublic(resource, isPublic = false)
                     resourcechange.ResourceChange(0L, organization, deploymentPolicy, ResChangeCategory.POLICY, false, ResChangeResource.POLICY, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                   } else {
-                    DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
+                    DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("business.policy.not.found", resource))).asTry
                   }
-                case Failure(t) => DBIO.failed(t).asTry
-              })).map({
+                case Failure(exception) => DBIO.failed(exception).asTry
+              })).map{
                 case Success(v) =>
                   Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
-                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.updated", resource)))
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.updated", resource)))
                 case Failure(exception: DBProcessingError) =>
                   Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(exception.toComplete)}") }
                   exception.toComplete
@@ -762,10 +783,10 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                   Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage)))}") }
                   ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage))
                 case Failure(exception) =>
-                  Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage))))}") }
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage)))
-              })
-            })
+                  Future { logger.debug(s"PUT /orgs/${organization}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage))))}") }
+                  (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.updated", resource, exception.getMessage)))
+              }
+            }
           }
       }
     }

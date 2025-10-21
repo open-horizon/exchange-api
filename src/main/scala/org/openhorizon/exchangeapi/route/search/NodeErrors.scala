@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, get, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AccessDeniedException, AuthenticationSupport, IUser, Identity2, OrgAndId, TNode}
@@ -64,10 +65,10 @@ trait NodeErrors extends JacksonSupport with AuthenticationSupport {
           nodeErrors =>
             logger.debug(s"GET /orgs/$organization/search/nodes/error/all - result size: ${nodeErrors.size}")
             if (nodeErrors.nonEmpty) {
-              (HttpCode.OK, AllNodeErrorsInOrgResp(nodeErrors))
+              (StatusCodes.OK, AllNodeErrorsInOrgResp(nodeErrors))
             }
             else
-              (HttpCode.OK, AllNodeErrorsInOrgResp(Seq.empty[NodeErrorsResp]))
+              (StatusCodes.OK, AllNodeErrorsInOrgResp(Seq.empty[NodeErrorsResp]))
         }
       }
   }

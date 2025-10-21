@@ -35,12 +35,12 @@ final case class PutNodesRequest(token: Option[String] = None,
     //   if (ExchMsg.getLang.contains("ja") || ExchMsg.getLang.contains("ko") || ExchMsg.getLang.contains("zh")) return Some(ExchMsg.translate("invalid.password.i18n"))
     //   else return Some(ExchMsg.translate("invalid.password"))
     // }
-    // if (publicKey == "") halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
+    // if (publicKey == "") halt(StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, "publicKey must be specified."))  <-- skipping this check because POST /agbots/{id}/msgs checks for the publicKey
     if (nodeType.isDefined && !NodeType.containsString(nodeType.get)) return Option(ExchMsg.translate("invalid.node.type", NodeType.valuesAsString))
     if (pattern != "" && """.*/.*""".r.findFirstIn(pattern.getOrElse("")).isEmpty) return Option(ExchMsg.translate("pattern.must.have.orgid.prepended"))
     for (m <- registeredServices.getOrElse(List())) {
       // now we support more than 1 agreement for a MS
-      // if (m.numAgreements != 1) halt(HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
+      // if (m.numAgreements != 1) halt(StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, "invalid value "+m.numAgreements+" for numAgreements in "+m.url+". Currently it must always be 1."))
       m.validate match {
         case Some(s) => return Option(s)
         case None => ;

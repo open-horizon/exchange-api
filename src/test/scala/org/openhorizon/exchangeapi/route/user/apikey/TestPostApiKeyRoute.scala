@@ -23,7 +23,7 @@ import slick.jdbc.PostgresProfile.api._
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import _root_.org.openhorizon.exchangeapi.utility.{ApiTime, HttpCode}
+import _root_.org.openhorizon.exchangeapi.utility.{ApiTime}
 import org.openhorizon.exchangeapi.route.user.apikey.PostApiKeyResponse
 
 import java.util.UUID
@@ -162,7 +162,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
 
     assert(responseBody.owner === s"${TESTUSERS(1).organization}/${TESTUSERS(1).username}")
@@ -184,7 +184,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
     assert(responseBody.owner === s"${TESTUSERS(0).organization}/${TESTUSERS(0).username}")
     assert(responseBody.description === "TestPostApiKeyRoute Admin Created Key")
@@ -205,7 +205,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
     assert(responseBody.owner === s"${TESTUSERS(1).organization}/${TESTUSERS(1).username}")
     assert(responseBody.description === "TestPostApiKeyRoute Admin Created Key for a user")
@@ -226,7 +226,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BADCREDS.intValue)
+    assert(response.code === StatusCodes.Unauthorized.intValue)
   }
 
   // Invalid JSON body should return 400 - Expected: 400
@@ -241,7 +241,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   // Org admin attempts to create an API key for a user in another org (should fail) - Expected: 403
@@ -257,7 +257,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   // Non-admin user tries to create API key for another user => should fail (403) - Expected: 403
@@ -274,7 +274,7 @@ private val TESTUSERS = Seq(
     info("Code: " + response.code)
     info("Body: " + response.body)
 
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   // Admin tries to create key for non-existent user => should fail (400 for now) - Expected: 404
@@ -291,7 +291,7 @@ private val TESTUSERS = Seq(
     info("Code: " + response.code)
     info("Body: " + response.body)
 
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   // Hub admin creates their own API key - Expected: 201
@@ -307,7 +307,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
     assert(responseBody.owner === s"${TESTUSERS(3).organization}/${TESTUSERS(3).username}")
     assert(responseBody.description === "TestPostApiKeyRoute Hub Admin API Key")
@@ -329,7 +329,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
     assert(responseBody.owner === s"${TESTUSERS(0).organization}/${TESTUSERS(0).username}")
     assert(responseBody.description.isEmpty)
@@ -351,7 +351,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   // Root user creates their own API key - Expected: 201
@@ -367,7 +367,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
     assert(responseBody.owner === "root/root")
     assert(responseBody.description === "TestPostApiKeyRoute Root Created Key")
@@ -388,7 +388,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
     assert(responseBody.owner === s"${TESTUSERS(0).organization}/${TESTUSERS(0).username}")
     assert(responseBody.description === "TestPostApiKeyRoute Root Created Key for OrgAdmin")
@@ -409,7 +409,7 @@ private val TESTUSERS = Seq(
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseBody = JsonMethods.parse(response.body).extract[PostApiKeyResponse]
     assert(responseBody.owner === s"${TESTUSERS(1).organization}/${TESTUSERS(1).username}")
     assert(responseBody.description === "TestPostApiKeyRoute Root Created Key for User")

@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
-import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
+import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.ExchangeApiApp
@@ -18,7 +18,7 @@ import org.openhorizon.exchangeapi.route.service.PutServiceKeyRequest
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -62,7 +62,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
           logger.debug("GET /orgs/"+organization+"/services/"+service+"/keys/"+key+" result: "+list.size)
           // Note: both responses must be the same content type or that doesn't get set correctly
           if (list.nonEmpty) HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, list.head.key))
-          else HttpResponse(status = HttpCode.NOT_FOUND, entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, ""))
+          else HttpResponse(status = StatusCodes.NotFound, entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, ""))
         })
       })
     }
@@ -122,18 +122,18 @@ trait Key extends JacksonSupport with AuthenticationSupport {
                   if (public.nonEmpty) {
                     val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
                     ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEKEYS, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
-                  } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
+                  } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(v) =>
                   logger.debug("PUT /orgs/" + organization + "/services/" + service + "/keys/" + key + " updated in changes table: " + v)
-                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated")))
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated")))
                 case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage)))
+                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage)))
                   else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage))
                 case Failure(t) =>
-                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage)))
-                  else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage)))
+                  if (t.getMessage.startsWith("Access Denied:")) (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage)))
+                  else (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.key.not.inserted.or.updated", key, resource, t.getMessage)))
               })
             })
           }
@@ -171,7 +171,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
             if (public.nonEmpty) {
               storedPublicField = public.head
               ServiceKeysTQ.getKey(resource, key).delete.asTry
-            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
+            } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -181,19 +181,19 @@ trait Key extends JacksonSupport with AuthenticationSupport {
               val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
               ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEKEYS, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.key.not.found", key, resource))).asTry
+              DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.key.not.found", key, resource))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
             logger.debug("DELETE /services/" + service + "/keys/" + key + " updated in changes table: " + v)
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.key.deleted")))
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.key.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.key.not.deleted", key, resource, t.toString))
           case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.key.not.deleted", key, resource, t.toString)))
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.key.not.deleted", key, resource, t.toString)))
         })
       })
     }

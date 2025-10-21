@@ -8,10 +8,11 @@ import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, Identity2, TAction}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -68,14 +69,14 @@ trait OrganizationStatus extends JacksonSupport with AuthenticationSupport {
       
       db.run(metrics.transactionally.asTry).map {
         case Success(result) =>
-          (HttpCode.OK, new AdminOrgStatus(msg = ExchMsg.translate("exchange.server.operating.normally"), nodes = result.toMap))
+          (StatusCodes.OK, new AdminOrgStatus(msg = ExchMsg.translate("exchange.server.operating.normally"), nodes = result.toMap))
         case Failure(t: org.postgresql.util.PSQLException) =>
           if (t.getMessage.contains("An I/O error occurred while sending to the backend"))
-            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, t.getMessage))
+            (StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, t.getMessage))
           else
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
         case Failure(t) =>
-          (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
+          (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
       }
     })
   }

@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.ExchangeApiApp
@@ -17,7 +18,7 @@ import org.openhorizon.exchangeapi.route.service.PostPutServiceDockAuthRequest
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.service.dockerauth.{ServiceDockAuth, ServiceDockAuthsTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -60,13 +61,13 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
         case Success(dockauthId) =>
           db.run(ServiceDockAuthsTQ.getDockAuth(resource, dockauthId).result).map({ list =>
             logger.debug("GET /orgs/" + organization + "/services/" + service + "/dockauths/" + dockauthId + " result: " + list.size)
-            if (list.nonEmpty) (HttpCode.OK, list.head.toServiceDockAuth)
-            else (HttpCode.NOT_FOUND, list)
+            if (list.nonEmpty) (StatusCodes.OK, list.head.toServiceDockAuth)
+            else (StatusCodes.NotFound, list)
           })
         case Failure(t: org.postgresql.util.PSQLException) =>
           ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("dockauth.must.be.int", t.getMessage))
         case Failure(t) =>
-          (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("dockauth.must.be.int", t.getMessage)))
+          (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("dockauth.must.be.int", t.getMessage)))
       }
     })
   }
@@ -106,7 +107,7 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
                   logger.debug("POST /orgs/" + organization + "/services/" + service + "/dockauths result: " + n)
                   val numUpdated: Int = n.asInstanceOf[Int] // n is an AnyRef so we have to do this to get it to an int
                   if (numUpdated > 0) ServicesTQ.getPublic(resource).result.asTry
-                  else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.OK, ExchMsg.translate("dockauth.not.found", dockAuthId))).asTry
+                  else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.OK, ExchMsg.translate("dockauth.not.found", dockAuthId))).asTry
                 case Failure(t) => DBIO.failed(t).asTry
               }).flatMap({
                 case Success(public) =>
@@ -115,20 +116,20 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
                   if (public.nonEmpty) {
                     val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
                     ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
-                  } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
+                  } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(v) =>
                   logger.debug("PUT /orgs/" + organization + "/services/" + service + "/dockauths/" + dockAuthId + " updated in changes table: " + v)
-                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("dockauth.updated", dockAuthId)))
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("dockauth.updated", dockAuthId)))
                 case Failure(t: DBProcessingError) =>
                   t.toComplete
                 case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, resource, t.getMessage)))
+                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, resource, t.getMessage)))
                   else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, resource, t.getMessage))
                 case Failure(t) =>
-                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, resource, t.getMessage)))
-                  else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, resource, t.getMessage)))
+                  if (t.getMessage.startsWith("Access Denied:")) (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, resource, t.getMessage)))
+                  else (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.dockauth.not.updated", dockAuthId, resource, t.getMessage)))
               })
             })
           }
@@ -165,7 +166,7 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
                 if (public.nonEmpty) {
                   storedPublicField = public.head
                   ServiceDockAuthsTQ.getDockAuth(resource, dockauthId).delete.asTry
-                } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
+                } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             }).flatMap({
               case Success(v) =>
@@ -175,22 +176,22 @@ trait DockerAuth extends JacksonSupport with AuthenticationSupport {
                   val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
                   ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEDOCKAUTHS, ResChangeOperation.DELETED).insert.asTry
                 } else {
-                  DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.dockauths.not.found", dockauthId, resource))).asTry
+                  DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.dockauths.not.found", dockauthId, resource))).asTry
                 }
               case Failure(t) => DBIO.failed(t).asTry
             })).map({
               case Success(v) =>
                 logger.debug("DELETE /services/" + service + "/dockauths/" + dockauthId + " updated in changes table: " + v)
-                (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.dockauths.deleted")))
+                (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.dockauths.deleted")))
               case Failure(t: DBProcessingError) =>
                 t.toComplete
               case Failure(t: org.postgresql.util.PSQLException) =>
                 ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.dockauths.not.deleted", dockauthId, resource, t.toString))
               case Failure(t) =>
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.dockauths.not.deleted", dockauthId, resource, t.toString)))
+                (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.dockauths.not.deleted", dockauthId, resource, t.toString)))
             })
           case Failure(t) =>  // the dockauth id wasn't a valid int
-            (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, "dockauthid must be an integer: " + t.getMessage))
+            (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, "dockauthid must be an integer: " + t.getMessage))
         }
       })
     }

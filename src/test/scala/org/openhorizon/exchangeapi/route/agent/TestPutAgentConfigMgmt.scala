@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.agent
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
@@ -18,7 +19,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach, DoNotDiscover, Suite}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -175,7 +176,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
   }
   
   test("PUT /v1/orgs/IBM/AgentFileVersion -- 403 Unauthorized Access - IBM User") {
@@ -205,7 +206,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
         info("code: " + request.code)
         info("body: " + request.body)
         
-        assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+        assert(request.code === StatusCodes.Forbidden.intValue)
       }, TESTUSERS)
   }
   
@@ -225,7 +226,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(request.code === StatusCodes.Forbidden.intValue)
   }
   
   test("PUT /v1/orgs/IBM/AgentFileVersion -- 201 Created - Root") {
@@ -242,7 +243,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.PUT_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     
     val versions: AgentVersionsRequest = parse(request.body).extract[AgentVersionsRequest]
     
@@ -293,7 +294,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     info("code: " + request2.code)
     info("body: " + request2.body)
     
-    assert(request2.code === HttpCode.POST_OK.intValue)
+    assert(request2.code === StatusCodes.Created.intValue)
     
     val versionChanges: List[ChangeEntry] = parse(request2.body).extract[ResourceChangesRespObject].changes.filter(change => {change.orgId === "IBM" && change.resource === "agentfileversion"})
     
@@ -322,7 +323,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.PUT_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     
     val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
     val changed: Seq[(Instant, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
@@ -381,7 +382,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
         info("code: " + request.code)
         info("body: " + request.body)
   
-        assert(request.code === HttpCode.PUT_OK.intValue)
+        assert(request.code === StatusCodes.Created.intValue)
   
         val versions: AgentVersionsRequest = parse(request.body).extract[AgentVersionsRequest]
   
@@ -433,7 +434,7 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
         info("code: " + request.code)
         info("body: " + request.body)
         
-        assert(request.code === HttpCode.PUT_OK.intValue)
+        assert(request.code === StatusCodes.Created.intValue)
       }, TESTUSERS)
   }
   
@@ -453,6 +454,6 @@ class TestPutAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Bef
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.PUT_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
   }
 }

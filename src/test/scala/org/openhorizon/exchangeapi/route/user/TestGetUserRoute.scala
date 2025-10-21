@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.user
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
@@ -182,7 +183,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE + TESTUSERS(2).username).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.isEmpty)
   }
@@ -191,7 +192,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "doesNotExist").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.isEmpty)
   }
@@ -200,7 +201,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTUSERS(2).username).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.isEmpty)
   }
@@ -209,7 +210,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "root").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains("root/root"))
@@ -219,7 +220,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTUSERS(2).username).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains(TESTUSERS(2).organization + "/" +TESTUSERS(2).username))
@@ -230,7 +231,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTUSERS(1).username).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains(TESTUSERS(1).organization + "/" +TESTUSERS(1).username))
@@ -241,14 +242,14 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "root").headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTUSERS(3).username + " -- as org admin -- 200 success, returns user w/o password") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTUSERS(3).username).headers(ACCEPT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains(TESTUSERS(2).organization + "/" +TESTUSERS(3).username))
@@ -259,42 +260,42 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTUSERS(2).username).headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BADCREDS.intValue)
+    assert(response.code === StatusCodes.Unauthorized.intValue)
   }
 
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTUSERS(1).username + " -- as user -- 401 unauthorized, wrong credentials") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTUSERS(1).username).headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BADCREDS.intValue)
+    assert(response.code === StatusCodes.Unauthorized.intValue)
   }
 
   test("GET /orgs/" + TESTORGS(1).orgId + ROUTE + TESTUSERS(4).username + " -- as org admin in other org -- 403 access denied") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + TESTUSERS(4).username).headers(ACCEPT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTUSERS(2).username + " -- as node -- 403 access denied") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTUSERS(2).username).headers(ACCEPT).headers(NODEAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("GET /orgs/" + TESTORGS(0).orgId + ROUTE + TESTUSERS(2).username + " -- as agbot -- 403 access denied") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + TESTUSERS(2).username).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   ignore("GET /orgs/" + TESTORGS(0).orgId + ROUTE + "iamapikey -- as user -- 200 success, retuns self w/o password") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "iamapikey").headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains(TESTUSERS(2).organization + "/" +TESTUSERS(2).username))
@@ -305,7 +306,7 @@ class TestGetUserRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "iamtoken").headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val responseBody: TestGetUsersResponse = JsonMethods.parse(response.body).extract[TestGetUsersResponse]
     assert(responseBody.users.size === 1)
     assert(responseBody.users.contains(TESTUSERS(2).organization + "/" +TESTUSERS(2).username))

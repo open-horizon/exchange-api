@@ -8,9 +8,11 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{POST, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
-import org.apache.pekko.http.scaladsl.model.StatusCode
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, IUser, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.{PostServiceSearchRequest, PostServiceSearchResponse}
 import org.openhorizon.exchangeapi.table.node.NodesTQ
@@ -19,7 +21,7 @@ import org.openhorizon.exchangeapi.utility.HttpCode
 import slick.jdbc.PostgresProfile.api._
 
 import java.util
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 
 @Path("/v1/orgs/{organization}/search/nodes/service")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "organization")
@@ -105,12 +107,12 @@ trait NodeService extends JacksonSupport with AuthenticationSupport {
                             @Parameter(hidden = true) organization: String): Route =
     entity(as[PostServiceSearchRequest]) {
       reqBody =>
-        logger.debug(s"POST /orgs/$organization/search/nodes/service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+        Future { logger.debug(s"POST /orgs/$organization/search/nodes/service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+        Future { logger.debug(s"POST /orgs/$organization/search/nodes/service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Request: { orgid:${reqBody.orgid}, serviceArch:${reqBody.serviceArch}, serviceURL:${reqBody.serviceURL}, serviceVersion:${reqBody.serviceVersion} }") }
         
         validateWithMsg(reqBody.getAnyProblem) {
-          complete({
+          complete {
             val service: String = reqBody.serviceURL + "_" + reqBody.serviceVersion + "_" + reqBody.serviceArch
-            logger.debug("POST /orgs/"+organization+"/search/nodes/service criteria: "+reqBody.toString)
             val orgService: String = "%|" + reqBody.orgid + "/" + service + "|%"
             var qFilter = NodesTQ.filter(_.orgid === organization)
             if (identity.isUser) {
@@ -121,12 +123,21 @@ trait NodeService extends JacksonSupport with AuthenticationSupport {
               (n, _) <- qFilter join (NodeStatusTQ.filter(_.runningServices like orgService)) on (_.id === _.nodeId)
             } yield (n.id, n.lastHeartbeat)
             
-            db.run(q.result).map({ list =>
-              logger.debug("POST /orgs/"+organization+"/services/"+service+"/search result size: "+list.size)
-              val code: StatusCode = if (list.nonEmpty) HttpCode.POST_OK else HttpCode.NOT_FOUND
-              (code, PostServiceSearchResponse(list))
-            })
-          })
+            implicit val formats: Formats = DefaultFormats
+            db.run(q.result)
+              .map{
+                list =>
+                  Future { logger.debug(s"POST /orgs/$organization/search/nodes/service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: ${list.size}") }
+                  val code: StatusCode =
+                    if (list.nonEmpty)
+                      StatusCodes.Created
+                    else {
+                      Future { logger.debug(s"POST /orgs/$organization/search/nodes/service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - list.nonEmpty: ${list.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(PostServiceSearchResponse(list)))}") }
+                      StatusCodes.NotFound
+                    }
+                  (code, PostServiceSearchResponse(list))
+              }
+          }
       }
   }
   

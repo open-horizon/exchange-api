@@ -10,13 +10,14 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, IAgbot, INode, Identity, Identity2, TOrg}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeOperation, ResourceChangeRow, ResourceChanges, ResourceChangesTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import org.openhorizon.exchangeapi.ExchangeApi
 import slick.jdbc.PostgresProfile
 import slick.jdbc.PostgresProfile.api._
@@ -256,7 +257,7 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
           if (result._1.nonEmpty) {
             logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - changes:                         ${result._1.length}")
             logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - currentChange:                   ${result._2}")
-            (HttpCode.POST_OK, buildResourceChangesResponse(inputList = result._1,
+            (StatusCodes.Created, buildResourceChangesResponse(inputList = result._1,
               hitMaxRecords = (result._1.sizeIs == maxRecords),
               inputChangeId = reqBody.changeId,
               maxChangeIdOfTable = result._2.getOrElse(0)))
@@ -264,20 +265,20 @@ trait Changes extends JacksonSupport with AuthenticationSupport{
           else {
             logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - changes:                         0")
             logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - currentChange:                   ${result._2}")
-            (HttpCode.POST_OK, ResourceChangesRespObject(changes = List[ChangeEntry](),
+            (StatusCodes.Created, ResourceChangesRespObject(changes = List[ChangeEntry](),
               mostRecentChangeId = result._2.getOrElse(0),
               hitMaxRecords = false,
               exchangeVersion = ExchangeApi.adminVersion()))
           }
         case Failure(exception: IllegalCallerException) =>
-          Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", identity.resource))))}") }
-          (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", identity.resource)))
+          Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.NotFound, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", identity.resource))))}") }
+          (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.or.agbot.not.found", identity.resource)))
         case Failure(exception: org.postgresql.util.PSQLException) =>
           Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("invalid.input.message", exception.getMessage)))}") }
           ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("invalid.input.message", exception.getMessage))
         case Failure(exception) =>
-          Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage))))}") }
-          (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage)))
+          Future { logger.debug(s"POST /orgs/${organization}/changes - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage))))}") }
+          (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage)))
       })
     })
   }

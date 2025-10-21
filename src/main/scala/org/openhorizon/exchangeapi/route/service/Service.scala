@@ -11,6 +11,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, parameter, patch, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.jackson.Serialization
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
@@ -149,7 +150,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
     get {
       parameter("attribute".?) {
         attribute =>
-          logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+          Future { logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
           def isValidAttribute(attribute: String) =
             attribute match {
               case "arch" |
@@ -215,15 +216,18 @@ trait Service extends JacksonSupport with AuthenticationSupport {
             complete({
               db.run(Compiled(getServiceAttribute).result.transactionally.asTry).map {
                 case Success(serviceAttribute) =>
-                  logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute} - serviceAttribute: ${serviceAttribute.size}")
+                  Future { logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - serviceAttribute: ${serviceAttribute.size}") }
                   if (serviceAttribute.size == 1)
-                    (HttpCode.OK, serviceAttribute.head)
-                  else if (serviceAttribute.isEmpty)
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource)))
-                  else
-                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+                    (StatusCodes.OK, serviceAttribute.head)
+                  else if (serviceAttribute.isEmpty) {
+                    (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource)))
+                  }
+                  else {
+                    (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+                  }
                 case Failure(exception) =>
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.message", exception)))
+                  
+                  (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.message", exception)))
               }
             })
             
@@ -265,24 +269,30 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                                      services._1.service))
                 } yield service
               
-              complete({
-                db.run(Compiled(getService).result.transactionally.asTry).map {
-                  case Success(result) =>
-                    logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - result: ${result.size}")
-                    if (result.size == 1) {
-                      implicit val formats: Formats = DefaultFormats
-                      val serviceMap: Map[String, ServiceTable] = result.map(service => service._2 -> new ServiceTable(service._1)).toMap
-                      (HttpCode.OK, GetServicesResponse(serviceMap, 0))
-                    }
-                    else if (result.isEmpty)
-                      (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource)))
-                    else
-                      (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
-                  case Failure(exception) =>
-                    (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.message", exception)))
-                    
-                }
-              })
+              complete {
+                implicit val formats: Formats = DefaultFormats
+                db.run(Compiled(getService).result.transactionally.asTry)
+                  .map {
+                    case Success(result) =>
+                      Future { logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: ${result.size}") }
+                      if (result.size == 1) {
+                        implicit val formats: Formats = DefaultFormats
+                        val serviceMap: Map[String, ServiceTable] = result.map(service => service._2 -> new ServiceTable(service._1)).toMap
+                        (StatusCodes.OK, GetServicesResponse(serviceMap))
+                      }
+                      else if (result.isEmpty) {
+                        Future { logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result.isEmpty:${result.isEmpty} - ${(StatusCodes.NotFound, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))))}") }
+                        (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource)))
+                      }
+                      else {
+                        Future { logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result.isEmpty:${result.isEmpty} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error"))))}") }
+                        (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+                      }
+                    case Failure(exception) =>
+                      Future { logger.debug(s"GET /orgs/${organization}/services/${service}?attribute=${attribute.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.message", exception))))}") }
+                      (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.message", exception)))
+                  }
+              }
           }
           
           
@@ -291,15 +301,15 @@ trait Service extends JacksonSupport with AuthenticationSupport {
               case Some(attribute) =>  // Only returning 1 attr of the service
                 val q = ServicesTQ.getAttribute(resource, attribute) // get the proper db query for this attribute
                 if (q == null)
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("attribute.not.part.of.service", attribute)))
+                  (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("attribute.not.part.of.service", attribute)))
                 else
                   db.run(q.result).map({
                     list =>
                       logger.debug("GET /orgs/" + organization + "/services/" + service + " attribute result: " + list.toString)
                       if (list.nonEmpty)
-                        (HttpCode.OK, GetServiceAttributeResponse(attribute, list.head.toString))
+                        (StatusCodes.OK, GetServiceAttributeResponse(attribute, list.head.toString))
                       else
-                        (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                        (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
                   })
               case None =>  // Return the whole service resource
                 db.run(ServicesTQ.getService(resource).result).map({
@@ -383,7 +393,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PostPutServiceRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+          Future { logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
           validateWithMsg(reqBody.getAnyProblem(organization, resource)) {
             
             val INSTANT: Instant = Instant.now()
@@ -400,9 +410,10 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                 ServicesTQ.filter(s => { svcIds.map(s.service like _).reduceLeft(_ || _) }).map(s => (s.orgid, s.url, s.version, s.arch)).result
               }
               
+              implicit val formats: Formats = DefaultFormats
               db.run(svcAction.asTry.flatMap({
                 case Success(rows) =>
-                  logger.debug("POST /orgs/" + organization + "/services requiredServices validation: " + rows)
+                  Future { logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - requiredServices validation: $rows") }
                   var invalidIndex: Int = -1
                   var invalidSvcRef: ServiceRef = ServiceRef("", "", Some(""), Some(""), "")
                   // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
@@ -430,7 +441,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
               }).flatMap({
                 case Success(n) =>
                   // Add the resource to the resourcechanges table
-                  logger.debug("PUT /orgs/" + organization + "/services/" + service + " result: " + n)
+                  Future { logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: $n") }
                   val numUpdated: Int = n.asInstanceOf[Int] // i think n is an AnyRef so we have to do this to get it to an int
                   if (numUpdated > 0) {
                     // TODO: if (owner.isDefined) AuthCache.putServiceOwner(resource, owner.get) // currently only users are allowed to update service resources, so owner should never be blank
@@ -438,21 +449,34 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                     val serviceId: String = resource.substring(resource.indexOf("/") + 1, resource.length)
                     ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, reqBody.public, ResChangeResource.SERVICE, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
                   } else {
-                    DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
+                    DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                   }
-                case Failure(t) => DBIO.failed(t).asTry
+                case Failure(exception) => DBIO.failed(exception).asTry
               })).map({
                 case Success(v) =>
-                  logger.debug("PUT /orgs/" + organization + "/services/" + service + " updated in changes table: " + v)
-                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.updated")))
-                case Failure(t: DBProcessingError) =>
-                  t.toComplete
-                case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, t.getMessage)))
-                  else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.not.updated", resource, t.getMessage))
-                case Failure(t) =>
-                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, t.getMessage)))
-                  else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", resource, t.getMessage)))
+                  Future { logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.updated")))
+                case Failure(exception: DBProcessingError) =>
+                  Future { logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+                  exception.toComplete
+                case Failure(exception: org.postgresql.util.PSQLException) =>
+                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(exception)) {
+                    Future { logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, exception.getMessage))))}") }
+                    (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, exception.getMessage)))
+                  }
+                  else {
+                    Future { logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.not.updated", resource, exception.getMessage)))}") }
+                    ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.not.updated", resource, exception.getMessage))
+                  }
+                case Failure(exception) =>
+                  if (exception.getMessage.startsWith("Access Denied:")) {
+                    Future { logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, exception.getMessage))))}") }
+                    (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, exception.getMessage)))
+                  }
+                  else {
+                    Future { logger.debug(s"PUT /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", resource, exception.getMessage))))}") }
+                    (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", resource, exception.getMessage)))
+                  }
               })
             })
           }
@@ -523,17 +547,17 @@ trait Service extends JacksonSupport with AuthenticationSupport {
     patch {
       entity(as[PatchServiceRequest]) {
         reqBody =>
-          logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
-        logger.debug(s"Doing PATCH /orgs/$organization/services/$service")
+          Future { logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+        
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
             
             complete({
               val (action, attrName) = reqBody.getDbUpdate(resource, organization)
-              if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.service.attr.specified")))
-              else if (attrName == "url" || attrName == "version" || attrName == "arch") (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("cannot.patch.these.attributes")))
-              else if (attrName == "sharable" && !SharableVals.values.map(_.toString).contains(reqBody.sharable.getOrElse(""))) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.value.for.sharable.attribute", reqBody.sharable.getOrElse(""))))
+              if (action == null) (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.service.attr.specified")))
+              else if (attrName == "url" || attrName == "version" || attrName == "arch") (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("cannot.patch.these.attributes")))
+              else if (attrName == "sharable" && !SharableVals.values.map(_.toString).contains(reqBody.sharable.getOrElse(""))) (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.value.for.sharable.attribute", reqBody.sharable.getOrElse(""))))
               else {
                 // Make a list of service searches for the required services. This can match more services than we need, because it wildcards the version.
                 // We'll look for versions within the required ranges in the db access routine below.
@@ -546,11 +570,12 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                   }).map(s => (s.orgid, s.url, s.version, s.arch)).result
                 }
                 
+                implicit val formats: Formats = DefaultFormats
                 // First check that the requiredServices exist (if that is not what they are patching, this is a noop)
                 //todo: add a step to update the owner, if different
                 db.run(svcAction.transactionally.asTry.flatMap({
                   case Success(rows) =>
-                    logger.debug("PATCH /orgs/" + organization + "/services requiredServices validation: " + rows)
+                    Future { logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - requiredServices validation: $rows") }
                     var invalidIndex: Int = -1
                     var invalidSvcRef: ServiceRef = ServiceRef("", "", Some(""), Some(""), "")
                     // rows is a sequence of some ServiceRow cols which is a superset of what we need. Go thru each requiredService in the request and make
@@ -578,19 +603,19 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                 }).flatMap({
                   case Success(v) =>
                     // Get the value of the public field
-                    logger.debug("PUT /orgs/" + organization + "/services/" + service + " result: " + v)
+                    Future { logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: $v") }
                     val numUpdated: Int = v.asInstanceOf[Int] // v comes to us as type Any
                     if (numUpdated > 0) { // there were no db errors, but determine if it actually found it or not
                       // TODO: if (attrName == "public") AuthCache.putServiceIsPublic(resource, reqBody.public.getOrElse(false))
                       ServicesTQ.getPublic(resource).result.asTry
                     } else {
-                      DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
+                      DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                     }
                   case Failure(t) => DBIO.failed(t).asTry
                 }).flatMap({
                   case Success(public) =>
                     // Add the resource to the resourcechanges table
-                    logger.debug("PUT /orgs/" + organization + "/services/" + service + " public field: " + public)
+                    Future { logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - public field: $public") }
                     if (public.nonEmpty) {
                       val serviceId: String = resource.substring(resource.indexOf("/") + 1, resource.length)
                       var publicField = false
@@ -601,20 +626,33 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                         publicField = public.head
                       }
                       ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, publicField, ResChangeResource.SERVICE, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
-                    } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
+                    } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
                   case Failure(t) => DBIO.failed(t).asTry
                 })).map({
                   case Success(v) =>
-                    logger.debug("PATCH /orgs/" + organization + "/services/" + service + " updated in changes table: " + v)
-                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.attr.updated", attrName, resource)))
-                  case Failure(t: DBProcessingError) =>
-                    t.toComplete
-                  case Failure(t: org.postgresql.util.PSQLException) =>
-                    if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, t.getMessage)))
-                    else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.not.updated", resource, t.getMessage))
-                  case Failure(t) =>
-                    if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, t.getMessage)))
-                    else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", resource, t.getMessage)))
+                    Future { logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
+                    (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.attr.updated", attrName, resource)))
+                  case Failure(exception: DBProcessingError) =>
+                    Future { logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+                    exception.toComplete
+                  case Failure(exception: org.postgresql.util.PSQLException) =>
+                    if (ExchangePosgtresErrorHandling.isAccessDeniedError(exception)) {
+                      Future { logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, exception.getMessage))))}") }
+                      (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, exception.getMessage)))
+                    }
+                    else {
+                      Future { logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.not.updated", resource, exception.getMessage)))}") }
+                      ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.not.updated", resource, exception.getMessage))
+                    }
+                  case Failure(exception) =>
+                    if (exception.getMessage.startsWith("Access Denied:")) {
+                      Future { logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, exception.getMessage))))}") }
+                      (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("service.not.updated", resource, exception.getMessage)))
+                    }
+                    else {
+                      Future { logger.debug(s"PATCH /orgs/${organization}/services/${service} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", resource, exception.getMessage))))}") }
+                      (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.updated", resource, exception.getMessage)))
+                    }
                 })
               }
             })
@@ -638,7 +676,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                     @Parameter(hidden = true) resource: String,
                     @Parameter(hidden = true) service: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/$organization/services/$service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+      Future { logger.debug(s"DELETE /orgs/$organization/services/$service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
       
       complete({
         val findService: Query[Services, ServiceRow, Seq] =
@@ -684,23 +722,29 @@ trait Service extends JacksonSupport with AuthenticationSupport {
             _ <- Compiled(findService).delete
             
           } yield()
-          
+        
+        implicit val formats: Formats = DefaultFormats
         db.run((deleteService).transactionally.asTry)
           .map{
             case Success(_) =>
               cacheResourceOwnership.remove(organization, service, "service")
               
-              (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.deleted")))
-            case Failure(t: NoSuchElementException) =>
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource)))
-            case Failure(t: DBProcessingError) =>
-              t.toComplete
-            case Failure(t: org.postgresql.util.PSQLException) =>
-              ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.not.deleted", resource, t.toString))
-            case Failure(t: IllegalStateException) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", resource, t.toString)))
-            case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", resource, t.toString)))
+              (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.deleted")))
+            case Failure(exception: NoSuchElementException) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/services/$service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.NotFound, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))))}") }
+              (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource)))
+            case Failure(exception: DBProcessingError) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/services/$service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+              exception.toComplete
+            case Failure(exception: org.postgresql.util.PSQLException) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/services/$service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.not.deleted", resource, exception.toString)))}") }
+              ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.not.deleted", resource, exception.toString))
+            case Failure(exception: IllegalStateException) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/services/$service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", resource, exception.toString))))}") }
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", resource, exception.toString)))
+            case Failure(exception) =>
+              Future { logger.debug(s"DELETE /orgs/$organization/services/$service - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", resource, exception.toString))))}") }
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.not.deleted", resource, exception.toString)))
           }
       })
   }

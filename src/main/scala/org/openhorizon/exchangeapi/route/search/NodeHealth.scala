@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{POST, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TNode}
@@ -136,8 +137,8 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
               list =>
                 logger.debug("POST /orgs/"+organization+"/search/nodehealth result size: "+list.size)
                 //logger.trace("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
-                if (list.nonEmpty) (HttpCode.POST_OK, PostNodeHealthResponse(RouteUtils.buildNodeHealthHash(list)))
-                else (HttpCode.NOT_FOUND, PostNodeHealthResponse(Map[String,NodeHealthHashElement]()))
+                if (list.nonEmpty) (StatusCodes.Created, PostNodeHealthResponse(RouteUtils.buildNodeHealthHash(list)))
+                else (StatusCodes.NotFound, PostNodeHealthResponse(Map[String,NodeHealthHashElement]()))
             })
           })
         }

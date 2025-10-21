@@ -20,7 +20,7 @@ import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ,
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.CompiledStreamingExecutable
 

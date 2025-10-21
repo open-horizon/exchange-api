@@ -10,14 +10,15 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{POST, Path}
-import org.json4s.DefaultFormats
+import org.apache.pekko.http.scaladsl.model.StatusCodes
+import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.{JsonMethods, Serialization}
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.search.{SearchOffsetPolicyAttributes, SearchOffsetPolicyTQ}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BService, BusinessPoliciesTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling}
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled
 
@@ -25,7 +26,7 @@ import java.time.Instant
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-@Path("/v1/orgs/{organization}/business/policies/{policy}/search")
+@Path("/v1/orgs/{organization}/deployment/policies/{policy}/search")
 trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -33,11 +34,11 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // ======== POST /org/{organization}/business/policies/{policy}/search ========================
+  // ======== POST /org/{organization}/deployment/policies/{policy}/search ========================
   @POST
   @Operation(
-    summary = "Returns matching nodes for this business policy",
-    description = "Returns the matching nodes for this business policy that do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node).",
+    summary = "Returns matching nodes for this deployment policy",
+    description = "Returns the matching nodes for this deployment policy that do not already have an agreement for the specified service. Can be run by a user or agbot (but not a node).",
     parameters = Array(
       new Parameter(
         name = "organization",
@@ -47,7 +48,7 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
       new Parameter(
         name = "policy",
         in = ParameterIn.PATH,
-        description = "Pattern name."
+        description = "Deployment Policy name"
       )
     ),
     requestBody = new RequestBody(
@@ -106,10 +107,10 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
                                  @Parameter(hidden = true) organization: String,
                                  @Parameter(hidden = true) resource: String,
                                  @Parameter(hidden = true) reqBody: PostBusinessPolicySearchRequest): Route = {
+    implicit val formats: Formats = DefaultFormats
     Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
-    Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - request-body: ${reqBody.toString}") }
+    Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Request: ${Serialization.write(reqBody)}") }
     
-    implicit val formats: DefaultFormats.type = DefaultFormats
     val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(organization)).toSet
     
     def getService(deployPolicyService: String): BService = JsonMethods.parse(deployPolicyService).extract[BService]
@@ -296,7 +297,7 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
         case Success(results) =>
           Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: ${results._1}") }
           if(results._1.nonEmpty) { // results.nodesWoAgreements.nonEmpty.
-            (HttpCode.POST_OK,
+            (StatusCodes.Created,
               PostBusinessPolicySearchResponse(
                 results._1.map( // results.nodesWoAgreements
                   node =>
@@ -310,18 +311,18 @@ trait DeploymentPolicySearch extends JacksonSupport with AuthenticationSupport {
                 results._2)) // results.isOffsetUpdated
           }
           else {
-            Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - results._1.nonEmpty:${results._1.nonEmpty} - ${(HttpCode.NOT_FOUND, Serialization.write(PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2)))}") }
-            (HttpCode.NOT_FOUND, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2))
+            Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - results._1.nonEmpty:${results._1.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2)))}") }
+            (StatusCodes.NotFound, PostBusinessPolicySearchResponse(List[BusinessPolicyNodeResponse](), results._2))
           } // results.isOffsetUpdated
         case Failure(exception: PolicySearchResponseDesync) =>
-          Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.ALREADY_EXISTS2, Serialization.write(exception))}") }
-          (HttpCode.ALREADY_EXISTS2, exception) // Throw Http code 409 - Conflict, return no results.
+          Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Conflict, Serialization.write(exception))}") }
+          (StatusCodes.Conflict, exception) // Throw Http code 409 - Conflict, return no results.
         case Failure(exception: org.postgresql.util.PSQLException) =>
           Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("invalid.input.message", exception.getMessage)))}") }
           ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("invalid.input.message", exception.getMessage))
         case Failure(exception) =>
-          Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage))))}") }
-          (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage)))
+          Future { logger.debug(s"POST /org/${organization}/deployment/policies/${deploymentPolicy}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage))))}") }
+          (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage)))
       })
     })
   }

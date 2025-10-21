@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.model.headers.CacheDirectives.public
 import org.openhorizon.exchangeapi.ExchangeApi
 import org.json4s.DefaultFormats
@@ -11,7 +12,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -354,7 +355,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.isEmpty)
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
@@ -365,7 +366,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData("{\"invalidKey\":\"invalidValue\"}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- improperly formatted time -- 400 bad input") {
@@ -378,14 +379,14 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- specify changeId -- success, returns last TESTRC") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultIdRequest)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.nonEmpty)
     assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId === lastChangeId))) //check if RC with lastChangeId is in response
@@ -403,7 +404,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.nonEmpty)
     assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId === lastChangeId))) //check if RC with lastChangeId is in response
@@ -420,7 +421,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.nonEmpty)
     assert(responseObj.changes.exists(_.resourceChanges.exists(_.changeId.equals(lastChangeId)))) //check if RC with lastChangeId is in response
@@ -437,7 +438,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   ignore("POST /orgs/" + TESTORGS(1).orgId + ROUTE + " -- " + TESTORGS(1).orgId + " not in orgList, should be automatically added -- success") {
@@ -450,7 +451,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(IBMAGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 3)
     assertResourceChangeExists(TESTRESOURCECHANGES(1), responseObj)
@@ -471,7 +472,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(IBMAGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 5)
     assertResourceChangeExists(TESTRESOURCECHANGES(1), responseObj)
@@ -494,7 +495,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(IBMAGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 5)
     assertResourceChangeExists(TESTRESOURCECHANGES(1), responseObj)
@@ -511,7 +512,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(ORG1AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 4) //can't check for exact num because it may pick up some public RCs from other tests
     assertResourceChangeExists(TESTRESOURCECHANGES(2), responseObj)
@@ -527,7 +528,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(ORG2AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     //insure heartbeat hasn't changed
     assert(Await.result(DBCONNECTION.run(AgbotsTQ.filter(_.id === TESTAGBOTS(1).id).result), AWAITDURATION).head.lastHeartbeat === TESTAGBOTS(1).lastHeartbeat)
   }
@@ -536,7 +537,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(ORG1NODEAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 6) //can't check for exact num because it may pick up some public RCs from other tests
     assertResourceChangeExists(TESTRESOURCECHANGES(3), responseObj)
@@ -554,7 +555,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(ORG2NODEAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     //insure heartbeat hasn't changed
     assert(Await.result(DBCONNECTION.run(NodesTQ.filter(_.id === TESTNODES(1).id).result), AWAITDURATION).head.lastHeartbeat === TESTNODES(1).lastHeartbeat)
   }
@@ -563,7 +564,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 7) //can't check for exact num because it may pick up some public RCs from other tests
     assertResourceChangeExists(TESTRESOURCECHANGES(2), responseObj)
@@ -580,7 +581,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 7) //can't check for exact num because it may pick up some public RCs from other tests
     assertResourceChangeExists(TESTRESOURCECHANGES(2), responseObj)
@@ -597,7 +598,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     assert(responseObj.changes.size >= 7) //can't check for exact num because it may pick up some public RCs from other tests
     assertResourceChangeExists(TESTRESOURCECHANGES(2), responseObj)
@@ -614,7 +615,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(ORG2USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("POST /orgs/" + TESTORGS(0).orgId + ROUTE + " -- insure changing maxRecords cuts down return size -- success") {
@@ -627,7 +628,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(request)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
     if (responseObj.changes.size === 1) assert(responseObj.changes(0).resourceChanges.size === 2) else assert(responseObj.changes.size === 2)
     assert(responseObj.exchangeVersion === EXCHANGEVERSION)
@@ -651,7 +652,7 @@ class TestPostOrgChangesRoute extends AnyFunSuite with BeforeAndAfterAll with Be
         val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(defaultTimeRequest)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
         info("Code: " + response.code)
         info("Body: " + response.body)
-        assert(response.code === HttpCode.POST_OK.intValue)
+        assert(response.code === StatusCodes.Created.intValue)
         val responseObj: ResourceChangesRespObject = JsonMethods.parse(response.body).extract[ResourceChangesRespObject]
         assertResourceChangeExists(newRC, responseObj)
         val change: ChangeEntry = responseObj.changes.filter(_.orgId === TESTRESOURCECHANGES(9).orgId).filter(_.resource === TESTRESOURCECHANGES(9).resource).filter(_.id === TESTRESOURCECHANGES(9).id).head

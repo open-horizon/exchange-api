@@ -4,10 +4,16 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [2.151.0](https://github.com/open-horizon/exchange-api/pull/826) - 2025-10-16
+## [2.152.0](https://github.com/open-horizon/exchange-api/pull/830) - 2025-10-21
+- Reworked most of the managed deployment routes under Agreement Bots.
+- Improved debug logging
+- Removed pointless library encapsulation and abstractions.
+
+## [2.151.0](https://github.com/open-horizon/exchange-api/pull/827) - 2025-10-16
 - Fixed authorization for agreement bot deployment routes.
 - Improved debug logging for agreement bot routes.
 - Fixed agreement bot deployment routes missing from swagger documentation.
+- Scala 2.13.16 -> 2.13.17
 - SBT 1.11.0 -> 1.11.7
 
 ## [2.150.0](https://github.com/open-horizon/exchange-api/pull/824) - 2025-09-25

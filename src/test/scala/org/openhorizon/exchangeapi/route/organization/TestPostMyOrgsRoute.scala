@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
@@ -9,7 +10,7 @@ import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -145,14 +146,14 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).postData("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /myorgs -- invalid body -- 400 bad input") {
     val response: HttpResponse[String] = Http(URL).postData("{\"invalidKey\":\"invalidValue\"}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /myorgs -- nonexistent account -- 404 not found") {
@@ -165,7 +166,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.isEmpty)
   }
@@ -181,7 +182,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.nonEmpty)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
@@ -193,7 +194,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).postData(requestBody).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.nonEmpty)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
@@ -218,7 +219,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.size >= 3)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
@@ -241,7 +242,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.nonEmpty)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
@@ -258,7 +259,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.nonEmpty)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
@@ -275,7 +276,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.nonEmpty)
     assert(searchResponse.orgs.contains(TESTORGS(0).orgId))
@@ -292,7 +293,7 @@ class TestPostMyOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val searchResponse: GetOrgsResponse = JsonMethods.parse(response.body).extract[GetOrgsResponse]
     assert(searchResponse.orgs.size >= 2)
     assert(searchResponse.orgs.contains(TESTORGS(1).orgId))

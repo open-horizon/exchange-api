@@ -177,7 +177,7 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
                                      owner = ownerStr,
                                      value = sha256Token)
                 
-                (HttpCode.POST_OK, response)
+                (StatusCodes.Created, response)
               }.recover {
                 case ex: ClassNotFoundException =>
                   (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", s"$organization/$username")))
@@ -188,7 +188,7 @@ trait UserApiKeys extends JacksonSupport with AuthenticationSupport {
             }
           
           case None =>
-            complete(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, "User not found"))
+            complete(StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "User not found"))
         }
       }
     }

@@ -8,13 +8,14 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{POST, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Identity2, OrgAndId, Password, TUser}
 import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{Await, ExecutionContext, Future}
@@ -154,16 +155,16 @@ trait ChangePassword extends JacksonSupport with AuthenticationSupport {
                       cacheResourceIdentity.remove(resource)
                   }
                   
-                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("password.updated.successfully")))
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("password.updated.successfully")))
                 }
                 else
-                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", resource)))
+                  (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", resource)))
                 case Failure(t: MethodNotAllowedException) =>
-                  (HttpCode.NOT_ALLOWED, ApiResponse(ApiRespType.METHOD_NOT_ALLOWED, ExchMsg.translate("password.disabled.oauth.user")))
+                  (StatusCodes.MethodNotAllowed, ApiResponse(ApiRespType.METHOD_NOT_ALLOWED, ExchMsg.translate("password.disabled.oauth.user")))
               case Failure(t: org.postgresql.util.PSQLException) =>
                 ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.password.not.updated", resource, t.toString))
               case Failure(t) =>
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.password.not.updated", resource, t.toString)))
+                (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.password.not.updated", resource, t.toString)))
             }
           }
         }

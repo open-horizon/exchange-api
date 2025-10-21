@@ -165,45 +165,46 @@ trait Users extends JacksonSupport with AuthenticationSupport {
                             .sortBy(users => (users._1._8.asc, users._1._10.asc, users._1._12.asc.nullsLast))) 
         } yield users.map(user => (user._1.mapTo[UserRow], user._2, user._3))
         
-      complete({
-            db.run(getUsersWithApiKeys.result.transactionally).map { result =>
-                  // logger.debug(s"GET /orgs/$organization/users result size: " + result.size)
+      complete{
+        db.run(getUsersWithApiKeys.result.transactionally.asTry)
+          .map {
+            case Success(result) =>
+              // logger.debug(s"GET /orgs/$organization/users result size: " + result.size)
+              
+              if (result.isEmpty) {
+                (StatusCodes.NotFound, GetUsersResponse(Map.empty[String, User], 0))
+              }
+              else {
+                val groupedByUser = result.groupBy(_._1.user) // Group results by user UUID
+                
+                val userMap: Map[String, User] =
+                  groupedByUser.map {
+                    case (userUuid, userResults) =>
+                      val userResult = userResults.head
+                      val userRow = userResult._1
+                      
+                      val apiKeyMetadataList =
+                        userResults.filter(_._3.isDefined)
+                                   .map {
+                                     case (_, _, Some(apiKeyRow)) =>
+                                      new ApiKeyMetadata(tuple = (apiKeyRow._1, apiKeyRow._2, apiKeyRow._3, apiKeyRow._4)) // (description, id, label, modified_at)
+                                   }
+                                   .distinct
 
-                  if (result.isEmpty) {
-                        (StatusCodes.NotFound, GetUsersResponse(Map.empty[String, User], 0))
-                  } else {
-                        val groupedByUser = result.groupBy(_._1.user) // Group results by user UUID 
-                        
-                        val userMap: Map[String, User] = groupedByUser.map { case (userUuid, userResults) =>
-                              val userResult = userResults.head  
-                              val userRow = userResult._1
-                              
-                              val apiKeyMetadataList =
-                                userResults.filter(_._3.isDefined).map {
-                                  case (_, _, Some(apiKeyRow)) =>
-                                    new ApiKeyMetadata(tuple = (apiKeyRow._1, apiKeyRow._2, apiKeyRow._3, apiKeyRow._4)) // (description, id, label, modified_at)
-                                }.distinct
-
-                              val user = new User((userResult._1, userResult._2), Some(apiKeyMetadataList))
-                              s"${userRow.organization}/${userRow.username}" -> user
-                        }.toMap   // Ugly mapping, TODO: redesign response body
-
-                        (StatusCodes.OK, GetUsersResponse(userMap, 0))
-                  }
-            }.recover {
-                  case t: ClassNotFoundException =>
-                        (HttpCode.NOT_FOUND,
-                              ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", organization)))
-
-                  case t: org.postgresql.util.PSQLException =>
-                        ExchangePosgtresErrorHandling.ioProblemError(
-                              t, ExchMsg.translate("user.not.added", t.toString))
-
-                  case t =>
-                        (HttpCode.BAD_INPUT,
-                              ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
-            }
-      })
+                      val user = new User((userResult._1, userResult._2), Some(apiKeyMetadataList))
+                      s"${userRow.organization}/${userRow.username}" -> user
+                  }.toMap   // Ugly mapping, TODO: redesign response body
+                  
+                (StatusCodes.OK, GetUsersResponse(userMap))
+              }
+            case Failure(exception: ClassNotFoundException) =>
+              (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", organization)))
+            case Failure(exception: org.postgresql.util.PSQLException) =>
+              ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("user.not.added", exception.toString))
+            case Failure(exception) =>
+              (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", exception.toString)))
+          }
+      }
       
       /*complete({
         logger.debug(s"GET /orgs/$organization/users identity: ${identity.creds.id}") // can't display the whole ident object, because that contains the pw/token
@@ -335,37 +336,40 @@ trait Users extends JacksonSupport with AuthenticationSupport {
                                       users._1._1.externalId), users._1._2, users._2))))
           } yield users.map(user => (user._1.mapTo[UserRow], user._2, user._3))
           
-        complete({
-              db.run(getUserWithApiKeys.result.transactionally).map { result =>
-                    // logger.debug(s"GET /orgs/$organization/users/$username result size: " + result.size)
-
-                    if (result.nonEmpty) {
-                          val userResult = result.head
-                          val userRow = userResult._1
-                          val modifiedByInfo = userResult._2
-
-                          val apiKeyMetadataList = result.filter(_._3.isDefined).map { case (_, _, Some(apiKeyRow)) =>
+        complete {
+          db.run(getUserWithApiKeys.result.transactionally.asTry)
+            .map {
+              case Success(result) =>
+                // logger.debug(s"GET /orgs/$organization/users/$username result size: " + result.size)
+                
+                if (result.nonEmpty) {
+                  val userResult = result.head
+                  val userRow = userResult._1
+                  val modifiedByInfo = userResult._2
+                  
+                  val apiKeyMetadataList =
+                    result.filter(_._3.isDefined)
+                          .map {
+                            case (_, _, Some(apiKeyRow)) =>
                                 new ApiKeyMetadata(apiKeyRow, null)
-                          }.distinct
-
-                          val user = new User((userRow, modifiedByInfo), Some(apiKeyMetadataList))
-                          val userMap: Map[String, User] =
-                                Map(s"${userRow.organization}/${userRow.username}" -> user) // Ugly mapping, TODO: redesign response body
-
-                          (StatusCodes.OK, GetUsersResponse(userMap, 0))
-                    } else {
-                          (StatusCodes.NotFound, GetUsersResponse())
-                    }
-              }.recover {
-                    case t: org.postgresql.util.PSQLException =>
-                          ExchangePosgtresErrorHandling.ioProblemError(
-                                t, ExchMsg.translate("user.not.added", t.toString))
-
-                    case t =>
-                          (HttpCode.BAD_INPUT,
-                                ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
+                          }
+                          .distinct
+                          
+                  val user = new User((userRow, modifiedByInfo), Some(apiKeyMetadataList))
+                  val userMap: Map[String, User] =
+                    Map(s"${userRow.organization}/${userRow.username}" -> user) // Ugly mapping, TODO: redesign response body
+                    
+                  (StatusCodes.OK, GetUsersResponse(userMap))
+                }
+                else {
+                  (StatusCodes.NotFound, GetUsersResponse())
+                }
+              case Failure(exception: org.postgresql.util.PSQLException) =>
+                (ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("user.not.added", exception.toString)))
+              case Failure(exception) =>
+                (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", exception.toString)))
               }
-        })
+        }
       }
     }
 

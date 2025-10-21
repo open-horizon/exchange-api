@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.nodegroup.node
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ}
@@ -8,7 +9,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import scalaj.http.{Http, HttpResponse}
@@ -151,7 +152,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("POST /orgs/TestDeleteNodeFromNodeGroup/hagroup/somenodegroup/nodes/n1 -- 404 not found - Bad Node Group") {
@@ -159,7 +160,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("POST /orgs/TestDeleteNodeFromNodeGroup/hagroup/ng0/nodes/somenode -- 404 not found - Bad Node") {
@@ -167,7 +168,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng0/n0 -- 409 Conflict - Add the same node to the same node group twice") {
@@ -175,7 +176,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.ALREADY_EXISTS2.intValue)
+    assert(response.code === StatusCodes.Conflict.intValue)
   }
   
   test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng1/n0 -- 409 Conflict - Add an assigned node to a different node group") {
@@ -183,7 +184,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.ALREADY_EXISTS2.intValue)
+    assert(response.code === StatusCodes.Conflict.intValue)
   }
   
   test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng0/n1 -- 403 access denied - Assigning a node owned by another user - u1") {
@@ -191,7 +192,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
   
   test("POST /orgs/TestPostNodeToNodeGroup/hagroups/ng2/n2 -- 403 access denied - Assigning a node to an admin owned node group - u1") {
@@ -219,7 +220,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
         info("Code: " + response.code)
         info("Body: " + response.body)
         
-        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+        assert(response.code === StatusCodes.Forbidden.intValue)
       }, TESTNODES)
   }
   
@@ -248,7 +249,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
         info("Code: " + response.code)
         info("Body: " + response.body)
         
-        assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+        assert(response.code === StatusCodes.Forbidden.intValue)
       }, TESTNODES)
   }
   
@@ -257,7 +258,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     
     val assignedNodes: Seq[(String, String, String)] = Await.result(DBCONNECTION.run(NodeGroupAssignmentTQ.join(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId)).on(_.group === _.group).sortBy(_._1.node.asc.nullsLast).map(records => {(records._2.name, records._1.node, records._2.organization)}).result), AWAITDURATION)
     assert(assignedNodes.size === 2)
@@ -313,7 +314,7 @@ class TestPostNodeToNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Be
         info("Code: " + response.code)
         info("Body: " + response.body)
       
-        assert(response.code === HttpCode.POST_OK.intValue)
+        assert(response.code === StatusCodes.Created.intValue)
       
         val assignedNodes: Seq[(String, String, String)] = Await.result(DBCONNECTION.run(NodeGroupAssignmentTQ.join(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId).filter(_.name === TESTNODEGROUPS.last.name)).on(_.group === _.group).sortBy(_._1.node.asc.nullsLast).map(records => {(records._2.name, records._1.node, records._2.organization)}).result), AWAITDURATION)
         assert(assignedNodes.size === 1)

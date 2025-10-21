@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -8,7 +9,7 @@ import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
 import org.openhorizon.exchangeapi.table.organization.{OrgLimits, OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -181,7 +182,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + "doesNotExist").postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.NOT_FOUND.intValue)
+    assert(request.code === StatusCodes.NotFound.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === "doesNotExist").result), AWAITDURATION).length
     assert(numOrgs === 0) //insure org is not added
     //insure nothing was added to resource changes table
@@ -195,7 +196,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -213,7 +214,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -232,7 +233,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.BAD_INPUT.intValue)
+    assert(request.code === StatusCodes.BadRequest.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -245,7 +246,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(requestBody).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val dbOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === "newType")
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
@@ -270,7 +271,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val dbOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === requestBody.orgType.get)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
@@ -295,7 +296,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val dbOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === TESTORGS(0).orgType)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
@@ -320,7 +321,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val dbOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === TESTORGS(0).orgType)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
@@ -345,7 +346,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val dbOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === TESTORGS(0).orgType)
     assert(dbOrg.tags.get.extract[Map[String, Option[String]]] === requestBody.tags.get)
@@ -370,7 +371,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val dbOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === TESTORGS(0).orgType)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
@@ -399,7 +400,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(requestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val dbOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === TESTORGS(0).orgType)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
@@ -416,7 +417,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val dbOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === normalRequestBody.orgType.get)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
@@ -433,7 +434,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ORGADMIN1AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     val dbOrg: OrgRow = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).head
     assert(dbOrg.orgType === normalRequestBody.orgType.get)
     assert(dbOrg.tags.get === TESTORGS(0).tags.get)
@@ -450,7 +451,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USER1AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(request.code === StatusCodes.Forbidden.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -460,7 +461,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(ORGADMIN2AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(request.code === StatusCodes.Forbidden.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)
@@ -470,7 +471,7 @@ class TestPatchOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     val request: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).postData(Serialization.write(normalRequestBody)).method("PATCH").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: " + request.code)
     info("body: " + request.body)
-    assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(request.code === StatusCodes.Forbidden.intValue)
     assertNoChanges(TESTORGS(0))
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === TESTORGS(0).orgId).result), AWAITDURATION).isEmpty)

@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{POST, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TNode}
@@ -15,7 +16,7 @@ import org.openhorizon.exchangeapi.route.node.{PatternNodeResponse, PostPatternS
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PServices, PatternsTQ}
 import org.openhorizon.exchangeapi.table.node.{NodeType, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling}
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
 
@@ -26,7 +27,7 @@ import scala.util.control.Breaks.{break, breakable}
 import scala.util.{Failure, Success}
 
 
-@Path("/v1/orgs/{organization}/patterns/{pattern}/search")
+@Path("/v1/orgs/{organization}/deployment/patterns/{pattern}/search")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
 trait Search extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -35,7 +36,7 @@ trait Search extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // ======== POST /org/{organization}/patterns/{deploymentPattern}/search ========================
+  // ======== POST /org/{organization}/deployment/patterns/{deploymentPattern}/search ========================
   @POST
   @Operation(
     summary = "Returns matching nodes of a particular pattern",
@@ -98,8 +99,8 @@ trait Search extends JacksonSupport with AuthenticationSupport {
                      @Parameter(hidden = true) resource: String): Route =
     entity(as[PostPatternSearchRequest]) {
       reqBody =>
-        Future { logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
-        Future { logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/search - request-body: ${reqBody.toString}") }
+        Future { logger.debug(s"POST /org/${organization}/deployment/patterns/${deploymentPattern}/search - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+        Future { logger.debug(s"POST /org/${organization}/deployment/patterns/${deploymentPattern}/search - request-body: ${reqBody.toString}") }
         
         validateWithMsg(if(!(reqBody.secondsStale.isEmpty || !(reqBody.secondsStale.get < 0)) && reqBody.serviceUrl.nonEmpty) Some(ExchMsg.translate("bad.input")) else None) {
           complete({
@@ -193,9 +194,9 @@ trait Search extends JacksonSupport with AuthenticationSupport {
               else DBIO.failed(new Throwable(ExchMsg.translate("pattern.id.not.found", resource))).asTry
             })).map({
               case Success(list) =>
-                Future { logger.debug(s"POST /orgs/$organization/patterns/$deploymentPattern/search - result size: " + list.size) }
+                Future { logger.debug(s"POST /orgs/$organization/deployment/patterns/$deploymentPattern/search - result size: " + list.size) }
                 if (list.nonEmpty) {
-                  (HttpCode.POST_OK,
+                  (StatusCodes.Created,
                    PostPatternSearchResponse(list
                                                .map(
                                                  node =>
@@ -208,12 +209,12 @@ trait Search extends JacksonSupport with AuthenticationSupport {
                                              0))
                 }
                 else {
-                  (HttpCode.NOT_FOUND, PostPatternSearchResponse(List[PatternNodeResponse](), 0))
+                  (StatusCodes.NotFound, PostPatternSearchResponse(List[PatternNodeResponse](), 0))
                 }
               case Failure(t: org.postgresql.util.PSQLException) =>
                 ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("invalid.input.message", t.getMessage))
               case Failure(t) =>
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
+                (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
             })
           })
         }

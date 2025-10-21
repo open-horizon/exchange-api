@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s._
 import org.junit.runner.RunWith
 import org.scalatest.funsuite.AnyFunSuite
@@ -8,7 +9,7 @@ import scalaj.http._
 import org.openhorizon.exchangeapi._
 import org.json4s.native.Serialization.write
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
-import org.openhorizon.exchangeapi.utility.{ApiUtils, HttpCode}
+import org.openhorizon.exchangeapi.utility.ApiUtils
 
 //someday: do some short perf tests here (in addition to scr/test/go) so we get some automatic perf info
 
@@ -33,14 +34,14 @@ class PerfSuite extends AnyFunSuite {
     val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", /*List[APattern](),*/ None, "ABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   def doGetAgbots() = {
     val response: HttpResponse[String] = Http(URL+"/agbots").headers(ACCEPT).headers(AUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     assert(response.body.startsWith("{"))
     // val getAgbotResp = parse(response.body).extract[GetAgbotsResponse]
     // assert(getAgbotResp.agbots.size === 1)   // since the other test suites are creating some of these too, we can not know how many there are right now

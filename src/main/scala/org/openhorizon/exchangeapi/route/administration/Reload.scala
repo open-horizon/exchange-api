@@ -7,12 +7,12 @@ import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.ExchangeApi
 import com.github.pjfanning.pekkohttpjackson._
 import io.swagger.v3.oas.annotations._
-import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
+import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
-import jakarta.ws.rs.{OPTIONS, POST, Path}
-import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Identity2, Password, Role, TAction}
-import org.openhorizon.exchangeapi.table.ExchangeApiTables
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import jakarta.ws.rs.{POST, Path}
+import org.apache.pekko.http.scaladsl.model.StatusCodes
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TAction}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg}
 import slick.jdbc.PostgresProfile.api._
 
 import java.util.Properties
@@ -48,7 +48,7 @@ trait Reload extends JacksonSupport with AuthenticationSupport {
     logger.debug(s"POST /admin/reload - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
         Configuration.reload()
-        (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("reload.successful")))
+        (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("reload.successful")))
       }) // end of complete
   }
   

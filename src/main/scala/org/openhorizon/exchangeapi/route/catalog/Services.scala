@@ -16,7 +16,7 @@ import org.openhorizon.exchangeapi.route.service.GetServicesResponse
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.service.{Service, ServicesTQ}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -212,7 +212,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                 (StatusCodes.NotFound, GetServicesResponse())
             case Failure(exception) =>
               logger.error(cause = exception, message = s"GET /catalog/services - parameters[arch:${arch}, nodetype:${nodetype}, organization:${organization}, owner:${owner}, public:${public}, requiredurl:${requiredurl}, url:${url}, version:${version}")
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
           }
         }
     }

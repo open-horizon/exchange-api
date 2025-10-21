@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.nodegroup
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi.table
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization
@@ -11,7 +12,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -242,7 +243,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("code: " + request.code)
     info("body: " + request.body)
   
-    assert(request.code === HttpCode.NOT_FOUND.intValue)
+    assert(request.code === StatusCodes.NotFound.intValue)
   }
   
   test("POST /orgs/" + TESTORGS.head.orgId + ROUTE + "test  -- 403 Access Denied - user does not own nodes - User: u1") {
@@ -257,7 +258,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(request.code === StatusCodes.Forbidden.intValue)
   }
   
   test("POST /orgs/" + TESTORGS.head.orgId + ROUTE + "test  -- 403 Access Denied - bad node - root") {
@@ -269,7 +270,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(request.code === StatusCodes.Forbidden.intValue)
   }
   
   test("POST /orgs/" + TESTORGS.head.orgId + ROUTE + "test  -- 409 Already Exists - assigning nodes to more than one node group - root") {
@@ -292,7 +293,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.ALREADY_EXISTS2.intValue)
+    assert(request.code === StatusCodes.Conflict.intValue)
   }
   
   test("POST /orgs/" + TESTORGS.head.orgId + ROUTE + "king  -- 409 Already Exists - attempt creating the same node group twice - root") {
@@ -310,7 +311,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.ALREADY_EXISTS2.intValue)
+    assert(request.code === StatusCodes.Conflict.intValue)
   }
   
   test("POST /orgs/" + TESTORGS.head.orgId + ROUTE + "king  -- 201 Ok - default - root") {
@@ -326,7 +327,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("code: " + request.code)
     info("body: " + request.body)
 
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     
     val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.organization === "TestPostNodeGroup").result), AWAITDURATION)
     assert(nodeGroup.length === 1)
@@ -392,7 +393,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     
     val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.organization === "TestPostNodeGroup").result), AWAITDURATION)
     assert(nodeGroup.length === 1)
@@ -425,7 +426,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     
     val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.organization === "TestPostNodeGroup").result), AWAITDURATION)
     assert(nodeGroup.length === 1)
@@ -458,7 +459,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     
     val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.organization === "TestPostNodeGroup").result), AWAITDURATION)
     assert(nodeGroup.length === 1)
@@ -494,7 +495,7 @@ class TestPostNodeGroup extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
     info("code: " + request.code)
     info("body: " + request.body)
     
-    assert(request.code === HttpCode.POST_OK.intValue)
+    assert(request.code === StatusCodes.Created.intValue)
     
     val nodeGroup: Seq[NodeGroupRow] = Await.result(DBCONNECTION.run(NodeGroupTQ.filter(_.organization === "TestPostNodeGroup").result), AWAITDURATION)
     assert(nodeGroup.length === 1)

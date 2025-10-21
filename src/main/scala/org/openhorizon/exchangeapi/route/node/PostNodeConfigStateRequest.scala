@@ -28,7 +28,7 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
     val reg: Regex = """^(\S+?)/(\S+)$""".r
     val (comporg, compurl) = compositeUrl match {
       case reg(o,u) => (o, u)
-      case _ => return false   //todo: halt(HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("configstate.must.be.suspended.or.active", compositeUrl)))
+      case _ => return false   //todo: halt(StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("configstate.must.be.suspended.or.active", compositeUrl)))
     }
     (org, url) match {
       case ("","") => true
@@ -57,7 +57,7 @@ final case class PostNodeConfigStateRequest(org: String, url: String, configStat
       else rs
     })
     // this check is not ok, because we should not return NOT_FOUND if we find matching svc but their configState is already set the requested value
-    //if (newRegSvcs.sameElements(regSvcs)) halt(HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, "did not find any registeredServices that matched the given org and url criteria."))
+    //if (newRegSvcs.sameElements(regSvcs)) halt(StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, "did not find any registeredServices that matched the given org and url criteria."))
     if (!matchingSvcFound) return DBIO.failed(new ResourceNotFoundException(ExchMsg.translate("did.not.find.registered.services")))
     if (newRegSvcs == regSvcs) {
       return DBIO.successful(1)    // all the configStates were already set correctly, so nothing to do

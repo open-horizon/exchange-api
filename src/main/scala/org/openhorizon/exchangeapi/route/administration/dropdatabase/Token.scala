@@ -8,6 +8,7 @@ import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{GET, Path}
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, Role, TAction}
 import org.openhorizon.exchangeapi.route.administration.AdminDropdbTokenResponse
 import org.openhorizon.exchangeapi.utility.HttpCode
@@ -40,7 +41,7 @@ trait Token extends JacksonSupport with AuthenticationSupport {
     get {
       logger.debug(s"GET /admin/dropdb/token - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       complete({
-        (HttpCode.OK, AdminDropdbTokenResponse(createToken(Role.superUser)))
+        (StatusCodes.OK, AdminDropdbTokenResponse(createToken(Role.superUser)))
       }) // end of complete
     }
   

@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.auth
 
-import org.apache.pekko.http.scaladsl.model.StatusCode
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
 
 import javax.security.auth.login.LoginException
 
@@ -13,10 +13,10 @@ class AuthException(var httpCode: StatusCode, var apiResponse: String, msg: Stri
 }
 
 // These error msgs are matched by UsersSuite.scala, so change them there if you change them here
-final case class OrgNotFound(authInfoOrg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("org.not.found.user.facing.error", authInfoOrg))
-final case class IncorrectOrgFound(authInfoOrg: String, userInfoAcctId: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error", authInfoOrg, userInfoAcctId))
-final case class IncorrectOrgFoundMult(authInfoOrg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error.mult", authInfoOrg))
-final case class IncorrectIcpOrgFound(requestOrg: String, clusterName: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error.ICP", requestOrg, clusterName))
+final case class OrgNotFound(authInfoOrg: String) extends AuthException(StatusCodes.Unauthorized, ApiRespType.BADCREDS, ExchMsg.translate("org.not.found.user.facing.error", authInfoOrg))
+final case class IncorrectOrgFound(authInfoOrg: String, userInfoAcctId: String) extends AuthException(StatusCodes.Unauthorized, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error", authInfoOrg, userInfoAcctId))
+final case class IncorrectOrgFoundMult(authInfoOrg: String) extends AuthException(StatusCodes.Unauthorized, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error.mult", authInfoOrg))
+final case class IncorrectIcpOrgFound(requestOrg: String, clusterName: String) extends AuthException(StatusCodes.Unauthorized, ApiRespType.BADCREDS, ExchMsg.translate("incorrect.org.found.user.facing.error.ICP", requestOrg, clusterName))
 
 // Error class to use to define specific error responses from problems happening in DB threads
 // Note: this is not strictly an auth error, but it is handy to inherit from AuthException
@@ -25,49 +25,49 @@ class DBProcessingError(httpCode: StatusCode, apiResponse: String, msg: String) 
 // These 2 exceptions will be caught by IbmCloudModule and Module respectively, and return false from login().
 // Their http code should never be used, which is why it is an internal error if it unexpectedly is.
 // Only used internally: The creds werent ibm cloud creds, so return gracefully and move on to the next login module
-class NotIbmCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, "not IBM cloud credentials")
+class NotIbmCredsException extends AuthException(StatusCodes.InternalServerError, ApiRespType.INTERNAL_ERROR, "not IBM cloud credentials")
 // The creds werent local exchange creds, so return gracefully and move on to the next login module
-class NotLocalCredsException extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, "User is iamapikey or iamtoken, so credentials are not local Exchange credentials")
+class NotLocalCredsException extends AuthException(StatusCodes.InternalServerError, ApiRespType.INTERNAL_ERROR, "User is iamapikey or iamtoken, so credentials are not local Exchange credentials")
 
 // We are in the middle of a db migration, so cant authenticate/authorize anything else
-class IsDbMigrationException(msg: String = ExchMsg.translate("in.process.db.migration")) extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
+class IsDbMigrationException(msg: String = ExchMsg.translate("in.process.db.migration")) extends AuthException(StatusCodes.Forbidden, ApiRespType.ACCESS_DENIED, msg)
 
 // Exceptions for handling DB connection errors
-class DbTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiRespType.GW_TIMEOUT, msg)
-class DbConnectionException(msg: String) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
+class DbTimeoutException(msg: String) extends AuthException(StatusCodes.GatewayTimeout, ApiRespType.GW_TIMEOUT, msg)
+class DbConnectionException(msg: String) extends AuthException(StatusCodes.BadGateway, ApiRespType.BAD_GW, msg)
 
-case class InvalidCredentialsException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+case class InvalidCredentialsException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(StatusCodes.Unauthorized, ApiRespType.BADCREDS, msg)
 
-case class OrgNotSpecifiedException(msg: String = ExchMsg.translate("org.not.specified")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+case class OrgNotSpecifiedException(msg: String = ExchMsg.translate("org.not.specified")) extends AuthException(StatusCodes.Unauthorized, ApiRespType.BADCREDS, msg)
 
-case class AccessDeniedException(msg: String = ExchMsg.translate("access.denied"), summary: String = "") extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
+case class AccessDeniedException(msg: String = ExchMsg.translate("access.denied"), summary: String = "") extends AuthException(StatusCodes.Forbidden, ApiRespType.ACCESS_DENIED, msg)
 
-case class BadInputException(msg: String = ExchMsg.translate("bad.input"), summary: String = "") extends AuthException(HttpCode.BAD_INPUT, ApiRespType.BAD_INPUT, msg)
+case class BadInputException(msg: String = ExchMsg.translate("bad.input"), summary: String = "") extends AuthException(StatusCodes.BadRequest, ApiRespType.BAD_INPUT, msg)
 
-case class ResourceNotFoundException(msg: String = ExchMsg.translate("not.found")) extends AuthException(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, msg)
+case class ResourceNotFoundException(msg: String = ExchMsg.translate("not.found")) extends AuthException(StatusCodes.NotFound, ApiRespType.NOT_FOUND, msg)
 
-case class UserCreateException(msg: String = ExchMsg.translate("error.creating.user.noargs")) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
+case class UserCreateException(msg: String = ExchMsg.translate("error.creating.user.noargs")) extends AuthException(StatusCodes.BadGateway, ApiRespType.BAD_GW, msg)
 
-case class AlreadyExistsException(msg: String = ExchMsg.translate("already.exists")) extends AuthException(HttpCode.ALREADY_EXISTS2, ApiRespType.ALREADY_EXISTS, msg)
+case class AlreadyExistsException(msg: String = ExchMsg.translate("already.exists")) extends AuthException(StatusCodes.Conflict, ApiRespType.ALREADY_EXISTS, msg)
 
-case class InternalErrorException(msg: String = ExchMsg.translate("already.exists")) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
+case class InternalErrorException(msg: String = ExchMsg.translate("already.exists")) extends AuthException(StatusCodes.InternalServerError, ApiRespType.INTERNAL_ERROR, msg)
 
 // Not currently used. The IAM token we were given was expired, or some similar problem
-//class BadIamCombinationException(msg: String) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+//class BadIamCombinationException(msg: String) extends AuthException(StatusCodes.Unauthorized, ApiRespType.BADCREDS, msg)
 
 // Unexpected http code or response body from an IAM API call
-case class IamApiErrorException(msg: String) extends AuthException(HttpCode.BAD_GW, ApiRespType.BAD_GW, msg)
+case class IamApiErrorException(msg: String) extends AuthException(StatusCodes.BadGateway, ApiRespType.BAD_GW, msg)
 
 // Didn't get a response from an IAM API after a number of retries
-case class IamApiTimeoutException(msg: String) extends AuthException(HttpCode.GW_TIMEOUT, ApiRespType.GW_TIMEOUT, msg)
+case class IamApiTimeoutException(msg: String) extends AuthException(StatusCodes.GatewayTimeout, ApiRespType.GW_TIMEOUT, msg)
 
 // An error occurred while building the SSLSocketFactory with the self-signed cert
-class SelfSignedCertException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
+class SelfSignedCertException(msg: String) extends AuthException(StatusCodes.InternalServerError, ApiRespType.INTERNAL_ERROR, msg)
 
 // The creds id was not found in the db
-case class IdNotFoundException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(HttpCode.BADCREDS, ApiRespType.BADCREDS, msg)
+case class IdNotFoundException(msg: String = ExchMsg.translate("invalid.credentials")) extends AuthException(StatusCodes.Unauthorized, ApiRespType.BADCREDS, msg)
 
 // The id was not found in the db when looking for owner or isPublic
-case class IdNotFoundForAuthorizationException(msg: String = ExchMsg.translate("access.denied")) extends AuthException(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, msg)
+case class IdNotFoundForAuthorizationException(msg: String = ExchMsg.translate("access.denied")) extends AuthException(StatusCodes.Forbidden, ApiRespType.ACCESS_DENIED, msg)
 
-case class AuthInternalErrorException(msg: String) extends AuthException(HttpCode.INTERNAL_ERROR, ApiRespType.INTERNAL_ERROR, msg)
+case class AuthInternalErrorException(msg: String) extends AuthException(StatusCodes.InternalServerError, ApiRespType.INTERNAL_ERROR, msg)

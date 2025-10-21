@@ -31,11 +31,11 @@ import slick.jdbc.PostgresProfile.api._
 
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
-import scala.concurrent.ExecutionContext
+import scala.concurrent.{ExecutionContext, Future}
 import scala.util._
 import scala.util.control.Breaks._
 
-@Path("/v1/orgs/{organization}/patterns")
+@Path("/v1/orgs/{organization}/deployment/patterns")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
 trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -44,7 +44,7 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
 
-  /* ====== GET /orgs/{organization}/patterns ================================ */
+  /* ====== GET /orgs/{organization}/deployment/patterns ================================ */
   @GET
   @Operation(summary = "Returns all patterns", description = "Returns all pattern definitions in this organization. Can be run by any user, node, or agbot.",
     parameters = Array(
@@ -146,7 +146,7 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
        label,
        description,
        clusterNamespace) =>
-        logger.debug(s"GET /orgs/${organization}/patterns?clusterNamespace=${clusterNamespace.getOrElse("None")}, description=${description.getOrElse("None")}, idfilter=${idfilter.getOrElse("None")}, label=${label.getOrElse("None")}, owner=${owner.getOrElse("None")}, public=${public.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+        Future { logger.debug(s"GET /orgs/${organization}/deployment/patterns?clusterNamespace=${clusterNamespace.getOrElse("None")}&description=${description.getOrElse("None")}&idfilter=${idfilter.getOrElse("None")}&label=${label.getOrElse("None")}&owner=${owner.getOrElse("None")}&public=${public.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         implicit val formats: Formats = DefaultFormats
         val getDeploymentPatterns: Query[((Rep[String], Rep[Option[String]], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String]), Rep[String]), ((String, Option[String], String, String, String, String, Boolean, String, String, String), String), Seq] =
           for {
@@ -179,12 +179,14 @@ trait DeploymentPatterns extends JacksonSupport with AuthenticationSupport {
           complete {
             db.run(Compiled(getDeploymentPatterns).result).map {
               result =>
-                logger.debug("GET /orgs/"+organization+"/patterns result size: " + result.size)
+                Future { logger.debug(s"GET /orgs/${organization}/deployment/patterns?clusterNamespace=${clusterNamespace.getOrElse("None")}&description=${description.getOrElse("None")}&idfilter=${idfilter.getOrElse("None")}&label=${label.getOrElse("None")}&owner=${owner.getOrElse("None")}&public=${public.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: ${result.size}") }
                 
                 if (result.nonEmpty)
                   (StatusCodes.OK, GetPatternsResponse(result.map(e => (e._2 -> new Pattern(e._1))).toMap))
-                else
+                else {
+                  Future { logger.debug(s"GET /orgs/${organization}/deployment/patterns?clusterNamespace=${clusterNamespace.getOrElse("None")}&description=${description.getOrElse("None")}&idfilter=${idfilter.getOrElse("None")}&label=${label.getOrElse("None")}&owner=${owner.getOrElse("None")}&public=${public.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result.nonEmpty: ${result.nonEmpty} - ${(StatusCodes.NotFound, write(GetPatternsResponse()))}") }
                   (StatusCodes.NotFound, GetPatternsResponse())
+                }
             }
           }
     }

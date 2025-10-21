@@ -10,9 +10,10 @@ import io.swagger.v3.oas.annotations.extensions.Extension
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import io.swagger.v3.oas.annotations.{Hidden, Operation, Parameter, responses}
-import jakarta.ws.rs.{GET, Path, Produces}
+import jakarta.ws.rs.{GET, Path}
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.checkerframework.checker.units.qual.t
-import org.openhorizon.exchangeapi.auth.{Access, AuthRoles, AuthenticationSupport, Identity, Identity2, Role, TAction, TOrg}
+import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TAction, TOrg}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
@@ -22,7 +23,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsT
 import org.openhorizon.exchangeapi.table.agreementbot.message.AgbotMsgsTQ
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.schema.SchemaTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
 import slick.dbio.DBIOAction
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.Compiled
@@ -190,16 +191,16 @@ trait Status extends JacksonSupport with AuthenticationSupport {
       
       db.run(metrics.transactionally.asTry).map {
         case Success(result) =>
-          (HttpCode.OK, new AdminStatus(DBMetrics = result, message = ExchMsg.translate("exchange.server.operating.normally"), organization.nonEmpty))
+          (StatusCodes.OK, new AdminStatus(DBMetrics = result, message = ExchMsg.translate("exchange.server.operating.normally"), organization.nonEmpty))
         case Failure(t: org.postgresql.util.PSQLException) =>
           if (t.getMessage.contains("An I/O error occurred while sending to the backend"))
-            (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, t.getMessage))
+            (StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, t.getMessage))
           else
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
         case Failure(t: NoSuchElementException) => // Organization not found
-          (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization.getOrElse(""))))
+          (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization.getOrElse(""))))
         case Failure(t) =>
-          (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
+          (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, t.getMessage))
       }
     })
   }

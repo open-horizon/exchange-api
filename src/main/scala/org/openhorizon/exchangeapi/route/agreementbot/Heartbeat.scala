@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, Schema}
 import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{POST, Path}
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.checkerframework.checker.units.qual.t
 import org.json4s.{DefaultFormats, Formats}
 import org.json4s.jackson.Serialization
@@ -16,7 +17,7 @@ import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -61,18 +62,18 @@ trait Heartbeat extends JacksonSupport with AuthenticationSupport {
           case Success(v) =>
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               Future { logger.debug(s"POST /orgs/$organization/users/$agreementBot/heartbeat - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Agreement Bots Heartbeated: ${v}") }
-              (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.updated")))
+              (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.updated")))
             }
             else {
-              Future { logger.debug(s"POST /orgs/$organization/users/$agreementBot/heartbeat - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - v:${v} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", resource))))}") }
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", resource)))
+              Future { logger.debug(s"POST /orgs/$organization/users/$agreementBot/heartbeat - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - v:${v} - ${(StatusCodes.NotFound, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", resource))))}") }
+              (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agbot.not.found", resource)))
             }
           case Failure(exception: org.postgresql.util.PSQLException) =>
             Future { logger.debug(s"POST /orgs/$organization/users/$agreementBot/heartbeat - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.not.updated", resource, exception.toString)))}") }
             ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.not.updated", resource, exception.toString))
           case Failure(exception) =>
-            Future { logger.debug(s"POST /orgs/$organization/users/$agreementBot/heartbeat - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.updated", resource, exception.toString))))}") }
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.updated", resource, exception.toString)))
+            Future { logger.debug(s"POST /orgs/$organization/users/$agreementBot/heartbeat - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.updated", resource, exception.toString))))}") }
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.not.updated", resource, exception.toString)))
         })
     })
   }

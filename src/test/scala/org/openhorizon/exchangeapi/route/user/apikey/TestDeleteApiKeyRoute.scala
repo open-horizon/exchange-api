@@ -262,7 +262,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
 
     val checkResponse = Http(
       URL + TESTORGS(0).orgId + "/users/" +
@@ -271,7 +271,7 @@ override def afterAll(): Unit = {
 
     info("Check Code: " + checkResponse.code)
     info("Check Body: " + checkResponse.body)
-    assert(checkResponse.code === HttpCode.NOT_FOUND.intValue)
+    assert(checkResponse.code === StatusCodes.NotFound.intValue)
   }
 
   // Org admin deletes an API key belonging to a user in their org - Expected: 204
@@ -282,7 +282,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
 
     val checkResponse = Http(
       URL + TESTORGS(0).orgId + "/users/" +
@@ -291,7 +291,7 @@ override def afterAll(): Unit = {
 
     info("Check Code: " + checkResponse.code)
     info("Check Body: " + checkResponse.body)
-    assert(checkResponse.code === HttpCode.NOT_FOUND.intValue)
+    assert(checkResponse.code === StatusCodes.NotFound.intValue)
   }
 
   // Deleting a non-existent API key should return 404 - Expected: 404
@@ -302,7 +302,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   // User tries to delete another user's API key in the same org - Expected: 403
@@ -313,7 +313,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   // Org admin tries to delete an API key from a different org (should fail) - Expected: 403
@@ -324,7 +324,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   // Hub admin deletes their own API key - Expected: 204
@@ -335,7 +335,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
 
     val checkResponse = Http(
       URL + "root" + "/users/" +
@@ -344,7 +344,7 @@ override def afterAll(): Unit = {
 
     info("Check Code: " + checkResponse.code)
     info("Check Body: " + checkResponse.body)
-    assert(checkResponse.code === HttpCode.NOT_FOUND.intValue)
+    assert(checkResponse.code === StatusCodes.NotFound.intValue)
   }
 
   // Hub admin deletes org admin's API key - Expected: 204
@@ -355,7 +355,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
 
     val checkResponse = Http(
       URL + TESTORGS(0).orgId + "/users/" +
@@ -364,7 +364,7 @@ override def afterAll(): Unit = {
 
     info("Check Code: " + checkResponse.code)
     info("Check Body: " + checkResponse.body)
-    assert(checkResponse.code === HttpCode.NOT_FOUND.intValue)
+    assert(checkResponse.code === StatusCodes.NotFound.intValue)
   }
 
   // Hub admin tries to delete regular user's API key (should fail) - Expected: 404
@@ -375,7 +375,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   // Root user deletes their own API key - Expected: 204
@@ -386,7 +386,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   // Root user deletes org admin's API key - Expected: 204
@@ -397,7 +397,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   // Root user deletes regular user's API key - Expected: 204
@@ -408,7 +408,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   // Root user deletes hub admin's API key - Expected: 204
@@ -419,7 +419,7 @@ override def afterAll(): Unit = {
 
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
   
 }

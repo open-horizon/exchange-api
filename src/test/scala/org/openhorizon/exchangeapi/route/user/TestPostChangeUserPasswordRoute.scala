@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.user
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -11,7 +12,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalacache.modes.scalaFuture._
@@ -200,7 +201,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
   def updateConfig(key: String, value: String): Unit = {
       val configInput = AdminConfigRequest(key, value)
       val response = Http(BASEURL+"/admin/config").postData(Serialization.write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
   }
 
   def withOauthDisabled(testCode: => Unit): Unit = {
@@ -245,7 +246,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.NotFound.intValue)
     }
   }
 
@@ -254,7 +255,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "doesNotExist" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.NotFound.intValue)
     }
   }
 
@@ -263,7 +264,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
       assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
     }
@@ -275,7 +276,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
       assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
     }
@@ -286,7 +287,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
       //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
     }
@@ -298,7 +299,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.NotFound.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
       assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
     }
@@ -309,7 +310,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "orgAdmin" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(1).user).result), AWAITDURATION).head.password
       //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
     }
@@ -320,7 +321,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
       //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
     }
@@ -331,7 +332,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(3).user).result), AWAITDURATION).head.password
       assert(dbPass === TESTUSERS(3).password) //assert password hasn't changed
     }
@@ -342,7 +343,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
       //assert(BCrypt.checkpw(normalRequestBody.newPassword, dbPass.getOrElse(""))) //assert password was updated
     }
@@ -353,7 +354,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "orgUser2" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(4).user).result), AWAITDURATION).head.password
       assert(dbPass === TESTUSERS(4).password) //assert password hasn't changed
     }
@@ -364,7 +365,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(NODEAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
       assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
     }
@@ -375,7 +376,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(AGBOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
       assert(dbPass === TESTUSERS(2).password) //assert password hasn't changed
     }
@@ -386,7 +387,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + "externalUser" + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.NOT_ALLOWED.intValue)
+      assert(response.code === StatusCodes.MethodNotAllowed.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("password.disabled.oauth.user"))
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(5).user).result), AWAITDURATION).head.password
@@ -399,7 +400,7 @@ class TestPostChangeUserPasswordRoute extends AnyFunSuite with BeforeAndAfterAll
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE1 + normalUsernameToUpdate + ROUTE2).postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       val dbPass = Await.result(DBCONNECTION.run(UsersTQ.filter(_.user ===TESTUSERS(2).user).result), AWAITDURATION).head.password
       assert(Password.check(normalRequestBody.newPassword, dbPass.getOrElse("")))
     }

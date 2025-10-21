@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
@@ -8,7 +9,7 @@ import org.openhorizon.exchangeapi.table.node.NodeHeartbeatIntervals
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -143,14 +144,14 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "doesNotExist").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("GET /orgs/" + TESTORGS(0).orgId + " -- as root -- success") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size === 1)
     assert(orgsList.orgs.contains(TESTORGS(0).orgId))
@@ -161,7 +162,7 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size === 1)
     assert(orgsList.orgs.contains(TESTORGS(0).orgId))
@@ -172,7 +173,7 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).headers(ACCEPT).headers(USER1AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size === 1)
     assert(orgsList.orgs.contains(TESTORGS(0).orgId))
@@ -183,14 +184,14 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "testGetOrgRoute1").headers(ACCEPT).headers(USER2AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("GET /orgs/IBM -- return IBM Org") {
     val response: HttpResponse[String] = Http(URL + "IBM").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size === 1)
     assert(orgsList.orgs.contains("IBM"))
@@ -200,7 +201,7 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "root").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size === 1)
     assert(orgsList.orgs.contains("root"))
@@ -210,14 +211,14 @@ class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "testGetOrgRoute1").param("attribute", "doesNotExist").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("GET /orgs/testGetOrgRoute1 -- attribute = description -- return description of testGetOrgRoute1") {
     val response: HttpResponse[String] = Http(URL + "testGetOrgRoute1").param("attribute", "description").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val body = parse(response.body).extract[Map[String, String]]
     assert(body("attribute") === "description")
     assert(body("value") === TESTORGS(0).description)

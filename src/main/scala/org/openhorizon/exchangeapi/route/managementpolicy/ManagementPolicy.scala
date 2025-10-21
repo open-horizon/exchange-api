@@ -20,7 +20,7 @@ import org.openhorizon.exchangeapi.table.managementpolicy
 import org.openhorizon.exchangeapi.table.managementpolicy.{ManagementPoliciesTQ, ManagementPolicyRow, ManagementPolicy => MgmtPolicy}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -146,16 +146,16 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
               
               complete {
                 if (getManagementPolicyAtrribute == null)
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.wrong.attribute", attribute)))
+                  (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.wrong.attribute", attribute)))
                 else
                   db.run(Compiled(getManagementPolicyAtrribute).result).map {
                     result =>
                       logger.debug("GET /orgs/" + organization + "/managementpolicies/" + managementPolicy + " attribute result: " + result.toString)
                       
                       if (result.nonEmpty)
-                        (HttpCode.OK, GetManagementPolicyAttributeResponse(attribute, result.head))
+                        (StatusCodes.OK, GetManagementPolicyAttributeResponse(attribute, result.head))
                       else
-                        (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+                        (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
                   }
               }
     
@@ -300,7 +300,7 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
                   if (maxManagementPolicies == 0 || numOwned <= maxManagementPolicies) { // we are not sure if this is a create or update, but if they are already over the limit, stop them anyway
                     reqBody.getDbInsert(resource, organization, owner.get).asTry
                   }
-                  else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.mgmtpols", maxManagementPolicies))).asTry
+                  else DBIO.failed(new DBProcessingError(StatusCodes.Forbidden, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.max.limit.mgmtpols", maxManagementPolicies))).asTry
                 case Failure(t) => DBIO.failed(new Throwable(t.getMessage)).asTry
               }).flatMap({
                 case Success(v) =>
@@ -315,14 +315,14 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
                   // TODO: AuthCache.putManagementPolicyIsPublic(resource, isPublic = false)
                   cacheResourceOwnership.put(organization, managementPolicy, "management_policy")((identity.identifier.getOrElse(identity.owner.get), false), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds))
                   
-                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("mgmtpol.created", resource)))
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("mgmtpol.created", resource)))
                 case Failure(t: DBProcessingError) =>
                   t.toComplete
                 case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("mgmtpol.already.exists", resource, t.getMessage)))
+                  if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (StatusCodes.Forbidden, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("mgmtpol.already.exists", resource, t.getMessage)))
                   else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("mgmtpol.not.created", resource, t.getMessage))
                 case Failure(t) =>
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.not.created", resource, t.getMessage)))
+                  (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.not.created", resource, t.getMessage)))
               })
             })
           }
@@ -433,22 +433,22 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
                   Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
                   // TODO: if (owner.isDefined) AuthCache.putManagementPolicyOwner(resource, owner) // currently only users are allowed to update management policy resources, so owner should never be blank
                   // TODO: AuthCache.putManagementPolicyIsPublic(resource, isPublic = false)
-                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("mgmtpol.updated", resource)))
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("mgmtpol.updated", resource)))
                 case Failure(exception: DBProcessingError) =>
                   Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
                   exception.toComplete
                 case Failure(exception: org.postgresql.util.PSQLException) =>
                   if (ExchangePosgtresErrorHandling.isDuplicateKeyError(exception)) {
-                    Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.ALREADY_EXISTS, Serialization.write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("mgmtpol.already.exists", resource, exception.getMessage))))}") }
-                    (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("mgmtpol.already.exists", resource, exception.getMessage)))
+                    Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("mgmtpol.already.exists", resource, exception.getMessage))))}") }
+                    (StatusCodes.Forbidden, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("mgmtpol.already.exists", resource, exception.getMessage)))
                   }
                   else {
                     Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("mgmtpol.not.created", resource, exception.getMessage)))}") }
                     ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("mgmtpol.not.created", resource, exception.getMessage))
                   }
                 case Failure(exception) =>
-                  Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.not.created", resource, exception.getMessage))))}") }
-                  (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.not.created", resource, exception.getMessage)))
+                  Future { logger.debug(s"PUT /orgs/${organization}/managementpolicies/${managementPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.not.created", resource, exception.getMessage))))}") }
+                  (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("mgmtpol.not.created", resource, exception.getMessage)))
               })
             })
           }
@@ -485,7 +485,7 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
               // TODO: AuthCache.removeManagementPolicyIsPublic(resource)
               ResourceChange(0L, organization, managementPolicy, ResChangeCategory.MGMTPOLICY, false, ResChangeResource.MGMTPOLICY, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.not.found", resource))).asTry
+              DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("management.policy.not.found", resource))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
@@ -494,13 +494,13 @@ trait ManagementPolicy extends JacksonSupport with AuthenticationSupport {
             
             Future { cacheResourceOwnership.remove(organization, managementPolicy, "management_policy") }
             
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("management.policy.deleted")))
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("management.policy.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("management.policy.not.deleted", resource, t.toString))
           case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("management.policy.not.deleted", resource, t.toString)))
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("management.policy.not.deleted", resource, t.toString)))
         })
       })
     }

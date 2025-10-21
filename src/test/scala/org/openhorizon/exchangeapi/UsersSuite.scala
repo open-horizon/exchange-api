@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.scalatest.funsuite.AnyFunSuite
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
@@ -17,7 +18,7 @@ import scala.collection.mutable.ListBuffer
 import org.openhorizon.exchangeapi.table._
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import slick.jdbc
 
@@ -121,13 +122,13 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
   def deleteAllOrgs() = {
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
     response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
     response = Http(CLOUDURL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
   }
 
   /** Delete all the test users in both orgs */
@@ -135,12 +136,12 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
     for (i <- List(user, user2)) { // we do not delete the root user because it was created by the config file, not this test suite
       val response = Http(URL + "/users/" + i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE " + i + ", code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
     }
     for (i <- List(user)) {
       val response = Http(URL2 + "/users/" + i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE " + i + ", code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
     }
   }
   
@@ -210,7 +211,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
     //val input2 = PostPutUsersRequest(pw, admin = false, Some(true), hubadmin + "@none.com")
     //var response = Http(urlRootOrg + "/users/" + hubadmin).postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     //info("code: " + response.code + ", response.body: " + response.body)
-    //assert(response.code === HttpCode.POST_OK.intValue)
+    //assert(response.code === StatusCodes.Created.intValue)
 
     // these tests will perform authentication with IBM cloud and will only run
     // if the IAM info is provided in the env vars EXCHANGE_IAM_KEY (iamKey), EXCHANGE_IAM_EMAIL (iamUser), and EXCHANGE_MULT_ACCOUNT_ID (ocpAccountId) or EXCHANGE_IAM_ACCOUNT_ID (iamAccountId)
@@ -222,34 +223,34 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
       val input = PostPutOrgRequest(None, "Cloud Org", "desc", Some(tagMap), None, None)
       var response = Http(CLOUDURL).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
 
       info("authenticating to cloud with iam api key and GETing " + CLOUDURL)
       response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("GET " + CLOUDURL + " code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.OK.intValue)
+      assert(response.code === StatusCodes.OK.intValue)
 
       info("authenticate as a cloud user and view org, ensuring cached user works")
       response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
-      assert(response.code === HttpCode.OK.intValue)
+      assert(response.code === StatusCodes.OK.intValue)
 
       if (iamUIToken.nonEmpty) {
         info("authenticating to cloud with UI iam token and GETing " + CLOUDURL)
         response = Http(CLOUDURL).headers(ACCEPT).headers(IAMUITOKENAUTH(cloudorg)).asString
         info("GET " + CLOUDURL + " code: " + response.code)
-        assert(response.code === HttpCode.OK.intValue)
+        assert(response.code === StatusCodes.OK.intValue)
 
         info("ensuring cached user works: authenticating to cloud with UI iam token and GETing " + CLOUDURL)
         response = Http(CLOUDURL).headers(ACCEPT).headers(IAMUITOKENAUTH(cloudorg)).asString
         info("GET " + CLOUDURL + " code: " + response.code)
-        assert(response.code === HttpCode.OK.intValue)
+        assert(response.code === StatusCodes.OK.intValue)
       } else info("Skipping UI token login test")
 
       info("authenticate as a cloud user and view this user")
       response = Http(CLOUDURL + "/users/" + iamUser).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.OK.intValue)
+      assert(response.code === StatusCodes.OK.intValue)
       var getUserResp = parse(response.body).extract[TestGetUsersResponse]
       assert(getUserResp.users.size === 1)
       assert(getUserResp.users.contains(cloudorg + "/" + iamUser))
@@ -259,7 +260,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
       info("run special case of authenticate as a cloud user and view your own user")
       response = Http(CLOUDURL + "/users/iamapikey").headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
-      assert(response.code === HttpCode.OK.intValue)
+      assert(response.code === StatusCodes.OK.intValue)
       getUserResp = parse(response.body).extract[TestGetUsersResponse]
       assert(getUserResp.users.size === 1)
       assert(getUserResp.users.contains(cloudorg + "/" + iamUser))
@@ -269,22 +270,22 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
       info("ensure user does not have admin auth by trying to get other users")
       response = Http(CLOUDURL + "/users/" + user).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
 
       info("ensure user can't view other org (action they are not authorized for)")
       response = Http(URL2).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
 
       info("ensure user has auth to view patterns")
       response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
       info("code: " + response.code)
-      assert(response.code === HttpCode.OK.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.OK.intValue || response.code === StatusCodes.NotFound.intValue)
 
       info("ensure bad iam api key returns 401")
       response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMBADAUTH(cloudorg)).asString
       info("code: " + response.code)
-      assert(response.code === HttpCode.BADCREDS.intValue)
+      assert(response.code === StatusCodes.Unauthorized.intValue)
 
       // Can only add resources to an ibm public cloud org that we created (the icp org is the one in the cluster)
       if (iamAccountId.nonEmpty) {
@@ -307,19 +308,19 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
           imageStore = None)
         response = Http(CLOUDURL + "/services").postData(write(inputSvc)).method("post").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: " + response.code + ", response.body: " + response.body)
-        assert(response.code === HttpCode.POST_OK.intValue)
+        assert(response.code === StatusCodes.Created.intValue)
 
         // Only for ibm public cloud: ensure we can add a node to check acls to other objects
         val inputNode = PutNodesRequest(Option("abc"), "my node", None, Option(""), None, None, None, None, Option("ABC"), None, None)
         response = Http(CLOUDURL + "/nodes/n1").postData(write(inputNode)).method("put").headers(CONTENT).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: " + response.code + ", response.body: " + response.body)
-        assert(response.code === HttpCode.PUT_OK.intValue)
+        assert(response.code === StatusCodes.Created.intValue)
       } else {
         // ICP case - ensure using the cloud creds with a different org prepended fails
         //response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMAUTH(orgid)).asString
         response = Http(CLOUDURL + "/patterns").headers(ACCEPT).headers(IAMAUTH(orgid2)).asString
         info("code: " + response.code)
-        assert(response.code === HttpCode.BADCREDS.intValue)
+        assert(response.code === StatusCodes.Unauthorized.intValue)
       }
 
       // Test a 2nd org associated with the ibm cloud account
@@ -327,24 +328,24 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
         // remove created user
         response = Http(CLOUDURL + "/users/" + iamUser).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
         info("DELETE " + iamUser + ", code: " + response.code + ", response.body: " + response.body)
-        assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+        assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
 
         /* this is no longer needed because https://github.com/open-horizon/exchange-api/issues/176 is fixed
         response = Http(NOORGURL+"/admin/clearauthcaches").method("post").headers(ACCEPT).headers(ROOTAUTH).asString
         info("CLEAR CACHE code: "+response.code+", response.body: "+response.body)
-        assert(response.code === HttpCode.POST_OK.intValue) */
+        assert(response.code === StatusCodes.Created.intValue) */
 
         // add ibmcloud_id to different org
         var tagInput = s"""{ "tags": {"ibmcloud_id": "$iamAccountId"} }"""
         response = Http(URL2).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
         info("code: " + response.code + ", response.body: " + response.body)
-        assert(response.code === HttpCode.PUT_OK.intValue)
+        assert(response.code === StatusCodes.Created.intValue)
 
         // authenticating with wrong org should notify user
         response = Http(CLOUDURL).headers(ACCEPT).headers(IAMOTHERAUTH(cloudorg)).asString
         info("test for api key not part of this org: code: " + response.code + ", response.body: " + response.body)
         //info("code: "+response.code)
-        assert(response.code === HttpCode.BADCREDS.intValue)
+        assert(response.code === StatusCodes.Unauthorized.intValue)
         var errorMsg = s"the iamapikey or iamtoken specified can not be used with org '$cloudorg' prepended to it, because the iamapikey or iamtoken is not associated with that org."
         assert(parse(response.body).extract[Map[String, String]].apply("msg").startsWith(errorMsg))
 
@@ -352,11 +353,11 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
         tagInput = """{ "tags": {"ibmcloud_id": null} }"""
         response = Http(CLOUDURL).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
         info("code: " + response.code + ", response.body: " + response.body)
-        assert(response.code === HttpCode.PUT_OK.intValue)
+        assert(response.code === StatusCodes.Created.intValue)
 
         response = Http(CLOUDURL).headers(ACCEPT).headers(IAMAUTH(cloudorg)).asString
         info("code: "+response.code)
-        assert(response.code === HttpCode.BADCREDS.intValue)
+        assert(response.code === StatusCodes.Unauthorized.intValue)
         errorMsg = s"the iamapikey or iamtoken specified can not be used with org '$cloudorg' prepended to it, because the iamapikey or iamtoken is not associated with that org"
         assert(parse(response.body).extract[Map[String, String]].apply("msg").startsWith(errorMsg))
       }
@@ -368,7 +369,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
       tagInput = """{ "tags": {"ibmcloud_id": null} }"""
       response = Http(URL2).postData(tagInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       */
     }
     else {
@@ -382,26 +383,26 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
       info("Try deleting the test org first in case it stuck around")
       val responseOrg = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+responseOrg.code+", response.body: "+responseOrg.body)
-      assert(responseOrg.code === HttpCode.DELETED.intValue || responseOrg.code === HttpCode.NOT_FOUND.intValue)
+      assert(responseOrg.code === StatusCodes.NoContent.intValue || responseOrg.code === StatusCodes.NotFound.intValue)
 
       info("Creating new org with cloud_id")
       val input = PostPutOrgRequest(None, "", "Desc", Some(Map("cloud_id" -> ocpAccountId)), None, None)
       var response = Http(URL3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       orgsList+=orgid3
 
       info("Cloud user with apikey should be able to access the org")
       response = Http(URL3).headers(ACCEPT).headers(IAMAUTH(orgid3)).asString
       info("GET " + URL3 + " code: " + response.code)
-      assert(response.code === HttpCode.OK.intValue)
+      assert(response.code === StatusCodes.OK.intValue)
 
       if (iamUIToken.nonEmpty){
         // we can authenticate as a UI user
         info("Cloud (UI) user with token should be able to access the org")
         response = Http(URL3).headers(ACCEPT).headers(IAMUITOKENAUTH(orgid3)).asString
         info("GET " + URL3 + " code: " + response.code)
-        assert(response.code === HttpCode.OK.intValue)
+        assert(response.code === StatusCodes.OK.intValue)
       } else info ("Skipping UI login tests 1")
 
       info("Cloud user with apikey should not be able to access org without accountID")
@@ -409,7 +410,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
       response = Http(URL).headers(ACCEPT).headers(IAMAUTH(orgid2)).asString
       info("GET " + URL + " code: " + response.code)
       info("GET " + URL + " body: " + response.body)
-      assert(response.code === HttpCode.BADCREDS.intValue)
+      assert(response.code === StatusCodes.Unauthorized.intValue)
 
       if (iamUIToken.nonEmpty){
         // we can authenticate as a UI user
@@ -417,64 +418,64 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
         response = Http(URL).headers(ACCEPT).headers(IAMUITOKENAUTH(orgid)).asString
         info("GET " + URL + " code: " + response.code)
         info("GET " + URL + " body: " + response.body)
-        assert(response.code === HttpCode.BADCREDS.intValue)
+        assert(response.code === StatusCodes.Unauthorized.intValue)
       } else info ("Skipping UI login tests 2")
 
       info("Try deleting the second test org first in case it stuck around")
       val responseOrg2 = Http(URL4).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+responseOrg2.code+", response.body: "+responseOrg2.body)
-      assert(responseOrg2.code === HttpCode.DELETED.intValue || responseOrg2.code === HttpCode.NOT_FOUND.intValue)
+      assert(responseOrg2.code === StatusCodes.NoContent.intValue || responseOrg2.code === StatusCodes.NotFound.intValue)
 
       info("Creating new org with the same cloud_id")
       response = Http(URL4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       orgsList+=orgid4
 
       info("Creating basic user in root org with hubAdmin=true and same userid as cloud user")
       val userInput = PostPutUsersRequest("", admin=false, hubAdmin=Some(true), "")
       response = Http(urlRootOrg+ "/users/" + iamUser).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
 
       info("Cloud user who is now hubadmin should be able to access all orgs with apikey")
       response = Http(urlRoot + "/v1/orgs").headers(ACCEPT).headers(IAMAUTH("root")).asString
       info("GET " + urlRoot + "/v1/orgs" + " code: " + response.code)
-      assert(response.code === HttpCode.OK.intValue)
+      assert(response.code === StatusCodes.OK.intValue)
 
       if (iamUIToken.nonEmpty && iamUserUIId.nonEmpty){
         // we can authenticate as a UI user
         info("Creating basic user in root org with hubAdmin=true and same userid as cloud user")
         response = Http(urlRootOrg+ "/users/" + iamUserUIId).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
         info("code: " + response.code + ", response.body: " + response.body)
-        assert(response.code === HttpCode.PUT_OK.intValue)
+        assert(response.code === StatusCodes.Created.intValue)
 
         info("Cloud user who is now hubadmin should be able to access all orgs with token")
         response = Http(urlRoot + "/v1/orgs").headers(ACCEPT).headers(IAMUITOKENAUTH("root")).asString
         info("GET " + urlRoot + "/v1/orgs" + " code: " + response.code)
-        assert(response.code === HttpCode.OK.intValue)
+        assert(response.code === StatusCodes.OK.intValue)
       } else info ("Skipping UI login tests 2")
 
       info("CLEANUP -- delete the test org")
       response = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
 
       info("CLEANUP -- delete the second test org")
       response = Http(URL4).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
 
       info("CLEANUP -- delete the first hub admin")
       response = Http(urlRootOrg+ "/users/" + iamUser).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
 
       if (iamUIToken.nonEmpty && iamUserUIId.nonEmpty){
         info("CLEANUP -- delete the second hub admin if we made it")
         response = Http(urlRootOrg+ "/users/" + iamUserUIId).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
         info("code: " + response.code + ", response.body: " + response.body)
-        assert(response.code === HttpCode.DELETED.intValue)
+        assert(response.code === StatusCodes.NoContent.intValue)
       }
 
     } else info("Skipping multitenancy pathway tests")
@@ -488,22 +489,22 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/root/users/" + hubadmin ) {
     val response = Http(urlRootOrg + "/users/" + hubadmin).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }*/
 
   /** Delete the orgs we used for this test */
   /*test("DELETE orgs") {
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
     response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + response.code + ", response.body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
 
     if (iamKey.nonEmpty && iamUser.nonEmpty && (ocpAccountId.nonEmpty || iamAccountId.nonEmpty)) {
       response = Http(CLOUDURL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
     }
   }
 
@@ -512,7 +513,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
       val input = DeleteOrgChangesRequest(List())
       val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
     }
   }*/
 

@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.node.managementpolicy
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.openhorizon.exchangeapi.auth.{Password, Role}
@@ -9,7 +10,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -160,7 +161,7 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("GET /orgs/TestNodeGetAllMgmtPolStatus/nodes/somenode/managementStatus -- 404 Not Found - Node") {
@@ -168,7 +169,7 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("GET /orgs/TestNodeGetAllMgmtPolStatus/nodes/n1/managementStatus -- 200 Ok - root") {
@@ -176,7 +177,7 @@ class TestNodeGetAllMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     
     val resp: Map[String, NMPStatus] = parse(response.body).extract[GetNMPStatusResponse].managementStatus
     assert(resp.size === 2)

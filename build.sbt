@@ -50,7 +50,7 @@ lazy val root = (project in file("."))
     
     // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
     libraryDependencies ++= Seq(
-      "com.github.pjfanning" %% "pekko-http-jackson" % "[3.2.2,)",
+      "com.github.pjfanning" %% "pekko-http-jackson" % "[3.5.0]",
       "org.apache.pekko"     %% "pekko-http"         % pekkoHttpVersion.value,
       "org.apache.pekko"     %% "pekko-http-xml"     % pekkoHttpVersion.value,
       // "org.apache.pekko"     %% "pekko-http-caching" % pekkoHttpVersion.value,

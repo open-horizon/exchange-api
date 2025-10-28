@@ -22,7 +22,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.{AgbotBusinessPol, AgbotBusinessPolRow, AgbotBusinessPols, AgbotBusinessPolsTQ}
 import org.openhorizon.exchangeapi.table.deploymentpolicy.BusinessPoliciesTQ
 import org.openhorizon.exchangeapi.table.resourcechange
-import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
@@ -181,7 +181,7 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
       (deploymentPolicy,
        deploymentPolicyOrganization,
        nodeOrganization) =>
-        Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols?deployment_policy=${deploymentPolicy.getOrElse("None")}&deployment_policy_organization=${deploymentPolicyOrganization.getOrElse("None")}&node_organization=${nodeOrganization.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+        Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/policies?deployment_policy=${deploymentPolicy.getOrElse("None")}&deployment_policy_organization=${deploymentPolicyOrganization.getOrElse("None")}&node_organization=${nodeOrganization.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
         
         val getAgbotManagedDeploymentPolcies: CompiledStreamingExecutable[Query[(AgbotBusinessPols, Rep[String]), (AgbotBusinessPolRow, String), Seq], Seq[(AgbotBusinessPolRow, String)], (AgbotBusinessPolRow, String)] =
           for {
@@ -203,19 +203,19 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
           implicit val formats: Formats = DefaultFormats
           db.run(getAgbotManagedDeploymentPolcies.result.transactionally.asTry).map {
             case Success(result) =>
-              Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols?deployment_policy=${deploymentPolicy.getOrElse("None")}&deployment_policy_organization=${deploymentPolicyOrganization.getOrElse("None")}&node_organization=${nodeOrganization.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: ${result.size}") }
+              Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/policies?deployment_policy=${deploymentPolicy.getOrElse("None")}&deployment_policy_organization=${deploymentPolicyOrganization.getOrElse("None")}&node_organization=${nodeOrganization.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: ${result.size}") }
               
               if(result.nonEmpty)
                 (StatusCodes.OK, GetAgbotBusinessPolsResponse(businessPols = (result.map(policies => policies._2 -> new AgbotBusinessPol(policies._1)).toMap)))
               else {
-                Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols?deployment_policy=${deploymentPolicy.getOrElse("None")}&deployment_policy_organization=${deploymentPolicyOrganization.getOrElse("None")}&node_organization=${nodeOrganization.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result.nonEmpty:${result.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(GetAgbotBusinessPolsResponse(businessPols = Map.empty[String, AgbotBusinessPol])))}") }
+                Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/policies?deployment_policy=${deploymentPolicy.getOrElse("None")}&deployment_policy_organization=${deploymentPolicyOrganization.getOrElse("None")}&node_organization=${nodeOrganization.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result.nonEmpty:${result.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(GetAgbotBusinessPolsResponse(businessPols = Map.empty[String, AgbotBusinessPol])))}") }
                 (StatusCodes.NotFound, GetAgbotBusinessPolsResponse(businessPols = Map.empty[String, AgbotBusinessPol]))
               }
             case Failure(exception: org.postgresql.util.PSQLException) =>
-              Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols?deployment_policy=${deploymentPolicy.getOrElse("None")}&deployment_policy_organization=${deploymentPolicyOrganization.getOrElse("None")}&node_organization=${nodeOrganization.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("db.threw.exception", exception.getServerErrorMessage)))}") }
+              Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/policies?deployment_policy=${deploymentPolicy.getOrElse("None")}&deployment_policy_organization=${deploymentPolicyOrganization.getOrElse("None")}&node_organization=${nodeOrganization.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("db.threw.exception", exception.getServerErrorMessage)))}") }
               ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("db.threw.exception", exception.getServerErrorMessage))
             case Failure(exception) =>
-              Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols?deployment_policy=${deploymentPolicy.getOrElse("None")}&deployment_policy_organization=${deploymentPolicyOrganization.getOrElse("None")}&node_organization=${nodeOrganization.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error"))))}") }
+              Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/policies?deployment_policy=${deploymentPolicy.getOrElse("None")}&deployment_policy_organization=${deploymentPolicyOrganization.getOrElse("None")}&node_organization=${nodeOrganization.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error"))))}") }
               (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
           }
         }
@@ -268,62 +268,106 @@ trait DeploymentPolicies extends JacksonSupport with AuthenticationSupport {
         reqBody =>
           Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
           Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Request { businessPol:${reqBody.businessPol}, businessPolOrgid:${reqBody.businessPolOrgid}, nodeOrgid:${reqBody.nodeOrgid.getOrElse("None")} }") }
-          validateWithMsg(reqBody.getAnyProblem) {
             
-            val INSTANT: Instant = Instant.now()
-            
-            complete({
-              implicit val formats: Formats = DefaultFormats
-              val deploymentPolicy: String = reqBody.formId
+          val INSTANT: Instant = Instant.now()
+          
+          val createManagedDeploymentPolicy =
+            for {
+              authorized <-
+                if (identity.isNode ||
+                    (((identity.isAgbot && !identity.isMultiTenantAgbot) || identity.isOrgAdmin || identity.isStandardUser) &&
+                     (reqBody.businessPolOrgid != identity.organization ||
+                      reqBody.businessPolOrgid != reqBody.nodeOrgid.getOrElse(reqBody.businessPolOrgid))))
+                  DBIO.failed(new IllegalAccessException())
+                else
+                  Compiled(AgbotsTQ.filter(agbot => agbot.id === resource &&
+                                                    agbot.orgid === organization)
+                                   // Public management of Deployment Policies.
+                                   // TODO: Think on authorization
+                                   .filterIf(identity.isStandardUser)(agbot => agbot.owner === identity.identifier.get || agbot.orgid === "IBM")
+                                   .filterIf(identity.isAgbot)(agbot => agbot.id === identity.resource &&
+                                                                        agbot.orgid === identity.organization)
+                                   // Public management of Deployment Policies.
+                                   // TODO: Think on authorization
+                                   .filterIf(identity.isHubAdmin || identity.isOrgAdmin)(agbot => agbot.orgid === identity.organization || agbot.orgid === "IBM")
+                                   .map(_.id)
+                                   .take(1)
+                                   .length)
+                    .result
+              _ =
+                Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Authorized:         ${authorized == 1}") }
               
-              db.run(BusinessPoliciesTQ.getBusinessPolicy(OrgAndId(reqBody.businessPolOrgid, reqBody.businessPol).toString)
-                                       .length
-                                       .result
-                                       .asTry
-                                       .flatMap({
-                                         case Success(num) =>
-                                           Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Matched Deployment Policies:         ${num}") }
-                                           if (0 < num ||
-                                               reqBody.businessPol == "*")
-                                             reqBody.toAgbotBusinessPolRow(resource, deploymentPolicy).insert.asTry
-                                           else
-                                             DBIO.failed(new Throwable(ExchMsg.translate("buspol.not.in.exchange"))).asTry
-                                        case Failure(t) =>
-                                          DBIO.failed(t).asTry})
-                                       .flatMap({
-                                         case Success(v) => // Add the resource to the resourcechanges table
-                                           Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Managed Deployment Policies Created: ${v}") }
-                                           resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTBUSINESSPOLS, ResChangeOperation.CREATED, INSTANT).insert.asTry
-                                         case Failure(t) =>
-                                           DBIO.failed(t).asTry}))
-                .map({
-                  case Success(v) =>
-                    Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changes Logged:                      ${v}") }
-                    (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.added", deploymentPolicy)))
-                  case Failure(exception: org.postgresql.util.PSQLException) =>
-                    if (ExchangePosgtresErrorHandling.isDuplicateKeyError(exception)) {
-                      Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Conflict, write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.foragbot.already.exists", deploymentPolicy, resource))))}") }
-                      (StatusCodes.Conflict, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.foragbot.already.exists", deploymentPolicy, resource)))
-                    }
-                    else if (ExchangePosgtresErrorHandling.isAccessDeniedError(exception)) {
-                      Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", deploymentPolicy, resource, exception.getMessage))))}") }
-                      (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", deploymentPolicy, resource, exception.getMessage)))
-                    }
-                    else {
-                      Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.inserted", deploymentPolicy, resource, exception.getServerErrorMessage)))}") }
-                      ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.inserted", deploymentPolicy, resource, exception.getServerErrorMessage))
-                    }
-                  case Failure(exception) =>
-                    if (exception.getMessage.startsWith("Access Denied:")) {
-                      Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", deploymentPolicy, resource, exception.getMessage))))}") }
-                      (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", deploymentPolicy, resource, exception.getMessage)))
-                    }
-                    else {
-                      Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.inserted", deploymentPolicy, resource, exception.getMessage))))}") }
-                      (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.inserted", deploymentPolicy, resource, exception.getMessage)))
-                    }
-                })
-            })
+              _ <-
+                if (authorized == 1)
+                  DBIO.successful(())
+                else
+                  DBIO.failed(new IllegalAccessException())
+              
+              numManagedDeploymentPatternsCreated <-
+                AgbotBusinessPolsTQ +=
+                  AgbotBusinessPolRow(agbotId          = resource,
+                                      businessPol      = reqBody.businessPol,
+                                      businessPolOrgid = reqBody.businessPolOrgid,
+                                      lastUpdated      = INSTANT.toString,
+                                      nodeOrgid        = reqBody.nodeOrgid.getOrElse(reqBody.businessPol),
+                                      busPolId         = s"${reqBody.businessPolOrgid}_${reqBody.businessPol}_${reqBody.nodeOrgid.getOrElse(reqBody.businessPolOrgid)}")
+              
+              _ =
+                Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Managed Deployment Patterns Created: ${numManagedDeploymentPatternsCreated}") }
+              
+              numChangeRecordsCreated <-
+                ResourceChangesTQ +=
+                  ResourceChangeRow(category    = ResChangeCategory.AGBOT.toString,
+                                    changeId    = 0L,
+                                    id          = agreementBot,
+                                    lastUpdated = INSTANT,
+                                    operation   = ResChangeOperation.CREATED.toString,
+                                    orgId       = organization,
+                                    public      = "false",
+                                    resource    = ResChangeResource.AGBOTBUSINESSPOLS.toString)
+              
+              _ =
+                Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changes Logged:                      ${numChangeRecordsCreated}") }
+              
+            } yield ()
+            
+          complete {
+            implicit val formats: Formats = DefaultFormats
+            val managedPolicyIdentifier: String = s"${reqBody.businessPolOrgid}_${reqBody.businessPol}_${reqBody.nodeOrgid.getOrElse(reqBody.businessPolOrgid)}"
+            
+            db.run(createManagedDeploymentPolicy.transactionally.asTry)
+              .map {
+                case Success(_) =>
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.added", managedPolicyIdentifier)))
+                case Failure(exception: IllegalAccessException) =>
+                  Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.not.inserted", managedPolicyIdentifier, resource, exception.getMessage))))}") }
+                  (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", managedPolicyIdentifier, resource, exception.getMessage match { case errorMessage: String => errorMessage; case _ => ""})))
+                case Failure(exception: NullPointerException) =>
+                  Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.in.exchange", managedPolicyIdentifier, resource, exception.getMessage))))}") }
+                  (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.not.in.exchange", managedPolicyIdentifier, resource, exception.getMessage)))
+                case Failure(exception: org.postgresql.util.PSQLException) =>
+                  if (ExchangePosgtresErrorHandling.isDuplicateKeyError(exception)) {
+                    Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Conflict, write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.foragbot.already.exists", managedPolicyIdentifier, resource))))}") }
+                    (StatusCodes.Conflict, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("buspol.foragbot.already.exists", managedPolicyIdentifier, resource)))
+                  }
+                  else if (ExchangePosgtresErrorHandling.isAccessDeniedError(exception)) {
+                    Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", managedPolicyIdentifier, resource, exception.getMessage))))}") }
+                    (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", managedPolicyIdentifier, resource, exception.getMessage)))
+                  }
+                  else {
+                    Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.inserted", managedPolicyIdentifier, resource, exception.getServerErrorMessage)))}") }
+                    ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.inserted", managedPolicyIdentifier, resource, exception.getServerErrorMessage))
+                  }
+                case Failure(exception) =>
+                  if (exception.getMessage.startsWith("Access Denied:")) {
+                    Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", managedPolicyIdentifier, resource, exception.getMessage))))}") }
+                    (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("buspol.not.inserted", managedPolicyIdentifier, resource, exception.getMessage)))
+                  }
+                  else {
+                    Future { logger.debug(s"POST /orgs/${organization}/agbots/${agreementBot}/deployment/policies - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.inserted", managedPolicyIdentifier, resource, exception.getMessage))))}") }
+                    (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("buspol.not.inserted", managedPolicyIdentifier, resource, exception.getMessage)))
+                  }
+              }
           }
       }
     }

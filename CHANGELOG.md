@@ -7,6 +7,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ## [2.153.0](https://github.com/open-horizon/exchange-api/pull/832) - 2025-10-28
 - Removed deployment existence checks on managed deployment assignments to agreement bots.
 - Added additional authorization checks to managed deployment policy assignments.
+- pekko-http-jackson 3.2.2 -> 3.5.0
 
 ## [2.152.0](https://github.com/open-horizon/exchange-api/pull/830) - 2025-10-21
 - Reworked most of the managed deployment routes under Agreement Bots.

@@ -190,8 +190,8 @@ trait Services extends JacksonSupport with AuthenticationSupport {
             for {
               services: ((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String]), Rep[String]) <-
                 ServicesTQ.filter(services => services.orgid === organization)
-                          .filterIf(identity.isAgbot && !identity.isMultiTenantAgbot)(services => (services.orgid === identity.organization) || (services.orgid === organization && services.public))
-                          .filterIf(identity.isUser)(services => (services.orgid === identity.organization && services.owner === identity.identifier) || (services.orgid === organization && services.public))
+                          .filterIf((identity.isAgbot && !identity.isMultiTenantAgbot) || identity.isNode || identity.isOrgAdmin)(services => (services.orgid === identity.organization) || (services.orgid === organization && services.public))
+                          .filterIf(identity.isStandardUser)(services => (services.orgid === identity.organization && services.owner === identity.identifier) || (services.orgid === organization && services.public))
                           .filterOpt(arch)((services, arch) => if (arch.contains('%')) services.arch like arch else services.arch === arch)
                           .filterOpt(cluster)((services, _) => services.clusterDeployment =!= "")
                           .filterOpt(device)((services, _) => services.deployment =!= "")
@@ -386,7 +386,7 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                   //logger.error(s"POST /orgs/$organization /services - L394 owner: ${owner.isDefined},    ${owner.getOrElse("None")}")
                   reqBody.toServiceRow(service, organization, identity.identifier.getOrElse(identity.owner.get)).insert.asTry
                 }
-                else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.the.limit.of.services", maxServices))).asTry
+                else DBIO.failed(new DBProcessingError(StatusCodes.Forbidden, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.the.limit.of.services", maxServices))).asTry
               case Failure(t) => DBIO.failed(t).asTry
             }).flatMap({
               case Success(v) =>
@@ -401,22 +401,22 @@ trait Services extends JacksonSupport with AuthenticationSupport {
                 
                 Future { cacheResourceOwnership.put(organization, service, "service")((identity.identifier.getOrElse(identity.owner.get), reqBody.public), ttl = Option(Configuration.getConfig.getInt("api.cache.resourcesTtlSeconds").seconds)) }
                 
-                (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.created", service)))
+                (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.created", service)))
               case Failure(exception: DBProcessingError) =>
                 Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(exception.toComplete)}") }
                 exception.toComplete
               case Failure(exception: org.postgresql.util.PSQLException) =>
                 if (ExchangePosgtresErrorHandling.isDuplicateKeyError(exception)) {
-                  Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.ALREADY_EXISTS, write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, exception.getMessage))))}") }
-                  (HttpCode.ALREADY_EXISTS, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, exception.getMessage)))
+                  Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, write(ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, exception.getMessage))))}") }
+                  (StatusCodes.Forbidden, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("service.already.exists", service, exception.getMessage)))
                 }
                 else {
                   Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.not.created", service, exception.getMessage)))}") }
                   ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.not.created", service, exception.getMessage))
                 }
               case Failure(exception) =>
-                Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.created", service, exception.getMessage))))}") }
-                (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.created", service, exception.getMessage)))
+                Future { logger.debug(s"POST /orgs/$organization/services - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.created", service, exception.getMessage))))}") }
+                (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("service.not.created", service, exception.getMessage)))
             })
           })
         }

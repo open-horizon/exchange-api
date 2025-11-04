@@ -1,11 +1,13 @@
 package org.openhorizon.exchangeapi
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi.route.administration.{AdminConfigRequest, DeleteIBMChangesRequest, DeleteOrgChangesRequest}
 import org.scalatest.funsuite.AnyFunSuite
 import org.junit.runner.RunWith
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http._
 import org.json4s._
+import org.json4s.native.Serialization.{read, writePretty}
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.route.agreementbot.{GetAgbotAgreementsResponse, GetAgbotAttributeResponse, GetAgbotBusinessPolsResponse, GetAgbotPatternsResponse, GetAgbotsResponse, PostAgbotBusinessPolRequest, PostAgbotPatternRequest, PostAgbotsMsgsRequest, PostAgreementsConfirmRequest, PutAgbotAgreementRequest, PutAgbotsRequest}
 import org.openhorizon.exchangeapi.route.deploymentpattern.{GetPatternsResponse, PostPutPatternRequest, TestGetPatternsResponse}
@@ -21,7 +23,7 @@ import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeOperation, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api._
@@ -84,15 +86,15 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   val AGBOT3AUTH = ("Authorization","Basic "+ApiUtils.encode(orgagbot3Id+":"+agbot3Token))
   val agreementId = "9950"
   val pattern = "mypattern"
-  val patId = orgid + "_" + pattern + "_" + orgid
+  val patId = s"${orgid}_${pattern}_${orgid}"
   val pattern2 = "mypattern2"
-  val patId2 = orgid2 + "_" + pattern2 + "_" + orgid
+  val patId2 = s"${orgid2}_${pattern2}_${orgid}"
   val pattern3 = "mypattern3"
-  val patId3 = orgid + "_" + pattern3 + "_" + orgid
+  val patId3 = s"${orgid}_${pattern3}_${orgid}"
   val businessPol = "mybuspol"
-  val busPolId = orgid + "_" + businessPol + "_" + orgid
+  val busPolId = s"${orgid}_${businessPol}_${orgid}"
   val businessPol2 = "*"
-  val busPolId2 = orgid2 + "_" + businessPol2 + "_" + orgid2
+  val busPolId2 = s"${orgid2}_${businessPol2}_${orgid2}"
   val svcid = "horizon-services-netspeed_1.0.0_amd64"
   val svcurl = "https://horizon/services/netspeed"
   val svcarch = "amd64"
@@ -150,6 +152,8 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   override def beforeAll(): Unit = {
     Await.ready(DBCONNECTION.run((OrgsTQ ++= TESTORGANIZATIONS) andThen
                                  (UsersTQ ++= TESTUSERS)), AWAITDURATION)
+    
+    Http(s"$urlRoot/v1/admin/clearauthcaches").method("post").headers(ACCEPT).headers(ROOTAUTH).asString
   }
   
   override def afterAll(): Unit = {
@@ -163,7 +167,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     for (i <- List(user)) {
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue.intValue)
     }
   }
 
@@ -172,7 +176,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     for (i <- List(agbotId, agbot2Id)) {
       val response = Http(URL+"/agbots/"+i).method("delete").headers(ACCEPT).headers(USERAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
     }
   }
 
@@ -181,7 +185,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     for (i <- List(agreementId)) {
       val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+i).method("delete").headers(ACCEPT).headers(USERAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
     }
   }
 
@@ -190,26 +194,26 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
 
     val input = PostPutOrgRequest(None, "My Org", "desc", None, None, None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     orgsList+=orgid
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   ignore("POST /orgs/"+orgid2+" - create org2") {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
 
     val input = PostPutOrgRequest(None, "My Org2", "desc", None, None, None)
     response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     orgsList+=orgid2
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the agbots and
@@ -224,21 +228,21 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutUsersRequest(pw, admin = false, Some(false), user+"@hotmail.com")
     val response = Http(URL+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   ignore("POST /orgs/"+orgid2+"/users/"+user+" - normal") {
     val input = PostPutUsersRequest(pw, admin = false, Some(false), user+"@hotmail.com")
     val response = Http(URL2+"/users/"+user).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
   // TODO: Put back Token Validation tests
   // test("PUT /orgs/"+orgid+"/agbots/"+agbotId+" - with bad token -- should fail") {
   //   val input = PutAgbotsRequest("bad token", "agbot"+agbotId+"-norm", None, "ABC")
   //   val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
   //   info("code: "+response.code+", response.body: "+response.body)
-  //   assert(response.code === HttpCode.BAD_INPUT.intValue)
+  //   assert(response.code === StatusCodes.BadRequest.intValue)
   // }
 
   /** Add a normal agbot */
@@ -246,7 +250,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", None, "ABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " was created and stored") {
@@ -254,7 +258,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString)}))
@@ -265,7 +269,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List(orgid)))
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString)}))
@@ -276,7 +280,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal-user", None, "ABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Update the agbot as the agbot */
@@ -284,7 +288,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-normal", None, "ABC")
     val response = Http(URL+"/agbots/"+agbotId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Try adding an invalid agbot body */
@@ -296,7 +300,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     }"""
     val response = Http(URL+"/agbots/9932").postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)     // for now this is what is returned when the json-to-scala conversion fails
+    assert(response.code === StatusCodes.BadRequest.intValue)     // for now this is what is returned when the json-to-scala conversion fails
   }
 
   /** Try adding an agbot with bad creds */
@@ -304,14 +308,14 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PutAgbotsRequest("mytok", "agbot9932-badcreds", None, "ABC")
     val response = Http(URL+"/agbots/9932").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(BADAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BADCREDS.intValue)
+    assert(response.code === StatusCodes.Unauthorized.intValue)
   }
 
   test("GET /orgs/"+orgid+"/agbots") {
     val response: HttpResponse[String] = Http(URL+"/agbots").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotsResponse]
     // assert(getAgbotResp.agbots.size === 1)   // since the other test suites are creating some of these too, we can not know how many there are right now
 
@@ -326,7 +330,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/agbots").headers(ACCEPT).headers(USERAUTH).param("owner",orgid+"/"+user).param("idfilter",orgid+"/993%").param("name","agbot993%-normal").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotsResponse]
     assert(getAgbotResp.agbots.size === 1)
     assert(getAgbotResp.agbots.contains(orgagbotId))
@@ -336,7 +340,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/heartbeat") {
     val response = Http(URL+"/agbots/"+agbotId+"/heartbeat").method("post").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val postHeartbeatResp = parse(response.body).extract[ApiResponse]
     assert(postHeartbeatResp.code === ApiRespType.OK)
   }
@@ -345,7 +349,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotsResponse]
     assert(getAgbotResp.agbots.size === 1)
 
@@ -365,7 +369,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   //   }"""
   //   val response = Http(URL+"/agbots/"+agbotId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
   //   info("code: "+response.code+", response.body: "+response.body)
-  //   assert(response.code === HttpCode.BAD_INPUT.intValue)
+  //   assert(response.code === StatusCodes.BadRequest.intValue)
   // }
 
   /** Update 1 attr of the agbot as the agbot */
@@ -375,7 +379,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     }"""
     val response = Http(URL+"/agbots/"+agbotId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     /*
     jsonInput = """{
@@ -383,7 +387,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     }"""
     response = Http(URL+"/agbots/"+agbotId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     */
   }
 
@@ -392,7 +396,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.MODIFIED.toString)}))
@@ -402,7 +406,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val jsonInput = "badinput"
     val response = Http(URL+"/agbots/"+agbotId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
     //assert(response.body.contains("invalid input"))
   }
 
@@ -413,7 +417,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     }   """
     val response = Http(URL+"/agbots/"+agbotId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/agbots/"+agbotId+" - with whitespace as a newline still works") {
@@ -425,14 +429,14 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     """
     val response = Http(URL+"/agbots/"+agbotId).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+" - as agbot, check patch by getting that 1 attr") {
     var response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"?attribute=publicKey").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotAttributeResponse]
     assert(getAgbotResp.attribute === "publicKey")
     assert(getAgbotResp.value === "newAGBOTABCDEF")
@@ -440,7 +444,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     response = Http(URL+"/agbots/"+agbotId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgbotResp2 = parse(response.body).extract[GetAgbotsResponse]
     assert(getAgbotResp2.agbots.size === 1)
 
@@ -455,11 +459,11 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, None, Some(""), Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     val response2: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response2.code)
-    assert(response2.code === HttpCode.OK.intValue)
+    assert(response2.code === StatusCodes.OK.intValue)
     val respObj = parse(response2.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)
   }
@@ -472,11 +476,11 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     val response2: HttpResponse[String] = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response2.code)
-    assert(response2.code === HttpCode.OK.intValue)
+    assert(response2.code === StatusCodes.OK.intValue)
     val respObj = parse(response2.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
   }
@@ -491,25 +495,25 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       val IBMAGBOTAUTH = ("Authorization", "Basic " + ApiUtils.encode("IBM/" + ibmAgbotAuth))
       var response: HttpResponse[String] = Http(URL + "/patterns").headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info("code: " + response.code)
-      assert(response.code === HttpCode.OK.intValue)
+      assert(response.code === StatusCodes.OK.intValue)
       var respObj = parse(response.body).extract[TestGetPatternsResponse]
       assert(respObj.patterns.size === 1)
 
       response = Http(URL + "/patterns/" + pattern).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info("code: " + response.code)
-      assert(response.code === HttpCode.OK.intValue)
+      assert(response.code === StatusCodes.OK.intValue)
       respObj = parse(response.body).extract[TestGetPatternsResponse]
       assert(respObj.patterns.size === 1)
 
       response = Http(URL+"/services").headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info("code: "+response.code)
-      assert(response.code === HttpCode.OK.intValue)
+      assert(response.code === StatusCodes.OK.intValue)
       var respObj2 = parse(response.body).extract[TestGetServicesResponse]
       assert(respObj2.services.size === 1)
 
       response = Http(URL+"/services/"+svcid).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info("code: "+response.code)
-      assert(response.code === HttpCode.OK.intValue)
+      assert(response.code === StatusCodes.OK.intValue)
       respObj2 = parse(response.body).extract[TestGetServicesResponse]
       assert(respObj2.services.size === 1)
 
@@ -520,17 +524,17 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
         var response2 = Http(URL + "/nodes/" + nodeId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
         info("code: " + response2.code)
         //info("code: " + response2.code + ", response.body: " + response2.body)
-        assert(response2.code === HttpCode.PUT_OK.intValue)
+        assert(response2.code === StatusCodes.Created.intValue)
 
         val input2 = PostNodesMsgsRequest("{msg from IBM agbot to node in this org}", 300)
         response2 = Http(URL + "/nodes/" + nodeId + "/msgs").postData(write(input2)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
         info("code: " + response2.code + ", response.body: " + response2.body)
-        assert(response2.code === HttpCode.POST_OK.intValue)
+        assert(response2.code === StatusCodes.Created.intValue)
 
         val input3 = PostAgbotsMsgsRequest("{msg from node in this org to IBM agbot}", 300)
         response2 = Http(NOORGURL + "/orgs/IBM/agbots/" + ibmAgbotId + "/msgs").postData(write(input3)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
         info("code: " + response2.code + ", response.body: " + response2.body)
-        assert(response2.code === HttpCode.POST_OK.intValue)
+        assert(response2.code === StatusCodes.Created.intValue)
       }
     }
   }
@@ -542,7 +546,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL2+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
   // Note: when we delete the org, this pattern will get deleted
 
@@ -553,7 +557,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostAgbotPatternRequest(orgid, pattern, None)
     val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " patterns was added and stored") {
@@ -561,7 +565,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(response.body.nonEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "agbotpatterns")}))
@@ -571,50 +575,51 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostAgbotPatternRequest(orgid, pattern, None)
     val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ALREADY_EXISTS2.intValue)
+    assert(response.code === StatusCodes.Conflict.intValue)
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as agbot and referencing pattern in other org") {
     val input = PostAgbotPatternRequest(orgid2, pattern2, Some(orgid))
     val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - add pattern of '*' in other org") {
     val input = PostAgbotPatternRequest(orgid2, "*", Some(orgid))
     val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - add pattern that does not exist - should fail") {
+  test(s"POST /orgs/${orgid}/agbots/${agbotId}/patterns - add pattern that does not exist") {
     val input = PostAgbotPatternRequest(orgid, pattern3, None)
-    val response = Http(URL+"/agbots/"+agbotId+"/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    val response = Http(s"${URL}/agbots/${agbotId}/patterns").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
+    info(s"code: ${response.code}")
+    info(s"body: ${response.body}")
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
-  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as agbot") {
-    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/patterns").headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    info("body: " + response.body)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+  test(s"GET /orgs/${orgid}/agbots/${agbotId}/patterns - as agbot") {
+    val response: HttpResponse[String] = Http(s"${URL}/agbots/${agbotId}/patterns").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotPatternsResponse]
-    assert(getAgbotResp.patterns.size === 3)
+    assert(getAgbotResp.patterns.size === 4)
     assert(getAgbotResp.patterns.contains(patId))
-    assert(getAgbotResp.patterns.contains(orgid2+"_*_"+orgid))
-    assert(getAgbotResp.patterns.contains(orgid2+"_"+pattern2+"_"+orgid))
+    assert(getAgbotResp.patterns.contains(patId3))
+    assert(getAgbotResp.patterns.contains(s"${orgid2}_*_${orgid}"))
+    assert(getAgbotResp.patterns.contains(s"${orgid2}_${pattern2}_${orgid}"))
     val pat = getAgbotResp.patterns(patId)
     assert(pat.pattern === pattern)
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+patId2+" - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/patterns/"+patId2).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotPatternsResponse]
     assert(getAgbotResp.patterns.size === 1)
 
@@ -626,7 +631,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+patId+" - as user") {
     val response = Http(URL+"/agbots/"+agbotId+"/patterns/"+patId).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " patterns was deleted and stored") {
@@ -634,7 +639,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotpatterns")}))
@@ -642,24 +647,23 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/patterns/"+orgid2+"_*_"+orgid+" - delete wildcard pattern") {
     val response = Http(URL+"/agbots/"+agbotId+"/patterns/"+orgid2+"_*_"+orgid).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
-  }
-
-  test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as agbot - should be 1 less") {
-    val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/patterns").headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
-    val getAgbotResp = parse(response.body).extract[GetAgbotPatternsResponse]
-    assert(getAgbotResp.patterns.size === 1)
+    info(s"code: ${response.code}")
+    assert(response.code === StatusCodes.NoContent.intValue)
+    
+    val response2: HttpResponse[String] = Http(s"${URL}/agbots/${agbotId}/patterns").headers(ACCEPT).headers(AGBOTAUTH).asString
+    info(s"code: ${response2.code}")
+    info(s"body:\n${pretty(parse(response2.body))}")
+    assert(response2.code === StatusCodes.OK.intValue)
+    val getAgbotResp = parse(response2.body).extract[GetAgbotPatternsResponse]
+    assert(getAgbotResp.patterns.size === 2)
     assert(getAgbotResp.patterns.contains(patId2))
+    assert(getAgbotResp.patterns.contains(patId3))
   }
 
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - delete all as user") {
     val response = Http(URL+"/agbots/"+agbotId+"/patterns").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    info(s"code: ${response.code}")
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " all patterns were deleted and stored") {
@@ -667,7 +671,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotpatterns")}))
@@ -675,9 +679,9 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/patterns - as agbot - should be all gone") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/patterns").headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.NotFound.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotPatternsResponse]
     assert(getAgbotResp.patterns.size === 0)
   }
@@ -688,15 +692,17 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("POST /orgs/"+orgid+"/business/policies/"+businessPol+" - add "+businessPol+" as user") {
     val input = PostPutBusinessPolicyRequest(businessPol, None, BService(svcurl, orgid, svcarch, List(BServiceVersions(svcversion, None, None)), None, None), None, None, None, None )
     val response = Http(URL+"/business/policies/"+businessPol).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as user") {
     val input = PostAgbotBusinessPolRequest(orgid, businessPol, None)
     val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " businesspols was added and stored") {
@@ -704,7 +710,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "agbotbusinesspols")}))
@@ -713,69 +719,74 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - already exists, should get 409") {
     val input = PostAgbotBusinessPolRequest(orgid, businessPol, None)
     val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ALREADY_EXISTS2.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Conflict.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - node org different from business policy org - should fail") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - Agbot - 403 - node org different from deployment policy org - should fail") {
     val input = PostAgbotBusinessPolRequest(orgid2, "*", Some(orgid))
     val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - add business policy of '*' in other org") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - Agbot - 403 - add business policy of '*' in other org") {
     val input = PostAgbotBusinessPolRequest(orgid2, businessPol2, Some(orgid2))
     val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
-  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - add business policy that does not exist - should fail") {
+  test("POST /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - add business policy that does not exist") {
     val input = PostAgbotBusinessPolRequest(orgid, "notthere", None)
     val response = Http(URL+"/agbots/"+agbotId+"/businesspols").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/businesspols").headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotBusinessPolsResponse]
     assert(getAgbotResp.businessPols.size === 2)
     assert(getAgbotResp.businessPols.contains(busPolId))
-    assert(getAgbotResp.businessPols.contains(busPolId2))
+    assert(getAgbotResp.businessPols.contains(s"${orgid}_notthere_${orgid}"))
     val bp = getAgbotResp.businessPols(busPolId)
     assert(bp.businessPol === businessPol)
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols/"+busPolId2+" - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/businesspols/"+busPolId2).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
-    val getAgbotResp = parse(response.body).extract[GetAgbotBusinessPolsResponse]
-    assert(getAgbotResp.businessPols.size === 1)
-
-    assert(getAgbotResp.businessPols.contains(busPolId2))
-    val bp = getAgbotResp.businessPols(busPolId2)
-    assert(bp.businessPol === businessPol2)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols/"+busPolId2+" - delete wildcard business policy") {
     val response = Http(URL+"/agbots/"+agbotId+"/businesspols/"+busPolId2).method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    info(s"code: ${response.code}")
+    assert(response.code === StatusCodes.NotFound.intValue)
+  }
+  
+  test(s"DELETE /orgs/${orgid}/agbots/${agbotId}/businesspols/${orgid}_notthere_${orgid} - delete notthere business policy") {
+    val response = Http(s"${URL}/agbots/${agbotId}/businesspols/${orgid}_notthere_${orgid}").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
+    info(s"code: ${response.code}")
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " businesspols was deleted and stored") {
     val time = Instant.now().minusSeconds(secondsAgo).toString
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotbusinesspols")}))
@@ -783,9 +794,9 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as agbot - should be 1 less") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/businesspols").headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotBusinessPolsResponse]
     assert(getAgbotResp.businessPols.size === 1)
     assert(getAgbotResp.businessPols.contains(busPolId))
@@ -793,8 +804,8 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - delete all as user") {
     val response = Http(URL+"/agbots/"+agbotId+"/businesspols").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    info(s"code: ${response.code}")
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " all businesspols were deleted and stored") {
@@ -802,7 +813,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotbusinesspols")}))
@@ -810,9 +821,9 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/businesspols - as agbot - should be all gone") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/businesspols").headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: " + response.code)
-    // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.NotFound.intValue)
     val getAgbotResp = parse(response.body).extract[GetAgbotBusinessPolsResponse]
     assert(getAgbotResp.businessPols.size === 0)
   }
@@ -824,8 +835,9 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("POST /orgs/"+orgid+"/agreements/confirm - not there") {
     val input = PostAgreementsConfirmRequest(agreementId)
     val response = Http(URL+"/agreements/confirm").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.NotFound.intValue)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
     assert(postConfirmResp.code === ApiRespType.NOT_FOUND)
   }
@@ -834,8 +846,9 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("POST /orgs/"+orgid+"/agreements/confirm - not there - as user") {
     val input = PostAgreementsConfirmRequest(agreementId)
     val response = Http(URL+"/agreements/confirm").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.NotFound.intValue)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
     assert(postConfirmResp.code === ApiRespType.NOT_FOUND)
   }
@@ -844,16 +857,18 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("PUT /orgs/"+orgid+"/agbots/"+agbot2Id+" - normal") {
     val input = PutAgbotsRequest(agbot2Token, "agbot"+agbot2Id+"-norm", None, "ABC")
     val response = Http(URL+"/agbots/"+agbot2Id).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Try to confirm the agreement that's not there for agbot 9930, as agbot2 */
   test("POST /orgs/"+orgid+"/agreements/confirm - not there - as agbot2") {
     val input = PostAgreementsConfirmRequest(agreementId)
     val response = Http(URL+"/agreements/confirm").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOT2AUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.NotFound.intValue)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
     assert(postConfirmResp.code === ApiRespType.NOT_FOUND)
   }
@@ -862,8 +877,9 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - as agbot") {
     val input = PutAgbotAgreementRequest(AAService(orgid, pattern, "sdr"), "signed")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " agreement was added and stored") {
@@ -871,7 +887,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "agbotagreements")}))
@@ -882,7 +898,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(!parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "agbotagreements")}))
@@ -893,24 +909,27 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - update as agbot") {
     val input = PutAgbotAgreementRequest(AAService(orgid, pattern, "sdr"), "finalized")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Update the agreement for agbot 9930 - as user */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - as user") {
     val input = PutAgbotAgreementRequest(AAService(orgid, pattern, "sdr"), "negotiating")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Add a 2nd agreement for agbot 9930 - as the agbot */
   test("PUT /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/9951 - 2nd agreement as agbot") {
     val input = PutAgbotAgreementRequest(AAService(orgid, pattern, "netspeed"), "signed")
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/9951").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Try to add a 3rd agreement, when max agreements is below that. */
@@ -923,29 +942,32 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       // Change the maxAgreements config value in the svr
       var configInput = AdminConfigRequest("api.limits.maxAgreements", "1")
       var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      info(s"code: ${response.code}")
+      info(s"body:\n${pretty(parse(response.body))}")
+      assert(response.code === StatusCodes.Created.intValue)
 
       // Now try adding another agreement - expect it to be rejected
       val input = PutAgbotAgreementRequest(AAService(orgid, pattern, "netspeed"), "signed")
       response = Http(URL+"/agbots/"+agbotId+"/agreements/9952").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      info(s"code: ${response.code}")
+      info(s"body:\n${pretty(parse(response.body))}")
+      assert(response.code === StatusCodes.Forbidden.intValue)
       val respObj = parse(response.body).extract[ApiResponse]
       assert(respObj.msg.contains("Access Denied: you are over the limit of 1 agreements for this agbot"))
 
       // Restore the maxAgreements config value in the svr
       configInput = AdminConfigRequest("api.limits.maxAgreements", origMaxAgreements.toString)
       response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      info(s"code: ${response.code}")
+      info(s"body:\n${pretty(parse(response.body))}")
+      assert(response.code === StatusCodes.Created.intValue)
     }
   }
 
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/agreements - verify agbot agreement") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgResp = parse(response.body).extract[GetAgbotAgreementsResponse]
     assert(getAgResp.agreements.size === 2)
 
@@ -959,7 +981,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId) {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgResp = parse(response.body).extract[GetAgbotAgreementsResponse]
     assert(getAgResp.agreements.size === 1)
 
@@ -974,7 +996,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgResp = parse(response.body).extract[GetAgbotAgreementsResponse]
     assert(getAgResp.agreements.size === 1)
   }
@@ -983,8 +1005,9 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("POST /orgs/"+orgid+"/agreements/confirm") {
     val input = PostAgreementsConfirmRequest(agreementId)
     val response = Http(URL+"/agreements/confirm").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
     assert(postConfirmResp.code === ApiRespType.OK)
   }
@@ -993,8 +1016,9 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("POST /orgs/"+orgid+"/agreements/confirm - as user") {
     val input = PostAgreementsConfirmRequest(agreementId)
     val response = Http(URL+"/agreements/confirm").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
     assert(postConfirmResp.code === ApiRespType.OK)
   }
@@ -1003,8 +1027,9 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("POST /orgs/"+orgid+"/agreements/confirm - as agbot2") {
     val input = PostAgreementsConfirmRequest(agreementId)
     val response = Http(URL+"/agreements/confirm").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOT2AUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.Created.intValue)
     val postConfirmResp = parse(response.body).extract[ApiResponse]
     assert(postConfirmResp.code === ApiRespType.OK)
   }
@@ -1013,7 +1038,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/agreements/"+agreementId+" - as agbot") {
     val response = Http(URL+"/agbots/"+agbotId+"/agreements/"+agreementId).method("delete").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("DELETE "+agreementId+", code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " agreement was deleted and stored") {
@@ -1021,7 +1046,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotagreements")}))
@@ -1031,7 +1056,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/agreements - as agbot, confirm 1 gone") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val getAgResp = parse(response.body).extract[GetAgbotAgreementsResponse]
     assert(getAgResp.agreements.size === 1)
   }
@@ -1040,7 +1065,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+"/agreements - as agbot") {
     val response = Http(URL+"/agbots/"+agbotId+"/agreements").method("delete").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("DELETE "+agreementId+", code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " all agreements were deleted and stored") {
@@ -1048,7 +1073,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(response.body.nonEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbotagreements")}))
@@ -1058,7 +1083,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/agbots/"+agbotId+"/agreements - as agbot, confirm all gone") {
     val response: HttpResponse[String] = Http(URL+"/agbots/"+agbotId+"/agreements").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val getAgResp = parse(response.body).extract[GetAgbotAgreementsResponse]
     assert(getAgResp.agreements.size === 0)
   }
@@ -1074,13 +1099,13 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       var configInput = AdminConfigRequest("api.limits.maxAgbots", "1")
       var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
 
       // Now try adding another agbot - expect it to be rejected
       val input = PutAgbotsRequest(agbot3Token, "agbot"+agbot3Id+"-norm", None, "ABC")
       response = Http(URL+"/agbots/"+agbot3Id).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       val respObj = parse(response.body).extract[ApiResponse]
       assert(respObj.msg.contains("Access Denied: you are over the limit of 1 agbots"))
 
@@ -1088,14 +1113,14 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       configInput = AdminConfigRequest("api.limits.maxAgbots", origMaxAgbots.toString)
       response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
     }
   }
 
   test("GET /changes/maxchangeid - verify " + agbotId + " can call it and it is non-zero") {
     val response = Http(NOORGURL+"/changes/maxchangeid").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     assert(response.body.nonEmpty)
     val parsedBody = parse(response.body).extract[MaxChangeIdResponse]
     assert(parsedBody.maxChangeId > 0)
@@ -1107,7 +1132,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List("*")))
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     info("parsedBody: "+parsedBody)
@@ -1124,7 +1149,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       var configInput = AdminConfigRequest("api.resourceChanges.maxRecordsCap", newMaxRecords.toString)
       var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
 
       // Now post to /changes and make sure the size is respected even though maxRecords sent in is much higher
       // NOTE maxRecords the variable must be larger than newMaxRecords
@@ -1132,7 +1157,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       val input = ResourceChangesRequest(0L, Some(time), maxRecords, Some(List(orgid)))
       response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
       info("code: "+response.code)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       assert(!response.body.isEmpty)
       val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
       info("parsedBody.changes.size: " + parsedBody.changes.size + " maxRecords: " + newMaxRecords)
@@ -1143,7 +1168,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       configInput = AdminConfigRequest("api.resourceChanges.maxRecordsCap", origMaxRecords.toString)
       response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       val origMaxRecords2 = Configuration.getConfig.getInt("api.resourceChanges.maxRecordsCap")
       assert(origMaxRecords == origMaxRecords2)
     }
@@ -1152,12 +1177,13 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   /** Explicit delete of agbot */
   test("DELETE /orgs/"+orgid+"/agbots/"+agbotId+" - as user") {
     var response = Http(URL+"/agbots/"+agbotId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    info(s"code: ${response.code}")
+    assert(response.code === StatusCodes.NoContent.intValue)
 
     response = Http(URL+"/agbots/"+agbotId).headers(ACCEPT).headers(USERAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + agbotId + " was deleted and stored") {
@@ -1165,7 +1191,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(response.body.nonEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == agbotId) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "agbot")}))
@@ -1184,7 +1210,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       var response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info(urlRoot+"/v1/orgs/IBM/changes -- wildcard splat")
       info("code: "+response.code)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       assert(response.body.nonEmpty)
       var parsedBody = parse(response.body).extract[ResourceChangesRespObject]
       assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
@@ -1194,7 +1220,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info(urlRoot+"/v1/orgs/IBM/changes -- wildcard empty string")
       info("code: "+response.code)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       assert(response.body.nonEmpty)
       parsedBody = parse(response.body).extract[ResourceChangesRespObject]
       assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
@@ -1205,7 +1231,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info(urlRoot+"/v1/orgs/IBM/changes -- orgList: ["+orgid+"]")
       info("code: "+response.code)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       assert(response.body.nonEmpty)
       parsedBody = parse(response.body).extract[ResourceChangesRespObject]
       assert(parsedBody.changes.exists(y => {y.orgId == orgid}))
@@ -1215,7 +1241,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       response = Http(urlRoot+"/v1/orgs/IBM/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(IBMAGBOTAUTH).asString
       info(urlRoot+"/v1/orgs/IBM/changes -- orgList: [\"IBM\"]")
       info("code: "+response.code)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       assert(response.body.nonEmpty)
       parsedBody = parse(response.body).extract[ResourceChangesRespObject]
       assert(!parsedBody.changes.exists(y => {y.orgId == orgid && y.operation != ResChangeOperation.CREATED.toString}))
@@ -1242,7 +1268,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
       val input = DeleteIBMChangesRequest(res)
       val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
     }
   }
 
@@ -1251,23 +1277,26 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   ignore("POST /orgs/"+orgid+" - delete org") {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
   
   ignore("POST /orgs/"+orgid2+" - delete org2") {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
-    info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    info(s"code: ${response.code}")
+    info(s"body:\n${pretty(parse(response.body))}")
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
   
   ignore("DELETE org changes") {
     for (org <- orgsList){
       val input = DeleteOrgChangesRequest(List())
       val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      info(s"code: ${response.code}")
+      info(s"body:\n${pretty(parse(response.body))}")
+      assert(response.code === StatusCodes.NoContent.intValue)
     }
   }
 }

@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.node
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.{json4s, scalatest}
 import org.json4s.{DefaultFormats, convertToJsonInput}
@@ -229,7 +230,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     
     val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 3)
@@ -305,7 +306,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("arch", "%64").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     
     val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 1)
@@ -316,7 +317,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("id", "%2").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     
     val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 1)
@@ -330,7 +331,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("name", "%").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     
     val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 3)
@@ -343,7 +344,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("type", "device").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     
     val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 2)
@@ -355,7 +356,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("owner", "%u2").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     
     val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 1)
@@ -368,7 +369,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").param("owner", "%u2").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     
     val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 1)
@@ -379,7 +380,7 @@ class TestNodesGetDetails extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "TestNodesGetDetails" + "/node-details").headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     // info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     
     val NODES: List[NodeDetails] = parse(response.body).extract[List[NodeDetails]]
     assert(NODES.size === 2)

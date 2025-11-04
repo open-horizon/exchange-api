@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.json4s.{DefaultFormats, Formats}
@@ -16,7 +17,7 @@ import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TNode}
 import org.openhorizon.exchangeapi.route.node.GetNodeMsgsResponse
 import org.openhorizon.exchangeapi.table.node.message.{NodeMsg, NodeMsgsTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -91,14 +92,14 @@ trait Message extends JacksonSupport with AuthenticationSupport {
         .map({
           case Success(message) =>
             if(message.messages.nonEmpty)
-              (HttpCode.OK, message)
+              (StatusCodes.OK, message)
             else {
-              Future { logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - message.messages.nonEmpty:${message.messages.nonEmpty} - ${(HttpCode.NOT_FOUND, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))))}") }
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+              Future { logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - message.messages.nonEmpty:${message.messages.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))))}") }
+              (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
             }
           case Failure(exception) =>
-            Future { logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage))))}") }
-            (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage)))
+            Future { logger.debug(s"GET /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage))))}") }
+            (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", exception.getMessage)))
         })
     })
   }
@@ -128,7 +129,7 @@ trait Message extends JacksonSupport with AuthenticationSupport {
         db.run(NodeMsgsTQ.getMsg(resource,msgId).delete.asTry).map({
           case Success(v) =>
             Future { logger.debug(s"DELETE /nodes/$node/msgs/$msgId - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")} - updated in changes table: $v") }
-            (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.deleted")))
+            (StatusCodes.NoContent,  ApiResponse(ApiRespType.OK, ExchMsg.translate("node.msg.deleted")))
           case Failure(exception: DBProcessingError) =>
             Future { logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
             exception.toComplete
@@ -136,14 +137,14 @@ trait Message extends JacksonSupport with AuthenticationSupport {
             Future { logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.msg.not.deleted", msgId, resource, exception.toString)))}") }
             ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("node.msg.not.deleted", msgId, resource, exception.toString))
           case Failure(exception) =>
-            Future { logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, resource, exception.toString))))}") }
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, resource, exception.toString)))
+            Future { logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, resource, exception.toString))))}") }
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.msg.not.deleted", msgId, resource, exception.toString)))
         })
       }
       catch {
         case e: Exception =>
-          Future { logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${e.toString} - ${(HttpCode.BAD_INPUT, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e))))}") }
-          (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e)))
+          Future { logger.debug(s"DELETE /orgs/${organization}/nodes/${node}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${e.toString} - ${(StatusCodes.BadRequest, Serialization.write(ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e))))}") }
+          (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e)))
       }    // the specific exception is NumberFormatException
     })
   }

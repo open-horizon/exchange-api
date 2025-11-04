@@ -16,7 +16,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProces
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -26,7 +26,7 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-@Path("/v1/orgs/{organization}/patterns/{pattern}/keys")
+@Path("/v1/orgs/{organization}/deployment/patterns/{pattern}/keys")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
 trait Keys extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -35,7 +35,7 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // =========== DELETE /orgs/{organization}/patterns/{pattern}/keys ===============================
+  // =========== DELETE /orgs/{organization}/deployment/patterns/{pattern}/keys ===============================
   @DELETE
   @Path("{pattern}/keys")
   @Operation(summary = "Deletes all keys of a pattern", description = "Deletes all of the current keys/certs for this pattern. This can only be run by the pattern owning user.",
@@ -64,7 +64,7 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
             if (public.nonEmpty) {
               storedPublicField = public.head
               PatternKeysTQ.getKeys(resource).delete.asTry
-            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
+            } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", resource))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -73,24 +73,24 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               ResourceChange(0L, organization, deploymentPattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.pattern.keys.found", resource))).asTry
+              DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("no.pattern.keys.found", resource))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
             logger.debug("DELETE /patterns/" + deploymentPattern + "/keys result: " + v)
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.keys.deleted")))
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.keys.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.keys.not.deleted", resource, t.toString))
           case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.keys.not.deleted", resource, t.toString)))
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.keys.not.deleted", resource, t.toString)))
         })
       })
     }
   
-  /* ====== GET /orgs/{organization}/patterns/{pattern}/keys ================================ */
+  /* ====== GET /orgs/{organization}/deployment/patterns/{pattern}/keys ================================ */
   @GET
   @Path("{pattern}/keys")
   @Operation(summary = "Returns all keys/certs for this pattern", description = "Returns all the signing public keys/certs for this pattern. Can be run by any credentials able to view the pattern.",

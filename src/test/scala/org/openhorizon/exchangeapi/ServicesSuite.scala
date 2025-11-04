@@ -1,5 +1,7 @@
 package org.openhorizon.exchangeapi
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
+
 import java.time._
 import org.openhorizon.exchangeapi._
 import org.openhorizon.exchangeapi.route.administration.{DeleteIBMChangesRequest, DeleteOrgChangesRequest}
@@ -22,7 +24,7 @@ import org.openhorizon.exchangeapi.table.service.dockerauth.ServiceDockAuth
 import org.openhorizon.exchangeapi.table.service.policy.ServicePolicy
 import org.openhorizon.exchangeapi.table.service.{OneProperty, ServiceRef}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
@@ -247,7 +249,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     for (i <- List(user,user2)) {
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
     }
   }
   
@@ -259,12 +261,12 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
 
     val input = PostPutOrgRequest(None, "My Org", "desc", None, None, None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Create a second org to use for this test */
@@ -272,12 +274,12 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
 
     val input = PostPutOrgRequest(None, "My Second Org", "desc", None, None, None)
     response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the services, because they are deleted when the user is deleted. */
@@ -291,41 +293,41 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     var userInput = PostPutUsersRequest(pw, admin = false, Some(false), user+"@hotmail.com")
     var userResponse = Http(URL+"/users/"+user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK.intValue)
+    assert(userResponse.code === StatusCodes.Created.intValue)
 
     userInput = PostPutUsersRequest(pw2, admin = false, Some(false), user2+"@hotmail.com")
     userResponse = Http(URL+"/users/"+user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+userResponse.code+", userResponse.body: "+userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK.intValue)
+    assert(userResponse.code === StatusCodes.Created.intValue)
 
     val devInput = PutNodesRequest(Option(nodeToken), "bc dev test", None, Option(""), None, None, None, None, Option(""), None, None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
-    assert(devResponse.code === HttpCode.PUT_OK.intValue)
+    assert(devResponse.code === StatusCodes.Created.intValue)
 
     val devInput2 = PutNodesRequest(Option(nodeToken2), "bc dev test", None, Option(""), None, None, None, None, Option(""), None, None)
     val devResponse2 = Http(URL+"/nodes/"+nodeId2).postData(write(devInput2)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse2.code)
-    assert(devResponse2.code === HttpCode.PUT_OK.intValue)
+    assert(devResponse2.code === StatusCodes.Created.intValue)
 
     val agbotInput = PutAgbotsRequest(agbotToken, "agbot"+agbotId+"-norm", None, "ABC")
     val agbotResponse = Http(URL+"/agbots/"+agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+agbotResponse.code+", agbotResponse.body: "+agbotResponse.body)
-    assert(agbotResponse.code === HttpCode.PUT_OK.intValue)
+    assert(agbotResponse.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" before the referenced service exists - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(""), reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add service so other services can reference it") {
     val input = PostPutServiceRequest("testSvc", Some("desc"), public = false, None, reqsvcurl, reqsvcversion, reqsvcarch, "single", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
 
@@ -334,42 +336,42 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" that is not signed - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some(""),None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" with clusterDeployment that is not signed - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))),None,None, Some("{\"services\":{}}"),Some(""),None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" that needs 2 required svcs - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch),ServiceRef(reqsvcurl2,orgid,Some(reqsvcversion2), None, reqsvcarch2))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" that requires service of different arch - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl3,orgid,Some(reqsvcversion3), None, reqsvcarch3))), None, Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" as user that requires a service") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("service '"+orgservice+"' created"))
   }
@@ -378,7 +380,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = true, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("service '"+org2service+"' created"))
   }
@@ -388,7 +390,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.orgId == orgid) && (y.id == service) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "service")}))
@@ -399,7 +401,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceRequest(svcBase3+" arm", None, public = false, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),Some("{\"services\":{}}"),Some("a"),None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("service '"+orgservice3+"' created"))
   }
@@ -408,21 +410,21 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceRequest(svcBase3+" arm", None, public = false, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), None,None,Some("{\"services\":{}}"),Some("a"),None)
     val response = Http(URL+"/services/"+service3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service4+" as user with no reqSer.version or versionRange -- should fail") {
     val input = PostPutServiceRequest(svcBase4+" arm", None, public = false, None, svcUrl4, svcVersion4, svcArch4, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,None, None, reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service4+" as user that requires a service with just reqService.versionRange, with only cluster deployment") {
     val input = PostPutServiceRequest(svcBase4+" arm", None, public = false, None, svcUrl4, svcVersion4, svcArch4, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,None, Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), None,None,Some("{\"services\":{}}"),Some("a"),None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("service '"+orgservice4+"' created"))
   }
@@ -431,49 +433,49 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceRequest(svcBase4+" arm", None, public = false, None, svcUrl4, svcVersion4, svcArch4, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,None, Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),Some("{\"services\":{}}"),Some("a"),None)
     val response = Http(URL+"/services/"+service4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service+" again - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ALREADY_EXISTS.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update to need 2 required svcs - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch),ServiceRef(reqsvcurl2,orgid,Some(reqsvcversion2), None, reqsvcarch2))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update changing arch - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, "amd64", "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid, Some(reqsvcversion), None, reqsvcarch))), None, Some(""), Some(""), None,None,None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update with invalid sharable value - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, None, svcUrl, svcVersion, svcArch, "foobar", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), None, Some(""), Some(""), None,None,None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add 2nd required service so services can reference both") {
     val input = PostPutServiceRequest("testSvc", None, public = false, None, reqsvcurl2, reqsvcversion2, reqsvcarch2, "single", None, None, None, Some(""), Some(""), None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update to need 2 required svcs - this time should succeed") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch),ServiceRef(reqsvcurl2,orgid,Some(reqsvcversion2), None, reqsvcarch2))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was updated and stored") {
@@ -481,7 +483,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "service")}))
@@ -491,21 +493,21 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some("2.0.0"), None, reqsvcarch),ServiceRef(reqsvcurl2,orgid,Some(reqsvcversion2), None, reqsvcarch2))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update as 2nd user - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+" - update as agbot - should fail") {
     val input = PostPutServiceRequest(svcBase+" arm", None, public = false, Some(svcDoc), svcUrl, svcVersion, svcArch, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - invalid service body") {
@@ -514,56 +516,56 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     }"""
     val response = Http(URL+"/services/"+service2).postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service2+" as node - should fail") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = false, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+service2+" as 2nd user, with no referenced required svcs") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, with a referenced MS so future GETs work") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, with added reqServices.versionRange") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, with changing version or reqSer to None") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,None, Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, with no version or versionRange -- should fail") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,None, None, reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service2+" - add "+service2+" as 2nd user, add back reqSer.versionRange") {
     val input = PostPutServiceRequest(svcBase2+" arm", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None,None,None)
     val response = Http(URL+"/services/"+service2).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /*someday: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
@@ -579,19 +581,19 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
       var configInput = AdminConfigRequest("api.limits.maxServices", "1")    // user only owns 1 currently
       var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
 
       // Now try adding another 2 services - expect it to be rejected
       var input = PostPutServiceRequest(svcBase4+" arm", None, public = true, None, svcUrl4, "0.0.1", "arm", "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None)
       response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
 
       // Now try adding another service - expect it to be rejected
       input = PostPutServiceRequest(svcBase3+" arm", None, public = true, None, svcUrl3, "0.0.1", "arm", "multiple", None, Some(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), Some(reqsvcversion), reqsvcarch))), Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None)
       response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       val respObj = parse(response.body).extract[ApiResponse]
       assert(respObj.msg.contains("Access Denied: you are over the limit of 1 services"))
 
@@ -599,12 +601,12 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
       configInput = AdminConfigRequest("api.limits.maxServices", origMaxServices.toString)
       response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
 
       //ServicesSuiteTests/svc9923_0.0.1_arm
       response = Http(URL+"/services/svc9923_0.0.1_arm").method("delete").headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
     }
   }
   */
@@ -613,7 +615,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj: TestGetServicesResponse = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 6)
 
@@ -632,7 +634,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("owner",orguser2).param("requiredurl",reqsvcurl).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)
     assert(respObj.services.contains(orgservice2))
@@ -642,7 +644,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("url",svcUrl2).param("arch",svcArch2).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)
     assert(respObj.services.contains(orgservice2))
@@ -651,7 +653,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/services - filter for nodetype of device") {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("nodetype","device").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     val svc = respObj.services
     assert(svc.size === 4)
@@ -661,7 +663,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/services - filter for nodetype of cluster") {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("nodetype","cluster").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     val svc = respObj.services
     assert(svc.size === 2)
@@ -671,14 +673,14 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/services - filter for invalid nodetype - should fail") {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("nodetype","foo").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("GET /orgs/"+orgid+"/services - filter by public setting") {
     // Find the public==true services
     var response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("public","true").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     var respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)
     assert(respObj.services.contains(orgservice2))
@@ -686,7 +688,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Find the public==false services
     response = Http(URL+"/services").headers(ACCEPT).headers(USERAUTH).param("public","false").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 5)
     assert(respObj.services.contains(orgservice))
@@ -696,7 +698,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 6)
   }
@@ -704,7 +706,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/services - as agbot") {
     val response: HttpResponse[String] = Http(URL+"/services").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 6)
   }
@@ -713,7 +715,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/services/"+service).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)
 
@@ -733,21 +735,21 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val jsonInput = """{ "arch": "amd64" }"""
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - invalid sharable value - should fail") {
     val jsonInput = """{ "sharable": "foobar" }"""
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - as user") {
     val jsonInput = """{ "sharable": "exclusive" }"""
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was updated via PATCH and stored") {
@@ -756,7 +758,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     Thread.sleep(1000)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.MODIFIED.toString) && (y.resource == "service")}))
@@ -766,7 +768,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val jsonInput = """    { "sharable": "exclusive" }      """
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - as user with newlines") {
@@ -776,14 +778,14 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
         """
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch required service -- bad input") {
     val jsonInput = write(List(ServiceRef(reqsvcurl,orgid,Some(reqsvcversion), None, reqsvcarch)))
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
     //assert(response.body.contains("invalid input"))
   }
 
@@ -794,7 +796,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     info(write(input))
     val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch versionRange of required service") {
@@ -804,7 +806,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     info(write(input))
     val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch version of required service") {
@@ -814,7 +816,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     info(write(input))
     val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - patch versionRange of required service to None") {
@@ -824,21 +826,21 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     info(write(input))
     val response = Http(URL+"/services/"+service).postData(write(input)).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/services/"+service+" - as user2 - should fail") {
     val jsonInput = """{ "label": "this is now patched" }"""
     val response = Http(URL+"/services/"+service).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+" - as agbot, check patch by getting that 1 attr") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","sharable").asString
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[GetServiceAttributeResponse]
     assert(respObj.attribute === "sharable")
     assert(respObj.value === "exclusive")
@@ -848,7 +850,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"notthere").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     //val getServiceResp = parse(response.body).extract[TestGetServicesResponse]
     //assert(getServiceResp.services.size === 0)
   }
@@ -860,14 +862,14 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, Some("{\"services\":{}}"), Some("a"), None,None,None)
     val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("GET /orgs/IBM/services") {
     val response: HttpResponse[String] = Http(IBMURL+"/services").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     //assert(respObj.services.size === 1)  // cant check this because there could be other services defined in the IBM org
 
@@ -880,7 +882,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(IBMURL+"/services/"+ibmService).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     assert(respObj.services.size === 1)  // cant check this because there could be other services defined in the IBM org
 
@@ -897,14 +899,14 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PutServicePolicyRequest(None, None, Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b")))
     val response = Http(URL+"/services/"+service+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/services/"+service+"/policy - as user") {
     val input = PutServicePolicyRequest(Some(service+" policy"), Some(service+" policy desc"), Some(List(OneProperty("purpose",None,"location"))), Some(List("a == b")))
     val response = Http(URL+"/services/"+service+"/policy").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " policy was created and stored") {
@@ -912,7 +914,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "servicepolicies")}))
@@ -921,7 +923,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/services/"+service+"/policy - as node") {
     val response = Http(URL+"/services/"+service+"/policy").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val getResp = parse(response.body).extract[ServicePolicy]
     assert(getResp.label === service+" policy")
     assert(getResp.description === service+" policy desc")
@@ -932,7 +934,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/services/"+service+"/policy - as user") {
     val response = Http(URL+"/services/"+service+"/policy").method("delete").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " policy was deleted and stored") {
@@ -940,7 +942,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "servicepolicies")}))
@@ -949,14 +951,14 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/services/"+service+"/policy - as node - should not be there") {
     val response = Http(URL+"/services/"+service+"/policy").method("get").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   // Key tests ==============================================
   test("GET /orgs/"+orgid+"/services/"+service+"/keys - no keys have been created yet - should fail") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val resp = parse(response.body).extract[List[String]]
     assert(resp.size === 0)
   }
@@ -965,7 +967,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     //val input = PutServiceKeyRequest(key)
     val response = Http(URL+"/services/"+service+"/keys/"+keyId).postData(key).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " key was created and stored") {
@@ -973,7 +975,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "servicekeys")}))
@@ -983,13 +985,13 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     //val input = PutServiceKeyRequest(key2)
     val response = Http(URL+"/services/"+service+"/keys/"+keyId2).postData(key2).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+"/keys - should be 2 now") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val resp = parse(response.body).extract[List[String]]
     assert(resp.size === 2)
     assert(resp.contains(keyId) && resp.contains(keyId2))
@@ -1001,14 +1003,14 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     //val bodyStr = (response.body.map(_.toChar)).mkString
     //info("code: "+response.code+", response.body: "+bodyStr)
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     assert(response.body === key)
   }
 
   test("DELETE /orgs/"+orgid+"/services/"+service+"/keys/"+keyId) {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " key was deleted and stored") {
@@ -1016,7 +1018,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "servicekeys")}))
@@ -1025,19 +1027,19 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" try deleting it again - should fail") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("GET /orgs/"+orgid+"/services/"+service+"/keys/"+keyId+" - verify it is gone") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys/"+keyId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/services/"+service+"/keys - delete all keys") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " all keys were deleted and stored") {
@@ -1045,7 +1047,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "servicekeys")}))
@@ -1054,7 +1056,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/services/"+service+"/keys - all keys should be gone now") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/keys").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val resp = parse(response.body).extract[List[String]]
     assert(resp.size === 0)
   }
@@ -1063,7 +1065,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/services/"+service+"/dockauths - no dockauths have been created yet - should fail") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val resp = parse(response.body).extract[List[ServiceDockAuth]]
     assert(resp.size === 0)
   }
@@ -1072,14 +1074,14 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceDockAuthRequest(dockAuthRegistry+"-updated", None, dockAuthToken+"-updated")
     val response = Http(URL+"/services/"+service+"/dockauths/1").postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services/"+service+"/dockauths - add a dockauth as user") {
     val input = PostPutServiceDockAuthRequest(dockAuthRegistry, Some(dockAuthUsername), dockAuthToken)
     val response = Http(URL+"/services/"+service+"/dockauths").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + "dockauth was created and stored") {
@@ -1087,7 +1089,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "servicedockauths")}))
@@ -1097,14 +1099,14 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceDockAuthRequest(dockAuthRegistry2, None, dockAuthToken2)
     val response = Http(URL+"/services/"+service+"/dockauths").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services/"+service+"/dockauths - add a duplicate, it should just update the existing") {
     val input = PostPutServiceDockAuthRequest(dockAuthRegistry2, None, dockAuthToken2)
     val response = Http(URL+"/services/"+service+"/dockauths").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("GET all the dockauths, PUT one, GET one, DELETE one, and verify") {
@@ -1112,7 +1114,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("GET /orgs/"+orgid+"/services/"+service+"/dockauths - as node, should be 2 now")
     var response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val resp = parse(response.body).extract[List[ServiceDockAuth]]
     assert(resp.size === 2)
     var dockAuth = resp.find(d => d.registry == dockAuthRegistry).orNull
@@ -1130,14 +1132,14 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceDockAuthRequest(dockAuthRegistry+"-updated", Some(dockAuthUsername+"-updated"), dockAuthToken+"-updated")
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     info("POST /orgs/"+orgid+"/changes - verify " + service + "dockauth was created and stored")
     val time = Instant.now().minusSeconds(secondsAgo).toString
     val anotherInput = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     response = Http(URL+"/changes").postData(write(anotherInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "servicedockauths")}))
@@ -1145,7 +1147,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("GET /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" - and check content")
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     dockAuth = parse(response.body).extract[ServiceDockAuth]
     assert(dockAuth.dockAuthId === dockAuthId)
     assert(dockAuth.registry === dockAuthRegistry+"-updated")
@@ -1155,17 +1157,17 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("DELETE /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId)
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
 
     info("DELETE /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" try deleting it again - should fail")
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
 
     info("GET /orgs/"+orgid+"/services/"+service+"/dockauths/"+dockAuthId+" - verify it is gone")
     response = Http(URL+"/services/"+service+"/dockauths/"+dockAuthId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + "dockauth was deleted and stored") {
@@ -1173,7 +1175,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "servicedockauths")}))
@@ -1182,7 +1184,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/services/"+service+"/dockauths - delete all keys") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " all dockauths were deleted and stored") {
@@ -1190,7 +1192,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "servicedockauths")}))
@@ -1199,7 +1201,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/services/"+service+"/dockauths - all dockauths should be gone now") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service+"/dockauths").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val resp = parse(response.body).extract[List[ServiceDockAuth]]
     assert(resp.size === 0)
   }
@@ -1209,7 +1211,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/services/"+service) {
     val response = Http(URL+"/services/"+service).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + service + " was deleted and stored") {
@@ -1217,7 +1219,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == service) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "service")}))
@@ -1227,7 +1229,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/services/"+service).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     //val getServiceResp = parse(response.body).extract[TestGetServicesResponse]
     //assert(getServiceResp.services.size === 0)
   }
@@ -1235,20 +1237,20 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/services/"+service2+" - so its owner cache entry is also deleted") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service2).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/users/"+user2) {
     val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("GET /orgs/"+orgid+"/services/"+service2+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(URL+"/services/"+service2).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     //val getServiceResp = parse(response.body).extract[TestGetServicesResponse]
     //assert(getServiceResp.services.size === 0)
   }
@@ -1256,15 +1258,15 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/IBM/services/"+ibmService) {
     val response = Http(IBMURL+"/services/"+ibmService).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("GET /orgs/IBM/services"+ibmService+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(IBMURL+"/services/"+ibmService).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
+    //assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("DELETE IBM changes") {
@@ -1272,7 +1274,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = DeleteIBMChangesRequest(res)
     val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   /** Clean up, delete all the test users */
@@ -1285,7 +1287,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   /** Delete the second org we used for this test */
@@ -1293,7 +1295,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("Cleanup -- DELETE org changes") {
@@ -1301,7 +1303,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
       val input = DeleteOrgChangesRequest(List())
       val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
     }
   }
 

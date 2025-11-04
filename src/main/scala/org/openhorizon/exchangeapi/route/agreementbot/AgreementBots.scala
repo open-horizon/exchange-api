@@ -15,7 +15,7 @@ import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.table.agreementbot.{Agbot, AgbotRow, AgbotsTQ}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
@@ -118,8 +118,8 @@ trait AgreementBots extends JacksonSupport with AuthenticationSupport {
                   StatusCodes.OK
                ), GetAgbotsResponse(agbotMap, 0))
             case Failure(exception) =>
-              Future { logger.debug(s"GET /orgs/$organization/agbots?idfilter=${idfilter.getOrElse("None")}&name=${name.getOrElse("None")}&owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unknown.error.invalid.creds"))))}") }
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unknown.error.invalid.creds")))
+              Future { logger.debug(s"GET /orgs/$organization/agbots?idfilter=${idfilter.getOrElse("None")}&name=${name.getOrElse("None")}&owner=${owner.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unknown.error.invalid.creds"))))}") }
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("unknown.error.invalid.creds")))
             })
         })
     }

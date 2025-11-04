@@ -181,7 +181,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
                               t, ExchMsg.translate("user.not.added", t.toString))
 
                   case t =>
-                        (HttpCode.BAD_INPUT,
+                        (StatusCodes.BadRequest,
                               ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
             }
       })
@@ -341,16 +341,16 @@ trait User extends JacksonSupport with AuthenticationSupport {
                     
                   }
                   
-                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", s"${resource}(Resource:${uuid})")))
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", s"${resource}(Resource:${uuid})")))
                 case Failure(t: org.postgresql.util.PSQLException) =>
                   t.getMessage match {
                     case message if (message.contains("duplicate key value violates unique constraint")) => // Trying to create the Same User twice.
-                      (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.added.or.updated.successfully", resource)))
+                      (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.added.or.updated.successfully", resource)))
                     case _ =>
-                      (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.updated", t.toString)))
+                      (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.updated", t.toString)))
                   }
                 case Failure(t) =>
-                  (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.updated", t.toString)))
+                  (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.updated", t.toString)))
               }
             })
           }
@@ -549,22 +549,22 @@ trait User extends JacksonSupport with AuthenticationSupport {
 
                         
                         if (result._1 == 1)
-                          (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", s"${resource}(Resource:${uuid})")))
+                          (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.added.successfully", s"${resource}(Resource:${uuid})")))
                         else
-                          (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.updated.successfully")))
+                          (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.updated.successfully")))
                       case Failure(t: org.postgresql.util.PSQLException) =>
                         t.getMessage match {
                           case message if (message.contains("duplicate key value violates unique constraint")) => // Trying to create the Same User twice.
-                            (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.added.or.updated.successfully", resource)))
+                            (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.added.or.updated.successfully", resource)))
                           case message if (message.contains("violates foreign key constraint")) =>
-                            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.added.or.updated.successfully", resource)))
+                            (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.added.or.updated.successfully", resource)))
                           case _ =>
-                            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.updated", t.toString)))
+                            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.updated", t.toString)))
                         }
                       case Failure(t: MethodNotAllowedException) =>
                         (StatusCodes.MethodNotAllowed, ApiResponse(ApiRespType.METHOD_NOT_ALLOWED, ExchMsg.translate("user.creation.disabled.oauth")))
                       case Failure(t) =>
-                        (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
+                        (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
                     }
                   })
           }
@@ -755,14 +755,14 @@ trait User extends JacksonSupport with AuthenticationSupport {
                         cacheResourceIdentity.remove(resource)
                     }
                     
-                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.attr.updated", validAttribute, resource)))
+                    (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.attr.updated", validAttribute, resource)))
                   case Failure(t: org.postgresql.util.PSQLException) =>
                     ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.updated", t.toString))
                   case Failure(t: ClassNotFoundException) =>
                     logger.debug("NOT FOUND    PATCH /orgs/" + organization + "/users/" + username + "    attribute: " + validAttribute) // Either the User does not exist, or [...] Admin permission shenanigans.
-                    (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", resource)))
+                    (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", resource)))
                   case Failure(t) =>
-                    (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
+                    (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("user.not.updated", t.toString)))
                 }
               })
             }
@@ -815,15 +815,15 @@ trait User extends JacksonSupport with AuthenticationSupport {
             case Success(result) =>
               Future { cacheResourceIdentity.remove(resource) }
               
-              (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.deleted")))
+              (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("user.deleted")))
             case Failure(t: ClassNotFoundException) =>
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", resource)))
+              (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("user.not.found", resource)))
             case Failure(t: ArrayIndexOutOfBoundsException) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", resource, "")))
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", resource, "")))
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("user.not.deleted", resource, t.toString))
             case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", resource, t.toString)))
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("user.not.deleted", resource, t.toString)))
           }
         }
       }

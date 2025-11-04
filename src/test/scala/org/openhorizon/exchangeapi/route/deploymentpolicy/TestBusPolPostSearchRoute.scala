@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.deploymentpolicy
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.{DefaultFormats, Formats, JValue, JsonInput, jvalue2extractable}
 import org.json4s.native.Serialization.write
@@ -15,7 +16,7 @@ import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.service.{ServiceRow, ServicesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
@@ -183,14 +184,14 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
     val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(-1L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
   
   test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- 400 Bad Request - numEntries < 0") {
     val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, Some(-1), Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
   
   test("POST /orgs/" + "TestPolicySearchPost" + "/business/policies/" + "pol1" + "/search -- No Nodes") {
@@ -199,7 +200,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
         val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
         info("code: " + response.code)
         info("body: " + response.body)
-        assert(response.code === HttpCode.NOT_FOUND.intValue)
+        assert(response.code === StatusCodes.NotFound.intValue)
     
         val responseBody: PostBusinessPolicySearchResponse = parse(response.body).extract[PostBusinessPolicySearchResponse]
         assert(responseBody.nodes.isEmpty)
@@ -226,7 +227,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("body: " + response.body)
-            assert(response.code === HttpCode.ALREADY_EXISTS2.intValue)
+            assert(response.code === StatusCodes.Conflict.intValue)
     
             val responseBody: PostBusinessPolicySearchResponse = parse(response.body).extract[PostBusinessPolicySearchResponse]
             assert(responseBody.nodes.isEmpty)
@@ -266,7 +267,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
-            assert(response.code === HttpCode.POST_OK.intValue)
+            assert(response.code === StatusCodes.Created.intValue)
             
             val nodes: Seq[BusinessPolicyNodeResponse] = parse(response.body).extract[PostBusinessPolicySearchResponse].nodes
             assert(nodes.length === 1)
@@ -303,7 +304,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
-            assert(response.code === HttpCode.NOT_FOUND.intValue)
+            assert(response.code === StatusCodes.NotFound.intValue)
           }, TESTNODE)
       }, TESTPOLICIES)
   }
@@ -347,7 +348,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
-            assert(response.code === HttpCode.POST_OK.intValue)
+            assert(response.code === StatusCodes.Created.intValue)
             
             val nodes: Seq[BusinessPolicyNodeResponse] = parse(response.body).extract[PostBusinessPolicySearchResponse].nodes
             assert(nodes.length === 1)
@@ -397,7 +398,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
-            assert(response.code === HttpCode.POST_OK.intValue)
+            assert(response.code === StatusCodes.Created.intValue)
             
             val nodes: Seq[BusinessPolicyNodeResponse] = parse(response.body).extract[PostBusinessPolicySearchResponse].nodes
             assert(nodes.length === 1)
@@ -434,7 +435,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
-            assert(response.code === HttpCode.POST_OK.intValue)
+            assert(response.code === StatusCodes.Created.intValue)
             
             val NODE: BusinessPolicyNodeResponse = parse(response.body).extract[PostBusinessPolicySearchResponse].nodes.head
             assert(NODE.id === "TestPolicySearchPost/n1")
@@ -470,7 +471,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
-            assert(response.code === HttpCode.NOT_FOUND.intValue)
+            assert(response.code === StatusCodes.NotFound.intValue)
           }, TESTNODE)
       }, TESTPOLICIES)
   }
@@ -501,7 +502,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
             val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
             info("code: " + response.code)
             info("Body: " + response.body)
-            assert(response.code === HttpCode.NOT_FOUND.intValue)
+            assert(response.code === StatusCodes.NotFound.intValue)
           }, TESTNODE)
       }, TESTPOLICIES)
   }
@@ -530,7 +531,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
         val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(Instant.now().getEpochSecond, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
         info("code: " + response.code)
         info("body: " + response.body)
-        assert(response.code === HttpCode.NOT_FOUND.intValue)
+        assert(response.code === StatusCodes.NotFound.intValue)
         
         val responseBody: PostBusinessPolicySearchResponse = parse(response.body).extract[PostBusinessPolicySearchResponse]
         assert(responseBody.nodes.isEmpty)
@@ -576,7 +577,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("code: " + response.code)
                 info("Body: " + response.body)
-                assert(response.code === HttpCode.NOT_FOUND.intValue)
+                assert(response.code === StatusCodes.NotFound.intValue)
               }, TESTNODE)
           }, TESTPOLICIES)
       }, TESTORGANIZATION)
@@ -619,7 +620,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, Some(List("TestPolicySearchPost2")), None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("code: " + response.code)
                 info("Body: " + response.body)
-                assert(response.code === HttpCode.POST_OK.intValue)
+                assert(response.code === StatusCodes.Created.intValue)
                 
                 val NODE: BusinessPolicyNodeResponse = parse(response.body).extract[PostBusinessPolicySearchResponse].nodes.head
                 assert(NODE.id === "TestPolicySearchPost2/n1")
@@ -667,7 +668,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("Code: " + response.code)
                 info("Body: " + response.body)
-                assert(response.code === HttpCode.NOT_FOUND.intValue)
+                assert(response.code === StatusCodes.NotFound.intValue)
               }, TESTNODEAGREEMENT)
           }, TESTNODE)
       }, TESTPOLICIES)
@@ -726,7 +727,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("Code: " + response.code)
                 info("Body: " + response.body)
-                assert(response.code === HttpCode.POST_OK.intValue)
+                assert(response.code === StatusCodes.Created.intValue)
                 
                 assert(parse(response.body).extract[PostBusinessPolicySearchResponse].nodes.length === 1)
                 
@@ -776,7 +777,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("Code: " + response.code)
                 info("Body: " + response.body)
-                assert(response.code === HttpCode.POST_OK.intValue)
+                assert(response.code === StatusCodes.Created.intValue)
                 
                 val NODE: BusinessPolicyNodeResponse = parse(response.body).extract[PostBusinessPolicySearchResponse].nodes.head
                 assert(NODE.id === "TestPolicySearchPost/n1")
@@ -824,7 +825,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("Code: " + response.code)
                 info("Body: " + response.body)
-                assert(response.code === HttpCode.POST_OK.intValue)
+                assert(response.code === StatusCodes.Created.intValue)
   
                 val NODE: BusinessPolicyNodeResponse = parse(response.body).extract[PostBusinessPolicySearchResponse].nodes.head
                 assert(NODE.id === "TestPolicySearchPost/n1")
@@ -872,7 +873,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, None, Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("Code: " + response.code)
                 info("Body: " + response.body)
-                assert(response.code === HttpCode.POST_OK.intValue)
+                assert(response.code === StatusCodes.Created.intValue)
                 
                 val NODE: BusinessPolicyNodeResponse = parse(response.body).extract[PostBusinessPolicySearchResponse].nodes.head
                 assert(NODE.id === "TestPolicySearchPost/n1")
@@ -932,7 +933,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, Some(1), Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("code: " + response.code)
                 info("body: " + response.body)
-                assert(response.code === HttpCode.POST_OK.intValue)
+                assert(response.code === StatusCodes.Created.intValue)
                 
                 val RESPONSEBODY: PostBusinessPolicySearchResponse = parse(response.body).extract[PostBusinessPolicySearchResponse]
                 assert(RESPONSEBODY.nodes.length === 1)
@@ -997,7 +998,7 @@ class TestBusPolPostSearchRoute extends AnyFunSuite with BeforeAndAfterAll with 
                 val response: HttpResponse[String] = Http(URL + "/business/policies/" + "pol1" + "/search").postData(write(PostBusinessPolicySearchRequest(0L, None, Some(1), Some("token")))).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
                 info("code: " + response.code)
                 info("body: " + response.body)
-                assert(response.code === HttpCode.POST_OK.intValue)
+                assert(response.code === StatusCodes.Created.intValue)
                 
                 val RESPONSEBODY: PostBusinessPolicySearchResponse = parse(response.body).extract[PostBusinessPolicySearchResponse]
                 assert(RESPONSEBODY.nodes.length === 1)

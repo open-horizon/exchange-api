@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.jackson.JsonMethods
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.DefaultFormats
@@ -9,7 +10,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeHeartbeatIntervals, NodeRow, 
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -173,7 +174,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size >= 4) //AT LEAST the ors created by this test suite, but may also be orgs created by other test suite
     assert(orgsList.orgs.contains("root"))
@@ -188,7 +189,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size >= 4) //AT LEAST the orgs created by this test suite, but may also be orgs created by other test suite
     assert(orgsList.orgs.contains("root"))
@@ -203,7 +204,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size >= 2) //AT LEAST the orgs created by this test suite, but may also be orgs created by other test suite
     assert(!orgsList.orgs.contains("root"))
@@ -217,7 +218,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.nonEmpty) //AT LEAST the orgs created by this test suite, but may also be orgs created by other test suite
     assert(!orgsList.orgs.contains("root"))
@@ -231,7 +232,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(MULTITENANTAGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.nonEmpty) //AT LEAST the orgs created by this test suite, but may also be orgs created by other test suite
     assert(!orgsList.orgs.contains("root"))
@@ -245,7 +246,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(NODEAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.nonEmpty) //AT LEAST the orgs created by this test suite, but may also be orgs created by other test suite
     assert(!orgsList.orgs.contains("root"))
@@ -259,7 +260,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).param("orgtype", "IBM").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.nonEmpty) //may be more than one org with type IBM due to other tests
     assert(orgsList.orgs.contains("IBM"))
@@ -269,7 +270,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).param("orgtype", "IBM").headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.nonEmpty) //may be more than one org with type IBM due to other tests
     assert(orgsList.orgs.contains("IBM"))
@@ -279,14 +280,14 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).param("orgtype", "testGetOrgs").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("GET /orgs -- label = testGetOrgs -- returns just testGetOrgsRoute1") {
     val response: HttpResponse[String] = Http(URL).param("label", TESTORGS(0).label).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size === 1)
     assert(orgsList.orgs.contains(TESTORGS(0).orgId))
@@ -296,7 +297,7 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).param("label", "GetOrgs2%").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size === 1)
     assert(orgsList.orgs.contains(TESTORGS(1).orgId))
@@ -306,14 +307,14 @@ class TestGetOrgsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).param("label", "doesNotExist").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("GET /orgs -- orgType = IBM & label = IBM Org -- returns IBM Org") {
     val response: HttpResponse[String] = Http(URL).param("orgtype", "IBM").param("label", "IBM Org").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val orgsList = parse(response.body).extract[GetOrgsResponse]
     assert(orgsList.orgs.size === 1)
     assert(orgsList.orgs.contains("IBM"))

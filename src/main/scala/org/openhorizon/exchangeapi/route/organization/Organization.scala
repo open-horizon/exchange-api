@@ -17,7 +17,7 @@ import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.organization.{Org, OrgLimits, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling}
 import slick.jdbc.PostgresProfile.api._
 
 import java.time.Instant
@@ -197,14 +197,14 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
               })).map({
                 case Success(n) =>
                   logger.debug(s"POST /orgs/$organization put in changes table: $n")
-                  (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.created", organization)))
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.created", organization)))
                 case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", organization, t.getMessage)))
-                  else if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (HttpCode.ALREADY_EXISTS2, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("org.already.exists", organization, t.getMessage)))
+                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", organization, t.getMessage)))
+                  else if (ExchangePosgtresErrorHandling.isDuplicateKeyError(t)) (StatusCodes.Conflict, ApiResponse(ApiRespType.ALREADY_EXISTS, ExchMsg.translate("org.already.exists", organization, t.getMessage)))
                   else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.created", organization, t.toString))
                 case Failure(t) =>
-                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", organization, t.getMessage)))
-                  else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.created", organization, t.toString)))
+                  if (t.getMessage.startsWith("Access Denied:")) (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.created", organization, t.getMessage)))
+                  else (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.created", organization, t.toString)))
               })
             })
           }
@@ -265,19 +265,19 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
               if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
                 ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
               } else {
-                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization))).asTry
+                DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization))).asTry
               }
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>
               logger.debug(s"PUT /orgs/$organization updated in changes table: $n")
-              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.updated")))
+              (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.updated")))
             case Failure(t: DBProcessingError) =>
               t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.updated", organization, t.toString))
             case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", organization, t.toString)))
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", organization, t.toString)))
           })
         })
       }
@@ -334,7 +334,7 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
         
         complete({
           val (action, attrName) = reqBody.getDbUpdate(organization)
-          if (action == null) (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
+          if (action == null) (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("no.valid.org.attr.specified")))
           else db.run(action.transactionally.asTry.flatMap({
             case Success(n) =>
               // Add the resource to the resourcechanges table
@@ -342,19 +342,19 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
               if (n.asInstanceOf[Int] > 0) { // there were no db errors, but determine if it actually found it or not
                 ResourceChange(0L, organization, organization, ResChangeCategory.ORG, false, ResChangeResource.ORG, ResChangeOperation.MODIFIED, INSTANT).insert.asTry
               } else {
-                DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization))).asTry
+                DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization))).asTry
               }
             case Failure(t) => DBIO.failed(t).asTry
           })).map({
             case Success(n) =>
               logger.debug(s"PATCH /orgs/$organization updated in changes table: $n")
-              (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, organization)))
+              (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", attrName, organization)))
             case Failure(t: DBProcessingError) =>
               t.toComplete
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.updated", organization, t.toString))
             case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", organization, t.toString)))
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", organization, t.toString)))
           })
         })
       }
@@ -410,12 +410,12 @@ trait Organization extends JacksonSupport with AuthenticationSupport {
               //  for (id <- resourceIds(1)) { /*println(s"removing $id from cache");*/ AuthCache.removeAgbotAndOwner(id) } // agbots
               //  for (id <- resourceIds(2)) { /*println(s"removing $id from cache");*/ AuthCache.removeNodeAndOwner(id) } // nodes
               //  IbmCloudAuth.clearCache() // no alternative but sledgehammer approach because the IAM cache is keyed by api key
-                (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
-              } else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization)))
+                (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.deleted")))
+              } else (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization)))
             case Failure(t: org.postgresql.util.PSQLException) =>
               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.deleted", organization, t.toString))
             case Failure(t) =>
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.deleted", organization, t.toString)))
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.deleted", organization, t.toString)))
           })
         })
       }

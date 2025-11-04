@@ -18,7 +18,7 @@ import org.openhorizon.exchangeapi.route.node.{GetNodeAgreementsResponse, PutNod
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreement, NodeAgreementsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
@@ -193,7 +193,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                     val numOwned: Int = xs
                     // we are not sure if this is create or update, but if they are already over the limit, stop them anyway
                     if (maxAgreements == 0 || numOwned <= maxAgreements) reqBody.toNodeAgreementRow(resource, agreement).upsert.asTry
-                    else DBIO.failed(new DBProcessingError(HttpCode.ACCESS_DENIED, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.limit.of.agreements.for.node", maxAgreements) )).asTry
+                    else DBIO.failed(new DBProcessingError(StatusCodes.Forbidden, ApiRespType.ACCESS_DENIED, ExchMsg.translate("over.limit.of.agreements.for.node", maxAgreements) )).asTry
                   }).flatMap({
                     case Success(v) =>
                       logger.debug("PUT /orgs/" + organization + "/nodes/" + node + "/agreements/" + agreement + " result: " + v)
@@ -217,19 +217,19 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
                       try {
                         val numUpdated: Int = n.toString.toInt // i think n is an AnyRef so we have to do this to get it to an int
                         if (numUpdated > 0) {
-                          (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.added.or.updated")))
+                          (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.added.or.updated")))
                         } else {
-                          (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource)))
+                          (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.not.found", resource)))
                         }
                       } catch {
-                        case e: Exception => (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.updated", resource, e)))
+                        case e: Exception => (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.updated", resource, e)))
                       } // the specific exception is NumberFormatException
                     case Failure(t: DBProcessingError) =>
                       t.toComplete
                     case Failure(t: org.postgresql.util.PSQLException) =>
                       ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.agreement.not.inserted.or.updated", agreement, resource, t.toString))
                     case Failure(t) =>
-                      (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.inserted.or.updated", agreement, resource, t.toString)))
+                      (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.inserted.or.updated", agreement, resource, t.toString)))
                   })
                 })
               }
@@ -267,7 +267,7 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               ResourceChange(0L, organization, node, ResChangeCategory.NODE, public = false, ResChangeResource.NODEAGREEMENTS, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agreement, resource))).asTry
+              DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("node.agreement.not.found", agreement, resource))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
@@ -278,13 +278,13 @@ trait Agreement extends JacksonSupport with AuthenticationSupport {
         })).map({
           case Success(v) =>
             logger.debug("DELETE /nodes/" + node + "/agreements/" + agreement + " lastUpdated field updated: " + v)
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.deleted")))
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreement.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.agreement.not.deleted", agreement, resource, t.toString))
           case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.deleted", agreement, resource, t.toString)))
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreement.not.deleted", agreement, resource, t.toString)))
         })
       })
     }

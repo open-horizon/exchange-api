@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.enums.ParameterIn
 import io.swagger.v3.oas.annotations.media.{Content, ExampleObject, Schema}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, TOrg}
 import org.openhorizon.exchangeapi.route.agreementbot.PutAgbotsRequest
 import org.openhorizon.exchangeapi.table.agent.certificate.AgentCertificateVersionsTQ
@@ -18,7 +19,7 @@ import org.openhorizon.exchangeapi.table.agent.software.AgentSoftwareVersionsTQ
 import org.openhorizon.exchangeapi.table.agent.{AgentVersionsChangedTQ, AgentVersionsRequest, AgentVersionsResponse}
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling}
 import slick.jdbc.PostgresProfile.api._
 
 import java.time.Instant
@@ -96,18 +97,18 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                     0 <= result._5) &&
                    result._2 == 1 &&
                    result._4 == 1) {
-                  (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agent.file.versions.deleted")))
+                  (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("agent.file.versions.deleted")))
                 }
                 else
-                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agent.file.versions.deleted.not")))
+                  (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("agent.file.versions.deleted.not")))
               case Failure(t: DBProcessingError) =>
                 t.toComplete
               case Failure(t: org.postgresql.util.PSQLException) =>
                 ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("agent.file.versions.deleted.not", t.toString))
               case Failure(t) =>
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agent.file.versions.deleted.not.message", t.toString)))
+                (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agent.file.versions.deleted.not.message", t.toString)))
             })
-          case _ => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", organization)))
+          case _ => (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", organization)))
         }
       })
     }
@@ -160,16 +161,16 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
               case Success(result) =>
                 if(0 < result._2.length &&
                    result._2.sizeIs < 2)
-                  (HttpCode.OK, AgentVersionsResponse(agentCertVersions = result._1,
+                  (StatusCodes.OK, AgentVersionsResponse(agentCertVersions = result._1,
                                                       agentConfigVersions = result._3,
                                                       agentSoftwareVersions = result._4,
                                                       lastUpdated = result._2.head.toString))
                 else
-                  (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
+                  (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", orgId)))
               case Failure(t) =>
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.message", t.toString)))
+                (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("invalid.input.message", t.toString)))
             })
-          case _ => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", orgId)))
+          case _ => (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", orgId)))
         }
       })
     }
@@ -247,20 +248,20 @@ trait AgentConfigurationManagement extends JacksonSupport with AuthenticationSup
                             Future { logger.debug("PUT /orgs/" + organization + "/AgentFileVersion result: " + v) }
                             Future { logger.debug("PUT /orgs/" + organization + "/AgentFileVersion updating resource status table: " + v) }
         
-                            (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", "AgentFileVersion" ,organization)))
+                            (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("org.attr.updated", "AgentFileVersion" ,organization)))
                           case Failure(t: org.postgresql.util.PSQLException) =>
                             if (ExchangePosgtresErrorHandling.isAccessDeniedError(t))
-                              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.updated", organization, t.getMessage)))
+                              (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.updated", organization, t.getMessage)))
                             else
                               ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("org.not.updated", organization, t.toString))
                           case Failure(t) =>
                             if (t.getMessage.startsWith("Access Denied:"))
-                              (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.updated", organization, t.getMessage)))
+                              (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("org.not.updated", organization, t.getMessage)))
                             else
-                              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", organization, t.toString)))
+                              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("org.not.updated", organization, t.toString)))
                         })
                )
-             case _ => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", organization)))
+             case _ => (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", organization)))
             }
           })
       }

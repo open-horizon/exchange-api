@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
@@ -8,7 +9,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -166,7 +167,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val responseObj: MaxChangeIdResponse = JsonMethods.parse(response.body).extract[MaxChangeIdResponse]
     assert(responseObj.maxChangeId >= maxChangeIdBeforeRequest) //may have changed because tests run concurrently
   }
@@ -187,14 +188,14 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response1: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code 1: " + response1.code)
     info("Body 1: " + response1.body)
-    assert(response1.code === HttpCode.OK.intValue)
+    assert(response1.code === StatusCodes.OK.intValue)
     val responseObj1: MaxChangeIdResponse = JsonMethods.parse(response1.body).extract[MaxChangeIdResponse]
     fixtureResourceChanges(
       _ =>{
         val response2: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(ROOTAUTH).asString
         info("Code 2: " + response2.code)
         info("Body 2: " + response2.body)
-        assert(response2.code === HttpCode.OK.intValue)
+        assert(response2.code === StatusCodes.OK.intValue)
         val responseObj2: MaxChangeIdResponse = JsonMethods.parse(response2.body).extract[MaxChangeIdResponse]
         assert(responseObj2.maxChangeId > responseObj1.maxChangeId) //must increase since new RC was added
       }, newRCs)
@@ -204,7 +205,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("GET /changes/maxchangeid -- as org admin -- success") {
@@ -212,7 +213,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val responseObj: MaxChangeIdResponse = JsonMethods.parse(response.body).extract[MaxChangeIdResponse]
     assert(responseObj.maxChangeId >= maxChangeIdBeforeRequest) //may have changed because tests run concurrently
   }
@@ -221,7 +222,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("GET /changes/maxchangeid -- as node -- success") {
@@ -229,7 +230,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(NODEAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val responseObj: MaxChangeIdResponse = JsonMethods.parse(response.body).extract[MaxChangeIdResponse]
     assert(responseObj.maxChangeId >= maxChangeIdBeforeRequest) //may have changed because tests run concurrently
   }
@@ -239,7 +240,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val responseObj: MaxChangeIdResponse = JsonMethods.parse(response.body).extract[MaxChangeIdResponse]
     assert(responseObj.maxChangeId >= maxChangeIdBeforeRequest) //may have changed because tests run concurrently
   }

@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.nodegroup.node
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignmentRow, NodeGroupAssignmentTQ}
@@ -8,7 +9,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -118,7 +119,7 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("DELETE /orgs/TestDeleteNodeFromNodeGroup/hagroup/somenodegroup/nodes/n1 -- 404 not found - Bad Node Group") {
@@ -126,7 +127,7 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("DELETE /orgs/TestDeleteNodeFromNodeGroup/hagroup/ng0/nodes/somenode -- 404 not found - Bad Node") {
@@ -134,7 +135,7 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
     
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("DELETE /orgs/TestDeleteNodeFromNodeGroup/hagroup/ng0/nodes/n0 -- 204 Deleted - Default - root") {
@@ -142,7 +143,7 @@ class TestDeleteNodeFromNodeGroup extends AnyFunSuite with BeforeAndAfterAll {
     info("Code: " + response.code)
     info("Body: " + response.body)
   
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   
     val nodeAssignments: Seq[NodeGroupAssignmentRow] = Await.result(DBCONNECTION.run(NodeGroupAssignmentTQ.join(NodeGroupTQ.filter(_.organization === TESTORGS.head.orgId)).on(_.group === _.group).map(_._1).result), AWAITDURATION)
     assert(nodeAssignments.size === 1)

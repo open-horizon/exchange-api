@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.user
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -10,7 +11,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, ExchMsg}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -175,7 +176,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
   def updateConfig(key: String, value: String): Unit = {
       val configInput = AdminConfigRequest(key, value)
       val response = Http(BASEURL+"/admin/config").postData(Serialization.write(configInput)).method("PUT").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
   }
 
   def withOauthDisabled(testCode: => Unit): Unit = {
@@ -230,7 +231,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE + "newUser").method("POST").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.INTERNAL_ERROR.intValue)
+      assert(response.code === StatusCodes.InternalServerError.intValue)
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "doesNotExist/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
     }
   }
@@ -240,7 +241,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
     }
   }
@@ -256,7 +257,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
     }
   }
@@ -272,7 +273,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
     }
   }
@@ -296,7 +297,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
@@ -314,7 +315,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("password.must.be.non.blank.when.creating.user"))
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
@@ -332,7 +333,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("only.super.users.make.hub.admins"))
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.username === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
@@ -350,7 +351,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestPostUserRouteNewUser").method("POST").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       //insure new user is in DB correctly
       val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) ===  "root/TestPostUserRouteNewUser").result), AWAITDURATION).head
       assert(newUser.organization === "root")
@@ -371,7 +372,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("hub.admins.in.root.org"))
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
@@ -383,7 +384,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestPostUserRouteNewUser2").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("user.cannot.be.in.root.org"))
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "root/TestPostUserRouteNewUser2").result), AWAITDURATION).isEmpty) //insure new user wasn't added
@@ -395,7 +396,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("hub.admins.only.write.admins"))
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
@@ -413,7 +414,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestPostUserRouteNewUser").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("non.admin.user.cannot.make.admin.user"))
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "root/TestPostUserRouteNewUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
@@ -425,7 +426,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "orgUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/orgUser").result), AWAITDURATION).length === 1) //insure only one exists
     }
   }
@@ -441,7 +442,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
       //insure new user is in DB correctly
       val newUser: UserRow = Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).head
       assert(newUser.username === "newUser")
@@ -456,7 +457,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(1).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
     }
   }
@@ -466,7 +467,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
     }
   }
@@ -476,7 +477,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(AGBOTAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
     }
   }
@@ -486,7 +487,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser").postData(Serialization.write(normalRequestBody)).headers(ACCEPT).headers(CONTENT).headers(NODEAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser").result), AWAITDURATION).isEmpty) //insure new user wasn't added
     }
   }
@@ -502,7 +503,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
 
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
@@ -520,7 +521,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
 
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
@@ -538,7 +539,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
 
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.BAD_INPUT.intValue)
+      assert(response.code === StatusCodes.BadRequest.intValue)
       val responseBody: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
       assert(responseBody.msg === ExchMsg.translate("user.reserved.name"))
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => users.organization === TESTORGS(0).orgId && users.username === "apikey").result), AWAITDURATION).isEmpty)
@@ -556,7 +557,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
       val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "newUser2").postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
       info("Code: " + response.code)
       info("Body: " + response.body)
-      assert(response.code === HttpCode.NOT_ALLOWED.intValue)
+      assert(response.code === StatusCodes.MethodNotAllowed.intValue)
       assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === TESTORGS(0).orgId + "/newUser2").result), AWAITDURATION).isEmpty)
     }
   }

@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi._
 import org.openhorizon.exchangeapi.route.administration.DeleteOrgChangesRequest
 import org.json4s._
@@ -14,7 +15,7 @@ import org.openhorizon.exchangeapi.route.organization.PostPutOrgRequest
 import org.openhorizon.exchangeapi.route.service.{PostPutServiceRequest, TestGetServicesResponse}
 import org.openhorizon.exchangeapi.route.user.PostPutUsersRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.{PServiceVersions, PServices}
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiUtils, Configuration, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiUtils, Configuration}
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 
@@ -94,7 +95,7 @@ class CatalogSuite extends AnyFunSuite {
     for (url <- List(URL,URL2,URL3)) {
       val response = Http(url).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+url+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
     }
   }
 
@@ -111,7 +112,7 @@ class CatalogSuite extends AnyFunSuite {
       val input = PostPutOrgRequest(Some(orgType), "", "desc", None, None, None)
       val response = Http(url).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + response.code + ", response.body: " + response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
     }
   }
 
@@ -126,18 +127,18 @@ class CatalogSuite extends AnyFunSuite {
       val userInput = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
       val userResponse = Http(url + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-      assert(userResponse.code === HttpCode.POST_OK.intValue)
+      assert(userResponse.code === StatusCodes.Created.intValue)
     }
 
     val devInput = PutNodesRequest(Option(nodeToken), "", None, Option(""), None, None, None, None, Option(""), None, None)
     val devResponse = Http(URL+"/nodes/"+nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+devResponse.code)
-    assert(devResponse.code === HttpCode.PUT_OK.intValue)
+    assert(devResponse.code === StatusCodes.Created.intValue)
 
     val agbotInput = PutAgbotsRequest(agbotToken, "", None, "ABC")
     val agbotResponse = Http(URL+"/agbots/"+agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+agbotResponse.code+", agbotResponse.body: "+agbotResponse.body)
-    assert(agbotResponse.code === HttpCode.PUT_OK.intValue)
+    assert(agbotResponse.code === StatusCodes.Created.intValue)
   }
 
   // Create a service in each org and an extra private service
@@ -145,22 +146,22 @@ class CatalogSuite extends AnyFunSuite {
     var input = PostPutServiceRequest("", None, public = true, None, svcUrl, svcVersion, svcArch, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
     var response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     input = PostPutServiceRequest("", None, public = false, None, svcUrlPriv, svcVersionPriv, svcArchPriv, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
     response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     input = PostPutServiceRequest("", None, public = true, None, svcUrl2, svcVersion2, svcArch2, "multiple", None, None, None, Some("{\"services\":{}}"),Some("a"),None, None, None)
     response = Http(URL2+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     input = PostPutServiceRequest("", None, public = true, None, svcUrl3, svcVersion3, svcArch3, "multiple", None, None, None,Some("{\"services\":{}}"),Some("a"),None, None, None)
     response = Http(URL3+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   // Query to catalog services and check them
@@ -168,7 +169,7 @@ class CatalogSuite extends AnyFunSuite {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/services").headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info(".body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     //assert(respObj.services.size === 2)  // can't check the size, because my IBM org might contain some
 
@@ -195,22 +196,22 @@ class CatalogSuite extends AnyFunSuite {
     var input = PostPutPatternRequest(pattern, Some(pattern), Some(true), List( PServices(svcUrl, orgid, svcArch, None, List(PServiceVersions(svcVersion, None, None, None, None)), None, None )), None, None, None)
     var response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     input = PostPutPatternRequest(patternPriv, Some(patternPriv), Some(false), List( PServices(svcUrlPriv, orgid, svcArchPriv, None, List(PServiceVersions(svcVersionPriv, None, None, None, None)), None, None )), None, None, None)
     response = Http(URL+"/patterns/"+patternPriv).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     input = PostPutPatternRequest(pattern2, Some(pattern2), Some(true), List( PServices(svcUrl2, orgid2, svcArch2, None, List(PServiceVersions(svcVersion2, None, None, None, None)), None, None )), None, None, None)
     response = Http(URL2+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH2).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     input = PostPutPatternRequest(pattern3, Some(pattern3), Some(false), List( PServices(svcUrl3, orgid3, svcArch3, None, List(PServiceVersions(svcVersion3, None, None, None, None)), None, None )), None, None, None)
     response = Http(URL3+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   // Query to catalog patterns and check them
@@ -218,7 +219,7 @@ class CatalogSuite extends AnyFunSuite {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/patterns").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     //info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetPatternsResponse]
     //assert(respObj.patterns.size === 2)  // can't check the size, because my IBM org might contain some
 
@@ -250,7 +251,7 @@ class CatalogSuite extends AnyFunSuite {
     val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, Some("{\"services\":{}}"),Some("a"), None, None, None)
     val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/IBM/patterns/"+ibmPattern+" - add "+ibmPattern+" as root") {
@@ -260,7 +261,7 @@ class CatalogSuite extends AnyFunSuite {
     )
     val response = Http(IBMURL+"/patterns/"+ibmPattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("pattern '"+ibmOrgPattern+"' created"))
   }
@@ -268,7 +269,7 @@ class CatalogSuite extends AnyFunSuite {
   test("GET /catalog/"+orgid3+"/patterns") {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid3+"/patterns").headers(ACCEPT).headers(USERAUTH3).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetPatternsResponse]
 
     // Verify the patterns that should be there are
@@ -293,7 +294,7 @@ class CatalogSuite extends AnyFunSuite {
   test("GET /catalog/"+orgid3+"/patterns by user who can't see " + orgid3) {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid3+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     //val respObj = parse(response.body).extract[TestGetPatternsResponse]
 
     // Verify the patterns that should be there are
@@ -316,7 +317,7 @@ class CatalogSuite extends AnyFunSuite {
   test("GET /catalog/"+orgid+"/patterns") {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetPatternsResponse]
 
     // Verify the patterns that should be there are
@@ -340,7 +341,7 @@ class CatalogSuite extends AnyFunSuite {
     val response: HttpResponse[String] = Http(urlRoot+"/v1/catalog/"+orgid3+"/services").headers(ACCEPT).headers(USERAUTH3).asString
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetServicesResponse]
     //assert(respObj.services.size === 2)  // can't check the size, because my IBM org might contain some
 
@@ -372,21 +373,21 @@ class CatalogSuite extends AnyFunSuite {
   test("DELETE /orgs/IBM/patterns/"+ibmPattern) {
     val response = Http(IBMURL+"/patterns/"+ibmPattern).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("GET /orgs/IBM/patterns/"+ibmPattern+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(IBMURL+"/patterns/"+ibmPattern).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
+    //assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("DELETE /orgs/IBM/services/"+ibmService) {
     val response = Http(IBMURL+"/services/"+ibmService).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("DELETE all orgs to clean up") {
@@ -398,7 +399,7 @@ class CatalogSuite extends AnyFunSuite {
       val input = DeleteOrgChangesRequest(List())
       val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
     }
     
     val response: HttpResponse[String] = Http(sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/admin/clearauthcaches").method("POST").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString

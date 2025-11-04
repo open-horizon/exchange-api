@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.node
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.native.Serialization.write
 import org.openhorizon.exchangeapi.auth.{Password, Role}
@@ -7,7 +8,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -131,7 +132,7 @@ class TestGetNode extends AnyFunSuite with BeforeAndAfterAll {
         info("Code: " + response.code)
         info("Body: " + response.body)
         
-        assert(response.code === HttpCode.OK.intValue)
+        assert(response.code === StatusCodes.OK.intValue)
       },
       testnodes)
   }

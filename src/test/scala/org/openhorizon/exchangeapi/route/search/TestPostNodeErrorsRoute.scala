@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.search
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
@@ -10,7 +11,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -259,7 +260,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).postForm.headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.isEmpty)
   }
@@ -268,7 +269,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postForm.headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.length == 2)
     assert(errors.nodes.contains(TESTNODES(2).id))
@@ -279,7 +280,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData("{\"badKey\":\"badValue\"}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.length == 2)
     assert(errors.nodes.contains(TESTNODES(2).id))
@@ -290,7 +291,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postForm.headers(ACCEPT).headers(NODE1AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.isEmpty)
   }
@@ -299,7 +300,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postForm.headers(ACCEPT).headers(NODE2AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.isEmpty)
   }
@@ -308,7 +309,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postForm.headers(ACCEPT).headers(AGBOT1AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.length == 2)
     assert(errors.nodes.contains(TESTNODES(2).id))
@@ -319,7 +320,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postForm.headers(ACCEPT).headers(AGBOT2AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.isEmpty)
   }
@@ -328,7 +329,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postForm.headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.isEmpty)
   }
@@ -337,7 +338,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postForm.headers(ACCEPT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.length == 2)
     assert(errors.nodes.contains(TESTNODES(2).id))
@@ -348,7 +349,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postForm.headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.length == 1)
     assert(errors.nodes.contains(TESTNODES(2).id))
@@ -358,7 +359,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postForm.headers(ACCEPT).headers(ORG2ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.isEmpty)
   }
@@ -367,7 +368,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postForm.headers(ACCEPT).headers(ORG2USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.isEmpty)
   }
@@ -376,7 +377,7 @@ class TestPostNodeErrorsRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE).postForm.headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val errors: PostNodeErrorResponse = JsonMethods.parse(response.body).extract[PostNodeErrorResponse]
     assert(errors.nodes.isEmpty)
   }

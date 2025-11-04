@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.agent
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
@@ -18,7 +19,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, DoNotDiscover, Suite}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -160,7 +161,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
   
   test("DELETE /v1/orgs/IBM/AgentFileVersion -- 404 Not Found") {
@@ -168,7 +169,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("DELETE /v1/orgs/IBM/AgentFileVersion -- 403 Unauthorized Access - IBM User") {
@@ -192,7 +193,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
             info("code: " + response.code)
             info("body: " + response.body)
             
-            assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+            assert(response.code === StatusCodes.Forbidden.intValue)
           }, TESTCHG)
       }, TESTUSERS)
   }
@@ -202,7 +203,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
   
   test("DELETE /v1/orgs/IBM/AgentFileVersion -- 403 Unauthorized Access - TestDeleteAgentConfigMgmt User") {
@@ -210,7 +211,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
   
   test("DELETE /v1/orgs/IBM/AgentFileVersion -- 204 Deleted - Root") {
@@ -235,7 +236,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                     info("code: " + response.code)
                     info("body: " + response.body)
                     
-                    assert(response.code === HttpCode.DELETED.intValue)
+                    assert(response.code === StatusCodes.NoContent.intValue)
                     
                     val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
                     val changed: Seq[(Instant, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
@@ -265,7 +266,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
                     info("code: " + request2.code)
                     info("body: " + request2.body)
   
-                    assert(request2.code === HttpCode.POST_OK.intValue)
+                    assert(request2.code === StatusCodes.Created.intValue)
   
                     val versionChanges: List[ChangeEntry] = parse(request2.body).extract[ResourceChangesRespObject].changes.filter(change => {change.orgId === "IBM" && change.resource === "agentfileversion"})
   
@@ -300,7 +301,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
             info("code: " + response.code)
             info("body: " + response.body)
             
-            assert(response.code === HttpCode.DELETED.intValue)
+            assert(response.code === StatusCodes.NoContent.intValue)
   
             val certificates: Seq[(String, String, Option[Long])] = Await.result(DBCONNECTION.run(AgentCertificateVersionsTQ.result), AWAITDURATION)
             val changed: Seq[(Instant, String)] = Await.result(DBCONNECTION.run(AgentVersionsChangedTQ.result), AWAITDURATION)
@@ -348,7 +349,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
             info("code: " + response.code)
             info("body: " + response.body)
   
-            assert(response.code === HttpCode.DELETED.intValue)
+            assert(response.code === StatusCodes.NoContent.intValue)
           }, TESTCHG)
       }, TESTUSER)
   }
@@ -363,7 +364,7 @@ class TestDeleteAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with 
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.DELETED.intValue)
+        assert(response.code === StatusCodes.NoContent.intValue)
       }, TESTCHG)
   }
 }

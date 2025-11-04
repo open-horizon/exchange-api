@@ -7,6 +7,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives._
 import org.apache.pekko.http.scaladsl.server.{ExceptionHandler, Route}
 import org.json4s.{DefaultFormats, Formats}
@@ -16,7 +17,7 @@ import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TAgbot}
 import org.openhorizon.exchangeapi.route.agreementbot.GetAgbotMsgsResponse
 import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMsgsTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -44,7 +45,7 @@ trait Message extends JacksonSupport with AuthenticationSupport {
           _ =>
             path("orgs" / Segment / "agbots" / Segment / "msgs" / Segment) {
               (_, _, BadMessageValue) =>
-                complete((HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", "message", BadMessageValue))))
+                complete((StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", "message", BadMessageValue))))
             }
         }
   }
@@ -79,7 +80,7 @@ trait Message extends JacksonSupport with AuthenticationSupport {
           .map({
             case Success(v) =>
               Future { logger.debug(s"DELETE /orgs/$organization/agbots/$agreementBot/msgs/$message - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
-              (HttpCode.DELETED,  ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.message.deleted")))
+              (StatusCodes.NoContent,  ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.message.deleted")))
             case Failure(exception: DBProcessingError) =>
               Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
               exception.toComplete
@@ -87,10 +88,10 @@ trait Message extends JacksonSupport with AuthenticationSupport {
               Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.message.not.deleted", message, resource, exception.toString)))}") }
               ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("agbot.message.not.deleted", message, resource, exception.toString))
             case Failure(exception) =>
-              Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.deleted", message, resource, exception.toString))))}") }
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.deleted", message, resource, exception.toString)))
+              Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/msgs/${message} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.deleted", message, resource, exception.toString))))}") }
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("agbot.message.not.deleted", message, resource, exception.toString)))
           })
-        //} catch { case e: Exception => (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e))) }    // the specific exception is NumberFormatException
+        //} catch { case e: Exception => (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("msgid.must.be.int", e))) }    // the specific exception is NumberFormatException
       })
   }
   
@@ -155,11 +156,11 @@ trait Message extends JacksonSupport with AuthenticationSupport {
         .map({
           case Success(result) =>
             if(result.messages.nonEmpty)
-              (HttpCode.OK, result)
+              (StatusCodes.OK, result)
             else
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+              (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
           case Failure(t) =>
-            (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
+            (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("invalid.input.message", t.getMessage)))
         })
     })
   }

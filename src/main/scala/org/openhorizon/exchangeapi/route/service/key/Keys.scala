@@ -16,7 +16,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProces
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.service.key.ServiceKeysTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -63,7 +63,7 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
             if (public.nonEmpty) {
               storedPublicField = public.head
               ServiceKeysTQ.getKeys(resource).delete.asTry
-            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
+            } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -73,19 +73,19 @@ trait Keys extends JacksonSupport with AuthenticationSupport {
               val serviceId: String = service.substring(service.indexOf("/") + 1, service.length)
               ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEKEYS, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.service.keys.found", resource))).asTry
+              DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("no.service.keys.found", resource))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
             logger.debug("DELETE /services/" + service + "/keys updated in changes table: " + v)
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.keys.deleted")))
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.keys.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.keys.not.deleted", resource, t.toString))
           case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.keys.not.deleted", resource, t.toString)))
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.keys.not.deleted", resource, t.toString)))
         })
       })
     }

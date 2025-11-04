@@ -7,9 +7,10 @@ import org.apache.pekko.http.scaladsl.server.Route
 import com.github.pjfanning.pekkohttpjackson.JacksonSupport
 import io.swagger.v3.oas.annotations.Parameter
 import jakarta.ws.rs.Path
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSupport, Identity2, TAction}
 import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -35,7 +36,7 @@ trait ClearAuthCache extends JacksonSupport with AuthenticationSupport {
       cacheResourceIdentity.removeAll()
       cacheResourceOwnership.removeAll()
       
-      (HttpCode.POST_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("cache.cleared")))
+      (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("cache.cleared")))
     })
   }
   

@@ -20,7 +20,7 @@ import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpolicy.{AgbotBusinessPol, AgbotBusinessPolRow, AgbotBusinessPols, AgbotBusinessPolsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.CompiledStreamingExecutable
@@ -32,7 +32,7 @@ import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
 
-@Path("/v1/orgs/{organization}/agbots/{agreementbot}/businesspols/{deploymentpolicy}")
+@Path("/v1/orgs/{organization}/agbots/{agreementbot}/deployment/policies/{deploymentpolicy}")
 trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -41,7 +41,7 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
   implicit def executionContext: ExecutionContext
   
   
-  // ========== DELETE /orgs/{organization}/agbots/{agreementbot}/businesspols/{deploymentpolicy} ===========
+  // ========== DELETE /orgs/{organization}/agbots/{agreementbot}/deployment/policies/{deploymentpolicy} ===========
   @DELETE
   @Operation(summary = "Deletes a Deployment Policy this Agreement Bot (AgBot) is serving",
              description = "Can be run by the owning User or the AgBot.",
@@ -78,11 +78,11 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
   def deleteDeploymentPolicy(@Parameter(hidden = true) agreementBot: String,
-                                     @Parameter(hidden = true) deploymentPolicy: String,
-                                     @Parameter(hidden = true) identity: Identity2,
-                                     @Parameter(hidden = true) organization: String,
-                                     @Parameter(hidden = true) resource: String): Route = {
-    Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+                             @Parameter(hidden = true) deploymentPolicy: String,
+                             @Parameter(hidden = true) identity: Identity2,
+                             @Parameter(hidden = true) organization: String,
+                             @Parameter(hidden = true) resource: String): Route = {
+    Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
     
     val INSTANT: Instant = Instant.now()
     
@@ -94,31 +94,31 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                                 .flatMap({
                                   case Success(v) =>
                                     // Add the resource to the resourcechanges table
-                                    Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Managed Deployment Policy Deleted: ${v}") }
+                                    Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Managed Deployment Policy Deleted: ${v}") }
                                     if (v > 0) // there were no db errors, but determine if it actually found it or not
                                       resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, false, ResChangeResource.AGBOTBUSINESSPOLS, ResChangeOperation.DELETED, INSTANT).insert.asTry
                                     else
-                                      DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("buspol.not.found", deploymentPolicy, resource))).asTry
+                                      DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("buspol.not.found", deploymentPolicy, resource))).asTry
                                   case Failure(t) =>
                                     DBIO.failed(t).asTry}))
         .map({
           case Success(v) =>
-            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changes Logged:                    ${v}") }
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.deleted")))
+            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changes Logged:                    ${v}") }
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("buspol.deleted")))
           case Failure(exception: DBProcessingError) =>
-            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
             exception.toComplete
           case Failure(exception: org.postgresql.util.PSQLException) =>
-            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.deleted", deploymentPolicy, resource, exception.toString)))}") }
+            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.deleted", deploymentPolicy, resource, exception.toString)))}") }
             ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("buspol.not.deleted", deploymentPolicy, resource, exception.toString))
           case Failure(exception) =>
-            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, Serialization.write(ExchMsg.translate("buspol.not.deleted", deploymentPolicy, resource, exception.toString))))}") }
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("buspol.not.deleted", deploymentPolicy, resource, exception.toString)))
+            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, Serialization.write(ExchMsg.translate("buspol.not.deleted", deploymentPolicy, resource, exception.toString))))}") }
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("buspol.not.deleted", deploymentPolicy, resource, exception.toString)))
         })
     })
   }
   
-  // ========== GET /orgs/{organization}/agbots/{agreementbot}/businesspols/{deploymentpolicy} ==============
+  // ========== GET /orgs/{organization}/agbots/{agreementbot}/deployment/policies/{deploymentpolicy} ==============
   @GET
   @Operation(summary = "Returns a Deployment Policy this Agreement Bot (AgBot) is serving",
              description = "The buspolid should be in the form businessPolOrgid_businessPol. Can be run by the owning User or the AgBot.",
@@ -170,11 +170,11 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
                     new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment policy")
   def getDeploymentPolicy(@Parameter(hidden = true) agreementBot: String,
-                                  @Parameter(hidden = true) deploymentPolicy: String,
-                                  @Parameter(hidden = true) identity: Identity2,
-                                  @Parameter(hidden = true) organization: String,
-                                  @Parameter(hidden = true) resource: String): Route = {
-    Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+                          @Parameter(hidden = true) deploymentPolicy: String,
+                          @Parameter(hidden = true) identity: Identity2,
+                          @Parameter(hidden = true) organization: String,
+                          @Parameter(hidden = true) resource: String): Route = {
+    Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
     
     val getAgbotManagedDeploymentPolicy: CompiledStreamingExecutable[Query[(AgbotBusinessPols, Rep[String]), (AgbotBusinessPolRow, String), Seq], Seq[(AgbotBusinessPolRow, String)], (AgbotBusinessPolRow, String)] =
       for {
@@ -195,26 +195,26 @@ trait DeploymentPolicy extends JacksonSupport with AuthenticationSupport {
       implicit val formats: Formats = DefaultFormats
       db.run(getAgbotManagedDeploymentPolicy.result.transactionally.asTry).map {
         case Success(result) =>
-          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: ${result.size}") }
+          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: ${result.size}") }
           
           if(result.nonEmpty)
             (StatusCodes.OK, GetAgbotBusinessPolsResponse(businessPols = (result.map(policies => policies._2 -> new AgbotBusinessPol(policies._1)).toMap)))
           else {
-            Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result.nonEmpty:${result.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(GetAgbotBusinessPolsResponse(businessPols = Map.empty[String, AgbotBusinessPol])))}") }
+            Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result.nonEmpty:${result.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(GetAgbotBusinessPolsResponse(businessPols = Map.empty[String, AgbotBusinessPol])))}") }
             (StatusCodes.NotFound, GetAgbotBusinessPolsResponse(businessPols = Map.empty[String, AgbotBusinessPol]))
           }
         case Failure(exception: org.postgresql.util.PSQLException) =>
-          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("db.threw.exception", exception.getServerErrorMessage)))}") }
+          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("db.threw.exception", exception.getServerErrorMessage)))}") }
           ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("db.threw.exception", exception.getServerErrorMessage))
         case Failure(exception) =>
-          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/businesspols/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error"))))}") }
+          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/policies/${deploymentPolicy} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error"))))}") }
           (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
       }
     }
   }
   
   def deploymentPolicyAgreementBot(identity: Identity2): Route =
-    path("orgs" / Segment / "agbots" / Segment / "businesspols" / Segment) {
+    path("orgs" / Segment / "agbots" / Segment / ("businesspols" | "deployment" ~ Slash ~ "policy") / Segment) {
       (organization,
        agreementBot,
        deploymentPolicy) =>

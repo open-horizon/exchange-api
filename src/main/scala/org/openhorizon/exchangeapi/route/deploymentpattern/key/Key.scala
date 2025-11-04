@@ -8,7 +8,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
-import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse}
+import org.apache.pekko.http.scaladsl.model.{ContentTypes, HttpEntity, HttpResponse, StatusCodes}
 import org.apache.pekko.http.scaladsl.server.Directives.{complete, delete, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.ExchangeApiApp
@@ -18,7 +18,7 @@ import org.openhorizon.exchangeapi.route.deploymentpattern.PutPatternKeyRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.deploymentpattern.key.PatternKeysTQ
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -28,7 +28,7 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-@Path("/v1/orgs/{organization}/patterns/{pattern}/keys/{keyid}")
+@Path("/v1/orgs/{organization}/deployment/patterns/{pattern}/keys/{keyid}")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern/key")
 trait Key extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -37,7 +37,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // =========== DELETE /orgs/{organization}/patterns/{pattern}/keys/{keyid} ===============================
+  // =========== DELETE /orgs/{organization}/deployment/patterns/{pattern}/keys/{keyid} ===============================
   @DELETE
   @Operation(summary = "Deletes a key of a pattern", description = "Deletes a key/cert for this pattern. This can only be run by the pattern owning user.",
     parameters = Array(
@@ -67,7 +67,7 @@ trait Key extends JacksonSupport with AuthenticationSupport {
             if (public.nonEmpty) {
               storedPublicField = public.head
               PatternKeysTQ.getKey(compositeId, keyId).delete.asTry
-            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
+            } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
@@ -76,24 +76,24 @@ trait Key extends JacksonSupport with AuthenticationSupport {
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, storedPublicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.key.not.found", keyId, compositeId))).asTry
+              DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.key.not.found", keyId, compositeId))).asTry
             }
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
             logger.debug("DELETE /patterns/" + pattern + "/keys result: " + v)
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.key.deleted")))
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("pattern.key.deleted")))
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.key.not.deleted", compositeId, t.toString))
           case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.key.not.deleted", compositeId, t.toString)))
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.key.not.deleted", compositeId, t.toString)))
         })
       })
     }
   
-  /* ====== GET /orgs/{organization}/patterns/{pattern}/keys/{keyid} ================================ */
+  /* ====== GET /orgs/{organization}/deployment/patterns/{pattern}/keys/{keyid} ================================ */
   @GET
   @Operation(summary = "Returns a key/cert for this pattern", description = "Returns the signing public key/cert with the specified keyid for this pattern. The raw content of the key/cert is returned, not json. Can be run by any credentials able to view the pattern.",
     parameters = Array(
@@ -118,17 +118,17 @@ trait Key extends JacksonSupport with AuthenticationSupport {
           logger.debug("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" result: "+list.size)
           // Note: both responses must be the same content type or that doesn't get set correctly
           if (list.nonEmpty) HttpResponse(entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, list.head.key))
-          else HttpResponse(status = HttpCode.NOT_FOUND, entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, ""))
+          else HttpResponse(status = StatusCodes.NotFound, entity = HttpEntity(ContentTypes.`text/plain(UTF-8)`, ""))
           // this doesn't seem to set the content type away from application/json
-          //if (list.nonEmpty) (HttpCode.OK, List(`Content-Type`(ContentTypes.`text/plain(UTF-8)`)), list.head.key)
-          //else (HttpCode.NOT_FOUND, List(`Content-Type`(ContentTypes.`text/plain(UTF-8)`)), "")
-          //if (list.nonEmpty) (HttpCode.OK, list.head.key)
-          //else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("key.not.found", keyId)))
+          //if (list.nonEmpty) (StatusCodes.OK, List(`Content-Type`(ContentTypes.`text/plain(UTF-8)`)), list.head.key)
+          //else (StatusCodes.NotFound, List(`Content-Type`(ContentTypes.`text/plain(UTF-8)`)), "")
+          //if (list.nonEmpty) (StatusCodes.OK, list.head.key)
+          //else (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("key.not.found", keyId)))
         })
       })
     }
   
-  // =========== PUT /orgs/{organization}/patterns/{pattern}/keys/{keyid} ===============================
+  // =========== PUT /orgs/{organization}/deployment/patterns/{pattern}/keys/{keyid} ===============================
   @PUT
   @Operation(summary = "Adds/updates a key/cert for the pattern", description = "Adds a new signing public key/cert, or updates an existing key/cert, for this pattern. This can only be run by the pattern owning user.",
     parameters = Array(
@@ -182,18 +182,18 @@ trait Key extends JacksonSupport with AuthenticationSupport {
                   if (public.nonEmpty) {
                     val publicField: Boolean = public.head
                     ResourceChange(0L, orgid, pattern, ResChangeCategory.PATTERN, publicField, ResChangeResource.PATTERNKEYS, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
-                  } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
+                  } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.id.not.found", compositeId))).asTry
                 case Failure(t) => DBIO.failed(t).asTry
               })).map({
                 case Success(v) =>
                   logger.debug("PUT /orgs/" + orgid + "/patterns/" + pattern + "/keys/" + keyId + " updated in changes table: " + v)
-                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated")))
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("key.added.or.updated")))
                 case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
+                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
                   else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage))
                 case Failure(t) =>
-                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
-                  else (HttpCode.BAD_INPUT, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
+                  if (t.getMessage.startsWith("Access Denied:")) (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
+                  else (StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, ExchMsg.translate("pattern.key.not.inserted.or.updated", keyId, compositeId, t.getMessage)))
               })
             })
           }

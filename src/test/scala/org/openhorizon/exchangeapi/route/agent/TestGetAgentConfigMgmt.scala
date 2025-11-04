@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.agent
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods.parse
 import org.json4s.native.Serialization.write
@@ -18,7 +19,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ, Prop, RegServic
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, DoNotDiscover, Suite}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -187,7 +188,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- 404 Not Found") {
@@ -195,7 +196,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
     info("code: " + response.code)
     info("body: " + response.body)
     
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
   
   test("GET /v1/orgs/IBM/AgentFileVersion -- 200 Ok - Root") {
@@ -223,7 +224,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
                     info("code: " + response.code)
                     info("body: " + response.body)
                     
-                    assert(response.code === HttpCode.OK.intValue)
+                    assert(response.code === StatusCodes.OK.intValue)
                     
                     val versions: AgentVersionsResponse = parse(response.body).extract[AgentVersionsResponse]
                     
@@ -265,7 +266,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
             info("code: " + response.code)
             info("body: " + response.body)
   
-            assert(response.code === HttpCode.OK.intValue)
+            assert(response.code === StatusCodes.OK.intValue)
           }, TESTCHG)
       }, TESTAGBOTS)
   }
@@ -299,7 +300,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
             info("code: " + response.code)
             info("body: " + response.body)
             
-            assert(response.code === HttpCode.OK.intValue)
+            assert(response.code === StatusCodes.OK.intValue)
           }, TESTCHG)
       }, TESTNODE)
   }
@@ -325,7 +326,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
             info("code: " + response.code)
             info("body: " + response.body)
             
-            assert(response.code === HttpCode.OK.intValue)
+            assert(response.code === StatusCodes.OK.intValue)
           }, TESTCHG)
       }, TESTUSERS)
   }
@@ -351,7 +352,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
             info("code: " + response.code)
             info("body: " + response.body)
             
-            assert(response.code === HttpCode.OK.intValue)
+            assert(response.code === StatusCodes.OK.intValue)
           }, TESTCHG)
       }, TESTUSERS)
   }
@@ -366,7 +367,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.OK.intValue)
+        assert(response.code === StatusCodes.OK.intValue)
       }, TESTCHG)
   }
   
@@ -380,7 +381,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.OK.intValue)
+        assert(response.code === StatusCodes.OK.intValue)
       }, TESTCHG)
   }
   
@@ -394,7 +395,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.OK.intValue)
+        assert(response.code === StatusCodes.OK.intValue)
       }, TESTCHG)
   }
   
@@ -408,7 +409,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
         info("code: " + response.code)
         info("body: " + response.body)
         
-        assert(response.code === HttpCode.OK.intValue)
+        assert(response.code === StatusCodes.OK.intValue)
       }, TESTCHG)
   }
 }

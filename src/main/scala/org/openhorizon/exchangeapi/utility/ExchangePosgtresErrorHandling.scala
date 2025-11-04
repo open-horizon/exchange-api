@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.utility
 
-import org.apache.pekko.http.scaladsl.model.StatusCode
+import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 
 object ExchangePosgtresErrorHandling {
   def isDuplicateKeyError(serverError: org.postgresql.util.PSQLException): Boolean = {
@@ -16,6 +16,6 @@ object ExchangePosgtresErrorHandling {
   }
   
   def ioProblemError(serverError: org.postgresql.util.PSQLException, response: String): (StatusCode, ApiResponse) = {
-    if (serverError.getMessage.contains("An I/O error occurred")) (HttpCode.BAD_GW, ApiResponse(ApiRespType.BAD_GW, response)) else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, response))
+    if (serverError.getMessage.contains("An I/O error occurred")) (StatusCodes.BadGateway, ApiResponse(ApiRespType.BAD_GW, response)) else (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, response))
   }
 }

@@ -9,7 +9,7 @@ import org.openhorizon.exchangeapi.auth._
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.user
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, ExchMsg}
 import scalaj.http._
 
 import java.io.{BufferedInputStream, File, FileInputStream}
@@ -220,8 +220,8 @@ object IbmCloudAuth {
               "grant_type" -> "urn:ibm:params:oauth:grant-type:apikey",
               "apikey" -> authInfo.key))
             .asString
-          if (response.code == HttpCode.OK.intValue) return Success(parse(response.body).camelizeKeys.extract[IamToken])
-          else if (response.code == HttpCode.BAD_INPUT.intValue || response.code == HttpCode.BADCREDS.intValue || response.code == HttpCode.ACCESS_DENIED.intValue || response.code == HttpCode.NOT_FOUND.intValue) {
+          if (response.code == StatusCodes.OK.intValue) return Success(parse(response.body).camelizeKeys.extract[IamToken])
+          else if (response.code == StatusCodes.BadRequest.intValue || response.code == StatusCodes.Unauthorized.intValue || response.code == StatusCodes.Forbidden.intValue || response.code == StatusCodes.NotFound.intValue) {
             // This IAM API returns BAD_INPUT (400) when the mechanics of the api call were successful, but the api key was invalid
             return Failure(new InvalidCredentialsException(response.body))
           } else delayedReturn = Failure(new IamApiErrorException(response.body))
@@ -249,7 +249,7 @@ object IbmCloudAuth {
                       .header("Content-Type", "application/json")
                       .asString
         logger.debug(iamUrl + " http code: " + response.code + ", body: " + response.body)
-        if (response.code == HttpCode.OK.intValue) {
+        if (response.code == StatusCodes.OK.intValue) {
           // This api returns 200 even for an invalid token. Have to determine its validity via the 'active' field
           val userInfo: IamUserInfo = parse(response.body).extract[IamUserInfo]
           if (userInfo.isActive && userInfo.user != "") return Success(userInfo)

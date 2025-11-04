@@ -17,7 +17,7 @@ import org.openhorizon.exchangeapi.route.node.GetNodeAgreementsResponse
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.{NodeAgreement, NodeAgreementsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
@@ -66,7 +66,7 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
             logger.debug("DELETE /nodes/" + node + "/agreements result: " + v)
             ResourceChange(0L, organization, node, ResChangeCategory.NODE, false, ResChangeResource.NODEAGREEMENTS, ResChangeOperation.DELETED, INSTANT).insert.asTry
           } else {
-            DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("no.node.agreements.found", resource))).asTry
+            DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("no.node.agreements.found", resource))).asTry
           }
         case Failure(t) => DBIO.failed(t).asTry
       }).flatMap({
@@ -77,13 +77,13 @@ trait Agreements extends JacksonSupport with AuthenticationSupport {
       })).map({
         case Success(v) =>
           logger.debug("DELETE /nodes/" + node + "/agreements lastUpdated field updated: " + v)
-          (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreements.deleted")))
+          (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.agreements.deleted")))
         case Failure(t: DBProcessingError) =>
           t.toComplete
         case Failure(t: org.postgresql.util.PSQLException) =>
           ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.agreements.not.deleted", resource, t.toString))
         case Failure(t) =>
-          (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreements.not.deleted", resource, t.toString)))
+          (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.agreements.not.deleted", resource, t.toString)))
       })
     })
   }

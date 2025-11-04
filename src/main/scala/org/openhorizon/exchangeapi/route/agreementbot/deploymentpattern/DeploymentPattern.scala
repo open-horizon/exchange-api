@@ -18,9 +18,10 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProces
 import org.openhorizon.exchangeapi.route.agreementbot.GetAgbotPatternsResponse
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern.{AgbotPattern, AgbotPatternRow, AgbotPatterns, AgbotPatternsTQ}
+import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
 import org.openhorizon.exchangeapi.table.resourcechange
-import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 import slick.lifted.CompiledStreamingExecutable
@@ -31,7 +32,7 @@ import scala.concurrent.duration.DurationInt
 import scala.concurrent.{ExecutionContext, Future}
 import scala.util.{Failure, Success}
 
-@Path("/v1/orgs/{organization}/agbots/{agreementbot}/patterns/{deploymentpattern}")
+@Path("/v1/orgs/{organization}/agbots/{agreementbot}/deployment/patterns/{deploymentpattern}")
 trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
   def db: Database
@@ -40,7 +41,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   implicit def executionContext: ExecutionContext
   
   
-  // =========== DELETE /orgs/{organization}/agbots/{agreementbot}/patterns/{deploymentpattern} ===============================
+  // =========== DELETE /orgs/{organization}/agbots/{agreementbot}/deployment/patterns/{deploymentpattern} ===============================
   @DELETE
   @Path("")
   @Operation(summary = "Deletes a Deployment Pattern of an Agreement Bot",
@@ -56,46 +57,103 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                     new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
   def deleteDeploymentPattern(@Parameter(hidden = true) agreementBot: String,
-                                      @Parameter(hidden = true) deploymentPattern: String,
-                                      @Parameter(hidden = true) identity: Identity2,
-                                      @Parameter(hidden = true) organization: String,
-                                      @Parameter(hidden = true) resource: String): Route = {
-    Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
-    
-    val INSTANT: Instant = Instant.now()
-    
-    complete({
+                              @Parameter(hidden = true) deploymentPattern: String,
+                              @Parameter(hidden = true) identity: Identity2,
+                              @Parameter(hidden = true) organization: String,
+                              @Parameter(hidden = true) resource: String): Route = {
+    Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+      
+      val INSTANT: Instant = Instant.now()
+      
       implicit val formats: Formats = DefaultFormats
-      db.run(AgbotPatternsTQ.getPattern(resource, deploymentPattern)
-                            .delete
-                            .asTry
-                            .flatMap({
-                              case Success(v) => // Add the resource to the resourcechanges table
-                                Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Managed Deployment Pattern Deleted: ${v}") }
-                                if (v > 0) // there were no db errors, but determine if it actually found it or not
-                                  resourcechange.ResourceChange(0L, organization, agreementBot, ResChangeCategory.AGBOT, public = false, ResChangeResource.AGBOTPATTERNS, ResChangeOperation.DELETED, INSTANT).insert.asTry
-                                else
-                                  DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("pattern.not.found", deploymentPattern, resource))).asTry
-                              case Failure(t) =>
-                                DBIO.failed(t).asTry}))
-        .map({
-          case Success(v) =>
-            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changes Logged:                     ${v}") }
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("agbot.pattern.deleted")))
-          case Failure(exception: DBProcessingError) =>
-            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
-            exception.toComplete
-          case Failure(exception: org.postgresql.util.PSQLException) =>
-            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("pattern.not.deleted", deploymentPattern, resource, exception.toString)))}") }
-            ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("pattern.not.deleted", deploymentPattern, resource, exception.toString))
-          case Failure(exception) =>
-            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(HttpCode.INTERNAL_ERROR, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.not.deleted", deploymentPattern, resource, exception.toString))))}") }
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("pattern.not.deleted", deploymentPattern, resource, exception.toString)))
-        })
-    })
+      
+      /*
+       * In the case of the default public Agreement Bot, only delete know managed resource that are owned or
+       * administrated by the user archetype. For standard users, these are patterns they own (private or public).
+       * For organization admins and non-multitenant agreement bots, its any pattern within their organization.
+       */
+      val deleteManagedDeploymentPattern: DBIOAction[Unit, NoStream, Effect.Write with Effect] =
+        for {
+          numManagedDeploymentPatternsDeleted <-
+            if (identity.isNode)
+              DBIO.failed(new IllegalAccessException())
+            else
+              Compiled(AgbotPatternsTQ.filter(managedDeploymentPattern =>
+                                                managedDeploymentPattern.agbotId === resource &&
+                                                managedDeploymentPattern.patId === deploymentPattern &&
+                                                managedDeploymentPattern.patId.in (AgbotsTQ.filter(agreementBot => agreementBot.id === resource &&
+                                                                                                                   agreementBot.orgid === organization)
+                                                                                           // Public management of Deployment Patterns.
+                                                                                           // TODO: Think on authorization
+                                                                                           .filterIf(identity.isStandardUser)(agreementBot => agreementBot.owner === identity.identifier.get || agreementBot.orgid === "IBM")
+                                                                                           .filterIf(identity.isAgbot)(agreementBot => agreementBot.id === identity.resource &&
+                                                                                                                                       agreementBot.orgid === identity.organization)
+                                                                                           // Public management of Deployment Patterns.
+                                                                                           // TODO: Think on authorization
+                                                                                           .filterIf(identity.isOrgAdmin)(agbot => agbot.orgid === identity.organization || agbot.orgid === "IBM")
+                                                                                           .map(_.id)
+                                                                                           .join(AgbotPatternsTQ.filter(pattern => pattern.agbotId === resource && pattern.patId === deploymentPattern))
+                                                                                           .on(_ === _.agbotId)
+                                                                                           .joinLeft(PatternsTQ.filterIf(identity.isStandardUser)(pattern => pattern.owner === identity.identifier.get)
+                                                                                                               .filterIf((identity.isAgbot &&
+                                                                                                                          !identity.isMultiTenantAgbot) ||
+                                                                                                                         (identity.isOrgAdmin &&
+                                                                                                                          (organization != "IBM" ||
+                                                                                                                           identity.organization != "IBM")))(pattern => pattern.orgid === identity.organization)
+                                                                                                               .map(pattern => (pattern.orgid, pattern.pattern, pattern.public)))
+                                                                                           .on((managedDeploymentPatterns, patterns) =>
+                                                                                                 (managedDeploymentPatterns._2.patternOrgid ++ "/" ++ managedDeploymentPatterns._2.pattern) === patterns._2 ||
+                                                                                                 (managedDeploymentPatterns._2.patternOrgid === patterns._1 && managedDeploymentPatterns._2.pattern === "*"))
+                                                                                           .map(_._1._2.patId)
+                                                                                           .distinct)))
+                                      .delete
+          
+          _ =
+            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Managed deployment patterns deleted: ${numManagedDeploymentPatternsDeleted}") }
+          
+          _ <-
+            if (numManagedDeploymentPatternsDeleted == 0)
+              DBIO.failed(new ClassNotFoundException)
+            else
+              DBIO.successful(())
+          
+          numChangeRecordsCreated <-
+            ResourceChangesTQ +=
+              ResourceChangeRow(category    = ResChangeCategory.AGBOT.toString,
+                                changeId    = 0L,
+                                id          = agreementBot,
+                                lastUpdated = INSTANT,
+                                operation   = ResChangeOperation.DELETED.toString,
+                                orgId       = organization,
+                                public      = "false",
+                                resource    = ResChangeResource.AGBOTPATTERNS.toString)
+          
+          _ =
+            Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Changes logged:                      ${numChangeRecordsCreated}") }
+        } yield ()
+        
+        complete {
+          db.run(deleteManagedDeploymentPattern.transactionally.asTry)
+            .map {
+              case Success(_) =>
+                (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("patterns.deleted")))
+              case Failure(exception: IllegalAccessException) =>
+                Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("patterns.not.deleted", resource, exception.getMessage))))}") }
+                (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("patterns.not.deleted", resource, exception.getMessage)))
+              case Failure(exception: ClassNotFoundException) =>
+                Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.NotFound, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("patterns.not.deleted", resource, exception.getMessage))))}") }
+                (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("patterns.not.deleted", resource, exception.getMessage)))
+              case Failure(exception: org.postgresql.util.PSQLException) =>
+                Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("patterns.not.deleted", resource, exception.toString)))}") }
+                ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("patterns.not.deleted", resource, exception.toString))
+              case Failure(exception) =>
+                Future { logger.debug(s"DELETE /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("patterns.not.deleted", resource, exception.toString))))}") }
+                (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("patterns.not.deleted", resource, exception.toString)))
+            }
+        }
   }
   
-  /* ====== GET /orgs/{organization}/agbots/{agreementbot}/patterns/{deploymentpattern} ================================ */
+  /* ====== GET /orgs/{organization}/agbots/{agreementbot}/deployment/patterns/{deploymentpattern} ================================ */
   @GET
   @Path("")
   @Operation(summary = "Returns a Pattern this Agreement Bot is serving",
@@ -148,11 +206,11 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
                      new responses.ApiResponse(responseCode = "404", description = "not found")))
   @io.swagger.v3.oas.annotations.tags.Tag(name = "agreement bot/deployment pattern")
   def getDeploymentPattern(@Parameter(hidden = true) agreementBot: String,
-                                   @Parameter(hidden = true) deploymentPattern: String,
-                                   @Parameter(hidden = true) identity: Identity2,
-                                   @Parameter(hidden = true) organization: String,
-                                   @Parameter(hidden = true) resource: String): Route = {
-    Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+                           @Parameter(hidden = true) deploymentPattern: String,
+                           @Parameter(hidden = true) identity: Identity2,
+                           @Parameter(hidden = true) organization: String,
+                           @Parameter(hidden = true) resource: String): Route = {
+    Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
     
     val getAgbotManagedDeploymentPattern: CompiledStreamingExecutable[Query[(AgbotPatterns, Rep[String]), (AgbotPatternRow, String), Seq], Seq[(AgbotPatternRow, String)], (AgbotPatternRow, String)] =
       for {
@@ -173,19 +231,19 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
       implicit val formats: Formats = DefaultFormats
       db.run(getAgbotManagedDeploymentPattern.result.transactionally.asTry).map {
         case Success(result) =>
-          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: ${result.size}") }
+          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: ${result.size}") }
           
           if(result.nonEmpty)
             (StatusCodes.OK, GetAgbotPatternsResponse(patterns = (result.map(policies => policies._2 -> new AgbotPattern(policies._1)).toMap)))
           else {
-            Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result.nonEmpty:${result.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(GetAgbotPatternsResponse(patterns = Map.empty[String, AgbotPattern])))}") }
+            Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result.nonEmpty:${result.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(GetAgbotPatternsResponse(patterns = Map.empty[String, AgbotPattern])))}") }
             (StatusCodes.NotFound, GetAgbotPatternsResponse(patterns = Map.empty[String, AgbotPattern]))
           }
         case Failure(exception: org.postgresql.util.PSQLException) =>
-          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("db.threw.exception", exception.getServerErrorMessage)))}") }
+          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("db.threw.exception", exception.getServerErrorMessage)))}") }
           ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("db.threw.exception", exception.getServerErrorMessage))
         case Failure(exception) =>
-          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error"))))}") }
+          Future { logger.debug(s"GET /orgs/${organization}/agbots/${agreementBot}/deployment/patterns/${deploymentPattern} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error"))))}") }
           (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("error")))
       }
     }
@@ -193,7 +251,7 @@ trait DeploymentPattern extends JacksonSupport with AuthenticationSupport {
   
   
   def deploymentPatternAgreementBot(identity: Identity2): Route =
-    path("orgs" / Segment / "agbots" / Segment / "patterns" / Segment) {
+    path("orgs" / Segment / "agbots" / Segment / ("patterns" | "deployment" ~ Slash ~ "patterns") / Segment) {
       (organization,
        agreementBot,
        deploymentPattern) =>

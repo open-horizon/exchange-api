@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.managementpolicy
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.native.JsonMethods
 import org.json4s.native.Serialization.write
 import org.json4s.{DefaultFormats, Formats, jvalue2extractable}
@@ -11,7 +12,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.scalatest.BeforeAndAfterAll
@@ -107,7 +108,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
     var userInput: PostPutUsersRequest = PostPutUsersRequest(pw, admin = false, Option(false), user + "@hotmail.com")
     var userResponse: HttpResponse[String] = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK.intValue)
+    assert(userResponse.code === StatusCodes.Created.intValue)
   }
 
   //~~~~~ Create and update management policies ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -129,11 +130,11 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
     var response: HttpResponse[String] = Http(URL + "/managementpolicies/" + managementPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     // Only Organization Admins and Hub Admins are able to write Node Management Policies
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   
     response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     val respObj: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("management policy '"+orgManagementPolicy+"' created"))
@@ -154,11 +155,11 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
     var response: HttpResponse[String] = Http(URL + "/managementpolicies/" + managementPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
     // Only Organization Admins and Hub Admins are able to write Node Management Policies
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   
     response = Http(URL+"/managementpolicies/"+managementPolicy).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     val respObj: ApiResponse = JsonMethods.parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("management policy updated"))
@@ -170,7 +171,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
     val response: HttpResponse[String] = Http(URL+"/managementpolicies").headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("response.body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj: TestGetManagementPoliciesResponse = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse]
     assert(respObj.managementPolicy.size === 1)
 
@@ -188,7 +189,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
     val response: HttpResponse[String] = Http(URL+"/managementpolicies/"+managementPolicy).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj: TestGetManagementPoliciesResponse = JsonMethods.parse(response.body).extract[TestGetManagementPoliciesResponse]
     assert(respObj.managementPolicy.size === 1)
 

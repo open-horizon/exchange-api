@@ -16,7 +16,7 @@ import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.table.node.message.NodeMsgsTQ
 import org.openhorizon.exchangeapi.table.schema.SchemaTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import org.openhorizon.exchangeapi.utility.{ExchMsg, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ExchMsg}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext

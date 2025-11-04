@@ -6,12 +6,13 @@ import io.swagger.v3.oas.annotations.Parameter
 import jakarta.ws.rs.Path
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, path, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TAction}
 import org.openhorizon.exchangeapi.route.administration.DeleteOrgChangesRequest
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling}
 import slick.jdbc.PostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
@@ -48,12 +49,12 @@ trait Cleanup extends JacksonSupport with AuthenticationSupport {
             db.run(action.transactionally.asTry).map({
               case Success(v) =>
                 logger.debug(s"Deleted specified $organization org entries in changes table ONLY FOR UNIT TESTS: $v")
-                if (v > 0) (HttpCode.DELETED, ApiResponse(ApiRespType.OK, s"$organization changes deleted"))
-                else (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization)))
+                if (v > 0) (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, s"$organization changes deleted"))
+                else (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("org.not.found", organization)))
               case Failure(t: org.postgresql.util.PSQLException) =>
                 ExchangePosgtresErrorHandling.ioProblemError(t, s"$organization org changes not deleted: " + t.toString)
               case Failure(t) =>
-                (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, s"$organization org changes not deleted: " + t.toString))
+                (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, s"$organization org changes not deleted: " + t.toString))
             })
           })
         }

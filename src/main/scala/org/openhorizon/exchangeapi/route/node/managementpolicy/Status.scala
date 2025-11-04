@@ -17,7 +17,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProces
 import org.openhorizon.exchangeapi.route.node.PutNodeMgmtPolStatusRequest
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{GetNMPStatusResponse, NodeMgmtPolStatusRow, NodeMgmtPolStatuses}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.dbio.DBIO
 import slick.jdbc.PostgresProfile.api._
@@ -78,23 +78,23 @@ trait Status extends JacksonSupport with AuthenticationSupport {
               ResourceChange(0L, organization, node, ResChangeCategory.NODE, false, ResChangeResource.NODEMGMTPOLSTATUS, ResChangeOperation.DELETED).insert.asTry
             }
             else
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("node.managementpolicy.status.not.found", organization + "/" + managementPolicy, resource))).asTry
+              DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("node.managementpolicy.status.not.found", organization + "/" + managementPolicy, resource))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         })).map({
           case Success(v) =>
             logger.debug(s"DELETE /orgs/$organization/nodes/$node/managementStatus/$managementPolicy updated in changes table: $v")
             
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.managementpolicy.status.deleted", organization + "/" + managementPolicy, resource)))
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.managementpolicy.status.deleted", organization + "/" + managementPolicy, resource)))
           case Failure(t: DBProcessingError) =>
             t.toComplete
           case Failure(t: org.postgresql.util.PSQLException) =>
-            if(t.getMessage.contains("couldn't find NODEMGMTPOLSTATUS")) (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.managementpolicy.status.not.found", organization + "/" + managementPolicy, resource)))
+            if(t.getMessage.contains("couldn't find NODEMGMTPOLSTATUS")) (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.managementpolicy.status.not.found", organization + "/" + managementPolicy, resource)))
             ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.managementpolicy.status.not.deleted", organization + "/" + managementPolicy, resource, t.toString))
           case Failure(t) =>
             if(t.getMessage.contains("couldn't find NODEMGMTPOLSTATUS"))
-              (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.managementpolicy.status.not.found", organization + "/" + managementPolicy, resource)))
+              (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("node.managementpolicy.status.not.found", organization + "/" + managementPolicy, resource)))
             else
-              (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.managementpolicy.status.not.deleted", organization + "/" + managementPolicy, resource, t.toString)))
+              (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.managementpolicy.status.not.deleted", organization + "/" + managementPolicy, resource, t.toString)))
         })
       })
     }
@@ -291,17 +291,17 @@ trait Status extends JacksonSupport with AuthenticationSupport {
                     logger.debug("PUT /orgs/" + organization + "/nodes/" + node + "/managementPolicy/" + managementPolicy + " result: " + v)
                     logger.debug("PUT /orgs/" + organization + "/nodes/" + node + "/managementPolicy/" + managementPolicy + " updating resource status table: " + v)
                     
-                    (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.managementpolicy.status.added.or.updated", organization + "/" + managementPolicy, resource)))
+                    (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.managementpolicy.status.added.or.updated", organization + "/" + managementPolicy, resource)))
                   case Failure(t: org.postgresql.util.PSQLException) =>
                     if (ExchangePosgtresErrorHandling.isAccessDeniedError(t))
-                      (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", organization + "/" + managementPolicy, resource, t.getMessage)))
+                      (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", organization + "/" + managementPolicy, resource, t.getMessage)))
                     else
                       ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", organization + "/" + managementPolicy, resource, t.toString))
                   case Failure(t) =>
                     if (t.getMessage.startsWith("Access Denied:"))
-                      (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", organization + "/" + managementPolicy, resource, t.getMessage)))
+                      (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", organization + "/" + managementPolicy, resource, t.getMessage)))
                     else
-                      (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", organization + "/" + managementPolicy, resource, t.toString)))
+                      (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("node.managementpolicy.status.not.inserted.or.updated", organization + "/" + managementPolicy, resource, t.toString)))
                 })
             )
           })

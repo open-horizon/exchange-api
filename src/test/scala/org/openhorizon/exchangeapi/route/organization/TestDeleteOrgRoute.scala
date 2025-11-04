@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.organization
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.openhorizon.exchangeapi.auth.{Password, Role}
@@ -8,7 +9,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -188,7 +189,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     val response: HttpResponse[String] = Http(URL + "doesNotExist").method("DELETE").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     //insure nothing was added to resource changes table
     assert(Await.result(DBCONNECTION.run(ResourceChangesTQ.filter(_.orgId === "doesNotExist").result), AWAITDURATION).isEmpty)
   }
@@ -197,7 +198,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     val response: HttpResponse[String] = Http(URL + "root").method("DELETE").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === "root").result), AWAITDURATION).length
     assert(numOrgs === 1) //insure root org is still there
     assertDeletedEntryNotCreated("root")
@@ -208,7 +209,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     val response: HttpResponse[String] = Http(URL + "IBM").method("DELETE").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
     val numUsers: Int = Await.result(DBCONNECTION.run(UsersTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
     val numNodes: Int = Await.result(DBCONNECTION.run(NodesTQ.filter(_.orgid === "IBM").result), AWAITDURATION).length
@@ -232,7 +233,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).method("DELETE").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
     assertDbClear(TESTORGS(0).orgId)
     assertDeletedEntryCreated(TESTORGS(0).orgId)
   }
@@ -241,7 +242,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).method("DELETE").headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
     assertDbClear(TESTORGS(0).orgId)
     assertDeletedEntryCreated(TESTORGS(0).orgId)
   }
@@ -250,7 +251,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).method("DELETE").headers(ACCEPT).headers(ORGADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).length
     assert(numOrgs === 1) //insure org is still there
     assertDeletedEntryNotCreated(TESTORGS(0).orgId)
@@ -260,7 +261,7 @@ class TestDeleteOrgRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeA
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId).method("DELETE").headers(ACCEPT).headers(USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val numOrgs: Int = Await.result(DBCONNECTION.run(OrgsTQ.filter(_.orgid === TESTORGS(0).orgId).result), AWAITDURATION).length
     assert(numOrgs === 1) //insure org is still there
     assertDeletedEntryNotCreated(TESTORGS(0).orgId)

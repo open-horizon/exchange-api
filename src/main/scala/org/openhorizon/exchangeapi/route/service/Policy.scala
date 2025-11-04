@@ -8,15 +8,18 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{DELETE, GET, PUT, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, delete, entity, get, path, put, _}
 import org.apache.pekko.http.scaladsl.server.Route
+import org.json4s.{DefaultFormats, Formats}
+import org.json4s.jackson.Serialization
 import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceOwnership, validateWithMsg}
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, DBProcessingError, Identity2, OrgAndId, TService}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChange}
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
 import org.openhorizon.exchangeapi.table.service.policy.{ServicePolicy, ServicePolicyTQ}
-import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile.api._
 
@@ -51,18 +54,22 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
                        @Parameter(hidden = true) organization: String,
                        @Parameter(hidden = true) resource: String,
                        @Parameter(hidden = true) service: String): Route = {
-    logger.debug(s"GET /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
-    complete({
-      db.run(ServicePolicyTQ.getServicePolicy(resource).result).map({
-        list =>
-          logger.debug("GET /orgs/"+organization+"/services/"+service+"/policy result size: "+list.size)
-          
-          if (list.nonEmpty)
-            (HttpCode.OK, list.head.toServicePolicy)
-          else
-            (HttpCode.NOT_FOUND, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
-      })
-    })
+    Future { logger.debug(s"GET /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+    complete{
+      db.run(ServicePolicyTQ.getServicePolicy(resource).result)
+        .map{
+          list =>
+            Future { logger.debug(s"GET /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result size: ${list.size}") }
+            
+            if (list.nonEmpty)
+              (StatusCodes.OK, list.head.toServicePolicy)
+            else {
+              implicit val formats: Formats = DefaultFormats
+              Future { logger.debug(s"GET /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - list.nonEmpty: ${list.nonEmpty} - ${(StatusCodes.NotFound, Serialization.write(ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found"))))}") }
+              (StatusCodes.NotFound, ApiResponse(ApiRespType.NOT_FOUND, ExchMsg.translate("not.found")))
+            }
+        }
+    }
   }
   
   // =========== PUT /orgs/{organization}/services/{service}/policy ===============================
@@ -137,39 +144,53 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
     put {
       entity(as[PutServicePolicyRequest]) {
         reqBody =>
-          logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+          implicit val formats: Formats = DefaultFormats
+          Future { logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
+          Future { logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Request: ${Serialization.write(reqBody)}") }
           validateWithMsg(reqBody.getAnyProblem) {
             
             val INSTANT: Instant = Instant.now()
             
-            complete({
+            complete {
               db.run(reqBody.toServicePolicyRow(resource).upsert.asTry.flatMap({
                 case Success(v) =>
                   // Get the value of the public field
-                  logger.debug("PUT /orgs/" + organization + "/services/" + service + "/policy result: " + v)
+                  Future { logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: $v") }
                   ServicesTQ.getPublic(resource).result.asTry
                 case Failure(t) => DBIO.failed(t).asTry
               }).flatMap({
                 case Success(public) =>
                   // Add the resource to the resourcechanges table
-                  logger.debug("PUT /orgs/" + organization + "/services/" + service + "/policy public field: " + public)
+                  Future { logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - public field: $public") }
                   if (public.nonEmpty) {
                     val serviceId: String = resource.substring(resource.indexOf("/") + 1, resource.length)
                     ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, public.head, ResChangeResource.SERVICEPOLICIES, ResChangeOperation.CREATEDMODIFIED, INSTANT).insert.asTry
-                  } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
-                case Failure(t) => DBIO.failed(t).asTry
-              })).map({
+                  } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
+                case Failure(exception) => DBIO.failed(exception).asTry
+              })).map {
                 case Success(v) =>
-                  logger.debug("PUT /orgs/" + organization + "/services/" + service + "/policy updated in changes table: " + v)
-                  (HttpCode.PUT_OK, ApiResponse(ApiRespType.OK, ExchMsg.translate("policy.added.or.updated")))
-                case Failure(t: org.postgresql.util.PSQLException) =>
-                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(t)) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("policy.not.inserted.or.updated", resource, t.getMessage)))
-                  else ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("policy.not.inserted.or.updated", resource, t.toString))
-                case Failure(t) =>
-                  if (t.getMessage.startsWith("Access Denied:")) (HttpCode.ACCESS_DENIED, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("policy.not.inserted.or.updated", resource, t.getMessage)))
-                  else (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("policy.not.inserted.or.updated", resource, t.toString)))
-              })
-            })
+                  Future { logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
+                  (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("policy.added.or.updated")))
+                case Failure(exception: org.postgresql.util.PSQLException) =>
+                  if (ExchangePosgtresErrorHandling.isAccessDeniedError(exception)) {
+                    Future { logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("policy.not.inserted.or.updated", resource, exception.getMessage))))}") }
+                    (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("policy.not.inserted.or.updated", resource, exception.getMessage)))
+                  }
+                  else {
+                    Future { logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("policy.not.inserted.or.updated", resource, exception.toString)))}") }
+                    ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("policy.not.inserted.or.updated", resource, exception.toString))
+                  }
+                case Failure(exception) =>
+                  if (exception.getMessage.startsWith("Access Denied:")) {
+                    Future { logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.Forbidden, Serialization.write(ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("policy.not.inserted.or.updated", resource, exception.getMessage))))}") }
+                    (StatusCodes.Forbidden, ApiResponse(ApiRespType.ACCESS_DENIED, ExchMsg.translate("policy.not.inserted.or.updated", resource, exception.getMessage)))
+                  }
+                  else {
+                    Future { logger.debug(s"PUT /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("policy.not.inserted.or.updated", resource, exception.toString))))}") }
+                    (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("policy.not.inserted.or.updated", resource, exception.toString)))
+                  }
+              }
+            }
           }
       }
     }
@@ -190,44 +211,48 @@ trait Policy  extends JacksonSupport with AuthenticationSupport {
                           @Parameter(hidden = true) resource: String,
                           @Parameter(hidden = true) service: String): Route =
     delete {
-      logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+      Future{ logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})") }
       
       val INSTANT: Instant = Instant.now()
       
-      complete({
+      complete {
+        implicit val formats: Formats = DefaultFormats
         var storedPublicField = false
         db.run(ServicesTQ.getPublic(resource).result.asTry.flatMap({
           case Success(public) =>
             // Get the value of the public field before doing the delete
-            logger.debug("DELETE /orgs/" + organization + "/services/" + service + "/policy public field: " + public)
+            Future{ logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - public field: $public") }
             if (public.nonEmpty) {
               storedPublicField = public.head
               ServicePolicyTQ.getServicePolicy(resource).delete.asTry
-            } else DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
+            } else DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.not.found", resource))).asTry
           case Failure(t) => DBIO.failed(t).asTry
         }).flatMap({
           case Success(v) =>
             // Add the resource to the resourcechanges table
-            logger.debug("DELETE /orgs/" + organization + "/services/" + service + "/policy result: " + v)
+            Future{ logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - result: $v") }
             if (v > 0) { // there were no db errors, but determine if it actually found it or not
               val serviceId: String = resource.substring(resource.indexOf("/") + 1, resource.length)
               ResourceChange(0L, organization, serviceId, ResChangeCategory.SERVICE, storedPublicField, ResChangeResource.SERVICEPOLICIES, ResChangeOperation.DELETED, INSTANT).insert.asTry
             } else {
-              DBIO.failed(new DBProcessingError(HttpCode.NOT_FOUND, ApiRespType.NOT_FOUND, ExchMsg.translate("service.policy.not.found", resource))).asTry
+              DBIO.failed(new DBProcessingError(StatusCodes.NotFound, ApiRespType.NOT_FOUND, ExchMsg.translate("service.policy.not.found", resource))).asTry
             }
-          case Failure(t) => DBIO.failed(t).asTry
-        })).map({
+          case Failure(exception) => DBIO.failed(exception).asTry
+        })).map {
           case Success(v) =>
-            logger.debug("DELETE /orgs/" + organization + "/services/" + service + "/policy updated in changes table: " + v)
-            (HttpCode.DELETED, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.policy.deleted")))
-          case Failure(t: DBProcessingError) =>
-            t.toComplete
-          case Failure(t: org.postgresql.util.PSQLException) =>
-            ExchangePosgtresErrorHandling.ioProblemError(t, ExchMsg.translate("service.policy.not.deleted", resource, t.toString))
-          case Failure(t) =>
-            (HttpCode.INTERNAL_ERROR, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.policy.not.deleted", resource, t.toString)))
-        })
-      })
+            Future{ logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - updated in changes table: $v") }
+            (StatusCodes.NoContent, ApiResponse(ApiRespType.OK, ExchMsg.translate("service.policy.deleted")))
+          case Failure(exception: DBProcessingError) =>
+            Future{ logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(exception.toComplete)}") }
+            exception.toComplete
+          case Failure(exception: org.postgresql.util.PSQLException) =>
+            Future{ logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${Serialization.write(ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.policy.not.deleted", resource, exception.toString)))}") }
+            ExchangePosgtresErrorHandling.ioProblemError(exception, ExchMsg.translate("service.policy.not.deleted", resource, exception.toString))
+          case Failure(exception) =>
+            Future{ logger.debug(s"DELETE /orgs/${organization}/services/${service}/policy - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - ${exception.toString} - ${(StatusCodes.InternalServerError, Serialization.write(ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.policy.not.deleted", resource, exception.toString))))}") }
+            (StatusCodes.InternalServerError, ApiResponse(ApiRespType.INTERNAL_ERROR, ExchMsg.translate("service.policy.not.deleted", resource, exception.toString)))
+        }
+      }
     }
   
   def policyService(identity: Identity2): Route =

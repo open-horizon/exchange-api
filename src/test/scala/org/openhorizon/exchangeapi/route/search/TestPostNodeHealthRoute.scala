@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.search
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.json4s.jackson.JsonMethods
 import org.json4s.native.Serialization
@@ -11,7 +12,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -279,7 +280,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }
@@ -288,7 +289,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData("{}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }
@@ -297,7 +298,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData("{\"invalidKey\":\"invalidValue\"}").headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }
@@ -307,7 +308,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }
@@ -317,7 +318,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }
@@ -327,7 +328,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.size === 3)
     assert(searchResponse.nodes.contains(TESTNODES(2).id))
@@ -350,7 +351,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(requestBody)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.size === 3)
     assert(searchResponse.nodes.contains(TESTNODES(2).id))
@@ -372,7 +373,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.size === 2)
     assert(searchResponse.nodes.contains(TESTNODES(3).id))
@@ -391,7 +392,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }
@@ -400,7 +401,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.size === 2)
     assert(searchResponse.nodes.contains(TESTNODES(3).id))
@@ -419,7 +420,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }
@@ -428,7 +429,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(ORG2USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }
@@ -437,7 +438,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(AGBOT1AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.size === 2)
     assert(searchResponse.nodes.contains(TESTNODES(3).id))
@@ -456,7 +457,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(AGBOT2AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }
@@ -465,7 +466,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(NODE1AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }
@@ -474,7 +475,7 @@ class TestPostNodeHealthRoute extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE).postData(Serialization.write(oneMinuteAgo)).headers(ACCEPT).headers(CONTENT).headers(NODE2AUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val searchResponse: PostNodeHealthResponse = JsonMethods.parse(response.body).extract[PostNodeHealthResponse]
     assert(searchResponse.nodes.isEmpty)
   }

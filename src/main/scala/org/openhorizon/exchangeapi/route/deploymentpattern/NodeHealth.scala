@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.{Operation, Parameter, responses}
 import jakarta.ws.rs.{POST, Path}
 import org.apache.pekko.actor.ActorSystem
 import org.apache.pekko.event.LoggingAdapter
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.apache.pekko.http.scaladsl.server.Directives.{as, complete, entity, path, post, _}
 import org.apache.pekko.http.scaladsl.server.Route
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, OrgAndId, TNode}
@@ -20,7 +21,7 @@ import slick.jdbc.PostgresProfile.api._
 import java.time.Instant
 import scala.concurrent.ExecutionContext
 
-@Path("/v1/orgs/{organization}/patterns/{pattern}/nodehealth")
+@Path("/v1/orgs/{organization}/deployment/patterns/{pattern}/nodehealth")
 @io.swagger.v3.oas.annotations.tags.Tag(name = "deployment pattern")
 trait NodeHealth extends JacksonSupport with AuthenticationSupport {
   // Will pick up these values when it is mixed in with ExchangeApiApp
@@ -29,7 +30,7 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
   def logger: LoggingAdapter
   implicit def executionContext: ExecutionContext
   
-  // ======== POST /org/{organization}/patterns/{deploymentPattern}/nodehealth ========================
+  // ======== POST /org/{organization}/deployment/patterns/{deploymentPattern}/nodehealth ========================
   @POST
   @Operation(
     summary = "Returns agreement health of nodes of a particular pattern",
@@ -111,13 +112,13 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
                      @Parameter(hidden = true) organization: String): Route =
     entity(as[PostNodeHealthRequest]) {
       reqBody =>
-        logger.debug(s"POST /org/${organization}/patterns/${deploymentPattern}/nodehealth - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
+        logger.debug(s"POST /org/${organization}/deployment/patterns/${deploymentPattern}/nodehealth - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         
         validateWithMsg(reqBody.getAnyProblem) {
           complete({
             val compositePat: String = OrgAndId(organization, deploymentPattern).toString
             val nodeOrgids: Set[String] = reqBody.nodeOrgids.getOrElse(List(organization)).toSet
-            logger.debug("POST /orgs/"+organization+"/patterns/"+deploymentPattern+"/nodehealth criteria: "+reqBody.toString)
+            logger.debug("POST /orgs/"+organization+"/deployment/patterns/"+deploymentPattern+"/nodehealth criteria: "+reqBody.toString)
             /*
               Join nodes and agreements and return: n.id, n.lastHeartbeat, a.id, a.lastUpdated.
               The filter is: n.pattern==ourpattern && n.lastHeartbeat>=lastTime
@@ -129,10 +130,10 @@ trait NodeHealth extends JacksonSupport with AuthenticationSupport {
             } yield (n.id, n.lastHeartbeat, a.map(_.agId), a.map(_.lastUpdated))
   
             db.run(q.result).map({ list =>
-              logger.debug("POST /orgs/"+organization+"/patterns/"+deploymentPattern+"/nodehealth result size: "+list.size)
+              logger.debug("POST /orgs/"+organization+"/deployment/patterns/"+deploymentPattern+"/nodehealth result size: "+list.size)
               //logger.debug("POST /orgs/"+orgid+"/patterns/"+pattern+"/nodehealth result: "+list.toString)
-              if (list.nonEmpty) (HttpCode.POST_OK, PostNodeHealthResponse(RouteUtils.buildNodeHealthHash(list)))
-              else (HttpCode.NOT_FOUND, PostNodeHealthResponse(Map[String,NodeHealthHashElement]()))
+              if (list.nonEmpty) (StatusCodes.Created, PostNodeHealthResponse(RouteUtils.buildNodeHealthHash(list)))
+              else (StatusCodes.NotFound, PostNodeHealthResponse(Map[String,NodeHealthHashElement]()))
             })
           })
         }

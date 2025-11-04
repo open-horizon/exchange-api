@@ -1,5 +1,6 @@
 package org.openhorizon.exchangeapi.route.user
 
+import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.json4s.DefaultFormats
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 import org.openhorizon.exchangeapi.table.agreementbot.{AgbotRow, AgbotsTQ}
@@ -7,7 +8,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ}
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
@@ -191,21 +192,21 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + "doesNotExist" + ROUTE + normalUsernameToDelete).method("DELETE").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("DELETE /orgs/" + TESTORGS(0).orgId + ROUTE + "doesNotExist -- 404 not found") {
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "doesNotExist").method("DELETE").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("DELETE /orgs/root" + ROUTE + "root -- 400 bad input") {
     val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "root").method("DELETE").headers(ACCEPT).headers(ROOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(users => (users.organization ++ "/" ++ users.username) === "root/root").result), AWAITDURATION).nonEmpty) //insure user still exists
   }
 
@@ -213,7 +214,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + normalUsernameToDelete).method("DELETE").headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
     assertDbClear(TESTUSERS(2).username)
   }
 
@@ -221,7 +222,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "orgUser2").method("DELETE").headers(ACCEPT).headers(ORG1USERAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(4).user).result), AWAITDURATION).nonEmpty) //insure user still exists
   }
 
@@ -229,7 +230,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + normalUsernameToDelete).method("DELETE").headers(ACCEPT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
     assertDbClear(TESTUSERS(2).username)
   }
 
@@ -237,7 +238,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + TESTORGS(1).orgId + ROUTE + normalUsernameToDelete).method("DELETE").headers(ACCEPT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(3).user).result), AWAITDURATION).nonEmpty) //insure user still exists
   }
 
@@ -245,7 +246,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestDeleteUserRouteHubAdmin").method("DELETE").headers(ACCEPT).headers(ORG1ADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(0).user).result), AWAITDURATION).nonEmpty) //insure user still exists
   }
 
@@ -253,7 +254,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestDeleteUserRouteHubAdmin").method("DELETE").headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(0).user).result), AWAITDURATION).isEmpty) //insure user is deleted
   }
 
@@ -261,7 +262,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + "root" + ROUTE + "TestDeleteUserRouteHubAdmin2").method("DELETE").headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(5).user).result), AWAITDURATION).isEmpty) //insure user is deleted
   }
 
@@ -270,7 +271,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + normalUsernameToDelete).method("DELETE").headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(2).user).result), AWAITDURATION).nonEmpty) //insure user still exists
   }
 
@@ -278,7 +279,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + "orgAdmin").method("DELETE").headers(ACCEPT).headers(HUBADMINAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(1).user).result), AWAITDURATION).isEmpty) //insure user is deleted
   }
 
@@ -286,7 +287,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + normalUsernameToDelete).method("DELETE").headers(ACCEPT).headers(NODEAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(2).user).result), AWAITDURATION).nonEmpty) //insure user still exists
   }
 
@@ -294,7 +295,7 @@ class TestDeleteUserRoute extends AnyFunSuite with BeforeAndAfterAll with Before
     val response: HttpResponse[String] = Http(URL + TESTORGS(0).orgId + ROUTE + normalUsernameToDelete).method("DELETE").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("Code: " + response.code)
     info("Body: " + response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     assert(Await.result(DBCONNECTION.run(UsersTQ.filter(_.user === TESTUSERS(2).user).result), AWAITDURATION).nonEmpty) //insure user still exists
   }
 

@@ -21,7 +21,7 @@ import org.openhorizon.exchangeapi.table.node.{NodeRow, NodesTQ, Prop, RegServic
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, OrgsTQ}
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeOperation, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
-import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection, HttpCode}
+import org.openhorizon.exchangeapi.utility.{ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
@@ -429,14 +429,14 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     for (i <- List(user,user2)) {
       val response = Http(URL+"/users/"+i).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
       info("DELETE "+i+", code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
     }
     val respOrg2 = Http(URL2+"/users/"+user3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("DELETE "+user3+", code: "+respOrg2.code+", response.body: "+respOrg2.body)
-    assert(respOrg2.code === HttpCode.DELETED.intValue || respOrg2.code === HttpCode.NOT_FOUND.intValue)
+    assert(respOrg2.code === StatusCodes.NoContent.intValue || respOrg2.code === StatusCodes.NotFound.intValue)
     val respOrg3 = Http(URL3+"/users/"+user4).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("DELETE "+user4+", code: "+respOrg3.code+", response.body: "+respOrg3.body)
-    assert(respOrg3.code === HttpCode.DELETED.intValue || respOrg3.code === HttpCode.NOT_FOUND.intValue)
+    assert(respOrg3.code === StatusCodes.NoContent.intValue || respOrg3.code === StatusCodes.NotFound.intValue)
   }
 
   /** Create an org to use for this test */
@@ -444,12 +444,12 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
 
     val input = PostPutOrgRequest(Some("IBM"), "My Org", "desc", None, None, None)
     response = Http(URL).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Create an non IBM org to use for this test */
@@ -457,12 +457,12 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
 
     val input = PostPutOrgRequest(None, "My Second Org", "Org of orgType not IBM", None, None, None)
     response = Http(URL2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Create a second IBM org to use for this test */
@@ -470,12 +470,12 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     var response = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue || response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue || response.code === StatusCodes.NotFound.intValue)
 
     val input = PostPutOrgRequest(Some("IBM"), "My Second Org", "Org of orgType not IBM", None, None, None)
     response = Http(URL3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   /** Delete all the test users, in case they exist from a previous run. Do not need to delete the patterns, because they are deleted when the user is deleted. */
@@ -489,12 +489,12 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     var userInput = PostPutUsersRequest(pw, admin = false, Some(false), user + "@hotmail.com")
     var userResponse = Http(URL + "/users/" + user).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK.intValue)
+    assert(userResponse.code === StatusCodes.Created.intValue)
 
     userInput = PostPutUsersRequest(pw2, admin = false, Some(false), user2 + "@hotmail.com")
     userResponse = Http(URL + "/users/" + user2).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK.intValue)
+    assert(userResponse.code === StatusCodes.Created.intValue)
 
     val devInput = PutNodesRequest(Option(nodeToken), "bc dev test", None, Option(""), Some(List(RegService("foo", 1, None, "{}", List(
       Prop("arch", "arm", "string", "in"),
@@ -502,26 +502,26 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
       Prop("blockchainProtocols", "agProto", "list", "in")), Some("")))), None, None, None, Option("NODEABC"), None, None)
     val devResponse = Http(URL + "/nodes/" + nodeId).postData(write(devInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + devResponse.code)
-    assert(devResponse.code === HttpCode.PUT_OK.intValue)
+    assert(devResponse.code === StatusCodes.Created.intValue)
 
     val agbotInput = PutAgbotsRequest(agbotToken, "agbot" + agbotId + "-norm", None, "ABC")
     val agbotResponse = Http(URL + "/agbots/" + agbotId).postData(write(agbotInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + agbotResponse.code + ", agbotResponse.body: " + agbotResponse.body)
-    assert(agbotResponse.code === HttpCode.PUT_OK.intValue)
+    assert(agbotResponse.code === StatusCodes.Created.intValue)
   }
 
   ignore("Add users, node, agbot for future tests in non-IBM org") {
     val userInput = PostPutUsersRequest(pw3, admin = false, Some(false), user3 + "@hotmail.com")
     val userResponse = Http(URL2 + "/users/" + user3).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK.intValue)
+    assert(userResponse.code === StatusCodes.Created.intValue)
   }
 
   ignore("Add users, node, agbot for future tests in second IBM org") {
     val userInput = PostPutUsersRequest(pw4, admin = false, Some(false), user4 + "@hotmail.com")
     val userResponse = Http(URL3 + "/users/" + user4).postData(write(userInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: " + userResponse.code + ", userResponse.body: " + userResponse.body)
-    assert(userResponse.code === HttpCode.POST_OK.intValue)
+    assert(userResponse.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" before service exists - should fail") {
@@ -531,7 +531,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" without services field -- see if this works") {
@@ -541,28 +541,28 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("Add service for future tests") {
     val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None, None)
     val svcResponse = Http(URL+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
-    assert(svcResponse.code === HttpCode.POST_OK.intValue)
+    assert(svcResponse.code === StatusCodes.Created.intValue)
   }
 
   test("Add service for future tests -- non IBM org") {
     val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))), Some("{\"services\":{}}"),Some("a"),None, None,None)
     val svcResponse = Http(URL2+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
-    assert(svcResponse.code === HttpCode.POST_OK.intValue)
+    assert(svcResponse.code === StatusCodes.Created.intValue)
   }
 
   test("Add service for future tests -- second IBM org") {
     val svcInput = PostPutServiceRequest("test-service", None, public = false, None, svcurl, svcversion, svcarch, "multiple", None, None, Some(List(Map("name" -> "foo"))),Some("{\"services\":{}}"),Some("a"),None, None, None)
     val svcResponse = Http(URL3+"/services").postData(write(svcInput)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+svcResponse.code+", response.body: "+svcResponse.body)
-    assert(svcResponse.code === HttpCode.POST_OK.intValue)
+    assert(svcResponse.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update pattern that is not there yet - should fail") {
@@ -572,7 +572,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     assert(response.body.contains("pattern 'PatternsSuiteTests/pt9920' not found"))
   }
 
@@ -583,7 +583,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/PatternNoService - add PatternNoService with no service - should fail") {
@@ -596,7 +596,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                   }""".stripMargin
     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/PatternNoService2 - add PatternNoService with empty service - should fail") {
@@ -610,7 +610,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                   }""".stripMargin
     val response = Http(URL+"/patterns/PatternNoService2").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" with invalid svc ref in userInput") {
@@ -622,7 +622,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test(s"POST /orgs/$orgid/patterns/"+pattern+" - add "+pattern+" as user") {
@@ -634,7 +634,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL + "/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("pattern '"+orgpattern+"' created"))
   }
@@ -642,7 +642,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" check if secrets are set") {
     val response = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[GetPatternAttributeResponse]
     assert(respObj.attribute === "secretBinding")
     val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
@@ -663,7 +663,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.CREATED.toString) && (y.resource == "pattern")}))
@@ -678,7 +678,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern+"  ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ALREADY_EXISTS.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("already exist"))
     assert(respObj.msg.contains("duplicate key value violates unique constraint"))
@@ -693,7 +693,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+"  "+pattern+" ").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    //assert(response.code === HttpCode.BAD_INPUT.intValue)
+    //assert(response.code === StatusCodes.BadRequest.intValue)
     assert(response.code === StatusCodes.HttpVersionNotSupported.intValue)
   }
 
@@ -707,7 +707,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("pattern '"+org3pattern5+"' created"))
   }
@@ -721,7 +721,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("pattern '"+org2pattern3+"' created"))
   }
@@ -729,7 +729,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("GET /orgs/"+orgid2+"/patterns/"+pattern3+" - add "+pattern3+" check if secrets are set for non IBM org") {
     val response = Http(URL2+"/patterns/"+pattern3).headers(ACCEPT).headers(USER3AUTH).param("attribute","secretBinding").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[GetPatternAttributeResponse]
     assert(respObj.attribute === "secretBinding")
     val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
@@ -752,7 +752,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL2+"/patterns/"+pattern4).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("pattern '"+org2pattern4+"' created"))
   }
@@ -764,7 +764,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
     assert(response.body.contains("pattern 'PatternsSuiteTests-NotIBM/pt9922' not created: only IBM patterns can be made public"))
   }
 
@@ -775,7 +775,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ALREADY_EXISTS.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as same user, w/o dataVerification or nodeHealth fields and vault secret") {
@@ -787,13 +787,13 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" check if secrets are updated") {
     val response = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[GetPatternAttributeResponse]
     assert(respObj.attribute === "secretBinding")
     val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
@@ -809,7 +809,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "pattern")}))
@@ -822,7 +822,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern+" - update as agbot - should fail") {
@@ -832,7 +832,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("PUT /orgs/"+orgid+"/patterns/"+pattern2+" - invalid pattern body") {
@@ -841,7 +841,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     }"""
     val response = Http(URL+"/patterns/"+pattern2).postData(badJsonInput).method("put").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as node - should fail") {
@@ -851,7 +851,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(NODEAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+pattern2+" - add "+pattern2+" as 2nd user") {
@@ -861,7 +861,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid3+"/patterns/"+pattern5+" - update to not public") {
@@ -873,7 +873,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid3+"/patterns/"+pattern5+" - update to public") {
@@ -885,13 +885,13 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid3+"/patterns/"+pattern5+" - orgtype changed so pattern can't be updated to public - should fail") {
     val orgInput = """{ "orgType": "test" }"""
     val orgResp = Http(URL3).postData(orgInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    assert(orgResp.code === HttpCode.PUT_OK.intValue)
+    assert(orgResp.code === StatusCodes.Created.intValue)
     //val jsonInput = """{ "public": true }"""
     val input = PostPutPatternRequest(pattern5, None, Some(true),
       List( PServices(svcurl, orgid3, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
@@ -901,10 +901,10 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL3+"/patterns/"+pattern5).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
     val orgInput2 = """{ "orgType": "IBM" }"""
     val orgResp2 = Http(URL3).postData(orgInput2).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    assert(orgResp2.code === HttpCode.PUT_OK.intValue)
+    assert(orgResp2.code === StatusCodes.Created.intValue)
   }
 
   test("PUT /orgs/"+orgid2+"/patterns/"+pattern3+" - update to public, not IBM should fail") {
@@ -916,7 +916,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL2+"/patterns/"+pattern3).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PUT /orgs/"+orgid2+"/patterns/"+pattern4+" - update to not public") {
@@ -928,7 +928,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL2+"/patterns/"+pattern4).postData(write(input)).method("put").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
 
@@ -949,20 +949,20 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                       }""".stripMargin
     val response = Http(URL+"/patterns/PatternNoService").postData(input).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
   
   test("PATCH /orgs/"+orgid+"/patterns/" +pattern+ "- secretBinding field") {
     var jsonInput = """{"secretBinding": [{ "serviceOrgid":"PatternuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets": [{"secret1": "vaultsecret1"},{"secret2": "vaultsecret2"}]}]}"""
     val response = Http(URL+"/patterns/"+ pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+" - add "+pattern+" check if secrets are updated for patch") {
     val response = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(USERAUTH).param("attribute","secretBinding").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[GetPatternAttributeResponse]
     assert(respObj.attribute === "secretBinding")
     val uis = parse(respObj.value).extract[List[OneSecretBindingService]]
@@ -977,7 +977,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     var jsonInput = """{"secretBinding": [{ "serviceOrgid":"PatternSuiteTests","serviceUrl":"ibm.netspeed","serviceVersionRange": "x.y.z", "secrets":  { "FirstSecret": "secret1","Foo": "Bar" }}]}"""
     val response = Http(URL+"/patterns/" + pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   /*someday: when all test suites are run at the same time, there are sometimes timing problems them all setting config values...
@@ -992,7 +992,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
       var configInput = AdminConfigRequest("api.limits.maxPatterns", "1")    // user only owns 1 currently
       var response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
 
       // Now try adding another 2 patterns - expect the second to be rejected
       var input = PostPutPatternRequest(pattern5+" amd64", None, Some(true),
@@ -1001,7 +1001,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
       )
       response = Http(URL+"/patterns/"+pattern5).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.POST_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
 
       input = PostPutPatternRequest(pattern2+" amd64", None, Some(true),
         List( PServices(svcurl, orgid, svcarch, Some(true), List(PServiceVersions(svcversion, None, None, None, None)), None, None )),
@@ -1009,7 +1009,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
       )
       response = Http(URL+"/patterns/"+pattern2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+      assert(response.code === StatusCodes.Forbidden.intValue)
       val respObj = parse(response.body).extract[ApiResponse]
       assert(respObj.msg.contains("Access Denied: you are over the limit of 1 patterns"))
 
@@ -1017,11 +1017,11 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
       configInput = AdminConfigRequest("api.limits.maxPatterns", origMaxPatterns.toString)
       response = Http(NOORGURL+"/admin/config").postData(write(configInput)).method("put").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.PUT_OK.intValue)
+      assert(response.code === StatusCodes.Created.intValue)
 
       response = Http(URL+"/patterns/"+pattern5).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
     }
   }
 //  */
@@ -1030,7 +1030,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 2)
 
@@ -1050,7 +1050,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).param("owner",authpref+"%").param("label",pattern+"%").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
     assert(respObj.patterns.contains(orgpattern))
@@ -1060,7 +1060,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Find the public==true patterns
     var response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).param("public","true").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     var respObj: TestGetPatternsResponse = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
     assert(respObj.patterns.contains(orgpattern2))
@@ -1068,7 +1068,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Find the public==false patterns
     response = Http(URL+"/patterns").headers(ACCEPT).headers(USERAUTH).param("public","false").asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
     assert(respObj.patterns.contains(orgpattern))
@@ -1078,7 +1078,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(NODEAUTH).asString
     info("code: " + response.code)
     info("response.body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 2)
   }
@@ -1087,7 +1087,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/patterns").headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: " + response.code)
     info("response.body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 2)
   }
@@ -1096,7 +1096,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("response.body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
 
@@ -1128,21 +1128,21 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val jsonInput = """{ "services": [{ "serviceUrl": """"+svcurl+"""", "serviceOrgid": """"+orgid+"""", "serviceArch": """"+svcarch+"""", "serviceVersions": [] }] }"""
     val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - userInput with an invalid svc ref") {
     val jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
     val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - userInput without header so invalid input") {
     val jsonInput = """[{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": "fooarch", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }]"""
     val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
     //assert(response.body.contains("invalid input"))
   }
 
@@ -1150,12 +1150,12 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     var jsonInput = """{ "description": "this is now patched" }"""
     var response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     jsonInput = """{ "userInput": [{ "serviceOrgid": """"+orgid+"""", "serviceUrl": """"+svcurl+"""", "serviceArch": """"+svcarch+"""", "serviceVersionRange": """"+ALL_VERSIONS+"""", "inputs": [{"name":"UI_STRING","value":"mystr - updated"}, {"name":"UI_INT","value": 7}, {"name":"UI_BOOLEAN","value": true}] }] }"""
     response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + " was updated via PATCH and stored") {
@@ -1163,7 +1163,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.MODIFIED.toString) && (y.resource == "pattern")}))
@@ -1173,7 +1173,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     var jsonInput = """   { "description": "this is now patched" }    """
     var response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
 
     jsonInput =
       """
@@ -1183,7 +1183,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
           """
     response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - as user2 - should fail") {
@@ -1192,7 +1192,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     }"""
     val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/doesnotexist - pattern not found") {
@@ -1201,14 +1201,14 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     }"""
     val response = Http(URL+"/patterns/doesnotexist").postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+" - as agbot, check patch by getting 1 attr at a time") {
     var response: HttpResponse[String] = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","description").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     var respObj = parse(response.body).extract[GetPatternAttributeResponse]
     assert(respObj.attribute === "description")
     assert(respObj.value === "this is now patched")
@@ -1216,7 +1216,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     response = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(AGBOTAUTH).param("attribute","userInput").asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     respObj = parse(response.body).extract[GetPatternAttributeResponse]
     assert(respObj.attribute === "userInput")
     val uis = parse(respObj.value).extract[List[OneUserInputService]]
@@ -1237,7 +1237,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"notthere").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     //val getPatternResp = parse(response.body).extract[TestGetPatternsResponse]
     //assert(getPatternResp.patterns.size === 0)
   }
@@ -1248,7 +1248,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     //info("jsonInput: "+jsonInput)
     val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid+"/patterns/"+pattern+" - patch with a nonexistent service - should fail") {
@@ -1256,7 +1256,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val jsonInput = """{ "services": """ + write(input) + " }"
     val response = Http(URL+"/patterns/"+pattern).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PATCH /orgs/"+orgid3+"/patterns/"+pattern5+" - patch the public attribute to false from true") {
@@ -1264,7 +1264,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     //info("jsonInput: "+jsonInput)
     val response = Http(URL3+"/patterns/"+pattern5).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid3+"/patterns/"+pattern5+" - patch the public attribute to false again") {
@@ -1272,7 +1272,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     //info("jsonInput: "+jsonInput)
     val response = Http(URL3+"/patterns/"+pattern5).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid3+"/patterns/"+pattern5+" - patch the public attribute to true from false") {
@@ -1280,7 +1280,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     //info("jsonInput: "+jsonInput)
     val response = Http(URL3+"/patterns/"+pattern5).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid3+"/patterns/"+pattern5+" - patch the public attribute to true again") {
@@ -1288,7 +1288,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     //info("jsonInput: "+jsonInput)
     val response = Http(URL3+"/patterns/"+pattern5).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("PATCH /orgs/"+orgid2+"/patterns/"+pattern4+" - patch the public attribute to true not IBM - should fail") {
@@ -1296,21 +1296,21 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     //info("jsonInput: "+jsonInput)
     val response = Http(URL2+"/patterns/"+pattern4).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER3AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
   }
 
   test("PATCH /orgs/"+orgid3+"/patterns/"+pattern5+" - orgtype changed and pattern no longer can be public -- should fail") {
     val orgInput = """{ "orgType": "test" }"""
     val orgResp = Http(URL3).postData(orgInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    assert(orgResp.code === HttpCode.PUT_OK.intValue)
+    assert(orgResp.code === StatusCodes.Created.intValue)
     val jsonInput = """{ "public": true }"""
     //info("jsonInput: "+jsonInput)
     val response = Http(URL3+"/patterns/"+pattern5).postData(jsonInput).method("patch").headers(CONTENT).headers(ACCEPT).headers(USER4AUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.BAD_INPUT.intValue)
+    assert(response.code === StatusCodes.BadRequest.intValue)
     val orgInput2 = """{ "orgType": "IBM" }"""
     val orgResp2 = Http(URL3).postData(orgInput2).method("patch").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
-    assert(orgResp2.code === HttpCode.PUT_OK.intValue)
+    assert(orgResp2.code === StatusCodes.Created.intValue)
   }
 
 
@@ -1320,7 +1320,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = PostPutServiceRequest("IBMTestSvc", Some("desc"), public = true, None, ibmSvcUrl, ibmSvcVersion, ibmSvcArch, "single", None, None, None, Some("{\"services\":{}}"),Some("a"), None, None, None)
     val response = Http(IBMURL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/IBM/patterns/"+ibmPattern+" - add "+ibmPattern+" as root") {
@@ -1329,7 +1329,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
       None, None, None, Option("ibmPattern"))
     val response = Http(IBMURL+"/patterns/"+ibmPattern).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val respObj = parse(response.body).extract[ApiResponse]
     assert(respObj.msg.contains("pattern '"+ibmOrgPattern+"' created"))
   }
@@ -1338,7 +1338,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(IBMURL+"/patterns").headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("response.body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetPatternsResponse]
     //assert(respObj.patterns.size === 2)  // cant test this because there could be other patterns in the IBM org
 
@@ -1351,7 +1351,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(IBMURL+"/patterns/"+ibmPattern).headers(ACCEPT).headers(USERAUTH).asString
     info("code: " + response.code)
     info("response.body: " + response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val respObj = parse(response.body).extract[TestGetPatternsResponse]
     assert(respObj.patterns.size === 1)
 
@@ -1367,28 +1367,28 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
    val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion2, svcarch2, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid3+" so pattern can reference it") {
     val input = PostPutServiceRequest("test-service", None, public = false, None, NETSPEEDSPEC_URL, svcversion3, svcarch3, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid4+" so pattern can reference it") {
    val input = PostPutServiceRequest("test-service", None, public = false, None, PWSSPEC_URL, svcversion4, svcarch4, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/services - add "+svcid5+" so pattern can reference it") {
     val input = PostPutServiceRequest("test-service", None, public = false, None, SDRSPEC_URL, svcversion5, svcarch5, "multiple", None, None, None, Some("") ,Some(""), None, None, None)
     val response = Http(URL+"/services").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+" - adding pattern so nodes can reference it") {
@@ -1402,7 +1402,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+patid).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid2+" - adding pattern so nodes can reference it") {
@@ -1417,7 +1417,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+patid2).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid3+" - adding pattern with 2 services of different arch's so nodes can reference it") {
@@ -1432,7 +1432,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     )
     val response = Http(URL+"/patterns/"+patid3).postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   ignore("PUT /orgs/" + orgid + "/nodes/" + nodeIdSearchTest1 + " - add normal node as user") {
@@ -1454,7 +1454,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeIdSearchTest1 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   ignore("PUT /orgs/" + orgid + "/nodes/" + nodeId2SearchTest2 + " - node with higher memory 400, and version 2.0.0") {
@@ -1468,7 +1468,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     //info("Heartbeat: " + Http(URL + "/nodes/" + nodeId2SearchTest2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   ignore("PUT /orgs/" + orgid + "/nodes/" + nodeId2SearchTest2 + " - node with no arch") {
@@ -1482,7 +1482,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId2SearchTest2 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - as agbot") {
@@ -1492,7 +1492,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                                          serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 3)
@@ -1515,7 +1515,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId3SearchTest3 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
   
   test("POST /orgs/"+orgid+"/patterns/"+patid+"/search - for "+SDRSPEC+" - agbot should find node with no arch") {
@@ -1525,7 +1525,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                                          serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 3)
@@ -1549,19 +1549,19 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId4SearchTest4 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId4SearchTest4+" - by agbot just to see what the node is") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId4SearchTest4).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+patid2+" - by agbot just to see what the pattern is") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+patid2).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid2+"/search - as agbot for "+PWSSPEC+" with no arch") {
@@ -1571,7 +1571,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                                          serviceUrl = PWSSPEC)
     val response = Http(URL+"/patterns/"+patid2+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 1)
@@ -1591,7 +1591,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("Hearbeat: " + Http(URL + "/nodes/" + nodeId5SearchTest5 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   ignore("PUT /orgs/" + orgid + "/nodes/" + nodeId6SearchTest6 + " - node with " + SDRSPEC + " Service the first one arm32") {
@@ -1605,21 +1605,21 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("Heartbeat: " + Http(URL + "/nodes/" + nodeId6SearchTest6 + "/heartbeat").method("post").headers(ACCEPT).headers(USERAUTH).asString)
     info("code: " + response.code)
     info("body: " + response.body)
-    assert(response.code === HttpCode.PUT_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+patid3+" - by agbot just to see what the pattern is") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+patid3).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
 //    info("body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
   }
 
   test("GET /orgs/"+orgid+"/nodes/"+nodeId5SearchTest5+" - by agbot just to see what the node is") {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeId5SearchTest5).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code)
 //    info("body: "+response.body)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
   }
 
   test("POST /orgs/"+orgid+"/patterns/"+patid3+"/search - as agbot for "+SDRSPEC+" with two different arch's") {
@@ -1629,7 +1629,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                                          serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid3+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 2)
@@ -1647,7 +1647,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                                          serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid3+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 1)
@@ -1663,7 +1663,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
                                          serviceUrl = SDRSPEC)
     val response = Http(URL+"/patterns/"+patid3+"/search").postData(write(input)).headers(CONTENT).headers(ACCEPT).headers(AGBOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     val postSearchDevResp = parse(response.body).extract[PostPatternSearchResponse]
     val nodes = postSearchDevResp.nodes
     assert(nodes.length === 1)
@@ -1676,14 +1676,14 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/nodes/"+nodeIdSearchTest1) {
     val response: HttpResponse[String] = Http(URL+"/nodes/"+nodeIdSearchTest1).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   // Key tests ==============================================
   test("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys - no keys have been created yet - should fail") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val resp = parse(response.body).extract[List[String]]
     assert(resp.size === 0)
   }
@@ -1692,7 +1692,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     //val input = PutPatternKeyRequest(key)
     val response = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).postData(key).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + "key was created and stored") {
@@ -1700,7 +1700,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.CREATEDMODIFIED.toString) && (y.resource == "patternkeys")}))
@@ -1710,13 +1710,13 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     //val input = PutPatternKeyRequest(key2)
     val response = Http(URL+"/patterns/"+pattern+"/keys/"+keyId2).postData(key2).method("put").headers(CONTENTTEXT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys - should be 2 now") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     val resp = parse(response.body).extract[List[String]]
     assert(resp.size === 2)
     assert(resp.contains(keyId) && resp.contains(keyId2))
@@ -1728,14 +1728,14 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     //val bodyStr = (response.body.map(_.toChar)).mkString
     //info("code: "+response.code+", response.body: "+bodyStr)
     info("code: "+response.code+", response: "+response.toString)
-    assert(response.code === HttpCode.OK.intValue)
+    assert(response.code === StatusCodes.OK.intValue)
     assert(response.body === key)
   }
 
   test("DELETE /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId) {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + " key was deleted and stored") {
@@ -1743,7 +1743,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "patternkeys")}))
@@ -1754,25 +1754,25 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     info("code: "+response.code)
     info("body: "+response.body)
     info("headers: "+response.headers)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys/"+keyId+" - verify it is gone") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys/"+keyId).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/patterns/"+pattern+"/keys - delete all keys") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys").method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern+"/keys - all keys should be gone now") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern+"/keys").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     val resp = parse(response.body).extract[List[String]]
     assert(resp.size === 0)
   }
@@ -1782,7 +1782,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "patternkeys")}))
@@ -1792,7 +1792,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/patterns/"+pattern) {
     val response = Http(URL+"/patterns/"+pattern).method("delete").headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("POST /orgs/"+orgid+"/changes - verify " + pattern + "was deleted and stored") {
@@ -1800,7 +1800,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val input = ResourceChangesRequest(0L, Some(time), maxRecords, None)
     val response = Http(URL+"/changes").postData(write(input)).method("post").headers(CONTENT).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.POST_OK.intValue)
+    assert(response.code === StatusCodes.Created.intValue)
     assert(!response.body.isEmpty)
     val parsedBody = parse(response.body).extract[ResourceChangesRespObject]
     assert(parsedBody.changes.exists(y => {(y.id == pattern) && (y.operation == ResChangeOperation.DELETED.toString) && (y.resource == "pattern")}))
@@ -1810,7 +1810,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     //val getPatternResp = parse(response.body).extract[TestGetPatternsResponse]
     //assert(getPatternResp.patterns.size === 0)
   }
@@ -1818,20 +1818,20 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/"+orgid+"/patterns/"+pattern2+" - so its cache entry will also be deleted") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern2).method("delete").headers(ACCEPT).headers(USER2AUTH).asString
     info("code: "+response.code)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("DELETE /orgs/"+orgid+"/users/"+user2) {
     val response = Http(URL+"/users/"+user2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("GET /orgs/"+orgid+"/patterns/"+pattern2+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(URL+"/patterns/"+pattern2).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
     //val getPatternResp = parse(response.body).extract[TestGetPatternsResponse]
     //assert(getPatternResp.patterns.size === 0)
   }
@@ -1839,21 +1839,21 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
   test("DELETE /orgs/IBM/patterns/"+ibmPattern) {
     val response = Http(IBMURL+"/patterns/"+ibmPattern).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("GET /orgs/IBM/patterns/"+ibmPattern+" - as user - verify gone") {
     val response: HttpResponse[String] = Http(IBMURL+"/patterns/"+ibmPattern).headers(ACCEPT).headers(USERAUTH).asString
     info("code: "+response.code)
     // info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.NOT_FOUND.intValue)
-    //assert(response.code === HttpCode.ACCESS_DENIED.intValue)
+    assert(response.code === StatusCodes.NotFound.intValue)
+    //assert(response.code === StatusCodes.Forbidden.intValue)
   }
 
   test("DELETE /orgs/IBM/services/"+ibmService) {
     val response = Http(IBMURL+"/services/"+ibmService).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("DELETE IBM changes") {
@@ -1862,7 +1862,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     info(write(input))
     val response = Http(urlRoot+"/v1/orgs/IBM/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   /** Clean up, delete all the test patterns */
@@ -1875,7 +1875,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   /** Delete the non IBM org we used for this test */
@@ -1883,7 +1883,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL2).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   /** Delete the second IBM org we used for this test */
@@ -1891,7 +1891,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
     // Try deleting it 1st, in case it is left over from previous test
     val response = Http(URL3).method("delete").headers(ACCEPT).headers(ROOTAUTH).asString
     info("code: "+response.code+", response.body: "+response.body)
-    assert(response.code === HttpCode.DELETED.intValue)
+    assert(response.code === StatusCodes.NoContent.intValue)
   }
 
   test("Cleanup -- DELETE org changes") {
@@ -1899,7 +1899,7 @@ class PatternsSuite extends AnyFunSuite with BeforeAndAfterAll {
       val input = DeleteOrgChangesRequest(List())
       val response = Http(urlRoot+"/v1/orgs/"+org+"/changes/cleanup").postData(write(input)).method("delete").headers(CONTENT).headers(ACCEPT).headers(ROOTAUTH).asString
       info("code: "+response.code+", response.body: "+response.body)
-      assert(response.code === HttpCode.DELETED.intValue)
+      assert(response.code === StatusCodes.NoContent.intValue)
     }
   }
 

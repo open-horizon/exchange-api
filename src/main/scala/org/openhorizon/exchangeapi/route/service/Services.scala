@@ -190,8 +190,8 @@ trait Services extends JacksonSupport with AuthenticationSupport {
             for {
               services: ((Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String], Rep[Boolean], Rep[String], Rep[String], Rep[String], Rep[String], Rep[String]), Rep[String]) <-
                 ServicesTQ.filter(services => services.orgid === organization)
-                          .filterIf(identity.isAgbot && !identity.isMultiTenantAgbot)(services => (services.orgid === identity.organization) || (services.orgid === organization && services.public))
-                          .filterIf(identity.isUser)(services => (services.orgid === identity.organization && services.owner === identity.identifier) || (services.orgid === organization && services.public))
+                          .filterIf((identity.isAgbot && !identity.isMultiTenantAgbot) || identity.isNode || identity.isOrgAdmin)(services => (services.orgid === identity.organization) || (services.orgid === organization && services.public))
+                          .filterIf(identity.isStandardUser)(services => (services.orgid === identity.organization && services.owner === identity.identifier) || (services.orgid === organization && services.public))
                           .filterOpt(arch)((services, arch) => if (arch.contains('%')) services.arch like arch else services.arch === arch)
                           .filterOpt(cluster)((services, _) => services.clusterDeployment =!= "")
                           .filterOpt(device)((services, _) => services.deployment =!= "")

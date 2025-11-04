@@ -178,6 +178,8 @@ trait Service extends JacksonSupport with AuthenticationSupport {
           val serviceQuery: Query[(Services, (Rep[String], Rep[UUID], Rep[String])), (ServiceRow, (String, UUID, String)), Seq] =
             ServicesTQ.filter(services => services.orgid === organization &&
                                           services.service === resource)
+                      .filterIf((identity.isAgbot && !identity.isMultiTenantAgbot) || identity.isNode || identity.isOrgAdmin)(services => (services.orgid === identity.organization) || (services.orgid === organization && services.public))
+                      .filterIf(identity.isStandardUser)(services => (services.orgid === identity.organization && services.owner === identity.identifier) || (services.orgid === organization && services.public))
                       .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
                       .on(_.owner === _._2)
                       .take(1)
@@ -243,6 +245,8 @@ trait Service extends JacksonSupport with AuthenticationSupport {
                   service <-
                     ServicesTQ.filter(services => services.orgid === organization &&
                                                   services.service === resource)
+                              .filterIf((identity.isAgbot && !identity.isMultiTenantAgbot) || identity.isNode || identity.isOrgAdmin)(services => (services.orgid === identity.organization) || (services.orgid === organization && services.public))
+                              .filterIf(identity.isStandardUser)(services => (services.orgid === identity.organization && services.owner === identity.identifier) || (services.orgid === organization && services.public))
                               .join(UsersTQ.map(users => (users.organization, users.user, users.username)))
                               .on(_.owner === _._2)
                               .take(1)

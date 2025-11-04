@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.154.0](https://github.com/open-horizon/exchange-api/pull/833) - 2025-11-14
+- Issue 833: Fixed authorization permissions on services routes.
+
 ## [2.153.0](https://github.com/open-horizon/exchange-api/pull/832) - 2025-10-28
 - Removed deployment existence checks on managed deployment assignments to agreement bots.
 - Added additional authorization checks to managed deployment policy assignments.

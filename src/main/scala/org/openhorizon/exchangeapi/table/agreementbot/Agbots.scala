@@ -4,7 +4,7 @@ import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiTime, StrConstants}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 
 class Agbots(tag: Tag) extends Table[AgbotRow](tag, "agbots") {

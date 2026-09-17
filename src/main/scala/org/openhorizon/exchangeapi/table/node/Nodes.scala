@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.table.node
 import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 

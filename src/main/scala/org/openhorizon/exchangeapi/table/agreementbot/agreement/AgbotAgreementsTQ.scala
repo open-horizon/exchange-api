@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.agreementbot.agreement
 
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 
 

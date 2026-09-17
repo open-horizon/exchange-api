@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.table.agreementbot.agreement
 
 import org.openhorizon.exchangeapi.table.agreementbot.AAService
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 
 final case class AgbotAgreementRow(agrId: String, agbotId: String, serviceOrgid: String, servicePattern: String, serviceUrl: String, state: String, lastUpdated: String, dataLastReceived: String) {

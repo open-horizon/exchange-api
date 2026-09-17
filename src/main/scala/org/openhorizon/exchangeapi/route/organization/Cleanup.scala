@@ -13,7 +13,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity
 import org.openhorizon.exchangeapi.route.administration.DeleteOrgChangesRequest
 import org.openhorizon.exchangeapi.table.resourcechange.ResourceChangesTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 import scala.util._

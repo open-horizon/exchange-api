@@ -18,7 +18,7 @@ import org.openhorizon.exchangeapi.route.node.{PostServiceSearchRequest, PostSer
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.status.NodeStatusTQ
 import org.openhorizon.exchangeapi.utility.HttpCode
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util
 import scala.concurrent.{ExecutionContext, Future}

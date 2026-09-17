@@ -7,7 +7,7 @@ import org.openhorizon.exchangeapi.table.service.OneProperty
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService}
 import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class PatchBusinessPolicyRequest(label: Option[String],
                                             description: Option[String],

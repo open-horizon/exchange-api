@@ -4,7 +4,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.auth.Role
 import org.openhorizon.exchangeapi.utility.StrConstants
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 

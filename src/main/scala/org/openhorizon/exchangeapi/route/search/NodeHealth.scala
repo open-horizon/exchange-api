@@ -16,7 +16,7 @@ import org.openhorizon.exchangeapi.route.organization.{NodeHealthHashElement, Po
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.agreement.NodeAgreementsTQ
 import org.openhorizon.exchangeapi.utility.{ApiTime, HttpCode, RouteUtils}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.Instant
 import scala.concurrent.ExecutionContext

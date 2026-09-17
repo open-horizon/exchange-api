@@ -16,7 +16,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity
 import org.openhorizon.exchangeapi.table.node.managementpolicy.status.{GetNMPStatusResponse, NodeMgmtPolStatuses}
 import org.openhorizon.exchangeapi.utility.Configuration
 import scalacache.modes.scalaFuture.mode
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt

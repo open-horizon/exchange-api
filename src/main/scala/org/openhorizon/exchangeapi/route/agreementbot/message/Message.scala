@@ -19,7 +19,7 @@ import org.openhorizon.exchangeapi.route.agreementbot.GetAgbotMsgsResponse
 import org.openhorizon.exchangeapi.table.agreementbot.message.{AgbotMsg, AgbotMsgsTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import scalacache.modes.scalaFuture.mode
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.duration.DurationInt

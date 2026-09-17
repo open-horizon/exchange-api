@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.route.user
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class ChangePwRequest(newPassword: String) {
   require(newPassword!=null)

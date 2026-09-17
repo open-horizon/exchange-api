@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.table.apikey
 
 import java.util.UUID
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Query, Rep, TableQuery}
 import scala.concurrent.ExecutionContext
 

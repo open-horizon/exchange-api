@@ -5,7 +5,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService}
 import org.openhorizon.exchangeapi.table.service.OneProperty
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 

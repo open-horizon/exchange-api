@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.node.group.assignment
 
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 
 object NodeGroupAssignmentTQ extends TableQuery(new NodeGroupAssignment(_)){

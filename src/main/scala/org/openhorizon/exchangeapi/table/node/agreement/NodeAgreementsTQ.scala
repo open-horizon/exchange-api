@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.node.agreement
 
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 
 object NodeAgreementsTQ  extends TableQuery(new NodeAgreements(_)){

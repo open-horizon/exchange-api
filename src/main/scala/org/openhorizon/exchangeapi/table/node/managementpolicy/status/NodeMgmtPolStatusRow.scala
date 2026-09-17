@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.table.node.managementpolicy.status
 
 import org.json4s.{DefaultFormats, Formats}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class NodeMgmtPolStatusRow(actualStartTime: Option[String],
                                       certificateVersion: Option[String],

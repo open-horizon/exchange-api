@@ -25,7 +25,7 @@ import org.openhorizon.exchangeapi.table.agent.AgentVersionsChangedTQ
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.TableQuery
 
 import scala.collection.mutable.ListBuffer

@@ -1,8 +1,7 @@
 package org.openhorizon.exchangeapi.table.user
 
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
-import slick.jdbc.PostgresProfile.api._
-import slick.lifted.MappedToBase.mappedToIsomorphism
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{BaseColumnExtensionMethods, MappedProjection, ProvenShape, ShapedValue}
 
 import java.time.Instant

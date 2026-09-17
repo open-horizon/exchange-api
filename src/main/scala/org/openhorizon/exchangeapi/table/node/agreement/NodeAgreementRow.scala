@@ -4,7 +4,7 @@ import org.json4s.jackson.Serialization.read
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.node.agreement
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class NodeAgreementRow(agId: String,
                                   nodeId: String,

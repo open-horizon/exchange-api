@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.deploymentpattern.key
 
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.TableQuery
 
 object PatternKeysTQ extends TableQuery(new PatternKeys(_)) {

@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.service
 
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 class SearchService(tag: Tag) extends Table[SearchServiceKey](tag, "search_service") {
   def architecture = column[String]("architecture", O.Default("%"))

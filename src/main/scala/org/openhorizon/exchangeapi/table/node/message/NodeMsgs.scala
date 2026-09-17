@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.table.node.message
 
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 class NodeMsgs(tag: Tag) extends Table[NodeMsgRow](tag, "nodemsgs") {
   def msgId = column[Int]("msgid", O.PrimaryKey, O.AutoInc)    // this enables them to delete a msg and helps us deliver them in order

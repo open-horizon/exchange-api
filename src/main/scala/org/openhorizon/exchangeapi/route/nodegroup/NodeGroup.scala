@@ -25,7 +25,7 @@ import org.openhorizon.exchangeapi.{ExchangeApiApp, auth}
 import org.postgresql.util.PSQLException
 import scalacache.modes.scalaFuture.mode
 import slick.dbio.Effect
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.Compiled
 
 import java.time.Instant

@@ -16,7 +16,7 @@ import org.openhorizon.exchangeapi.table.node.NodeType
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.service.{Service, ServicesTQ}
 import org.openhorizon.exchangeapi.utility.{ExchMsg, Version}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 

@@ -12,7 +12,7 @@ import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, Role, TAction}
 import org.openhorizon.exchangeapi.route.administration.AdminDropdbTokenResponse
 import org.openhorizon.exchangeapi.utility.HttpCode
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 

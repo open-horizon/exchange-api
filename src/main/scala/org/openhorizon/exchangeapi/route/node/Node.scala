@@ -31,7 +31,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, C
 import org.openhorizon.exchangeapi.{ExchangeApiApp, table}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Compiled, CompiledExecutable}
 
 import java.lang.IllegalStateException
@@ -876,6 +876,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
         case exception: BadInputException => complete(StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, exception.summary))
         case exception: MappingException => complete(StatusCodes.BadRequest, ApiResponse(ApiRespType.BAD_INPUT, exception.getMessage))
       }) {
+      Future { logger.debug(s"DOUG PUT 1") }
       parameter ("noheartbeat".as[Boolean].optional) {
         noheartbeat =>
         entity (as[PutNodesRequest]) {
@@ -916,9 +917,11 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                             else
                               None) {
               
+              Future { logger.debug(s"DOUG PUT 2") }
               (reqBody.registeredServices.getOrElse(List.empty[RegService]).foreach({
                 service =>
                   service.properties.foreach({
+                    Future { logger.debug(s"DOUG PUT 32") }
                     property =>
                       if (!PropType.contains(property.propType))
                         throw BadInputException(summary = ExchMsg.translate("invalid.proptype.for.name", property.propType, property.name))
@@ -969,12 +972,14 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   })
               }))
               
+              Future { logger.debug(s"DOUG PUT 4") }
               Future { logger.debug(s"PUT /orgs/$organization/nodes/$node?noheartbeat=${noheartbeat.getOrElse("None")} - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")}) - Completed request body input validation") }
               
               implicit val defaultFormats: DefaultFormats = DefaultFormats
               val modified_at: Instant = ApiTime.nowUTCTimestamp
               val modified_at_str: String = modified_at.toString
               
+              Future { logger.debug(s"DOUG PUT 5") }
               val hashedToken: Option[String] =
                 if (reqBody.token.isDefined)
                   if (reqBody.token.getOrElse("") != "")
@@ -984,7 +989,16 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                 else
                   None
               
-              val hashedTokenNoWorkfactor: Option[String] =
+              Future { logger.debug(s"DOUG PUT 6") }
+              //val hashedTokenNoWorkfactor: Option[String] =
+              //  if (reqBody.token.isDefined)
+              //    if (reqBody.token.getOrElse("") != "")
+              //      Option(Password.hash(reqBody.token.get))
+              //    else
+              //      None
+              //  else
+              //    None
+              val hashedTokenNoWorkfactor: Option[String] = try {
                 if (reqBody.token.isDefined)
                   if (reqBody.token.getOrElse("") != "")
                     Option(Password.hashNoWorkfactor(reqBody.token.get))
@@ -992,7 +1006,16 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     None
                 else
                   None
-              
+              } catch {
+                case e: Exception =>
+                  Future { logger.debug(s"DOUG PUT 600") }
+                  val xyz: String = e.getMessage
+                  println("DOUG in here")
+                  println(s"Exception, $xyz")
+                  None
+              }
+
+              Future { logger.debug(s"DOUG PUT 8") }
               val NodeToCreate: NodeRow =
                 new NodeRow(heartbeat =
                             if (noheartbeat.getOrElse(false))
@@ -1006,8 +1029,10 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                             request = reqBody,
                             token = if (hashedToken.isDefined) hashedToken.get else "")(defaultFormats)
               
+              Future { logger.debug(s"DOUG PUT 9") }
               val maximumNumOwnedNodesPerUser: Int = Configuration.getConfig.getInt("api.limits.maxNodes")
               
+              Future { logger.debug(s"DOUG PUT 10") }
               val resourceChange: Seq[ResourceChangeRow] =
                 Seq(ResourceChangeRow(category = ResChangeCategory.NODE.toString,
                                       id = node,
@@ -1029,6 +1054,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
               val getPatternBase: Query[Patterns, PatternRow, Seq] =
                 PatternsTQ.filter(_.pattern === reqBody.pattern)
               
+                  Future { logger.debug(s"DOUG PUT 14") }
               val matchingPatterns: CompiledExecutable[Rep[Int], Int] =
                 if (identity.isSuperUser)
                   Compiled(getPatternBase.map(_.pattern).length)
@@ -1042,6 +1068,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                     .map(_._1)
                     .length)
               
+                  Future { logger.debug(s"DOUG PUT 15") }
               val servicesToSearch: Seq[SearchServiceKey] = {
                 if (reqBody.userInput.getOrElse(List.empty[OneUserInputService]).nonEmpty) {
                   reqBody.userInput.getOrElse(List.empty[OneUserInputService]).map(service =>
@@ -1061,6 +1088,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                   Seq()
               }
               
+                  Future { logger.debug(s"DOUG PUT 16") }
               val authorizedServices: Query[(Rep[String], Rep[String], Rep[String], Rep[String]), (String, String, String, String), Seq] =
                 ServicesTQ.filterIf(!identity.isSuperUser)(services => (services.orgid === organization ||
                     services.public))
@@ -1070,12 +1098,14 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       services.url,
                       services.version))
               
+                  Future { logger.debug(s"DOUG PUT 17") }
               def baseNodeQuery =
                 NodesTQ.filter(nodes => nodes.id === resource &&
                                         nodes.orgid === organization)
                         .filterIf(identity.isStandardUser)(nodes => nodes.owner === identity.identifier)
                         .filterIf(identity.isOrgAdmin)(nodes => nodes.orgid === identity.organization)
               
+                  Future { logger.debug(s"DOUG PUT 18") }
               val createOrUpdateNode: DBIOAction[(Int, Int, Int, Int, Int, Int), NoStream, Effect with Effect.Read with Effect.Write] =
                 for {
                   _ <-
@@ -1268,10 +1298,10 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                         .length
                         .result
                   
-                  // _ = {
-                  //   logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " num owned: " + numNodesOwnedByUser)
-                  //   logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " total number of nodes in org: " + totalNodes)
-                  // }
+                   //_ = {
+                   //  logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " num owned: " + numNodesOwnedByUser)
+                   //  logger.debug("PUT /orgs/" + organization + "/nodes/" + node + " total number of nodes in org: " + totalNodes)
+                   //}
                   
                   _ <-
                     if (!identity.isSuperUser && !numNodesModified.equals(1) && maximumNumOwnedNodesPerUser <= numNodesOwnedByUser) // Skip if modifying an existing Node. The number of Nodes created by each User must be less than or equal to the maximum number defined in the configuration.
@@ -1346,6 +1376,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                          numResourceChanges,
                          orgNodeLimit)
               
+                  Future { logger.debug(s"DOUG PUT 31") }
               complete({
                 db.run(createOrUpdateNode.transactionally.asTry).map({
                   case Success(v) => // Check creation/update of node, and other errors
@@ -1368,6 +1399,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                           cacheResourceIdentity.remove(resource)
                     }
                     
+                  Future { logger.debug(s"DOUG PUT 32") }
                     val nodeQuotaWarningOrg: Option[Boolean] =
                       if (v._1 == 1 && v._6 != 0)
                         Option((v._6 - v._4) <= (v._6 * 0.05))
@@ -1379,6 +1411,7 @@ trait Node extends JacksonSupport with AuthenticationSupport {
                       else
                         None
                     
+                  Future { logger.debug(s"DOUG PUT 33") }
                     if (v._3 == 1)
                       (StatusCodes.Created, ApiResponse(ApiRespType.OK, ExchMsg.translate("node.added.or.updated")))
                     else if (nodeQuotaWarningOrg.getOrElse(false))

@@ -6,7 +6,7 @@ import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingServ
 import org.openhorizon.exchangeapi.table.service.ServiceRef2
 import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, ExchMsg}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 

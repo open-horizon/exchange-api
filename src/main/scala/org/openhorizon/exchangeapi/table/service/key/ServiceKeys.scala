@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.service.key
 
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.model.ForeignKeyAction
 
 class ServiceKeys(tag: Tag) extends Table[ServiceKeyRow](tag, "servicekeys") {

@@ -4,7 +4,7 @@ import org.json4s.jackson.Serialization.read
 import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.node.deploymentpolicy
 import org.openhorizon.exchangeapi.table.service.OneProperty
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.dbio.DBIO
 
 final case class NodePolicyRow(nodeId: String,

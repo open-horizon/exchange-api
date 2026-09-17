@@ -10,7 +10,7 @@ import org.openhorizon.exchangeapi.table.service.{OneProperty, ServiceRef2, Serv
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{Version, VersionRange}
 import slick.dbio.Effect
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.sql.FixedSqlAction
 
 import java.util.UUID

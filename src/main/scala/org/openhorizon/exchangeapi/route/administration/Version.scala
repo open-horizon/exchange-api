@@ -12,7 +12,7 @@ import jakarta.ws.rs.{GET, Path}
 import org.openhorizon.exchangeapi.utility.HttpCode
 import org.openhorizon.exchangeapi.{ExchangeApi}
 import org.openhorizon.exchangeapi.auth.AuthenticationSupport
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 

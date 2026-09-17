@@ -7,7 +7,7 @@ import org.openhorizon.exchangeapi.route.node.PutNodesRequest
 import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.utility.StrConstants
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.Instant
 import java.util.UUID

@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.node.deploymentpolicy
 
 import org.openhorizon.exchangeapi.table.node.NodesTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 class NodePolicies(tag: Tag) extends Table[NodePolicyRow](tag, "nodepolicies") {
   def nodeId = column[String]("nodeid", O.PrimaryKey)

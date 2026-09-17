@@ -36,11 +36,11 @@ lazy val root = (project in file("."))
     description                   := "'Containerized Exchange server'",
     name                          := "exchange",
     organization                  := "org.openhorizon",
-    pekkoHttpVersion              := "[1.2.0]",
-    pekkoVersion                  := "[1.1.3]",
+    pekkoHttpVersion              := "[1.4.0]",
+    pekkoVersion                  := "[1.4.0]",
     release                       := sys.env.getOrElse("GIT_SHORT_SHA", versionFunc()),
     resolvers                     += Classpaths.typesafeReleases,
-    scalaVersion                  := "2.13.17",
+    scalaVersion                  := "2.13.18",
     summary                       := "'Open Horizon Exchange image'",
     vendor                        := "'Open Horizon'",
     version                       := sys.env.getOrElse("IMAGE_VERSION", versionFunc()),
@@ -50,7 +50,7 @@ lazy val root = (project in file("."))
     
     // Sbt uses Ivy for dependency resolution, so it supports its version syntax: http://ant.apache.org/ivy/history/latest-milestone/ivyfile/dependency.html#revision
     libraryDependencies ++= Seq(
-      "com.github.pjfanning" %% "pekko-http-jackson" % "[3.5.0]",
+      "com.github.pjfanning" %% "pekko-http-jackson" % "[3.12.0]",
       "org.apache.pekko"     %% "pekko-http"         % pekkoHttpVersion.value,
       "org.apache.pekko"     %% "pekko-http-xml"     % pekkoHttpVersion.value,
       // "org.apache.pekko"     %% "pekko-http-caching" % pekkoHttpVersion.value,
@@ -60,7 +60,7 @@ lazy val root = (project in file("."))
       "org.apache.pekko"     %% "pekko-stream"       % pekkoVersion.value,
 
       "org.springframework.security" % "spring-security-core" % "[7.0.0-M1,)",
-      "org.bouncycastle" % "bcprov-jdk18on" % "[1.81,)",
+      "org.bouncycastle" % "bcprov-jdk18on" % "[1.85.2,)",
       
       //"org.pac4j" % "pac4j-oauth" % "6.1.2",
       //"org.pac4j" % "pac4j-oidc"  % "6.1.2",
@@ -69,12 +69,14 @@ lazy val root = (project in file("."))
       "org.json4s" %% "json4s-jackson" % "4.0.6",
       
       "jakarta.ws.rs" % "jakarta.ws.rs-api" % "[3.1.0]",
-      "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.14.0]",
+      "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.15.0]",
       
       "ch.qos.logback" % "logback-classic" % "[1.5.18,)",
-      "com.typesafe.slick" %% "slick-hikaricp" % "[3.4.1]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
-      "com.github.tminglei" %% "slick-pg_json4s" % "[0.21.0]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp
-      "org.postgresql" % "postgresql" % "[42.7.7,)",
+      "com.typesafe.slick" %% "slick" % "[3.5.2]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
+      "com.typesafe.slick" %% "slick-hikaricp" % "[3.5.2]",
+      "com.github.tminglei" %% "slick-pg" % "[0.22.2]",
+      "com.github.tminglei" %% "slick-pg_json4s" % "[0.22.2]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp // DOUG
+      "org.postgresql" % "postgresql" % "[42.7.13,)",
       "org.scalaj" %% "scalaj-http" % "[2.4.2]",                  // Deprecated as of April 2022, in v2.4.2
       "com.typesafe" % "config" % "[1.4.3,)",
       "com.github.cb372" %% "scalacache-caffeine" % "[0.28.0]",

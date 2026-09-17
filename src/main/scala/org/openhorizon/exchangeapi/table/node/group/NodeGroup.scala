@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.node.group
 
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 class NodeGroup(tag: Tag) extends Table[NodeGroupRow](tag, "node_group") {
   def description = column[Option[String]]("description")

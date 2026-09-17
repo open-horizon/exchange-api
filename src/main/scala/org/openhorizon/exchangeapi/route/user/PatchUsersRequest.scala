@@ -5,7 +5,7 @@ import org.openhorizon.exchangeapi.auth.Identity
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class PatchUsersRequest(password: Option[String] = None,
                                    admin: Option[Boolean] = None,

@@ -24,7 +24,7 @@ import scala.concurrent.Future
 
 import org.json4s._
 import org.openhorizon.exchangeapi.auth.BadInputException
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.collection.immutable._
 import scala.concurrent.ExecutionContext
@@ -115,7 +115,7 @@ trait Users extends JacksonSupport with AuthenticationSupport {
     {
       logger.debug(s"GET /orgs/$organization/users - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
-      val getUsersWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Instant, Option[String], String, Boolean, Boolean, Instant, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Instant], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])] =
+      val getUsersWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Instant], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])] =
         for {
           users <-
             Compiled((UsersTQ.filter(user => (user.organization === organization))
@@ -288,7 +288,7 @@ trait Users extends JacksonSupport with AuthenticationSupport {
       else{
         logger.debug(s"GET /orgs/$organization/users/$pathSegment - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
         
-        val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Instant, Option[String], String, Boolean, Boolean, Instant, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
+        val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[ApiKeys]]), (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])], (UserRow, Option[(String, UUID, String)], Option[ApiKeyRow])] =
           for {
             users <-
               Compiled((UsersTQ.filter(user => (user.organization === organization &&

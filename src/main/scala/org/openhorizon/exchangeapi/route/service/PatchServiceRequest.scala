@@ -5,7 +5,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.service.{ServiceRef, ServicesTQ}
 import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class PatchServiceRequest(label: Option[String],
                                      description: Option[String],

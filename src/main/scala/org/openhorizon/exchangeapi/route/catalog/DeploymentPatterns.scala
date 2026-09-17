@@ -16,7 +16,7 @@ import org.openhorizon.exchangeapi.route.deploymentpattern.GetPatternsResponse
 import org.openhorizon.exchangeapi.table.deploymentpattern.{Pattern, PatternsTQ}
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 

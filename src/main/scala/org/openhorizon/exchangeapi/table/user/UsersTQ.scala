@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.user
 
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Query, Rep, TableQuery}
 
 object UsersTQ extends TableQuery(new Users(_)) {

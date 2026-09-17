@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.user
 
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.Instant
 import scala.jdk.OptionConverters._

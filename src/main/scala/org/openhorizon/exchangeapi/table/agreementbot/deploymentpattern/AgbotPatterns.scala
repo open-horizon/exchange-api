@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.agreementbot.deploymentpattern
 
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.model.ForeignKeyAction
 
 

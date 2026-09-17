@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.service.dockerauth
 
 import org.openhorizon.exchangeapi.table.service.ServicesTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 
 class ServiceDockAuths(tag: Tag) extends Table[ServiceDockAuthRow](tag, "servicedockauths") {

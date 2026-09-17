@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.node.error
 
 import org.openhorizon.exchangeapi.table.node.{NodeRow, Nodes, NodesTQ}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{ForeignKeyQuery, ProvenShape}
 
 class NodeErrors(tag: Tag) extends Table[NodeErrorRow](tag, "nodeerror") {

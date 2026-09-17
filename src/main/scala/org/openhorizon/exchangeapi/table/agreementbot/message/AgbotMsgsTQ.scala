@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.agreementbot.message
 
 import org.openhorizon.exchangeapi.utility.ApiTime
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 
 

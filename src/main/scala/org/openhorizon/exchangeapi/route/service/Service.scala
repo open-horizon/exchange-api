@@ -22,7 +22,7 @@ import org.openhorizon.exchangeapi.table.service.{ServiceRef, ServiceRow, Servic
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Version, VersionRange}
 import scalacache.modes.scalaFuture.mode
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.MappedProjection
 
 import java.lang.IllegalStateException
@@ -186,7 +186,7 @@ trait Service extends JacksonSupport with AuthenticationSupport {
           
           attribute match {
             case Some(attribute) if attribute.nonEmpty && isValidAttribute(attribute.toLowerCase) =>
-              val getServiceAttribute: Query[MappedProjection[GetServiceAttributeResponse, (String, String)], GetServiceAttributeResponse, Seq] =
+              val getServiceAttribute: Query[MappedProjection[GetServiceAttributeResponse], GetServiceAttributeResponse, Seq] =
                 for {
                   serviceAttribute: (ConstColumn[String], Rep[String]) <-
                     if (attribute == "public")

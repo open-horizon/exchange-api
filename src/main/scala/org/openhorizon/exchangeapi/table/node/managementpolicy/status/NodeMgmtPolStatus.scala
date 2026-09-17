@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.table.node.managementpolicy.status
 
 import org.openhorizon.exchangeapi.table.managementpolicy.ManagementPoliciesTQ
 import org.openhorizon.exchangeapi.table.node.NodesTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.model.ForeignKeyAction
 
 class NodeMgmtPolStatus(tag: Tag) extends Table[NodeMgmtPolStatusRow](tag, "management_policy_status_node") {

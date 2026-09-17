@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.node.message
 
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 /** The nodemsgs table holds the msgs sent to nodes by agbots */
 final case class NodeMsgRow(msgId: Int,

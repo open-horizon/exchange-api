@@ -15,7 +15,7 @@ import org.openhorizon.exchangeapi.table.node.group.assignment.{NodeGroupAssignm
 import org.openhorizon.exchangeapi.table.node.{NodeRow, Nodes, NodesTQ}
 import org.openhorizon.exchangeapi.table.node.group.{NodeGroup, NodeGroupRow, NodeGroupTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.ExecutionContext

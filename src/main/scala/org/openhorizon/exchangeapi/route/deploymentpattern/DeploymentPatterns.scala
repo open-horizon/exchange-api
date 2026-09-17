@@ -27,7 +27,7 @@ import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResC
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, Nth, RouteUtils, Version}
 import org.openhorizon.exchangeapi.auth
 import org.openhorizon.exchangeapi.table.user.UsersTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer

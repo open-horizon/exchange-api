@@ -5,7 +5,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.deploymentpattern.{OneSecretBindingService, OneUserInputService, PServices, PatternsTQ}
 import org.openhorizon.exchangeapi.utility.ApiTime
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class PatchPatternRequest(label: Option[String],
                                      description: Option[String],

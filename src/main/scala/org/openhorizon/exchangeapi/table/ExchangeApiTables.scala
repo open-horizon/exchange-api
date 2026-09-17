@@ -45,7 +45,7 @@ import scalacache.modes.scalaFuture.mode
 
 import java.time.Instant
 import java.util.UUID
-//import slick.jdbc.PostgresProfile.api._
+//import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.ZoneId
 import scala.collection.mutable

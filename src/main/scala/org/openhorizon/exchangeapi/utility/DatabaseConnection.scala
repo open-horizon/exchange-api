@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.utility
 
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 case object DatabaseConnection {
   private val database: Database = Database.forConfig("exchange-db-connection", Configuration.getConfig)

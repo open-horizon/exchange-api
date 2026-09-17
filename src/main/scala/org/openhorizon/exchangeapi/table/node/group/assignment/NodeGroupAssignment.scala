@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.table.node.group.assignment
 
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.group.NodeGroupTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.model.ForeignKeyAction
 
 class NodeGroupAssignment(tag: Tag) extends Table[NodeGroupAssignmentRow](tag, "node_group_assignment") {

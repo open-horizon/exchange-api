@@ -6,7 +6,7 @@ import org.apache.pekko.http.scaladsl.server.{Directive, Directive0, Directive1,
 import org.openhorizon.exchangeapi.auth.Access.Access
 import org.openhorizon.exchangeapi.utility.{AuthRejection, Configuration}
 import org.openhorizon.exchangeapi.{ExchangeApi, ExchangeApiApp}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util
 import java.util.Base64

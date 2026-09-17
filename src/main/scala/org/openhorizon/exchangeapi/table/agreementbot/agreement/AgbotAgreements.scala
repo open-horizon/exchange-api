@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.agreementbot.agreement
 
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.model.ForeignKeyAction
 
 class AgbotAgreements(tag: Tag) extends Table[AgbotAgreementRow](tag, "agbotagreements") {

@@ -3,7 +3,7 @@ package org.openhorizon.exchangeapi.table.deploymentpattern
 import org.json4s.jackson.Serialization.read
 import org.json4s.{DefaultFormats, Formats}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 

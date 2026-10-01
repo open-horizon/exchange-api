@@ -32,7 +32,7 @@ import org.scalatestplus.junit.JUnitRunner
 import scala.collection.immutable._
 import scalaj.http._
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.Await

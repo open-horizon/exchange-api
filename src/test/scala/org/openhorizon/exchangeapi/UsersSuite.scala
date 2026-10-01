@@ -25,7 +25,7 @@ import slick.jdbc
 import scala.collection.immutable._
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 /**
  * Tests for the /orgs and /orgs/"+orgid+"/users routes. To run

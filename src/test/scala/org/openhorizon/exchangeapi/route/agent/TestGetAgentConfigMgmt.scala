@@ -24,7 +24,7 @@ import org.scalatest.{BeforeAndAfterAll, DoNotDiscover, Suite}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.temporal.{ChronoUnit, TemporalUnit}
 import java.time.{Instant, ZoneId}

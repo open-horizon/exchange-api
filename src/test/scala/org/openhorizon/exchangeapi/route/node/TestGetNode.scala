@@ -30,7 +30,7 @@ class TestGetNode extends AnyFunSuite with BeforeAndAfterAll {
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestGetNode" + "/" + "u1" + ":" + "u1pw"))
-  import slick.jdbc.PostgresProfile.api._
+  import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   

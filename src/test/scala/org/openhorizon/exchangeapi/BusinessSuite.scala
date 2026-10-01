@@ -31,8 +31,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http._
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
-import slick.lifted.MappedToBase.mappedToIsomorphism
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer

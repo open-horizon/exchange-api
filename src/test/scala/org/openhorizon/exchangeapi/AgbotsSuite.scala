@@ -26,7 +26,7 @@ import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ApiUtils, Configuration, DatabaseConnection}
 import org.scalatest.BeforeAndAfterAll
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 import scala.collection.mutable.ListBuffer

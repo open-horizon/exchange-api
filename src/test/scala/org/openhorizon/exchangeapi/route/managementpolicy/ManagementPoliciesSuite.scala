@@ -20,7 +20,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.Instant
 import java.util.UUID

@@ -13,7 +13,7 @@ import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, DatabaseConnection}
 import scalaj.http.HttpResponse
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 import scala.collection.immutable.List

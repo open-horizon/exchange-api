@@ -37,7 +37,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, A
 import org.scalatest.BeforeAndAfterAll
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.{Duration, DurationInt}

@@ -19,7 +19,7 @@ import scalacache.modes.scalaFuture._
 import scalacache.modes.sync.mode
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.Instant
 import scala.concurrent.Await

@@ -17,7 +17,7 @@ import slick.jdbc
 
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.Instant
 

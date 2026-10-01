@@ -16,7 +16,7 @@ import org.apache.pekko.event.LoggingAdapter
 import org.apache.pekko.http.scaladsl.model.{StatusCode, StatusCodes}
 import scala.concurrent.duration.{Duration, DurationInt}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import org.openhorizon.exchangeapi.auth.{Password, Role}
 import scala.concurrent.ExecutionContext.Implicits.global
 import _root_.org.openhorizon.exchangeapi.utility.{HttpCode,ApiTime}

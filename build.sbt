@@ -72,10 +72,10 @@ lazy val root = (project in file("."))
       "com.github.swagger-akka-http" %% "swagger-pekko-http" % "[2.15.0]",
       
       "ch.qos.logback" % "logback-classic" % "[1.5.18,)",
-      "com.typesafe.slick" %% "slick" % "[3.5.2]",       // Version 3.4.1 depends on slick-pg and slick-pg_json4s v0.21.0
+      "com.typesafe.slick" %% "slick" % "[3.5.2]",       // Version 3.5.2 depends on slick-pg and slick-pg_json4s v0.22.2
       "com.typesafe.slick" %% "slick-hikaricp" % "[3.5.2]",
       "com.github.tminglei" %% "slick-pg" % "[0.22.2]",
-      "com.github.tminglei" %% "slick-pg_json4s" % "[0.22.2]",    // Version 0.21.0 depends on version 3.4.0 of slick and slick-hikaricp // DOUG
+      "com.github.tminglei" %% "slick-pg_json4s" % "[0.22.2]",    // Version 0.22.2 depends on version 3.5.0 of slick and slick-hikaricp 
       "org.postgresql" % "postgresql" % "[42.7.13,)",
       "org.scalaj" %% "scalaj-http" % "[2.4.2]",                  // Deprecated as of April 2022, in v2.4.2
       "com.typesafe" % "config" % "[1.4.3,)",

@@ -31,7 +31,7 @@ case object Password {
   private val argon2idEncoder = new Argon2PasswordEncoder(salt_length, hash_length, parallelism, memory, iterations);
   
   // DO NOT use this encoder for credential storage. This implementation does not contain any form of workfactor (Security).
-  private val argon2idEncoderNoWorkfactor = new Argon2PasswordEncoder(salt_length_lite, hash_length_lite, iterations_lite, memory_lite, parallelism_lite);
+  private val argon2idEncoderNoWorkfactor = new Argon2PasswordEncoder(salt_length_lite, hash_length_lite, parallelism_lite, memory_lite, iterations_lite);
   
   /** Returns true if plainPw matches hashedPw */
   def check(plainPw: String, hashedPw: String): Boolean =

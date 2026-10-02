@@ -155,7 +155,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   val orgsList = List(orgid, orgid2, orgid3)
   
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   
   implicit val formats: Formats = DefaultFormats.withLong // Brings in default date formats etc.
   

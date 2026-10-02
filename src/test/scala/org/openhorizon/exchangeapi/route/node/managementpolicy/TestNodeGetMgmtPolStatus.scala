@@ -27,7 +27,7 @@ class TestNodeGetMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll {
   private val CONTENT: (String, String) = ACCEPT
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   val managementPolicy1: String = "pol1"

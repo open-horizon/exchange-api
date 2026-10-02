@@ -18,6 +18,7 @@ import slick.dbio.{Effect, NoStream}
 import slick.jdbc
 import slick.jdbc.PostgresProfile.api.{anyToShapedValue, columnExtensionMethods, columnToOrdered, longColumnType, queryDeleteActionExtensionMethods, queryInsertActionExtensionMethods, streamableQueryActionExtensionMethods, stringColumnExtensionMethods, stringColumnType}
 import slick.sql.FixedSqlAction
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.{Instant, ZoneId}
 import scala.concurrent.Await
@@ -30,7 +31,7 @@ class TestDeleteNodeGroup extends AnyFunSuite with BeforeAndAfterAll with Before
   private val CONTENT: (String, String) = ACCEPT
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   private val AWAITDURATION: Duration = 15.seconds
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   

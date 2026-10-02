@@ -24,7 +24,7 @@ import java.time.Instant
 class TestGetOrgRoute extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats

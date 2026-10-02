@@ -102,7 +102,7 @@ class BusinessSuite extends AnyFunSuite with BeforeAndAfterAll {
   val secondsAgo = 120
   val orgsList = new ListBuffer[String]()
   val AWAITDURATION: Duration = 15.seconds
-  val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  val DBCONNECTION: Database = DatabaseConnection.getDatabase
   val timestamp: Instant = ApiTime.nowUTCTimestamp
 
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.

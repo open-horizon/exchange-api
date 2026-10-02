@@ -29,7 +29,7 @@ class TestNodePatch extends AnyFunSuite with BeforeAndAfterAll {
   private val ADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodePatch" + "/" + "u2" + ":" + "u2pw"))
   private val AWAITDURATION: Duration = 15.seconds
   private val CONTENT: (String, String) = ("Content-Type","application/json")
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   private val NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodePatch" + "/" + "n2" + ":" + "n2tok"))
   // private val ORGID = "TestNodePatch"
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))

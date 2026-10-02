@@ -105,7 +105,7 @@ class AgbotsSuite extends AnyFunSuite with BeforeAndAfterAll {
   val maxRecords = 10000
   val secondsAgo = 120
   val orgsList = new ListBuffer[String]()
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
 
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   private val AWAITDURATION: Duration = 15.seconds

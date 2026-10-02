@@ -18,19 +18,19 @@ import slick.jdbc.PostgresProfile
 import java.time.Instant
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 class TestGetNode extends AnyFunSuite with BeforeAndAfterAll {
   private val ACCEPT: (String, String) = ("Accept","application/json")
   private val ADMINAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestGetNode" + "/" + "u2" + ":" + "u2pw"))
   private val AWAITDURATION: Duration = 15.seconds
   private val CONTENT: (String, String) = ("Content-Type","application/json")
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   private val NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestGetNode" + "/" + "n2" + ":" + "n2tok"))
   // private val ORGID = "TestGetNode"
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"
   private val USERAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestGetNode" + "/" + "u1" + ":" + "u1pw"))
-  import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
   
   private implicit val formats: DefaultFormats.type = DefaultFormats
   

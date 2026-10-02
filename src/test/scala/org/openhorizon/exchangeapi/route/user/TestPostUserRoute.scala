@@ -29,7 +29,7 @@ class TestPostUserRoute extends AnyFunSuite with BeforeAndAfterAll with BeforeAn
   
   private val TIMESTAMP: Instant = ApiTime.nowUTCTimestamp
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
 
   private val localUrlRoot = "http://localhost:8080"
   private val urlRoot = sys.env.getOrElse("EXCHANGE_URL_ROOT", localUrlRoot)

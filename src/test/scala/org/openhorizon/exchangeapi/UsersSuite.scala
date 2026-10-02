@@ -145,7 +145,7 @@ class UsersSuite extends AnyFunSuite with BeforeAndAfterAll {
     }
   }
   
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   private val AWAITDURATION: Duration = 15.seconds
 
   private val TESTORGANIZATIONS: Seq[OrgRow] =

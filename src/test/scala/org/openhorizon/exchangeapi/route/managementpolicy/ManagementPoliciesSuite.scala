@@ -62,7 +62,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
   val NOORGURL: String = urlRoot + "/v1"
   val orgsList = new ListBuffer[String]()
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
 
   implicit val formats: Formats = DefaultFormats.withLong // Brings in default date formats etc.
   

@@ -147,7 +147,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   val maxRecords = 10000
   val secondsAgo = 120
   val orgsList = List(orgid, orgid2)
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
 
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   private val AWAITDURATION: Duration = 15.seconds

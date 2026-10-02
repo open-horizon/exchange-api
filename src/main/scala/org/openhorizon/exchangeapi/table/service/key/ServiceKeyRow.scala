@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.service.key
 
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class ServiceKeyRow(keyId: String,
                                serviceId: String,

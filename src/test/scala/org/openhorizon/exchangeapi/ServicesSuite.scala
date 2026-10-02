@@ -32,7 +32,7 @@ import org.scalatestplus.junit.JUnitRunner
 import scala.collection.immutable._
 import scalaj.http._
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 import scala.concurrent.Await
@@ -147,7 +147,7 @@ class ServicesSuite extends AnyFunSuite with BeforeAndAfterAll {
   val maxRecords = 10000
   val secondsAgo = 120
   val orgsList = List(orgid, orgid2)
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
 
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.
   private val AWAITDURATION: Duration = 15.seconds

@@ -7,7 +7,7 @@
 package org.openhorizon.exchangeapi
 
 import com.github.benmanes.caffeine.cache
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.{Await, ExecutionContext, Future}
 import scala.util.{Failure, Success}

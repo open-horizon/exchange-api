@@ -37,7 +37,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, A
 import org.scalatest.BeforeAndAfterAll
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.{Await, Future}
 import scala.concurrent.duration.{Duration, DurationInt}
@@ -155,7 +155,7 @@ class NodesSuite extends AnyFunSuite with BeforeAndAfterAll {
   val orgsList = List(orgid, orgid2, orgid3)
   
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   
   implicit val formats: Formats = DefaultFormats.withLong // Brings in default date formats etc.
   

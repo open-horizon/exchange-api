@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.managementpolicy
 
 import org.json4s.{DefaultFormats, Formats}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.TableQuery
 
 import java.util.UUID

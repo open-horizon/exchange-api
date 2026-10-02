@@ -16,7 +16,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity
 import org.openhorizon.exchangeapi.table.deploymentpolicy.{BusinessPoliciesTQ, BusinessPolicy}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.annotation.unused
 import scala.concurrent.{ExecutionContext, Future}

@@ -13,7 +13,7 @@ import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ}
 import org.openhorizon.exchangeapi.utility.{ApiTime, Configuration, DatabaseConnection}
 import scalaj.http.HttpResponse
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.UUID
 import scala.collection.immutable.List
@@ -60,7 +60,7 @@ class AdminSuite extends AnyFunSuite with BeforeAndAfterAll {
   private val AGBOT: String       = "agbot"
   private val CONTENT             = ("Content-Type", "application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   private val NODE: String        = "node"
   private val PATTERN: String     = "pattern"
   private val ROOTAUTH            = ("Authorization","Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))

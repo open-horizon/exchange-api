@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.table.node.error
 
 import org.json4s.jackson.Serialization.read
 import org.json4s.{DefaultFormats, Formats}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class NodeErrorRow(nodeId: String,
                               errors: String,

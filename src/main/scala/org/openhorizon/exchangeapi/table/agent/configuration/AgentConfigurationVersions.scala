@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.agent.configuration
 
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.model.ForeignKeyAction
 
 

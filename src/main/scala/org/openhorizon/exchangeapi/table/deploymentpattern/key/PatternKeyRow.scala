@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.deploymentpattern.key
 
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class PatternKeyRow(keyId: String,
                                patternId: String,

@@ -7,18 +7,19 @@ import slick.jdbc.PostgresProfile
 
 trait ExchangePostgresProfile extends PostgresProfile
   with PgJson4sSupport
+  with PgArraySupport
   with array.PgArrayJdbcTypes {
   /// for json support
   override val pgjson = "jsonb"
   type DOCType = org.json4s.native.Document
   override val jsonMethods: JsonMethods[Document] = org.json4s.native.JsonMethods.asInstanceOf[JsonMethods[DOCType]]
 
-  override val api: APIExchange = new APIExchange {}
+  override val api: API = new API {}
 
-  val plainAPI = new APIExchange with Json4sJsonPlainImplicits
+  val plainAPI = new API with Json4sJsonPlainImplicits
 
   ///
-  trait APIExchange extends super.API with JsonImplicits {
+  trait API extends JdbcAPI with JsonImplicits {
     implicit val strListTypeMapper: DriverJdbcType[List[String]] = new SimpleArrayJdbcType[String]("text").to(_.toList)
     implicit val json4sJsonArrayTypeMapper: DriverJdbcType[List[JValue]] =
       new AdvancedArrayJdbcType[JValue](pgjson,

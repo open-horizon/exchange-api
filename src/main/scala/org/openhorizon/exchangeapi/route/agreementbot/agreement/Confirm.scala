@@ -18,7 +18,7 @@ import org.openhorizon.exchangeapi.route.agreementbot.PostAgreementsConfirmReque
 import org.openhorizon.exchangeapi.table.agreementbot.AgbotsTQ
 import org.openhorizon.exchangeapi.table.agreementbot.agreement.AgbotAgreementsTQ
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.{ExecutionContext, Future}
 

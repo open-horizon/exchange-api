@@ -12,7 +12,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthenticationSuppor
 import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheResourceOwnership}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg}
 import scalacache.modes.scalaFuture.mode
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 

@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.resourcechange
 
 import org.json4s.{DefaultFormats, Formats}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.dbio.DBIO
 
 import java.time.Instant

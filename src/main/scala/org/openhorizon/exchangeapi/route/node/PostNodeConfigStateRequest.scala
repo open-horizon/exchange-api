@@ -6,7 +6,7 @@ import org.openhorizon.exchangeapi.auth.ResourceNotFoundException
 import org.openhorizon.exchangeapi.table.node.{NodesTQ, RegService}
 import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.util.matching.Regex
 

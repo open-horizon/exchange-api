@@ -7,7 +7,7 @@ import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignme
 import org.openhorizon.exchangeapi.table.service.{ServiceRef2, ServicesTQ}
 import org.openhorizon.exchangeapi.utility.{Version, VersionRange}
 import slick.dbio.{DBIO, Effect, NoStream}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 import slick.sql.FixedSqlAction
 

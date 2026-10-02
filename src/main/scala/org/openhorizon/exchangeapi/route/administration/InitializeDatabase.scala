@@ -12,7 +12,7 @@ import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TAction}
 import org.openhorizon.exchangeapi.table.ExchangeApiTables
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ExchMsg, ExchangePosgtresErrorHandling}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 import scala.util.{Failure, Success}

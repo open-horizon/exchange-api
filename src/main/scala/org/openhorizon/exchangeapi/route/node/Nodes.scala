@@ -19,7 +19,7 @@ import org.openhorizon.exchangeapi.table.node.{Node, NodeHeartbeatIntervals, Nod
 import org.openhorizon.exchangeapi.table.node.group.assignment.NodeGroupAssignmentTQ
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import org.openhorizon.exchangeapi.utility.{ExchMsg, StrConstants}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.Rep
 
 import scala.concurrent.ExecutionContext

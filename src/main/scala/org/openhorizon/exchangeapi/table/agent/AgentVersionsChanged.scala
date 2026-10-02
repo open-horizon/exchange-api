@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.agent
 
 import org.openhorizon.exchangeapi.table.organization.{OrgRow, Orgs, OrgsTQ}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{ForeignKeyQuery, ProvenShape}
 import slick.model.ForeignKeyAction
 

@@ -23,7 +23,7 @@ import org.openhorizon.exchangeapi.utility.{ApiTime, ApiUtils, Configuration, Da
 import org.scalatest.{BeforeAndAfterAll, DoNotDiscover, Suite}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.sql.Timestamp
 import java.time.{Instant, ZoneId}

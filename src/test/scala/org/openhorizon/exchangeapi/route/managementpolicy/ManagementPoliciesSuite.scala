@@ -20,7 +20,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.Instant
 import java.util.UUID
@@ -62,7 +62,7 @@ class ManagementPoliciesSuite extends AnyFunSuite with BeforeAndAfterAll{
   val ALL_VERSIONS = "[0.0.0,INFINITY)"
   val NOORGURL: String = urlRoot + "/v1"
   val orgsList = new ListBuffer[String]()
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
 
   implicit val formats: Formats = DefaultFormats.withLong // Brings in default date formats etc.
   

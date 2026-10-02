@@ -21,7 +21,7 @@ import org.openhorizon.exchangeapi.table.node.group.{NodeGroup, NodeGroupRow, No
 import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeCategory, ResChangeOperation, ResChangeResource, ResourceChangeRow, ResourceChangesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, ExchMsg}
 import org.postgresql.util.PSQLException
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.Aliases
 
 import java.time.Instant

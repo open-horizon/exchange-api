@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.node.agreement
 
 import org.openhorizon.exchangeapi.table.node.NodesTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 class NodeAgreements(tag: Tag) extends Table[NodeAgreementRow](tag, "nodeagreements") {
   def agId = column[String]("agid", O.PrimaryKey)     // agreement ids are unique

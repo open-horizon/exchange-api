@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.node.status
 
 import org.openhorizon.exchangeapi.table.node.{NodeRow, Nodes, NodesTQ}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{ForeignKeyQuery, Index, ProvenShape}
 
 class NodeStatuses(tag: Tag) extends Table[NodeStatusRow](tag, "nodestatus") {

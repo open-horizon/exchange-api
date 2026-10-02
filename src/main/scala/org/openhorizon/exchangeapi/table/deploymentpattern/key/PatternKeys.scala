@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.deploymentpattern.key
 
 import org.openhorizon.exchangeapi.table.deploymentpattern.PatternsTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.model.ForeignKeyAction
 
 class PatternKeys(tag: Tag) extends Table[PatternKeyRow](tag, "patternkeys") {

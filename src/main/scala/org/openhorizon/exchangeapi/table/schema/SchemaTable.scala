@@ -1,6 +1,6 @@
 package org.openhorizon.exchangeapi.table.schema
 
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 
 class SchemaTable(tag: Tag) extends Table[SchemaRow](tag, "schema") {

@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.table.node.group
 
 import org.json4s.{DefaultFormats, Formats}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 //Node Groups for MCM
 final case class NodeGroupRow(admin: Boolean = false,

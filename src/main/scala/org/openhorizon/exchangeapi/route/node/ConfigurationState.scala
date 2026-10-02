@@ -18,7 +18,7 @@ import org.openhorizon.exchangeapi.ExchangeApiApp
 import org.openhorizon.exchangeapi.ExchangeApiApp.cacheResourceOwnership
 
 import scala.concurrent.{Await, ExecutionContext, Future}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.util._
 import org.openhorizon.exchangeapi.table.node.NodesTQ

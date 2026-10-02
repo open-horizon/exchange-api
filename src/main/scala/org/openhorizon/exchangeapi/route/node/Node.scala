@@ -31,7 +31,7 @@ import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, C
 import org.openhorizon.exchangeapi.{ExchangeApiApp, table}
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Compiled, CompiledExecutable}
 
 import java.lang.IllegalStateException

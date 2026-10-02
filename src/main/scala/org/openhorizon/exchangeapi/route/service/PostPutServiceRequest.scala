@@ -5,7 +5,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.service.{ServiceRef, ServiceRow, ServicesTQ}
 import org.openhorizon.exchangeapi.utility.{ApiTime, ExchMsg, Version}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.net.{MalformedURLException, URL}
 import java.util.UUID

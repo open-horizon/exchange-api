@@ -15,7 +15,7 @@ import org.openhorizon.exchangeapi.route.organization.{AllNodeErrorsInOrgResp, N
 import org.openhorizon.exchangeapi.table.node.NodesTQ
 import org.openhorizon.exchangeapi.table.node.error.NodeErrorTQ
 import org.openhorizon.exchangeapi.utility.HttpCode
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.concurrent.ExecutionContext
 

@@ -31,8 +31,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatestplus.junit.JUnitRunner
 import scalaj.http._
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
-import slick.lifted.MappedToBase.mappedToIsomorphism
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import scala.collection.immutable._
 import scala.collection.mutable.ListBuffer
@@ -103,7 +102,7 @@ class BusinessSuite extends AnyFunSuite with BeforeAndAfterAll {
   val secondsAgo = 120
   val orgsList = new ListBuffer[String]()
   val AWAITDURATION: Duration = 15.seconds
-  val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  val DBCONNECTION: Database = DatabaseConnection.getDatabase
   val timestamp: Instant = ApiTime.nowUTCTimestamp
 
   implicit val formats: DefaultFormats.type = DefaultFormats // Brings in default date formats etc.

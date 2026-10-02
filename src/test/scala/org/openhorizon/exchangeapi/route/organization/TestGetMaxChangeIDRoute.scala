@@ -17,7 +17,7 @@ import slick.jdbc
 
 import scala.concurrent.Await
 import scala.concurrent.duration.{Duration, DurationInt}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.Instant
 
@@ -25,7 +25,7 @@ class TestGetMaxChangeIDRoute extends AnyFunSuite with BeforeAndAfterAll {
 
   private val ACCEPT = ("Accept","application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   private val URL = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/changes/maxchangeid"
 
   private implicit val formats: DefaultFormats.type = DefaultFormats

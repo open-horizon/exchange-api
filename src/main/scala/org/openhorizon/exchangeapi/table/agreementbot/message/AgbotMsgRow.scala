@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.agreementbot.message
 
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 
 /** The agbotmsgs table holds the msgs sent to agbots by nodes */

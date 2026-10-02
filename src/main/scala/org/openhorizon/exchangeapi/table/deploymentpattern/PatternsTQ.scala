@@ -5,7 +5,7 @@ import org.json4s.{DefaultFormats, Formats}
 import org.openhorizon.exchangeapi.table.service.{ServiceRef2, ServicesTQ}
 import org.openhorizon.exchangeapi.utility.{Version, VersionRange}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Query, Rep, TableQuery}
 
 import java.util.UUID

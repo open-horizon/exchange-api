@@ -20,7 +20,7 @@ import org.openhorizon.exchangeapi.auth.{Access, AuthCache, AuthRoles, Authentic
 import org.openhorizon.exchangeapi.table.user.{UserRow, UsersTQ, User => UserTable}
 import org.openhorizon.exchangeapi.table.apikey.{ApiKeyMetadata, ApiKeyRow, ApiKeys, ApiKeysTQ}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling, HttpCode, StrConstants}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{CompiledStreamingExecutable, MappedProjection}
 
 import java.util.UUID
@@ -98,7 +98,7 @@ trait User extends JacksonSupport with AuthenticationSupport {
     get {
       logger.debug(s"GET /orgs/$organization/users/$username - ${identity.resource}:${identity.role}(${identity.identifier.getOrElse("")})(${identity.owner.getOrElse("")})")
       
-      val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow, (Instant, Option[String], String, Boolean, Boolean, Instant, Option[UUID], String, Option[String], UUID, String, Option[String])], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Instant], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])] =
+      val getUserWithApiKeys: CompiledStreamingExecutable[Query[(MappedProjection[UserRow], Rep[Option[(Rep[String], Rep[UUID], Rep[String])]], Rep[Option[(Rep[Option[String]], Rep[UUID], Rep[Option[String]], Rep[Instant], Rep[UUID])]]), (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)]), Seq], Seq[(UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])], (UserRow, Option[(String, UUID, String)], Option[(Option[String], UUID, Option[String], Instant, UUID)])] =
         for {
           users <-
             Compiled((UsersTQ.filter(user => (user.organization === organization &&

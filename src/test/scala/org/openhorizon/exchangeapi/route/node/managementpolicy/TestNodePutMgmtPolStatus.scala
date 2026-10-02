@@ -16,7 +16,7 @@ import org.scalatest.funsuite.AnyFunSuite
 import org.scalatest.{BeforeAndAfterAll, BeforeAndAfterEach}
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.Instant
 import scala.concurrent.Await
@@ -27,7 +27,7 @@ class TestNodePutMgmtPolStatus extends AnyFunSuite with BeforeAndAfterAll with B
   private val AGBOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodePutMgmtPolStatus" + "/" + "a1" + ":" + "a1pw"))
   private val AWAITDURATION: Duration = 15.seconds
   private val CONTENT: (String, String) = ("Content-Type","application/json")
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   private val NODEAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode("TestNodePutMgmtPolStatus" + "/" + "n1" + ":" + "n1pw"))
   // private val ORGID = "TestNodePutMgmtPolStatus"
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))

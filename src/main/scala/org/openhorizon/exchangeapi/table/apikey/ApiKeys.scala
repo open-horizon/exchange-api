@@ -2,7 +2,7 @@ package org.openhorizon.exchangeapi.table.apikey
 
 import java.util.UUID
 import org.openhorizon.exchangeapi.table.user.{UserRow, Users, UsersTQ}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{ForeignKeyQuery, Index, ProvenShape}
 import slick.model.ForeignKeyAction.Cascade
 

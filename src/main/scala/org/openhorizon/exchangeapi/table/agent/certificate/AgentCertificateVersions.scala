@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.agent.certificate
 
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 
 class AgentCertificateVersions(tag: Tag) extends Table[(String, String, Option[Long])](tag, "agent_version_certificate") {

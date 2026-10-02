@@ -20,7 +20,7 @@ import org.openhorizon.exchangeapi.table.resourcechange.{ResChangeOperation, Res
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, ApiTime, Configuration, ExchMsg, ExchangePosgtresErrorHandling}
 import org.openhorizon.exchangeapi.ExchangeApi
 import slick.jdbc.PostgresProfile
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.Compiled
 
 import java.time.{Instant, ZonedDateTime}

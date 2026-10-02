@@ -9,7 +9,7 @@ import io.swagger.v3.oas.annotations.Parameter
 import org.apache.pekko.http.scaladsl.model.StatusCodes
 import org.openhorizon.exchangeapi.auth.{Access, AuthenticationSupport, Identity2, TAction}
 import org.openhorizon.exchangeapi.utility.{ApiRespType, ApiResponse, Configuration, ExchMsg}
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.util.Properties
 import scala.concurrent.ExecutionContext

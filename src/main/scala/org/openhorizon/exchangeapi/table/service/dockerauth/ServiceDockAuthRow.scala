@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.service.dockerauth
 
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 final case class ServiceDockAuthRow(dockAuthId: Int, serviceId: String, registry: String, username: String, token: String, lastUpdated: String) {
   def toServiceDockAuth: ServiceDockAuth = ServiceDockAuth(dockAuthId, registry, username, token, lastUpdated)

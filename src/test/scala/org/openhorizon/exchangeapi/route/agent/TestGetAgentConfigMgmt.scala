@@ -24,7 +24,7 @@ import org.scalatest.{BeforeAndAfterAll, DoNotDiscover, Suite}
 import org.scalatest.funsuite.AnyFunSuite
 import scalaj.http.{Http, HttpResponse}
 import slick.jdbc
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.time.temporal.{ChronoUnit, TemporalUnit}
 import java.time.{Instant, ZoneId}
@@ -37,7 +37,7 @@ class TestGetAgentConfigMgmt extends AnyFunSuite with BeforeAndAfterAll with Sui
   private val ACCEPT: (String, String) = ("Accept","application/json")
   private val CONTENT: (String, String) = ("Content-Type","application/json")
   private val AWAITDURATION: Duration = 15.seconds
-  private val DBCONNECTION: jdbc.PostgresProfile.api.Database = DatabaseConnection.getDatabase
+  private val DBCONNECTION: Database = DatabaseConnection.getDatabase
   // private val ORGID = "TestGetAgentConfigMgmt"
   private val ROOTAUTH: (String, String) = ("Authorization", "Basic " + ApiUtils.encode(Role.superUser + ":" + (try Configuration.getConfig.getString("api.root.password") catch { case _: Exception => "" })))
   private val URL: String = sys.env.getOrElse("EXCHANGE_URL_ROOT", "http://localhost:8080") + "/v1/orgs/"

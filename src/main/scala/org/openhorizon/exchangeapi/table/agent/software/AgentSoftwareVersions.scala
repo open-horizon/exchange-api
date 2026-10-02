@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.agent.software
 
 import org.openhorizon.exchangeapi.table.organization.OrgsTQ
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 class AgentSoftwareVersions(tag: Tag) extends Table[(String, String, Option[Long])](tag, "agent_version_software") {
   def organization = column[String]("organization", O.Default("IBM"))

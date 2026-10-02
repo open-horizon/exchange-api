@@ -6,7 +6,7 @@ import org.openhorizon.exchangeapi.table.deploymentpattern.OneUserInputService
 import org.openhorizon.exchangeapi.table.service.{ServiceRef2, ServicesTQ}
 import org.openhorizon.exchangeapi.utility.{Version, VersionRange}
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 
 import java.util.UUID

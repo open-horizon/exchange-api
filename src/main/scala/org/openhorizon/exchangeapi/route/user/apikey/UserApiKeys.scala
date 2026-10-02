@@ -25,7 +25,7 @@ import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
 import io.swagger.v3.oas.annotations.parameters.RequestBody
 import scalacache.modes.scalaFuture._
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 import java.lang.annotation.Annotation
 

@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.schema
 
 import slick.dbio.DBIO
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 
 /** Stores the current DB schema version, and includes methods to upgrade to the latest schema. */
 

@@ -23,7 +23,7 @@ import org.openhorizon.exchangeapi.ExchangeApiApp.{cacheResourceIdentity, cacheR
 import org.openhorizon.exchangeapi.table.user.UsersTQ
 import scalacache.modes.scalaFuture.mode
 import slick.jdbc.PostgresProfile
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.MappedProjection
 
 import java.time.Instant
@@ -103,7 +103,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
         implicit val formats: Formats = DefaultFormats
         attribute match {
           case Some(attribute) if attribute.nonEmpty && isValidAttribute(attribute.toLowerCase) =>
-            val getAgbotAttribute: Query[MappedProjection[GetAgbotAttributeResponse, (String, String)], GetAgbotAttributeResponse, Seq] =
+            val getAgbotAttribute: Query[MappedProjection[GetAgbotAttributeResponse], GetAgbotAttributeResponse, Seq] =
               for {
                 agbotAttribute <-
                   if (attribute == "owner")
@@ -142,7 +142,7 @@ trait AgreementBot extends JacksonSupport with AuthenticationSupport {
               }
             })
           case _ =>
-            val getAgbot: Query[MappedProjection[Agbot, (String, String, String, String, String, String, String, String)], Agbot, Seq] =
+            val getAgbot: Query[MappedProjection[Agbot], Agbot, Seq] =
               for {
                 agbot <-
                   baseAgbotQuery.join(UsersTQ.map(users => (users.organization, users.user, users.username)))

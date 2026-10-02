@@ -1,7 +1,7 @@
 package org.openhorizon.exchangeapi.table.node.message
 
 import org.openhorizon.exchangeapi.utility.ApiTime
-import slick.jdbc.PostgresProfile.api._
+import org.openhorizon.exchangeapi.table.ExchangePostgresProfile.api._
 import slick.lifted.{Rep, TableQuery}
 
 object NodeMsgsTQ  extends TableQuery(new NodeMsgs(_)){

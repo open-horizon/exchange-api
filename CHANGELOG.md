@@ -6,17 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [2.155.0](https://github.com/open-horizon/exchange-api/pull/842) - 2026-10-01
 - Dependency Updates:
-  - scalaVersion                                            2.13.7 -> 2.13.8
-  - org.apache.pekko.pekko-http                             1.2.0 -> 1.4.0
-  - com.github.pjfanning.pekko-http-jackson                 3.5.0 -> 3.12.0
-  - org.bouncycastle.bcprov-jdk18on                         1.81  -> 1.85.2
-  - com.github.pjfanning.pekko-http-jackson                 3.5.0 -> 3.12.0
-  - swagger-pekko-http                                      2.14.0 > 2.15.0
-  - org.postgresql.postgresql                               42.7.7 -> 42.7.13
-  - slick                                                   3.5.2 [Added]
-  - slick-pg                                                0.22.2 [Added]
-  - slick-pg_json4s                                         0.21.0 -> 0.22.2
-  - slick-hikaricp                                          3.4.1 -> 3.5.2
+  - scala                                              2.13.7 -> 2.13.8
+  - org.apache.pekko.pekko-http                         1.2.0 -> 1.4.0
+  - com.github.pjfanning.pekko-http-jackson             3.5.0 -> 3.12.0
+  - org.bouncycastle.bcprov-jdk18on                      1.81 -> 1.85.2
+  - com.github.swagger-akka-http.swagger-pekko-http    2.14.0 -> 2.15.0
+  - org.postgresql.postgresql                          42.7.7 -> 42.7.13
+  - slick                                               3.4.1 -> 3.5.2
+  - slick-pg                                           0.21.0 -> 0.22.2
+  - slick-pg_json4s                                    0.21.0 -> 0.22.2
+  - slick-hikaricp                                      3.4.1 -> 3.5.2
+  - swagger ui                                         5.27.0 -> 5.33.1
 - Update memory value for cryptography.argon2id-lite-workfactor since Argon2PasswordEncoder in spring framework failed with memory=0
 
 ## [2.154.0](https://github.com/open-horizon/exchange-api/pull/833) - 2025-11-14

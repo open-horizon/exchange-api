@@ -1,9 +1,9 @@
 ---
 copyright: Contributors to the Open Horizon project
-years: 2025
+years: 2025 - 2026
 title: Exchange API Server
 description: Quick start
-lastupdated: 2025-06-03
+lastupdated: 2026-10-06
 nav_order: 3
 parent: Management Hub
 layout: page
@@ -18,7 +18,7 @@ local development and debugging environment.
 
 ## Prerequisites
 
-* OS: Ubuntu 24.04 LTS.
+* OS: Any officially supported versions of Ubuntu. For more information, see [System Requirements](../../docs/hub/requirements.md).
 
 ## Dependencies
 

@@ -58,8 +58,12 @@ lazy val root = (project in file("."))
       "org.apache.pekko"     %% "pekko-slf4j"        % pekkoVersion.value,
       "org.apache.pekko"     %% "pekko-protobuf-v3"  % pekkoVersion.value,
       "org.apache.pekko"     %% "pekko-stream"       % pekkoVersion.value,
+      "com.fasterxml.jackson.core" % "jackson-core" % "2.22.3",
+      "com.fasterxml.jackson.core" % "jackson-databind" % "2.22.3",
+      "com.fasterxml.jackson.core" % "jackson-annotations" % "2.22",
+      "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.22.3",
 
-      "org.springframework.security" % "spring-security-core" % "[7.0.0-M1,)",
+      "org.springframework.security" % "spring-security-core" % "[7.2.0-M2,)",
       "org.bouncycastle" % "bcprov-jdk18on" % "[1.85.2,)",
       
       //"org.pac4j" % "pac4j-oauth" % "6.1.2",

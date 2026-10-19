@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [2.156.0](https://github.com/open-horizon/exchange-api/pull/844) - 2026-10-19
+- Dependency Updates:
+  - com.fasterxml.jackson.core.jackson-core                      -> 2.22.3 [Added]
+  - com.fasterxml.jackson.core.jackson-databind                  -> 2.22.3 [Added]
+  - com.fasterxml.jackson.core.jackson-annotations               -> 2.22   [Added]
+  - com.fasterxml.jackson.core.jackson-module-scala              -> 2.22.3 [Added]
+  - org.springframework.security.spring-security-core   7.0.0-M1 -> 7.2.0-M2 [Added]
+
 ## [2.155.0](https://github.com/open-horizon/exchange-api/pull/842) - 2026-10-01
 - Dependency Updates:
   - scala                                              2.13.7 -> 2.13.8

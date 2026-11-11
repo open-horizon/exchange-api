@@ -3,8 +3,8 @@ copyright: Contributors to the Open Horizon project
 years: 2022 - 2026
 title: Developing with the Exchange API Server
 description: Open Horizon Exchange API Documentation
-lastupdated: 2026-10-15
-nav_order: 6
+lastupdated: 2026-11-11
+nav_order: 5
 parent: Installing the management hub only
 layout: page
 ---

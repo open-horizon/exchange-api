@@ -3,8 +3,8 @@ copyright: Contributors to the Open Horizon project
 years: 2025 - 2026
 title: Creating a local development environment
 description: Quick start
-lastupdated: 2026-10-22
-nav_order: 5
+lastupdated: 2026-11-11
+nav_order: 4
 parent: Installing the management hub only
 layout: page
 ---
